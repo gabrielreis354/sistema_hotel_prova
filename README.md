@@ -38,10 +38,9 @@ O sistema permitirá:
 | Framework             | Express        |
 | Linguagem             | TypeScript     |
 | Banco de Dados        | PostgreSQL     |
-| ORM                   | Prisma ORM     |
+| ORM                   | Sequelize ORM  |
 | Containerização       | Docker         |
 | Orquestração          | Docker Swarm   |
-| Desenvolvimento Local | Docker Compose |
 | Autenticação          | JWT            |
 | Criptografia          | bcrypt         |
 | Documentação          | Swagger        |
