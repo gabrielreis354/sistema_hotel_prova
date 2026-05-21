@@ -61,9 +61,11 @@ backend/
 ├── src/
 │   ├── routes/
 │   ├── controllers/
+│   ├── services/
 │   ├── models/
 │   ├── middlewares/
 │   ├── database/
+│   │   └── migrations/
 │   ├── utils/
 │   ├── app.ts
 │   └── server.ts
@@ -229,27 +231,44 @@ Reservation:
 
 # Regras de Negócio
 
-## Regra 1
+## Regra 1 — Sem conflito de reservas
 
-Não permitir reservas conflitantes no mesmo quarto.
+Não permitir reservas com datas sobrepostas no mesmo quarto.
 
----
-
-## Regra 2
-
-Check-in altera status do quarto.
-
----
-
-## Regra 3
-
-Check-out libera quarto.
+```
+criar reserva:
+  ├── quarto existe e está disponível?
+  ├── datas conflitam com outra reserva ativa?
+  ├── checkOutDate > checkInDate?
+  └── calcula totalAmount (nº diárias × pricePerNight da categoria)
+```
 
 ---
 
-## Regra 4
+## Regra 2 — Check-in
 
-Cancelamento libera disponibilidade.
+```
+  ├── reserva deve estar com status PENDING
+  └── altera status do quarto para OCCUPIED
+```
+
+---
+
+## Regra 3 — Check-out
+
+```
+  ├── reserva deve estar com status CHECKED_IN
+  └── altera status do quarto para AVAILABLE
+```
+
+---
+
+## Regra 4 — Cancelamento
+
+```
+  ├── não pode cancelar reservas CHECKED_IN ou CHECKED_OUT
+  └── altera status do quarto para AVAILABLE
+```
 
 ---
 
@@ -264,14 +283,25 @@ POST /auth/register
 
 ---
 
+## Room Categories
+
+```http
+GET    /room-categories
+POST   /room-categories
+PATCH  /room-categories/:id
+DELETE /room-categories/:id
+```
+
+---
+
 ## Rooms
 
 ```http
-GET /rooms
-POST /rooms
-PATCH /rooms/:id
+GET    /rooms
+GET    /rooms/available
+POST   /rooms
+PATCH  /rooms/:id
 DELETE /rooms/:id
-GET /rooms/available
 ```
 
 ---
@@ -309,12 +339,53 @@ PostgreSQL.
 
 ---
 
+# Diagrama de Entidades
+
+```txt
+┌──────────────────┐       ┌──────────────────────┐
+│  room_categories │       │        users          │
+├──────────────────┤       ├──────────────────────┤
+│ id (UUID) PK     │       │ id (UUID) PK          │
+│ name             │       │ name                  │
+│ capacity         │       │ email UNIQUE          │
+│ pricePerNight    │       │ password (bcrypt)     │
+│ created_at       │       │ role (ADMIN/RECEP.)   │
+│ updated_at       │       │ created_at            │
+└────────┬─────────┘       └──────────┬────────────┘
+         │ 1:N                        │ 1:N
+         ▼                            ▼
+┌──────────────────┐       ┌──────────────────────┐
+│      rooms       │       │     reservations      │
+├──────────────────┤       ├──────────────────────┤
+│ id (UUID) PK     │       │ id (UUID) PK          │
+│ number UNIQUE    │       │ guestId FK            │
+│ floor            │       │ roomId FK             │
+│ status           │       │ userId FK             │
+│ categoryId FK ───┘       │ checkInDate           │
+│ created_at       │◄──────┤ checkOutDate          │
+│ updated_at       │  1:N  │ totalAmount           │
+└──────────────────┘       │ status                │
+                           │ created_at            │
+┌──────────────────┐       │ updated_at            │
+│      guests      │       └──────────────────────┘
+├──────────────────┤               ▲
+│ id (UUID) PK     │               │ 1:N
+│ fullName         │───────────────┘
+│ cpf UNIQUE       │
+│ phone            │
+│ email UNIQUE     │
+│ created_at       │
+│ updated_at       │
+└──────────────────┘
+```
+
 # Relacionamentos
 
-Guest 1:N Reservation
-Room 1:N Reservation
-RoomCategory 1:N Room
-User 1:N Reservation
+```txt
+Guest         1:N  Reservation
+Room          1:N  Reservation
+RoomCategory  1:N  Room
+User          1:N  Reservation
 ```
 
 ---
@@ -337,47 +408,100 @@ O projeto busca demonstrar:
 
 # Roadmap Resumido
 
-## Fase 1
+## Fase 1 — Setup e Infra
 
-* setup Docker;
-* PostgreSQL;
-* Express.
-
----
-
-## Fase 2
-
-* Sequelize ORM;
-* autenticação JWT.
+* setup Express + TypeScript;
+* Docker Compose funcionando;
+* PostgreSQL conectado via Sequelize;
+* migrations criando as 5 tabelas;
+* variáveis de ambiente (.env).
 
 ---
 
-## Fase 3
+## Fase 2 — Autenticação
 
-* CRUD hóspedes;
-* CRUD quartos.
-
----
-
-## Fase 4
-
-* reservas;
-* regras de negócio.
+* registro de usuário com bcrypt;
+* login com JWT;
+* middleware de proteção de rotas;
+* controle de roles (ADMIN, RECEPTIONIST).
 
 ---
 
-## Fase 5
+## Fase 3 — Quartos e Categorias
 
-* Swagger;
-* testes;
-* documentação.
+* CRUD de categorias de quarto;
+* CRUD de quartos;
+* listagem de quartos disponíveis;
+* controle de status.
 
 ---
 
-## Fase 6
+## Fase 4 — Hóspedes
 
-* Docker Swarm;
-* Kubernetes (complementar).
+* CRUD de hóspedes;
+* validação de CPF e email únicos.
+
+---
+
+## Fase 5 — Reservas (módulo principal)
+
+* criar reserva com validação de conflito;
+* cálculo automático do totalAmount;
+* check-in e check-out;
+* cancelamento com liberação de quarto.
+
+---
+
+## Fase 6 — Qualidade e Documentação
+
+* Swagger documentado;
+* seed de dados para demo;
+* README atualizado.
+
+---
+
+## Fase 7 — Infraestrutura Docker Swarm
+
+* Dockerfile do backend;
+* docker-stack.yml com 3 serviços;
+* Nginx como reverse proxy;
+* 3 réplicas do backend;
+* Kubernetes como demonstração complementar.
+
+---
+
+# Checklist de Implementação
+
+## Backend
+
+* [ ] Setup Express + TypeScript;
+* [ ] Conexão Sequelize + PostgreSQL;
+* [ ] Models: User, RoomCategory, Room, Guest, Reservation;
+* [ ] Migrations (criar tabelas);
+* [ ] Auth: register, login, JWT middleware;
+* [ ] CRUD Room Categories;
+* [ ] CRUD Rooms + listar disponíveis;
+* [ ] CRUD Guests;
+* [ ] Reservas: criar, listar, buscar;
+* [ ] Check-in / Check-out / Cancelar;
+* [ ] Regras de negócio (conflito, status, totalAmount);
+* [ ] Swagger documentado.
+
+## Banco de Dados
+
+* [ ] 5 tabelas criadas via migration;
+* [ ] Relacionamentos com FK;
+* [ ] Índices em email, cpf, status;
+* [ ] Seed de dados para demo.
+
+## Infraestrutura
+
+* [ ] Dockerfile do backend;
+* [ ] docker-compose.yml (local);
+* [ ] docker-stack.yml (Swarm);
+* [ ] nginx.conf (reverse proxy);
+* [ ] .env para variáveis de ambiente;
+* [ ] Swarm funcionando com 3 réplicas do backend.
 
 ---
 
