@@ -3,6 +3,7 @@
 
 -- 1) Extensões úteis
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; -- gera uuid_generate_v4()
+CREATE EXTENSION IF NOT EXISTS btree_gist; -- necessário para constraints de exclusão em datas
 
 -- 2) Tabela de hotéis (tenants)
 -- Cada registro representa um cliente SaaS (um hotel)
@@ -11,7 +12,8 @@ CREATE TABLE IF NOT EXISTS hotels (
   name TEXT NOT NULL,                              -- nome comercial
   legal_id TEXT,                                   -- documento fiscal (ex: CNPJ)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  UNIQUE (name)
 );
 
 -- 3) Usuários (funcionários por hotel)
@@ -37,7 +39,9 @@ CREATE TABLE IF NOT EXISTS room_categories (
   price_per_night NUMERIC(10,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  UNIQUE (hotel_id, name)
+  UNIQUE (hotel_id, name),
+  CHECK (capacity > 0),
+  CHECK (price_per_night >= 0)
 );
 
 -- 5) Quartos físicos
@@ -63,22 +67,30 @@ CREATE TABLE IF NOT EXISTS guests (
   email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  UNIQUE (hotel_id, cpf)
+  UNIQUE (hotel_id, cpf),
+  UNIQUE (hotel_id, email)
 );
 
 -- 7) Reservas
 CREATE TABLE IF NOT EXISTS reservations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-  guest_id UUID REFERENCES guests(id) ON DELETE SET NULL,
-  room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+  room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   check_in_date DATE NOT NULL,
   check_out_date DATE NOT NULL,
   status TEXT NOT NULL DEFAULT 'PENDING',
   total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  CHECK (check_out_date > check_in_date),
+  CHECK (total_amount >= 0),
+  CHECK (status IN ('PENDING','CONFIRMED','CHECKED_IN','CHECKED_OUT','CANCELLED')),
+  EXCLUDE USING gist (
+    room_id WITH =,
+    daterange(check_in_date, check_out_date, '[)') WITH &&
+  )
 );
 
 -- 8) Pagamentos (opcional)
@@ -88,7 +100,10 @@ CREATE TABLE IF NOT EXISTS payments (
   amount NUMERIC(12,2) NOT NULL,
   method TEXT NOT NULL, -- ex: 'CARD','CASH','TRANSFER'
   paid_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  CHECK (amount >= 0),
+  CHECK (method IN ('CARD','CASH','TRANSFER'))
 );
 
 -- 9) Índices úteis
@@ -112,5 +127,6 @@ CREATE TRIGGER trg_room_categories_updated_at BEFORE UPDATE ON room_categories F
 CREATE TRIGGER trg_rooms_updated_at BEFORE UPDATE ON rooms FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_guests_updated_at BEFORE UPDATE ON guests FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_reservations_updated_at BEFORE UPDATE ON reservations FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER trg_payments_updated_at BEFORE UPDATE ON payments FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
 -- Fim do script de criação do esquema do banco.

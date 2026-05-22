@@ -206,22 +206,29 @@ CREATE TABLE IF NOT EXISTS guests (
 	email TEXT,
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	UNIQUE (hotel_id, cpf) -- evita duplicidade por hotel quando informado
+	UNIQUE (hotel_id, cpf), -- evita duplicidade por hotel quando informado
+	UNIQUE (hotel_id, email)
 );
 
 -- Reservas
 CREATE TABLE IF NOT EXISTS reservations (
 	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 	hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-	guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE SET NULL,
-	room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
-	user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- quem registrou/atualizou
+	guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+	room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
+	user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT, -- quem registrou/atualizou
 	check_in_date DATE NOT NULL,
 	check_out_date DATE NOT NULL,
 	status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING','CONFIRMED','CHECKED_IN',... 
 	total_amount NUMERIC(12,2) NOT NULL DEFAULT 0, -- histórico de valor
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+	CHECK (check_out_date > check_in_date),
+	CHECK (status IN ('PENDING','CONFIRMED','CHECKED_IN','CHECKED_OUT','CANCELLED')),
+	EXCLUDE USING gist (
+		room_id WITH =,
+		daterange(check_in_date, check_out_date, '[)') WITH &&
+	)
 );
 
 -- Índices para consultas comuns
@@ -230,6 +237,8 @@ CREATE INDEX IF NOT EXISTS idx_rooms_hotel_status ON rooms (hotel_id, status);
 ```
 
 Cada trecho acima no script é acompanhado por comentários curtos explicando o propósito das colunas e constraints.
+
+> Observação: o esquema agora inclui validações adicionais de valores, unicidade de e-mail de hóspede por hotel, `updated_at` em pagamentos e um bloqueio de reservas sobrepostas por quarto usando `btree_gist`.
 
 ---
 
