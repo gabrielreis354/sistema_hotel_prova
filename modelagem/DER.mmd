@@ -1,0 +1,54 @@
+erDiagram
+  HOTELS ||--o{ USERS : "has"
+  HOTELS ||--o{ ROOM_CATEGORIES : "has"
+  HOTELS ||--o{ ROOMS : "has"
+  HOTELS ||--o{ GUESTS : "has"
+  HOTELS ||--o{ RESERVATIONS : "has"
+  RESERVATIONS }o--|| GUESTS : "made_by"
+  RESERVATIONS }o--|| ROOMS : "for_room"
+  RESERVATIONS }o--|| USERS : "created_by"
+  RESERVATIONS ||--o{ PAYMENTS : "has"
+
+  HOTELS {
+    UUID id PK
+    TEXT name
+  }
+  USERS {
+    UUID id PK
+    UUID hotel_id FK
+    TEXT name
+    TEXT email
+  }
+  ROOM_CATEGORIES {
+    UUID id PK
+    UUID hotel_id FK
+    TEXT name
+    NUMERIC price_per_night
+  }
+  ROOMS {
+    UUID id PK
+    UUID hotel_id FK
+    UUID category_id FK
+    TEXT number
+    TEXT status
+  }
+  GUESTS {
+    UUID id PK
+    UUID hotel_id FK
+    TEXT full_name
+    TEXT cpf
+  }
+  RESERVATIONS {
+    UUID id PK
+    UUID hotel_id FK
+    UUID guest_id FK
+    UUID room_id FK
+    DATE check_in_date
+    DATE check_out_date
+    NUMERIC total_amount
+  }
+  PAYMENTS {
+    UUID id PK
+    UUID reservation_id FK
+    NUMERIC amount
+  }

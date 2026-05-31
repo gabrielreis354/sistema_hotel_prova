@@ -456,7 +456,8 @@ O projeto busca demonstrar:
 
 * Swagger documentado;
 * seed de dados para demo;
-* README atualizado.
+* README atualizado;
+* relatório técnico atualizado em `docs/RELATORIO_Sirlande_DB_21MAIO/RELATORIO_Sirlande_DB_21MAIO.md`.
 
 ---
 
@@ -538,3 +539,46 @@ Entregar um backend:
 * utilizando Docker Swarm;
 * com banco PostgreSQL;
 * pronto para apresentação acadêmica.
+
+---
+
+# Como iniciar o projeto
+
+## Início rápido local
+
+1. No diretório raiz do projeto, torne o script executável e execute:
+
+```bash
+cd /home/sirlande/faculdade/TCC/sistema_hotel_prova
+chmod +x scripts/setup_db.sh
+bash scripts/setup_db.sh
+```
+
+2. O script irá:
+
+* criar o usuário `hotel_app` no PostgreSQL;
+* criar o banco `hotel_db`;
+* configurar privilégios e extensões;
+* executar `npm install` no backend;
+* rodar migrations e seeders.
+
+## Início manual alternativo
+
+1. Copie o arquivo de ambiente de exemplo:
+
+```bash
+cp backend/.env.local backend/.env
+```
+
+2. Ajuste os valores em `backend/.env`.
+
+3. No diretório `backend`:
+
+```bash
+cd backend
+npm install
+npm run migrate
+npm run seed
+```
+
+4. Inicie o backend conforme o comando de execução definido no projeto.
