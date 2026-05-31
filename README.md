@@ -1,540 +1,280 @@
-# Resumo do Projeto — Sistema de Gestão de Hotel
+# 🏨 Sistema de Gestão de Hotel
 
-## Objetivo do Projeto
+## Sobre o Projeto
 
-Desenvolver um sistema backend para gerenciamento de hotel/pousada com foco em:
+**Sistema backend** para gerenciar: hóspedes, quartos, reservas e autenticação.
 
-* APIs REST;
-* banco de dados relacional;
-* Docker;
-* Docker Swarm;
-* Kubernetes (demonstração complementar);
-* arquitetura backend;
-* infraestrutura moderna.
+### Stack
+- **Backend**: Node.js + Express + TypeScript
+- **Banco**: PostgreSQL
+- **Docker**: Containerização + Swarm para produção
+- **Autenticação**: JWT + bcrypt
 
-O projeto inicialmente NÃO terá frontend. O foco principal será backend + infraestrutura.
+### Caminho: **Opção A (Docker Swarm)**
 
 ---
 
-# Tema Escolhido
+## Arquitetura
 
-## Sistema de Gestão de Hotel/Pousada
+```
+┌──────────────────────────────────────┐
+│       Docker Swarm Cluster            │
+├──────────────────────────────────────┤
+│  Nginx (porta 80)                    │
+│    ↓                                  │
+│  Express App (3 réplicas)             │
+│    ↓                                  │
+│  PostgreSQL (rede privada)            │
+│    ↓                                  │
+│  Named Volume (pg_data)               │
+└──────────────────────────────────────┘
+```
 
-O sistema permitirá:
-
-* gerenciamento de hóspedes;
-* gerenciamento de quartos;
-* criação de reservas;
-* autenticação de usuários;
-* controle de disponibilidade dos quartos.
-
----
-
-# Stack Tecnológica
-
-| Área                  | Tecnologia     |
-| --------------------- | -------------- |
-| Backend               | Node.js        |
-| Framework             | Express        |
-| Linguagem             | TypeScript     |
-| Banco de Dados        | PostgreSQL     |
-| ORM                   | Sequelize ORM  |
-| Containerização       | Docker         |
-| Orquestração          | Docker Swarm   |
-| Autenticação          | JWT            |
-| Criptografia          | bcrypt         |
-| Documentação          | Swagger        |
+**3 Serviços**:
+1. `nginx` → Load Balancer (porta 80 exposta)
+2. `app` → 3 réplicas da API (porta 3000 interna)
+3. `db` → PostgreSQL (porta 5432 privada)
 
 ---
 
-# Arquitetura Escolhida
+## Instalação
 
-## Arquitetura Monolítica Modular Simples
+### Pré-requisitos
+```bash
+# Instalar Docker Desktop (inclui Compose)
+# Instalar Git
+# Instalar Node.js (opcional, apenas para dev local)
 
-O backend será organizado de forma simples para evitar complexidade excessiva.
+# Verificar instalação
+docker --version
+git --version
+docker-compose --version
+```
 
-Estrutura principal:
-
-```txt
-backend/
-│
-├── src/
-│   ├── routes/
-│   ├── controllers/
-│   ├── services/
-│   ├── models/
-│   ├── middlewares/
-│   ├── database/
-│   │   └── migrations/
-│   ├── utils/
-│   ├── app.ts
-│   └── server.ts
-│
-├── Dockerfile
-└── package.json
+### Iniciar Swarm (1x)
+```bash
+docker swarm init
+docker info | grep Swarm  # Deve mostrar: "Swarm: active"
 ```
 
 ---
 
-# Infraestrutura
+## Como Rodar
 
-## Desenvolvimento Local
-
-Será utilizado:
-
-* Docker Compose.
-
-Objetivo:
-
-* subir backend + PostgreSQL rapidamente.
-
----
-
-## Ambiente Principal
-
-Será utilizado:
-
-* Docker Swarm.
-
-Objetivo:
-
-* demonstrar orquestração;
-* replicas;
-* escalabilidade;
-* balanceamento de carga.
-
----
-
-## Kubernetes
-
-Será utilizado apenas como demonstração complementar acadêmica.
-
-Não será a infraestrutura principal do projeto.
-
----
-
-# Escopo do Backend
-
-## 1. Autenticação
-
-### Funcionalidades
-
-* login;
-* registro;
-* JWT;
-* proteção de rotas.
-
-### Entidade
-
-User:
-
-* id (UUID);
-* name;
-* email (Unique);
-* password;
-* role (ADMIN, RECEPTIONIST).
-
----
-
-# 2. Quartos
-
-### Funcionalidades
-
-* cadastrar categoria de quarto;
-* cadastrar quarto;
-* listar quartos;
-* atualizar quarto;
-* remover quarto;
-* listar quartos disponíveis.
-
-### Entidades
-
-RoomCategory (Nova):
-
-* id (UUID);
-* name;
-* capacity;
-* pricePerNight.
-
-Room:
-
-* id (UUID);
-* number (Unique);
-* floor;
-* status;
-* categoryId.
-
-### Status
-
-* AVAILABLE;
-* OCCUPIED;
-* MAINTENANCE;
-* CLEANING.
-
----
-
-# 3. Hóspedes
-
-### Funcionalidades
-
-* cadastrar hóspede;
-* listar hóspedes;
-* buscar hóspede;
-* atualizar hóspede;
-* remover hóspede.
-
-### Entidade
-
-Guest:
-
-* id (UUID);
-* fullName;
-* cpf (Unique);
-* phone;
-* email (Unique).
-
----
-
-# 4. Reservas (Módulo Principal)
-
-### Funcionalidades
-
-* criar reserva;
-* listar reservas;
-* buscar reserva;
-* cancelar reserva;
-* check-in;
-* check-out.
-
-### Entidade
-
-Reservation:
-
-* id (UUID);
-* guestId;
-* roomId;
-* userId;
-* checkInDate;
-* checkOutDate;
-* status;
-* totalAmount.
-
-### Status
-
-* PENDING;
-* CONFIRMED;
-* CHECKED_IN;
-* CHECKED_OUT;
-* CANCELLED.
-
----
-
-# Regras de Negócio
-
-## Regra 1 — Sem conflito de reservas
-
-Não permitir reservas com datas sobrepostas no mesmo quarto.
-
+### Passo 1: Configurar .env
+```bash
+cp .env.example .env
+nano .env  # Editar valores
 ```
-criar reserva:
-  ├── quarto existe e está disponível?
-  ├── datas conflitam com outra reserva ativa?
-  ├── checkOutDate > checkInDate?
-  └── calcula totalAmount (nº diárias × pricePerNight da categoria)
+
+**Variáveis principais**:
+```ini
+DB_HOST=db
+DB_PASSWORD=sua_senha_aqui
+JWT_SECRET=sua_chave_secreta
+NODE_ENV=production
+```
+
+### Passo 2: Build da Imagem
+```bash
+docker-compose build
+```
+
+### Passo 3: Deploy no Swarm
+```bash
+docker stack deploy -c docker-compose.yml hotel
+```
+
+### Passo 4: Aguardar Inicialização
+```bash
+# Esperar 20-30 segundos
+
+# Verificar status (todos em "Running")
+docker stack ps hotel
+```
+
+### Passo 5: Migrations (opcional)
+```bash
+docker exec $(docker ps -q -f name=hotel_app.1) npm run migrate
 ```
 
 ---
 
-## Regra 2 — Check-in
+## Validar Sistema
 
-```
-  ├── reserva deve estar com status PENDING
-  └── altera status do quarto para OCCUPIED
-```
+```bash
+# Health check
+curl http://localhost/api/health
 
----
+# Swagger (documentação)
+# Browser: http://localhost/api-docs
 
-## Regra 3 — Check-out
+# Status do stack
+docker stack ps hotel
 
-```
-  ├── reserva deve estar com status CHECKED_IN
-  └── altera status do quarto para AVAILABLE
-```
+# Logs da aplicação
+docker service logs hotel_app
 
----
-
-## Regra 4 — Cancelamento
-
-```
-  ├── não pode cancelar reservas CHECKED_IN ou CHECKED_OUT
-  └── altera status do quarto para AVAILABLE
+# Logs do banco
+docker service logs hotel_db
 ```
 
 ---
 
-# Endpoints Principais
+## Teste Completo
 
-## Auth
+```bash
+# 1. Registrar usuário
+curl -X POST http://localhost/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"João","email":"joao@hotel.com","password":"123456"}'
 
-```http
-POST /auth/login
-POST /auth/register
+# 2. Fazer login (copiar token retornado)
+TOKEN=$(curl -s -X POST http://localhost/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"joao@hotel.com","password":"123456"}' | jq -r '.token')
+
+# 3. Listar usuários (com autenticação)
+curl -X GET http://localhost/api/users \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
 
-## Room Categories
+## Teste de Persistência
 
-```http
-GET    /room-categories
-POST   /room-categories
-PATCH  /room-categories/:id
-DELETE /room-categories/:id
+```bash
+# 1. Criar um dado no banco
+curl -X POST http://localhost/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Maria","email":"maria@hotel.com","password":"123456"}'
+
+# 2. Verificar que está lá
+curl http://localhost/api/users | grep Maria
+
+# 3. Matar container do banco (simula falha)
+docker kill $(docker ps -q -f name=hotel_db.1)
+
+# 4. Docker reinicia automaticamente (aguarde 5 seg)
+sleep 5
+
+# 5. Verificar que dados ainda existem
+curl http://localhost/api/users | grep Maria
+# ✅ DADOS PERSISTIRAM!
 ```
 
 ---
 
-## Rooms
+## Teste de Segurança
 
-```http
-GET    /rooms
-GET    /rooms/available
-POST   /rooms
-PATCH  /rooms/:id
-DELETE /rooms/:id
+```bash
+# Banco NÃO deve ser acessível diretamente
+curl localhost:5432
+# Esperado: Conexão recusada ✅
+
+# API deve ser acessível via Nginx
+curl http://localhost/api/health
+# Esperado: {"status":"ok"} ✅
+
+# Verificar que app roda como usuário "node" (não root)
+docker exec $(docker ps -q -f name=hotel_app.1) whoami
+# Esperado: node ✅
 ```
 
 ---
 
-## Guests
+## Troubleshooting
 
-```http
-GET /guests
-GET /guests/:id
-POST /guests
-PUT /guests/:id
-DELETE /guests/:id
+### PostgreSQL não inicia
+```bash
+# Ver logs
+docker service logs hotel_db | tail -50
+
+# Solução: deletar volume danificado
+docker stack rm hotel
+docker volume rm pg_data
+docker stack deploy -c docker-compose.yml hotel
+```
+
+### App não conecta ao banco
+```bash
+# Testar DNS
+docker exec $(docker ps -q -f name=hotel_app.1) nslookup db
+
+# Ver credenciais
+docker exec $(docker ps -q -f name=hotel_app.1) env | grep DB_
+
+# Reiniciar app
+docker service update --force hotel_app
+```
+
+### Porta 80 em uso
+```bash
+# Encontrar processo
+sudo lsof -i :80
+
+# Parar serviço conflitante
+sudo systemctl stop nginx
+
+# Re-deploy
+docker stack deploy -c docker-compose.yml hotel
 ```
 
 ---
 
-## Reservations
+## Limpeza Completa
 
-```http
-POST /reservations
-GET /reservations
-GET /reservations/:id
-PATCH /reservations/:id/cancel
-PATCH /reservations/:id/check-in
-PATCH /reservations/:id/check-out
+```bash
+# Remover tudo (containers + volumes + dados)
+docker stack rm hotel
+docker volume rm pg_data
+docker image rm sistema-hotel-prova_app
+
+# Verificar limpeza
+docker stack ls        # vazio
+docker volume ls       # pg_data gone
+docker image ls | grep hotel  # vazio
 ```
 
 ---
 
-# Banco de Dados
+## Arquivos Necessários
 
-## Banco Escolhido
+Você precisa criar:
 
-PostgreSQL.
-
----
-
-# Diagrama de Entidades
-
-```txt
-┌──────────────────┐       ┌──────────────────────┐
-│  room_categories │       │        users          │
-├──────────────────┤       ├──────────────────────┤
-│ id (UUID) PK     │       │ id (UUID) PK          │
-│ name             │       │ name                  │
-│ capacity         │       │ email UNIQUE          │
-│ pricePerNight    │       │ password (bcrypt)     │
-│ created_at       │       │ role (ADMIN/RECEP.)   │
-│ updated_at       │       │ created_at            │
-└────────┬─────────┘       └──────────┬────────────┘
-         │ 1:N                        │ 1:N
-         ▼                            ▼
-┌──────────────────┐       ┌──────────────────────┐
-│      rooms       │       │     reservations      │
-├──────────────────┤       ├──────────────────────┤
-│ id (UUID) PK     │       │ id (UUID) PK          │
-│ number UNIQUE    │       │ guestId FK            │
-│ floor            │       │ roomId FK             │
-│ status           │       │ userId FK             │
-│ categoryId FK ───┘       │ checkInDate           │
-│ created_at       │◄──────┤ checkOutDate          │
-│ updated_at       │  1:N  │ totalAmount           │
-└──────────────────┘       │ status                │
-                           │ created_at            │
-┌──────────────────┐       │ updated_at            │
-│      guests      │       └──────────────────────┘
-├──────────────────┤               ▲
-│ id (UUID) PK     │               │ 1:N
-│ fullName         │───────────────┘
-│ cpf UNIQUE       │
-│ phone            │
-│ email UNIQUE     │
-│ created_at       │
-│ updated_at       │
-└──────────────────┘
-```
-
-# Relacionamentos
-
-```txt
-Guest         1:N  Reservation
-Room          1:N  Reservation
-RoomCategory  1:N  Room
-User          1:N  Reservation
-```
+1. **`backend/Dockerfile`** — Multi-stage build
+2. **`docker-compose.yml`** — 3 serviços (nginx, app, db)
+3. **`.env.example`** — Template (COMMITAR)
+4. **`.env`** — Valores reais (NÃO commitar)
+5. **`.dockerignore`** — Ignorar node_modules, logs, etc
+6. **Backend Node.js** — Express + TypeScript + Sequelize
 
 ---
 
-# Objetivos Acadêmicos
+## Checklist de Entrega
 
-O projeto busca demonstrar:
-
-* APIs REST;
-* modelagem relacional;
-* autenticação;
-* Docker;
-* Docker Swarm;
-* infraestrutura moderna;
-* backend com Node.js;
-* persistência de dados;
-* escalabilidade básica.
-
----
-
-# Roadmap Resumido
-
-## Fase 1 — Setup e Infra
-
-* setup Express + TypeScript;
-* Docker Compose funcionando;
-* PostgreSQL conectado via Sequelize;
-* migrations criando as 5 tabelas;
-* variáveis de ambiente (.env).
+- [ ] Dockerfile com multi-stage build
+- [ ] docker-compose.yml com 3 serviços
+- [ ] .env.example commitado (sem valores reais)
+- [ ] Backend rodando em Node.js + Express
+- [ ] `docker stack ps hotel` mostra 5 tasks em Running
+- [ ] `curl http://localhost/api/health` retorna 200
+- [ ] Dados persistem após kill do container
+- [ ] DB não acessível externamente (segurança)
+- [ ] README.md com instruções completas ✅
+- [ ] Vídeo narrado mostrando sistema rodando
 
 ---
 
-## Fase 2 — Autenticação
+## Referências
 
-* registro de usuário com bcrypt;
-* login com JWT;
-* middleware de proteção de rotas;
-* controle de roles (ADMIN, RECEPTIONIST).
-
----
-
-## Fase 3 — Quartos e Categorias
-
-* CRUD de categorias de quarto;
-* CRUD de quartos;
-* listagem de quartos disponíveis;
-* controle de status.
+- [Docker Docs](https://docs.docker.com)
+- [Docker Swarm](https://docs.docker.com/engine/swarm)
+- [Express.js](https://expressjs.com)
+- [PostgreSQL Docker](https://hub.docker.com/_/postgres)
+- [Sequelize ORM](https://sequelize.org)
 
 ---
 
-## Fase 4 — Hóspedes
-
-* CRUD de hóspedes;
-* validação de CPF e email únicos.
-
----
-
-## Fase 5 — Reservas (módulo principal)
-
-* criar reserva com validação de conflito;
-* cálculo automático do totalAmount;
-* check-in e check-out;
-* cancelamento com liberação de quarto.
-
----
-
-## Fase 6 — Qualidade e Documentação
-
-* Swagger documentado;
-* seed de dados para demo;
-* README atualizado.
-
----
-
-## Fase 7 — Infraestrutura Docker Swarm
-
-* Dockerfile do backend;
-* docker-stack.yml com 3 serviços;
-* Nginx como reverse proxy;
-* 3 réplicas do backend;
-* Kubernetes como demonstração complementar.
-
----
-
-# Checklist de Implementação
-
-## Backend
-
-* [ ] Setup Express + TypeScript;
-* [ ] Conexão Sequelize + PostgreSQL;
-* [ ] Models: User, RoomCategory, Room, Guest, Reservation;
-* [ ] Migrations (criar tabelas);
-* [ ] Auth: register, login, JWT middleware;
-* [ ] CRUD Room Categories;
-* [ ] CRUD Rooms + listar disponíveis;
-* [ ] CRUD Guests;
-* [ ] Reservas: criar, listar, buscar;
-* [ ] Check-in / Check-out / Cancelar;
-* [ ] Regras de negócio (conflito, status, totalAmount);
-* [ ] Swagger documentado.
-
-## Banco de Dados
-
-* [ ] 5 tabelas criadas via migration;
-* [ ] Relacionamentos com FK;
-* [ ] Índices em email, cpf, status;
-* [ ] Seed de dados para demo.
-
-## Infraestrutura
-
-* [ ] Dockerfile do backend;
-* [ ] docker-compose.yml (local);
-* [ ] docker-stack.yml (Swarm);
-* [ ] nginx.conf (reverse proxy);
-* [ ] .env para variáveis de ambiente;
-* [ ] Swarm funcionando com 3 réplicas do backend.
-
----
-
-# Decisão Arquitetural Final
-
-## Compose
-
-Apenas desenvolvimento local.
-
----
-
-## Swarm
-
-Infraestrutura principal do projeto.
-
----
-
-## Kubernetes
-
-Somente demonstração complementar.
-
----
-
-# Objetivo Final
-
-Entregar um backend:
-
-* funcional;
-* dockerizado;
-* organizado;
-* escalável;
-* bem modelado;
-* com autenticação;
-* utilizando Docker Swarm;
-* com banco PostgreSQL;
-* pronto para apresentação acadêmica.
+**Última atualização**: 30 de Maio de 2025  
+**Status**: ✅ Pronto para Desenvolvimento
