@@ -15,6 +15,7 @@
 5. [KISS - Keep It Simple, Stupid](#kiss---keep-it-simple-stupid)
 6. [Git/GitHub Workflow](#gitgithub-workflow)
 7. [Checklist de Qualidade](#checklist-de-qualidade)
+8. [Relatório de Sessão](#relatório-de-sessão)
 
 ---
 
@@ -1086,6 +1087,81 @@ Settings → Branches → Branch protection rules
 
 ---
 
+## 📝 Relatório de Sessão
+
+### Quando criar
+
+Um relatório de sessão **deve ser criado** em dois momentos:
+
+1. **Ao final de uma sessão de trabalho** — sempre que o dev encerrar o dia ou trocar de contexto
+2. **Após uma entrega importante** — após um commit ou PR que encerra uma feature/fix significativa
+
+> O objetivo é garantir rastreabilidade entre múltiplos devs (humanos e IAs) sem depender de memória ou comunicação verbal.
+
+### Localização e nomenclatura
+
+```
+docs/historico_sessao/YYYY-MM-DD_<nome>.md
+```
+
+Exemplos:
+- `docs/historico_sessao/2026-05-21_gabriel.md`
+- `docs/historico_sessao/2026-05-22_sirlande.md`
+- `docs/historico_sessao/2026-05-22_gabriel_hotfix.md` ← sufixo opcional para entregas avulsas
+
+> Se dois devs trabalharem no mesmo dia, cada um cria seu próprio arquivo.
+
+### Template obrigatório
+
+```markdown
+### YYYY-MM-DD — <Nome do Dev>
+
+- **Branch:** `<branch trabalhada>`
+- **Horário:** <início ~ fim estimado>
+- **Objetivo da sessão:** <resumo em 1 linha>
+
+#### O que foi feito
+
+<lista ou tabela das entregas>
+
+#### Commits gerados
+
+| Hash | Mensagem |
+|------|----------|
+| `abc1234` | `tipo(escopo): descrição` |
+
+#### Pendências
+
+| # | Pendência | Prioridade | Observação |
+|---|-----------|-----------|------------|
+| 1 | Descrição | 🔴 Alta / 🟡 Média / 🟢 Baixa | Dica para quem pegar |
+```
+
+### Prioridades de pendência
+
+| Símbolo | Nível | Critério |
+|---------|-------|----------|
+| 🔴 | Alta | Bloqueia outras features ou o servidor não sobe sem isso |
+| 🟡 | Média | Necessário para a entrega, mas não bloqueia desenvolvimento atual |
+| 🟢 | Baixa | Melhoria, refatoração ou documentação opcional |
+
+### Regras
+
+- O arquivo deve ser commitado na **mesma sessão** que gerou as mudanças
+- Mensagem de commit padrão: `docs(historico): add session report YYYY-MM-DD (<nome>)`
+- **Não editar** relatórios passados — se houver correção, crie uma entrada nova
+- O campo **Pendências** é obrigatório: se não houver nada pendente, escreva explicitamente `Nenhuma pendência`
+- Ao iniciar uma nova sessão, **leia o último relatório** antes de começar a codar
+
+### Checklist antes de fechar o relatório
+
+- [ ] Todos os commits da sessão estão listados com hash correto
+- [ ] Pendências estão descritas com contexto suficiente para outro dev seguir
+- [ ] Arquivo commitado com mensagem convencional
+- [ ] Branch com push feito (ou pendência registrada)
+
+---
+
 ## 🤖 Para IAs Lendo Este Documento
 
 Quando gerar código para este projeto:
@@ -1116,5 +1192,5 @@ Quando em dúvida, **sempre pergunte ao desenvolvedor humano** em vez de adivinh
 ---
 
 **Última atualização**: Maio 2026
-**Versão**: 1.0
+**Versão**: 1.1
 **Status**: ✅ Documentação Oficial do Projeto

@@ -1,54 +1,65 @@
 erDiagram
-  HOTELS ||--o{ USERS : "has"
-  HOTELS ||--o{ ROOM_CATEGORIES : "has"
-  HOTELS ||--o{ ROOMS : "has"
-  HOTELS ||--o{ GUESTS : "has"
-  HOTELS ||--o{ RESERVATIONS : "has"
+  TENANTS ||--o{ USERS : "has"
+  TENANTS ||--o{ ROOM_CATEGORIES : "has"
+  TENANTS ||--o{ ROOMS : "has"
+  TENANTS ||--o{ GUESTS : "has"
+  TENANTS ||--o{ RESERVATIONS : "has"
+  TENANTS ||--o{ PAYMENTS : "has"
   RESERVATIONS }o--|| GUESTS : "made_by"
   RESERVATIONS }o--|| ROOMS : "for_room"
   RESERVATIONS }o--|| USERS : "created_by"
   RESERVATIONS ||--o{ PAYMENTS : "has"
 
-  HOTELS {
+  TENANTS {
     UUID id PK
     TEXT name
+    TEXT subdomain
+    TEXT legal_id
+    TEXT status
   }
   USERS {
     UUID id PK
-    UUID hotel_id FK
+    UUID tenant_id FK
     TEXT name
     TEXT email
+    TIMESTAMP deleted_at
   }
   ROOM_CATEGORIES {
     UUID id PK
-    UUID hotel_id FK
+    UUID tenant_id FK
     TEXT name
     NUMERIC price_per_night
+    TIMESTAMP deleted_at
   }
   ROOMS {
     UUID id PK
-    UUID hotel_id FK
+    UUID tenant_id FK
     UUID category_id FK
     TEXT number
     TEXT status
+    TIMESTAMP deleted_at
   }
   GUESTS {
     UUID id PK
-    UUID hotel_id FK
+    UUID tenant_id FK
     TEXT full_name
     TEXT cpf
+    TIMESTAMP deleted_at
   }
   RESERVATIONS {
     UUID id PK
-    UUID hotel_id FK
+    UUID tenant_id FK
     UUID guest_id FK
     UUID room_id FK
     DATE check_in_date
     DATE check_out_date
     NUMERIC total_amount
+    TIMESTAMP deleted_at
   }
   PAYMENTS {
     UUID id PK
+    UUID tenant_id FK
     UUID reservation_id FK
+    TEXT method
     NUMERIC amount
   }
