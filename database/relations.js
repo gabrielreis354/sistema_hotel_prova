@@ -4,6 +4,7 @@ import RoomCategoryModel from "../app/Models/RoomCategoryModel.js";
 import RoomModel from "../app/Models/RoomModel.js";
 import GuestModel from "../app/Models/GuestModel.js";
 import ReservationModel from "../app/Models/ReservationModel.js";
+import ReservationRoomModel from "../app/Models/ReservationRoomModel.js";
 import PaymentModel from "../app/Models/PaymentModel.js";
 
 export default function initRelations() {
@@ -43,4 +44,21 @@ export default function initRelations() {
     // 4) Relacionamentos de Pagamentos
     ReservationModel.hasMany(PaymentModel, { foreignKey: "reservation_id", as: "payments" });
     PaymentModel.belongsTo(ReservationModel, { foreignKey: "reservation_id", as: "reservation" });
+
+    // 5) Relação N:N — Reserva <-> Quarto (Tabela Pivô: reservation_rooms)
+    ReservationModel.belongsToMany(RoomModel, {
+        through: ReservationRoomModel,
+        foreignKey: 'reservation_id',
+        otherKey: 'room_id',
+        as: 'rooms'
+    });
+    RoomModel.belongsToMany(ReservationModel, {
+        through: ReservationRoomModel,
+        foreignKey: 'room_id',
+        otherKey: 'reservation_id',
+        as: 'reservations_pivot'
+    });
+    ReservationModel.hasMany(ReservationRoomModel, { foreignKey: 'reservation_id', as: 'reservation_rooms' });
+    ReservationRoomModel.belongsTo(ReservationModel, { foreignKey: 'reservation_id', as: 'reservation' });
+    ReservationRoomModel.belongsTo(RoomModel, { foreignKey: 'room_id', as: 'room' });
 }

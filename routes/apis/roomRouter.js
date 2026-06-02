@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import authMiddleware   from '../../middlewares/auth.middleware.js';
-import tenantMiddleware from '../../middlewares/tenant.middleware.js';
-import { requireRole }  from '../../middlewares/role.middleware.js';
+import authMiddleware  from '../../middlewares/auth.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
 import ListRoomController   from '../../app/Controllers/RoomApi/ListRoomController.js';
 import GetRoomController    from '../../app/Controllers/RoomApi/GetRoomController.js';
 import CreateRoomController from '../../app/Controllers/RoomApi/CreateRoomController.js';
@@ -11,11 +10,11 @@ import DeleteRoomController from '../../app/Controllers/RoomApi/DeleteRoomContro
 export default (() => {
     const router = Router();
 
-    router.get('/',      authMiddleware, tenantMiddleware, ListRoomController);
-    router.get('/:id',   authMiddleware, tenantMiddleware, GetRoomController);
-    router.post('/',     authMiddleware, tenantMiddleware, requireRole('ADMIN'), CreateRoomController);
-    router.put('/:id',   authMiddleware, tenantMiddleware, requireRole('ADMIN'), UpdateRoomController);
-    router.delete('/:id', authMiddleware, tenantMiddleware, requireRole('ADMIN'), DeleteRoomController);
+    router.get('/',       authMiddleware, ListRoomController);
+    router.get('/:id',    authMiddleware, GetRoomController);
+    router.post('/',      authMiddleware, requireRole('ADMIN'), CreateRoomController);
+    router.put('/:id',    authMiddleware, requireRole('ADMIN'), UpdateRoomController);
+    router.delete('/:id', authMiddleware, requireRole('ADMIN'), DeleteRoomController);
 
     return router;
 })();
