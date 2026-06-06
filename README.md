@@ -1,280 +1,194 @@
-# 🏨 Sistema de Gestão de Hotel
+# Sistema de Gestão de Hotel — Backend API
 
-## Sobre o Projeto
-
-**Sistema backend** para gerenciar: hóspedes, quartos, reservas e autenticação.
-
-### Stack
-- **Backend**: Node.js + Express + TypeScript
-- **Banco**: PostgreSQL
-- **Docker**: Containerização + Swarm para produção
-- **Autenticação**: JWT + bcrypt
-
-### Caminho: **Opção A (Docker Swarm)**
+API REST multi-tenant para gerenciamento hoteleiro, desenvolvida em Node.js (ESModules) com Express, Sequelize (PostgreSQL) e autenticação JWT. Containerizada com Docker (Nginx + Node.js + PostgreSQL).
 
 ---
 
-## Arquitetura
+## Entidades e Relacionamentos
+
+| Tabela              | Descrição                                          |
+|---------------------|----------------------------------------------------|
+| `tenants`           | Hotel (cliente SaaS). Raiz de todo o sistema.      |
+| `users`             | Usuários do hotel (ADMIN ou RECEPTIONIST)          |
+| `room_categories`   | Categorias de quartos (Standard, Luxo, etc.)       |
+| `rooms`             | Quartos físicos do hotel                           |
+| `guests`            | Hóspedes cadastrados                               |
+| `reservations`      | Reservas feitas por hóspedes                       |
+| `reservation_rooms` | **Tabela pivô** — relação N:N entre reservas e quartos |
+| `payments`          | Pagamentos vinculados a reservas                   |
+
+### Relacionamentos
 
 ```
-┌──────────────────────────────────────┐
-│       Docker Swarm Cluster            │
-├──────────────────────────────────────┤
-│  Nginx (porta 80)                    │
-│    ↓                                  │
-│  Express App (3 réplicas)             │
-│    ↓                                  │
-│  PostgreSQL (rede privada)            │
-│    ↓                                  │
-│  Named Volume (pg_data)               │
-└──────────────────────────────────────┘
+Tenant 1:N Users
+Tenant 1:N RoomCategories
+Tenant 1:N Rooms
+RoomCategory 1:N Rooms
+Tenant 1:N Guests
+Tenant 1:N Reservations
+Guest 1:N Reservations
+Room 1:N Reservations (quarto principal)
+User 1:N Reservations (responsável)
+Reservation N:N Rooms  ← via tabela pivô reservation_rooms
+Reservation 1:N Payments
 ```
 
-**3 Serviços**:
-1. `nginx` → Load Balancer (porta 80 exposta)
-2. `app` → 3 réplicas da API (porta 3000 interna)
-3. `db` → PostgreSQL (porta 5432 privada)
+### Relação N:N
+
+A entidade **Reservation** possui relação muitos-para-muitos com **Room**, gerenciada pela **tabela pivô `reservation_rooms`**. Uma reserva pode contemplar múltiplos quartos, e o mesmo quarto pode aparecer em diversas reservas (em períodos distintos).
 
 ---
 
-## Instalação
+## CRUDs Disponíveis
+
+| Recurso           | Rotas                                                 |
+|-------------------|-------------------------------------------------------|
+| Auth              | `POST /auth/register` · `POST /auth/login`            |
+| Usuários          | `GET/POST /users` · `GET/PUT/DELETE /users/:id`       |
+| Categorias        | `GET/POST /room-categories` · `GET/PUT/DELETE /room-categories/:id` |
+| Quartos           | `GET/POST /rooms` · `GET/PUT/DELETE /rooms/:id`       |
+| Hóspedes          | `GET/POST /guests` · `GET/PUT/DELETE /guests/:id`     |
+| Reservas          | `GET/POST /reservations` · `GET/PUT/DELETE /reservations/:id` |
+| Check-in/out      | `PUT /reservations/:id/check-in` · `PUT /reservations/:id/check-out` |
+| Quartos na Reserva (pivô) | `POST /reservations/:id/rooms` · `DELETE /reservations/:id/rooms/:roomId` |
+
+---
+
+## Autenticação JWT
+
+Todas as rotas (exceto `/auth/login` e `/auth/register`) exigem o header:
+
+```
+Authorization: Bearer <token>
+```
+
+O token é gerado no login com duração de **8 horas** e carrega o payload:
+
+```json
+{ "userId": "uuid", "role": "ADMIN|RECEPTIONIST", "tenantId": "uuid" }
+```
+
+O middleware `authMiddleware` valida o token em cada requisição e injeta `request.user` com os dados do usuário autenticado. Rotas de exclusão exigem `role: ADMIN`.
+
+---
+
+## Containers Docker
+
+| Serviço    | Imagem            | Porta externa | Rede interna |
+|------------|-------------------|---------------|--------------|
+| `postgres` | postgres:17       | nenhuma       | `hotel_network` |
+| `node_web` | (build local)     | nenhuma       | `hotel_network` |
+| `nginx`    | nginx:1.27-alpine | **80:80**     | `hotel_network` |
+
+Fluxo de rede:
+```
+Cliente → Nginx (porta 80) → node_web:3000 → postgres:5432
+```
+
+O container `node_web` **não expõe portas ao host**, acessível apenas via Nginx.
+
+---
+
+## Bibliotecas Utilizadas
+
+| Biblioteca         | Finalidade                                |
+|--------------------|-------------------------------------------|
+| `express`          | Framework HTTP                            |
+| `sequelize`        | ORM para PostgreSQL                       |
+| `pg` / `pg-hstore` | Driver PostgreSQL                         |
+| `jsonwebtoken`     | Geração e validação de tokens JWT         |
+| `bcryptjs`         | Hash de senhas (10 rounds)                |
+| `dotenv`           | Variáveis de ambiente via `.env`          |
+| `swagger-ui-express` | Interface visual da documentação Swagger |
+| `swagger-jsdoc`    | Geração da spec OpenAPI 3.0               |
+
+---
+
+## Documentação Swagger
+
+Disponível em: **`http://localhost/api-docs`**
+
+Contém todos os endpoints documentados com schemas, exemplos e autenticação JWT configurada.
+
+---
+
+## Como Executar
 
 ### Pré-requisitos
-```bash
-# Instalar Docker Desktop (inclui Compose)
-# Instalar Git
-# Instalar Node.js (opcional, apenas para dev local)
 
-# Verificar instalação
-docker --version
-git --version
-docker-compose --version
-```
+- Docker e Docker Compose instalados
 
-### Iniciar Swarm (1x)
-```bash
-docker swarm init
-docker info | grep Swarm  # Deve mostrar: "Swarm: active"
-```
+### 1. Configurar variáveis de ambiente
 
----
-
-## Como Rodar
-
-### Passo 1: Configurar .env
 ```bash
 cp .env.example .env
-nano .env  # Editar valores
+# Edite .env com suas configurações
 ```
 
-**Variáveis principais**:
+Variáveis necessárias:
+
 ```ini
-DB_HOST=db
-DB_PASSWORD=sua_senha_aqui
-JWT_SECRET=sua_chave_secreta
-NODE_ENV=production
+POSTGRES_DB=gestao_hotel
+POSTGRES_USER=hotel_user
+POSTGRES_PASSWORD=hotel_password
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+JWT_SECRET=seu_segredo_jwt_aqui
+NODE_WEB_PORT=3000
 ```
 
-### Passo 2: Build da Imagem
+### 2. Subir os containers
+
 ```bash
-docker-compose build
+docker compose up --build
 ```
 
-### Passo 3: Deploy no Swarm
+A API ficará disponível em `http://localhost`.
+
+### 3. Executar migrations
+
+Em outro terminal, com os containers rodando:
+
 ```bash
-docker stack deploy -c docker-compose.yml hotel
+docker compose exec node_web node command.js migrate
 ```
 
-### Passo 4: Aguardar Inicialização
-```bash
-# Esperar 20-30 segundos
+Ou, para desenvolvimento local (com Node.js instalado):
 
-# Verificar status (todos em "Running")
-docker stack ps hotel
+```bash
+node command.js migrate
 ```
 
-### Passo 5: Migrations (opcional)
+O comando `migrate` usa `sequelize.sync({ alter: true })` para criar/atualizar todas as tabelas automaticamente.
+
+---
+
+## Desenvolvimento Local (sem Docker)
+
 ```bash
-docker exec $(docker ps -q -f name=hotel_app.1) npm run migrate
+npm install
+node command.js migrate   # cria as tabelas
+node _web.js              # inicia o servidor
 ```
 
 ---
 
-## Validar Sistema
+## Estrutura do Projeto
 
-```bash
-# Health check
-curl http://localhost/api/health
-
-# Swagger (documentação)
-# Browser: http://localhost/api-docs
-
-# Status do stack
-docker stack ps hotel
-
-# Logs da aplicação
-docker service logs hotel_app
-
-# Logs do banco
-docker service logs hotel_db
 ```
-
----
-
-## Teste Completo
-
-```bash
-# 1. Registrar usuário
-curl -X POST http://localhost/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"João","email":"joao@hotel.com","password":"123456"}'
-
-# 2. Fazer login (copiar token retornado)
-TOKEN=$(curl -s -X POST http://localhost/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"joao@hotel.com","password":"123456"}' | jq -r '.token')
-
-# 3. Listar usuários (com autenticação)
-curl -X GET http://localhost/api/users \
-  -H "Authorization: Bearer $TOKEN"
+├── _web.js                  # Entrypoint do servidor Express
+├── command.js               # CLI: node command.js migrate
+├── Dockerfile               # Multi-stage build Node.js 24 Alpine
+├── docker-compose.yml       # 3 serviços: postgres, node_web, nginx
+├── docker/nginx/            # Configuração do Nginx reverse proxy
+├── config/swagger.js        # Spec OpenAPI 3.0
+├── app/
+│   ├── Controllers/         # Lógica de cada rota (CRUD + auth)
+│   └── Models/              # Modelos Sequelize (8 tabelas)
+├── bootstrap/app.js         # Inicialização dotenv + relações
+├── database/
+│   ├── connections/         # Singleton Sequelize
+│   └── relations.js         # Associações entre modelos
+├── middlewares/             # authMiddleware, requireRole
+└── routes/                  # Router principal + sub-routers
 ```
-
----
-
-## Teste de Persistência
-
-```bash
-# 1. Criar um dado no banco
-curl -X POST http://localhost/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Maria","email":"maria@hotel.com","password":"123456"}'
-
-# 2. Verificar que está lá
-curl http://localhost/api/users | grep Maria
-
-# 3. Matar container do banco (simula falha)
-docker kill $(docker ps -q -f name=hotel_db.1)
-
-# 4. Docker reinicia automaticamente (aguarde 5 seg)
-sleep 5
-
-# 5. Verificar que dados ainda existem
-curl http://localhost/api/users | grep Maria
-# ✅ DADOS PERSISTIRAM!
-```
-
----
-
-## Teste de Segurança
-
-```bash
-# Banco NÃO deve ser acessível diretamente
-curl localhost:5432
-# Esperado: Conexão recusada ✅
-
-# API deve ser acessível via Nginx
-curl http://localhost/api/health
-# Esperado: {"status":"ok"} ✅
-
-# Verificar que app roda como usuário "node" (não root)
-docker exec $(docker ps -q -f name=hotel_app.1) whoami
-# Esperado: node ✅
-```
-
----
-
-## Troubleshooting
-
-### PostgreSQL não inicia
-```bash
-# Ver logs
-docker service logs hotel_db | tail -50
-
-# Solução: deletar volume danificado
-docker stack rm hotel
-docker volume rm pg_data
-docker stack deploy -c docker-compose.yml hotel
-```
-
-### App não conecta ao banco
-```bash
-# Testar DNS
-docker exec $(docker ps -q -f name=hotel_app.1) nslookup db
-
-# Ver credenciais
-docker exec $(docker ps -q -f name=hotel_app.1) env | grep DB_
-
-# Reiniciar app
-docker service update --force hotel_app
-```
-
-### Porta 80 em uso
-```bash
-# Encontrar processo
-sudo lsof -i :80
-
-# Parar serviço conflitante
-sudo systemctl stop nginx
-
-# Re-deploy
-docker stack deploy -c docker-compose.yml hotel
-```
-
----
-
-## Limpeza Completa
-
-```bash
-# Remover tudo (containers + volumes + dados)
-docker stack rm hotel
-docker volume rm pg_data
-docker image rm sistema-hotel-prova_app
-
-# Verificar limpeza
-docker stack ls        # vazio
-docker volume ls       # pg_data gone
-docker image ls | grep hotel  # vazio
-```
-
----
-
-## Arquivos Necessários
-
-Você precisa criar:
-
-1. **`backend/Dockerfile`** — Multi-stage build
-2. **`docker-compose.yml`** — 3 serviços (nginx, app, db)
-3. **`.env.example`** — Template (COMMITAR)
-4. **`.env`** — Valores reais (NÃO commitar)
-5. **`.dockerignore`** — Ignorar node_modules, logs, etc
-6. **Backend Node.js** — Express + TypeScript + Sequelize
-
----
-
-## Checklist de Entrega
-
-- [ ] Dockerfile com multi-stage build
-- [ ] docker-compose.yml com 3 serviços
-- [ ] .env.example commitado (sem valores reais)
-- [ ] Backend rodando em Node.js + Express
-- [ ] `docker stack ps hotel` mostra 5 tasks em Running
-- [ ] `curl http://localhost/api/health` retorna 200
-- [ ] Dados persistem após kill do container
-- [ ] DB não acessível externamente (segurança)
-- [ ] README.md com instruções completas ✅
-- [ ] Vídeo narrado mostrando sistema rodando
-
----
-
-## Referências
-
-- [Docker Docs](https://docs.docker.com)
-- [Docker Swarm](https://docs.docker.com/engine/swarm)
-- [Express.js](https://expressjs.com)
-- [PostgreSQL Docker](https://hub.docker.com/_/postgres)
-- [Sequelize ORM](https://sequelize.org)
-
----
-
-**Última atualização**: 30 de Maio de 2025  
-**Status**: ✅ Pronto para Desenvolvimento

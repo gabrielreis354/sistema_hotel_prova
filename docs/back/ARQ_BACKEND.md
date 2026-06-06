@@ -1,512 +1,375 @@
-# Arquitetura do Backend
+# Arquitetura do Backend (JavaScript ESModules)
 
-## Stack
+## Stack Tecnológica
 
 | Tecnologia | Papel |
 |------------|-------|
-| Node.js + Express | Servidor HTTP |
-| TypeScript | Tipagem estática |
-| Sequelize | ORM + Migrations |
-| PostgreSQL | Banco de dados relacional |
-| JWT + bcrypt | Autenticação e hash de senha |
-| Swagger (swagger-jsdoc) | Documentação da API |
+| Node.js + Express | Servidor HTTP (API REST) |
+| JavaScript (ESModules) | Lógica e sintaxe moderna (`import`/`export`) |
+| Sequelize ORM | Integração com o Banco de Dados Relacional |
+| PostgreSQL | Banco de dados principal |
+| JWT + bcryptjs | Autenticação e criptografia de senhas |
+| Docker Compose | Infraestrutura de desenvolvimento local |
 
 ---
 
-## Estrutura de Pastas
+## Estrutura de Pastas (Padrão MVC Acadêmico)
+
+O backend vive na **raiz do repositório** — não existe uma subpasta `backend/`. Isso espelha diretamente o projeto de referência de sala de aula (`unifaat-2026-dw-project`), onde `_web.js`, `app/`, `routes/`, `database/` e `bootstrap/` ficam todos na raiz.
+
+> **Nota sobre o projeto de referência:** ele serve como guia de *padrões de código* (estrutura de pastas, estilo de controller, model com Sequelize, paginação). O domínio — entidades, regras de negócio, multi-tenant — é específico do CorePMS e não deve ser copiado do projeto de sala.
 
 ```
-src/
-├── config/
-│   └── index.ts                  ← todas as variáveis de ambiente tipadas
+sistema_gestao_hotel/           ← raiz do repositório
+├── app/
+│   ├── Controllers/             ← Single-Action Controllers (um por arquivo)
+│   │   ├── AuthApi/
+│   │   │   ├── LoginController.js
+│   │   │   └── RegisterController.js
+│   │   ├── TenantApi/
+│   │   │   └── RegisterTenantController.js
+│   │   ├── RoomApi/
+│   │   │   ├── CreateRoomController.js
+│   │   │   ├── ListRoomController.js
+│   │   │   ├── GetRoomController.js
+│   │   │   ├── UpdateRoomController.js
+│   │   │   └── DeleteRoomController.js
+│   │   ├── GuestApi/
+│   │   ├── ReservationApi/
+│   │   └── PaymentApi/
+│   └── Models/                  ← Definição dos Models do Sequelize (tabelas)
+│       ├── TenantModel.js
+│       ├── UserModel.js
+│       ├── RoomCategoryModel.js
+│       ├── RoomModel.js
+│       ├── GuestModel.js
+│       ├── ReservationModel.js
+│       └── PaymentModel.js
 │
 ├── database/
-│   ├── connection.ts             ← instância do Sequelize
-│   └── migrations/               ← arquivos de migration (um por alteração de schema)
+│   ├── connections/
+│   │   └── sequelize.js         ← Instância IIFE do Sequelize (singleton)
+│   └── relations.js             ← Configuração central de relacionamentos (FKs)
 │
-├── middlewares/
-│   ├── auth.middleware.ts        ← valida JWT, popula req.user
-│   ├── tenant.middleware.ts      ← injeta req.tenantId (demo: fixo / TCC: do JWT)
-│   └── error.middleware.ts       ← handler global de erros (AppError → resposta padronizada)
+├── routes/
+│   ├── apis/                    ← Roteadores por domínio (IIFE)
+│   │   ├── authRouter.js
+│   │   ├── userRouter.js
+│   │   ├── roomRouter.js
+│   │   ├── guestRouter.js
+│   │   └── reservationRouter.js
+│   └── router.js                ← Roteador principal (aplica express.json() aqui)
 │
-├── modules/
-│   ├── auth/
-│   │   ├── auth.controller.ts
-│   │   ├── auth.service.ts
-│   │   └── auth.routes.ts
-│   │
-│   ├── rooms/
-│   │   ├── room.controller.ts
-│   │   ├── room.service.ts
-│   │   ├── room.repository.ts
-│   │   ├── room.model.ts
-│   │   └── room.routes.ts
-│   │
-│   ├── room-categories/
-│   │   ├── room-category.controller.ts
-│   │   ├── room-category.service.ts
-│   │   ├── room-category.repository.ts
-│   │   ├── room-category.model.ts
-│   │   └── room-category.routes.ts
-│   │
-│   ├── guests/
-│   │   ├── guest.controller.ts
-│   │   ├── guest.service.ts
-│   │   ├── guest.repository.ts
-│   │   ├── guest.model.ts
-│   │   └── guest.routes.ts
-│   │
-│   └── reservations/
-│       ├── reservation.controller.ts
-│       ├── reservation.service.ts
-│       ├── reservation.repository.ts
-│       ├── reservation.model.ts
-│       └── reservation.routes.ts
+├── bootstrap/
+│   ├── app.js                   ← Inicializador (dotenv.config + initRelations)
+│   └── config.js                ← Constantes globais (ex: CONSTANTS.DIR)
 │
-├── types/
-│   └── express.d.ts              ← augmentação do tipo Request (tenantId, user)
+├── middlewares/                 ← Middlewares de Auth, Tenant e RBAC
+│   ├── auth.middleware.js
+│   ├── tenant.middleware.js
+│   └── role.middleware.js
 │
-├── utils/
-│   └── AppError.ts               ← classe de erro com statusCode e mensagem
+├── docs/                        ← Documentação do projeto
+├── db/                          ← Schema SQL de referência
+├── scripts/                     ← DDL executável (setup.sql)
+├── seed/                        ← Dados de desenvolvimento
+├── modelagem/                   ← DER e diagrama lógico
 │
-├── app.ts                        ← setup do Express (middlewares globais, rotas, swagger)
-└── server.ts                     ← entry point (listen na porta)
+├── _web.js                      ← Entrypoint do Express (listen na porta)
+├── package.json                 ← "type": "module" + dependências
+├── docker-compose.yml           ← PostgreSQL local (dev)
+├── .env                         ← Variáveis de ambiente (não commitado)
+└── .env.example                 ← Template de variáveis para novos devs
 ```
 
 ---
 
-## Padrão por Módulo
+## Padrões por Camada (Responsabilidades)
 
-Cada módulo segue a mesma separação de responsabilidades:
+### Controller — Single-Action
 
-```
-Controller  → recebe req, chama service, devolve res. Zero lógica de negócio.
-Service     → regras de negócio. Chama repository para persistência.
-Repository  → toda e qualquer query ao banco. Único ponto de contato com o ORM.
-Model       → definição Sequelize da tabela, tipos e associações.
-Routes      → monta o router Express com middlewares corretos por rota.
-```
+Cada controller é uma **função `async` exportada por padrão** (Single-Action Controller, um arquivo por operação). Responsabilidades:
 
----
+1. Extrair parâmetros de `request.body`, `request.params` ou `request.query`
+2. Validar campos obrigatórios (acumula erros em array)
+3. Chamar o Model para a consulta no banco
+4. Retornar resposta JSON com o status HTTP correto
 
-## Fundação Multi-Tenant
+```javascript
+// app/Controllers/RoomApi/CreateRoomController.js
+import RoomModel from "../../Models/RoomModel.js";
 
-O schema e os repositories são multi-tenant completos desde a demo. Na demo, a tabela `tenants` tem 1 registro seedado e o JWT sempre aponta para esse tenant. No TCC, o onboarding cria novos tenants e o JWT passa a carregar o tenant do hotel cadastrado. **O código de middleware e repositories não muda entre as fases.**
+export default async function CreateRoomController(request, response) {
+    try {
+        const { number, category_id } = request.body;
 
-```typescript
-// src/middlewares/tenant.middleware.ts
-// Funciona igual em Demo, TCC e Produto
-export const tenantMiddleware = (req: Request, _res: Response, next: NextFunction) => {
-  req.tenantId = req.user!.tenantId; // sempre vem do JWT
-  next();
-};
-```
+        const error = [];
+        if (!number)      error.push("number obrigatório!");
+        if (!category_id) error.push("category_id obrigatório!");
+        if (error.length > 0) return response.status(400).json({ error });
 
-Todos os repositories recebem `tenantId` como parâmetro desde o início:
+        const room = await RoomModel.create({
+            tenant_id:   request.tenantId, // injetado pelo tenant.middleware.js
+            number:      number,
+            category_id: category_id
+        });
 
-```typescript
-// Demo, TCC e Produto — mesmo código
-findAll(tenantId: string): Promise<Room[]> {
-  return Room.findAll({ where: { tenantId } });
-}
-
-findById(id: string, tenantId: string): Promise<Room | null> {
-  return Room.findOne({ where: { id, tenantId } });
+        return response.status(201).json(room);
+    } catch (error) {
+        console.error(error);
+        if (error.name === "SequelizeUniqueConstraintError") {
+            return response.status(409).json({ error: error.errors[0].message });
+        }
+        return response.status(500).json({ error: "Internal server error" });
+    }
 }
 ```
 
----
+**Padrão de atualização** — usa instância + `save()`, não `Model.update()`:
+```javascript
+const room = await RoomModel.findByPk(id);
+if (!room) return response.status(404).json({ error: "Room not found" });
 
-## Entidades
+room.status = status;
+await room.save();
 
-### Tenant
-
-| Campo | Tipo | Observações |
-|-------|------|-------------|
-| id | UUID | PK, gerado automaticamente |
-| name | string | nome do hotel ou pousada |
-| subdomain | string | único — usado no TCC para roteamento |
-| status | enum | ACTIVE, SUSPENDED |
-| createdAt | timestamp | automático |
-| updatedAt | timestamp | automático |
-
-> **Demo**: 1 registro seedado com UUID fixo. **TCC**: criado via `POST /tenants` no onboarding. Não usa soft delete — tenants são suspensos, nunca excluídos.
-
-### User
-
-| Campo | Tipo | Observações |
-|-------|------|-------------|
-| id | UUID | PK, gerado automaticamente |
-| tenantId | UUID | Fixo na demo |
-| name | string | |
-| email | string | único por tenant |
-| password | string | hash bcrypt, nunca exposto |
-| role | enum | ADMIN, RECEPTIONIST |
-| createdAt | timestamp | automático |
-| updatedAt | timestamp | automático |
-| deletedAt | timestamp | soft delete (paranoid) |
-
-### RoomCategory
-
-| Campo | Tipo | Observações |
-|-------|------|-------------|
-| id | UUID | PK |
-| tenantId | UUID | |
-| name | string | ex: Standard, Luxo, Suite |
-| description | string | |
-| pricePerNight | decimal | preço base da categoria |
-| createdAt | timestamp | |
-| updatedAt | timestamp | |
-| deletedAt | timestamp | soft delete |
-
-### Room
-
-| Campo | Tipo | Observações |
-|-------|------|-------------|
-| id | UUID | PK |
-| tenantId | UUID | |
-| categoryId | UUID | FK → RoomCategory |
-| number | string | ex: 101, 202 |
-| floor | integer | |
-| capacity | integer | |
-| status | enum | AVAILABLE, OCCUPIED, MAINTENANCE, CLEANING |
-| createdAt | timestamp | |
-| updatedAt | timestamp | |
-| deletedAt | timestamp | soft delete |
-
-### Guest
-
-| Campo | Tipo | Observações |
-|-------|------|-------------|
-| id | UUID | PK |
-| tenantId | UUID | |
-| fullName | string | |
-| cpf | string | único por tenant |
-| phone | string | |
-| email | string | |
-| createdAt | timestamp | |
-| updatedAt | timestamp | |
-| deletedAt | timestamp | soft delete |
-
-### Reservation
-
-| Campo | Tipo | Observações |
-|-------|------|-------------|
-| id | UUID | PK |
-| tenantId | UUID | |
-| guestId | UUID | FK → Guest |
-| roomId | UUID | FK → Room |
-| checkInDate | date | |
-| checkOutDate | date | |
-| totalAmount | decimal | calculado na criação, imutável após check-in |
-| status | enum | PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED |
-| createdAt | timestamp | |
-| updatedAt | timestamp | |
-| deletedAt | timestamp | soft delete |
-
----
-
-## Endpoints
-
-### Auth
-
-```http
-POST /auth/register
-POST /auth/login
+return response.json(room);
 ```
 
-JWT payload: `{ userId, role, tenantId }`
-
-### Room Categories
-
-```http
-GET    /room-categories
-POST   /room-categories
-PATCH  /room-categories/:id
-DELETE /room-categories/:id
-```
-
-### Rooms
-
-```http
-GET    /rooms
-POST   /rooms
-PATCH  /rooms/:id
-DELETE /rooms/:id
-GET    /rooms/available?checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD
-```
-
-### Guests
-
-```http
-GET    /guests
-GET    /guests/:id
-POST   /guests
-PUT    /guests/:id
-DELETE /guests/:id
-```
-
-### Reservations
-
-```http
-POST   /reservations
-GET    /reservations
-GET    /reservations/:id
-PATCH  /reservations/:id/cancel
-PATCH  /reservations/:id/check-in
-PATCH  /reservations/:id/check-out
+**Padrão de deleção** — soft delete via `destroy()` (Sequelize `paranoid: true` preenche `deleted_at`):
+```javascript
+await room.destroy(); // preenche deleted_at, não remove a linha
+return response.status(204).send();
 ```
 
 ---
 
-## Regras de Negócio
+### Controller — Listagem com Paginação
 
-### RN-01 — Conflito de reservas
+Endpoints de listagem seguem o padrão de paginação do projeto de referência — `page` e `limit` via query string, com campo `next` indicando a próxima página:
 
-Não é possível criar uma reserva se o quarto já possui uma reserva `CONFIRMED` ou `CHECKED_IN` com sobreposição de datas:
+```javascript
+// app/Controllers/RoomApi/ListRoomController.js
+export default async function ListRoomController(request, response) {
+    try {
+        const pageRequest  = Number(request.query.page)  || 1;
+        const limitRequest = Number(request.query.limit) || 10;
 
-```
-nova.checkIn  < existente.checkOut
-    E
-nova.checkOut > existente.checkIn
-```
+        const page   = (pageRequest < 1) ? 1 : pageRequest;
+        const limit  = (limitRequest > 20) ? 20 : ((limitRequest < 1) ? 10 : limitRequest);
+        const offset = (page - 1) * limit;
 
-### RN-02 — Check-in
+        let next = null;
 
-Pré-condição: status da reserva deve ser `CONFIRMED`.  
-Ao confirmar: status da reserva → `CHECKED_IN`, status do quarto → `OCCUPIED`.
+        const { rows, count: total } = await RoomModel.findAndCountAll({
+            where:    { tenant_id: request.tenantId },
+            order:    [["id", "ASC"]],
+            limit:    limit + 1,
+            offset:   offset,
+            distinct: true
+        });
 
-### RN-03 — Check-out
+        const rooms = rows;
+        if (rooms.length > limit) { next = page + 1; rooms.pop(); }
 
-Pré-condição: status da reserva deve ser `CHECKED_IN`.  
-Ao confirmar: status da reserva → `CHECKED_OUT`, status do quarto → `CLEANING`.
-
-### RN-04 — Cancelamento
-
-Pré-condição: status da reserva deve ser `CONFIRMED` ou `PENDING`.  
-Reservas com status `CHECKED_IN` não podem ser canceladas — devem passar pelo check-out.  
-Ao cancelar: status do quarto → `AVAILABLE`.
-
-### RN-05 — Cálculo do total
-
-```
-totalAmount = noites × pricePerNight da RoomCategory
-noites = diferença em dias entre checkOutDate e checkInDate
-```
-
-Calculado no momento da criação. Imutável após check-in.
-
----
-
-## Tipos Globais
-
-```typescript
-// src/types/express.d.ts
-declare namespace Express {
-  interface Request {
-    user?: {
-      userId: string;
-      role: 'ADMIN' | 'RECEPTIONIST';
-      tenantId: string;
-    };
-    tenantId: string;
-  }
+        return response.json({ page, limit, total, next, data: rooms });
+    } catch (error) {
+        console.error(error);
+        return response.status(500).json({ error: "Internal server error" });
+    }
 }
 ```
 
 ---
 
-## Formato Padrão de Resposta
+### Model — `sequelize.define()`
 
-```json
-// Sucesso
-{ "success": true, "data": { ... } }
+Cada model usa `sequelize.define()` com:
+- UUID como PK (diferença do projeto de referência que usa INTEGER — nosso projeto usa UUID por ser multi-tenant SaaS)
+- `references` para FKs (informa ao Sequelize a tabela/coluna referenciada)
+- `field` nos campos cujo nome JS (camelCase) difere do nome físico no banco (snake_case)
+- `timestamps: true` + `createdAt: 'created_at'` + `updatedAt: 'updated_at'` nos options da tabela
+- `paranoid: true` + `deletedAt: 'deleted_at'` nas tabelas com soft delete
 
-// Erro
-{ "success": false, "error": "mensagem legível para o cliente" }
+```javascript
+// app/Models/RoomModel.js
+import { DataTypes } from 'sequelize';
+import sequelize from '../../database/connections/sequelize.js';
 
-// Lista (futuro — paginação)
-{ "success": true, "data": [...], "meta": { "total": 100, "page": 1, "limit": 20 } }
+const RoomModel = sequelize.define(
+    'RoomModel',
+    {
+        id: {
+            type: DataTypes.UUID,
+            defaultValue: DataTypes.UUIDV4,
+            primaryKey: true
+        },
+        tenant_id: {
+            type: DataTypes.UUID,
+            allowNull: false,
+            references: { model: 'tenants', key: 'id' }
+        },
+        category_id: {
+            type: DataTypes.UUID,
+            allowNull: false,
+            references: { model: 'room_categories', key: 'id' }
+        },
+        number: {
+            type: DataTypes.TEXT,
+            allowNull: false
+        },
+        status: {
+            type: DataTypes.TEXT,
+            allowNull: false,
+            defaultValue: 'AVAILABLE'
+        }
+    },
+    {
+        tableName:  'rooms',
+        timestamps: true,
+        createdAt:  'created_at',
+        updatedAt:  'updated_at',
+        paranoid:   true,          // soft delete: preenche deleted_at em vez de remover
+        deletedAt:  'deleted_at'
+    }
+);
+
+export default RoomModel;
 ```
 
 ---
 
-**Versão**: 2.0 | **Maio 2026**
+### Relations — `database/relations.js`
 
+Arquivo centraliza todas as associações Sequelize. Exporta função `initRelations()` chamada em `bootstrap/app.js`:
 
-### Funcionalidades
+```javascript
+// database/relations.js
+import TenantModel      from "../app/Models/TenantModel.js";
+import UserModel        from "../app/Models/UserModel.js";
+import RoomModel        from "../app/Models/RoomModel.js";
+import ReservationModel from "../app/Models/ReservationModel.js";
 
-* login;
-* registro;
-* JWT;
-* proteção de rotas.
+export default function initRelations() {
+    TenantModel.hasMany(UserModel, { foreignKey: "tenant_id", as: "users" });
+    UserModel.belongsTo(TenantModel, { foreignKey: "tenant_id", as: "tenant" });
 
-### Entidade
+    TenantModel.hasMany(RoomModel, { foreignKey: "tenant_id", as: "rooms" });
+    RoomModel.belongsTo(TenantModel, { foreignKey: "tenant_id", as: "tenant" });
 
-User:
-
-* id;
-* name;
-* email;
-* password;
-* role.
-
----
-
-# 2. Quartos
-
-### Funcionalidades
-
-* cadastrar quarto;
-* listar quartos;
-* atualizar quarto;
-* remover quarto;
-* listar quartos disponíveis.
-
-### Entidade
-
-Room:
-
-* id;
-* number;
-* floor;
-* capacity;
-* pricePerNight;
-* status.
-
-### Status
-
-* AVAILABLE;
-* OCCUPIED;
-* MAINTENANCE;
-* CLEANING.
-
----
-
-# 3. Hóspedes
-
-### Funcionalidades
-
-* cadastrar hóspede;
-* listar hóspedes;
-* buscar hóspede;
-* atualizar hóspede;
-* remover hóspede.
-
-### Entidade
-
-Guest:
-
-* id;
-* fullName;
-* cpf;
-* phone;
-* email.
-
----
-
-# 4. Reservas (Módulo Principal)
-
-### Funcionalidades
-
-* criar reserva;
-* listar reservas;
-* buscar reserva;
-* cancelar reserva;
-* check-in;
-* check-out.
-
-### Entidade
-
-Reservation:
-
-* id;
-* guestId;
-* roomId;
-* checkInDate;
-* checkOutDate;
-* status.
-
-### Status
-
-* PENDING;
-* CONFIRMED;
-* CHECKED_IN;
-* CHECKED_OUT;
-* CANCELLED.
-
----
-
-# Regras de Negócio
-
-## Regra 1
-
-Não permitir reservas conflitantes no mesmo quarto.
-
----
-
-## Regra 2
-
-Check-in altera status do quarto.
-
----
-
-## Regra 3
-
-Check-out libera quarto.
-
----
-
-## Regra 4
-
-Cancelamento libera disponibilidade.
-
----
-
-# Endpoints Principais
-
-## Auth
-
-```http
-POST /auth/login
-POST /auth/register
+    // ... demais associações
+}
 ```
 
 ---
 
-## Rooms
+### Middlewares
 
-```http
-GET /rooms
-POST /rooms
-PATCH /rooms/:id
-DELETE /rooms/:id
-GET /rooms/available
+Os middlewares ficam em `middlewares/` e são aplicados **por rota** diretamente no router, não globalmente.
+
+| Middleware | Arquivo | Responsabilidade |
+|-----------|---------|------------------|
+| Auth | `auth.middleware.js` | Valida JWT → injeta `request.user = { userId, role, tenantId }` |
+| Tenant | `tenant.middleware.js` | Verifica tenant `ACTIVE` → injeta `request.tenantId` |
+| Role | `role.middleware.js` | Controla acesso por papel via `requireRole(...roles)` (HOF) |
+
+Cadeia de execução em rotas protegidas:
+
+```
+Request
+  └── authMiddleware           ← verifica JWT, injeta request.user
+        └── tenantMiddleware   ← verifica tenant ACTIVE, injeta request.tenantId
+              └── requireRole  ← verifica request.user.role (somente em rotas restritas)
+                    └── Controller
+```
+
+> Rotas públicas (`POST /auth/login`, `POST /auth/register`) **não** aplicam nenhum middleware.
+
+Para o plano completo — código de cada middleware, tabela de permissões por rota e decisões de design — veja [docs/back/MIDDLEWARES.md](MIDDLEWARES.md).
+
+---
+
+### Router — IIFE por domínio
+
+Cada roteador de domínio em `routes/apis/` é uma **IIFE** que retorna o `Router`. O `express.json()` é aplicado **uma única vez** no `routes/router.js` principal, não em cada sub-roteador:
+
+```javascript
+// routes/apis/roomRouter.js
+import { Router } from 'express';
+import authMiddleware    from '../../middlewares/auth.middleware.js';
+import tenantMiddleware  from '../../middlewares/tenant.middleware.js';
+import { requireRole }   from '../../middlewares/role.middleware.js';
+import ListRoomController   from '../../app/Controllers/RoomApi/ListRoomController.js';
+import CreateRoomController from '../../app/Controllers/RoomApi/CreateRoomController.js';
+
+export default (() => {
+    const router = Router();
+
+    router.get('/',  authMiddleware, tenantMiddleware, ListRoomController);
+    router.post('/', authMiddleware, tenantMiddleware, requireRole('ADMIN'), CreateRoomController);
+    // ...
+
+    return router;
+})();
+```
+
+```javascript
+// routes/router.js
+import express   from 'express';
+import { Router } from 'express';
+import roomRouter from './apis/roomRouter.js';
+
+const router = Router();
+
+router.use(express.json()); // ← único ponto de aplicação do body parser
+
+router.use('/rooms', roomRouter);
+// ...
+
+export default router;
 ```
 
 ---
 
-## Guests
+## Fundação Multi-Tenant (Isolamento de Dados)
 
-```http
-GET /guests
-GET /guests/:id
-POST /guests
-PUT /guests/:id
-DELETE /guests/:id
-```
+O sistema é estruturado como um SaaS Multi-Tenant desde a base. Cada hotel ou pousada cadastrada corresponde a um registro na tabela `tenants`. 
+
+Todas as entidades principais possuem uma coluna `tenant_id`. O isolamento é garantido através do cabeçalho de autenticação JWT, contendo o payload `{ userId, role, tenantId }`:
+
+1. **Injeção do Tenant**: O middleware decodifica o JWT e injeta a propriedade `tenantId` no objeto `request` (`request.tenantId`).
+2. **Criação de Registros**: Durante a criação de qualquer entidade, o `tenant_id` é injetado diretamente a partir do request:
+   ```javascript
+   const room = await RoomModel.create({
+       tenant_id: request.tenantId, // Injetado automaticamente pelo middleware
+       number: number,
+       category_id: category_id
+   });
+   ```
+3. **Leitura/Atualização/Deleção**: Todas as consultas e operações do Sequelize aplicam um filtro obrigatório no campo `tenant_id` para impedir que um hotel visualize ou altere dados de outro:
+   ```javascript
+   const rooms = await RoomModel.findAll({
+       where: { tenant_id: request.tenantId }
+   });
+   ```
 
 ---
 
-## Reservations
+## Formato Padrão de Resposta HTTP
 
-```http
-POST /reservations
-GET /reservations
-GET /reservations/:id
-PATCH /reservations/:id/cancel
-PATCH /reservations/:id/check-in
-PATCH /reservations/:id/check-out
-```
+A API REST utiliza os códigos de status nativos do protocolo HTTP para expressar resultados:
+
+* **`200 OK`**: Sucesso para consultas de leitura simples (GET por ID) e atualizações.
+* **`200 OK` (listagem)**: Retorna envelope de paginação `{ page, limit, total, next, data: [...] }`.
+* **`201 Created`**: Sucesso na criação de novos registros. Retorna o objeto criado.
+* **`204 No Content`**: Sucesso para deleções (soft delete via `destroy()`).
+* **`400 Bad Request`**: Parâmetros inválidos ou campos obrigatórios ausentes. Retorna array: `{ error: ["campo obrigatório!"] }`.
+* **`401 Unauthorized`**: JWT ausente ou inválido.
+* **`403 Forbidden`**: Role do usuário logado não possui privilégios para a rota (ex: recepcionista cadastrando quarto).
+* **`404 Not Found`**: Registro não encontrado. Retorna `{ error: "X not found" }`.
+* **`409 Conflict`**: Violação de chave única (ex: número de quarto duplicado no mesmo tenant). Retorna `{ error: error.errors[0].message }`.
+* **`500 Internal Server Error`**: Erros inesperados. Retorna `{ error: "Internal server error" }`.
 
 ---
+
+**Versão**: 3.0 (JS ESModules - MVC Acadêmico) | **Maio 2026**
