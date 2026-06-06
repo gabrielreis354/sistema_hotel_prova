@@ -1,3 +1,4 @@
+
 services:
 
   postgres:
@@ -17,3 +18,81 @@ services:
 
 volumes:
   postgres_data:
+
+services:
+
+  # ── Banco de dados ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17
+    container_name: hotel_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - hotel_network
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hotel_user} -d ${POSTGRES_DB:-gestao_hotel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Servidor Node.js (privado — sem acesso direto do host) ──────────────────
+  node_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hotel_node
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      NODE_WEB_PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+      JWT_SECRET: ${JWT_SECRET:-pms_hotel_secreto_academico_2026}
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - hotel_network
+
+    # Sem "ports:" — acessível somente via Nginx dentro da rede interna
+
+  # ── Proxy reverso Nginx (único ponto de entrada externo) ───────────────────
+  nginx:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    container_name: hotel_nginx
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+
+    depends_on:
+      - node_web
+
+    networks:
+      - hotel_network
+
+networks:
+  hotel_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+
