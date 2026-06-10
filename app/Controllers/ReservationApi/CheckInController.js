@@ -1,16 +1,27 @@
 import ReservationModel from '../../Models/ReservationModel.js';
+import RoomModel from '../../Models/RoomModel.js';
 
 export default async function CheckInController(request, response) {
     try {
         const { id } = request.params;
         const tenantId = request.user.tenantId;
+
         const reservation = await ReservationModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
+
         if (!['PENDING', 'CONFIRMED'].includes(reservation.status)) {
             return response.status(422).json({ error: `Check-in não permitido no status '${reservation.status}'` });
         }
+
+        const room = await RoomModel.findOne({ where: { id: reservation.room_id, tenant_id: tenantId } });
+        if (!room) return response.status(404).json({ error: 'Quarto da reserva não encontrado' });
+
         reservation.status = 'CHECKED_IN';
+        room.status = 'OCCUPIED';
+
         await reservation.save();
+        await room.save();
+
         return response.json(reservation);
     } catch (error) {
         console.error(error);
