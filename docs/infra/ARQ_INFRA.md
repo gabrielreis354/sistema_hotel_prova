@@ -24,6 +24,7 @@ O projeto busca demonstrar:
 * autenticação;
 * Docker;
 * Docker Swarm;
+* Kubernetes;
 * infraestrutura moderna;
 * backend com Node.js;
 * persistência de dados;
@@ -73,6 +74,43 @@ O projeto busca demonstrar:
 ## Fase 6
 
 * Docker Swarm;
-* Kubernetes (complementar).
+* Kubernetes.
+
+---
+
+# Kubernetes na Infraestrutura
+
+O Kubernetes foi adicionado como uma alternativa moderna para orquestrar os containers do sistema. Ele mantém a mesma ideia da infraestrutura com Docker/Nginx/PostgreSQL, mas organiza cada parte como recurso do cluster.
+
+## Componentes Kubernetes
+
+| Componente | Recurso | Objetivo |
+|------------|---------|----------|
+| PostgreSQL | Deployment, Service e PVC | Persistência dos dados |
+| Backend Express | Deployment e Service | API REST com 3 réplicas |
+| Nginx | Deployment e Service | Entrada HTTP do sistema |
+| ConfigMap | Configuração | Variáveis não sensíveis |
+| Secret | Segurança | Senha do banco e JWT secret |
+| Namespace | Organização | Isolamento lógico do projeto |
+
+## Fluxo
+
+```txt
+Cliente -> Nginx -> Backend Express -> PostgreSQL
+```
+
+## Arquivos
+
+Os manifests ficam na pasta:
+
+```txt
+k8s/
+```
+
+E a documentação detalhada fica em:
+
+```txt
+docs/infra/KUBERNETES.md
+```
 
 ---
