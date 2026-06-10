@@ -204,6 +204,107 @@ WHERE h.subdomain = 'aurora'
 
 ---
 
+## Pendências de banco de dados para o Sirlande
+
+Esta seção consolida apenas o que ainda precisa ser observado pelo Sirlande no
+domínio de banco de dados, para evitar novas regressões.
+
+### 🔴 Pendência 1 — Unificar a referência entre `tableName` e FKs
+
+Hoje o ponto mais sensível do projeto é a coerência entre:
+
+- `app/Models/TenantModel.js`
+- `references: { model: 'tenants' }` nos Models filhos
+- `database/relations.js`
+- `db/schema.sql`
+
+**Regra obrigatória:** os quatro pontos acima precisam falar a mesma língua.
+
+Se o time decidir que a tabela principal é `tenants`, então:
+- o `TenantModel` precisa usar `tableName: 'tenants'`
+- todos os `references.model` precisam apontar para `tenants`
+- o `schema.sql` precisa criar `tenants`
+
+Se o time decidir que a tabela principal é `hotels`, então:
+- os 6 Models filhos precisam deixar de referenciar `tenants`
+- o `relations.js` e os scripts SQL precisam acompanhar a mesma decisão
+
+**Ação prática para o Sirlande:** nunca corrigir só um lado. Sempre revisar o
+conjunto inteiro antes de aplicar o commit.
+
+### 🟡 Pendência 2 — Manter `db/schema.sql` sincronizado com o Sequelize
+
+O `schema.sql` é o principal ponto de confusão para onboarding. Toda vez que um
+Model mudar, o arquivo SQL precisa ser revisto na mesma sessão.
+
+Checklist mínimo de sincronização:
+
+- conferir `tableName` de todos os Models
+- conferir `references.model` e `foreignKey`
+- conferir colunas `deleted_at` das tabelas com paranoid
+- conferir tabelas auxiliares como `reservation_rooms`
+- conferir `CHECK`s de status e enums textuais
+- conferir se `payments` acompanha o Model real
+
+**Risco se ignorar:** o projeto passa a ter dois bancos “oficiais” diferentes:
+um criado por `setup:db` e outro criado por `node command.js migrate`.
+
+### 🟡 Pendência 3 — Tratar `seed/seed_hotels.sql` como parte do contrato do banco
+
+O seed não pode ser visto como arquivo secundário. Ele precisa refletir:
+
+- nomes reais das colunas (`tenant_id` vs `hotel_id`)
+- chaves únicas reais (`subdomain`)
+- valores válidos de status e role
+- dependências reais entre tabelas
+
+**Ação prática para o Sirlande:** sempre que alterar `schema.sql`, revisar o
+`seed/seed_hotels.sql` no mesmo commit ou no mesmo PR.
+
+### 🟡 Pendência 4 — Validar banco limpo após qualquer ajuste estrutural
+
+Depois de mexer em Model, schema ou seed, o fluxo de validação precisa ser este:
+
+```bash
+# 1. Subir apenas o PostgreSQL
+docker compose up postgres -d
+
+# 2. Aplicar schema manual
+docker compose exec postgres psql -U hotel_user -d gestao_hotel -f /dev/stdin < db/schema.sql
+
+# 3. Aplicar seed manual
+docker compose exec postgres psql -U hotel_user -d gestao_hotel -f /dev/stdin < seed/seed_hotels.sql
+
+# 4. Rodar a migração oficial do projeto
+node command.js migrate
+```
+
+Critério de aceite:
+
+- o schema precisa subir sem erro
+- o seed precisa subir sem erro
+- o migrate não pode falhar por FK ou tabela inexistente
+- o migrate não deveria tentar corrigir uma estrutura grande demais já criada pelo SQL
+
+Se qualquer um desses passos falhar, o problema ainda está no contrato do banco.
+
+### 🟢 Pendência 5 — Definir e documentar a fonte de verdade do banco
+
+O erro do PR #8 aconteceu porque a hierarquia de autoridade não estava explícita.
+
+O time precisa seguir esta ordem:
+
+1. Models Sequelize e `database/relations.js`
+2. `node command.js migrate`
+3. `db/schema.sql`
+4. `seed/seed_hotels.sql`
+
+**Instrução para o Sirlande:** ao encontrar divergência entre SQL manual e Model,
+presuma primeiro que o SQL está desatualizado. Só mude o Model depois de checar
+todo o fluxo de negócio e as associações.
+
+---
+
 ## Como diagnosticar problemas semelhantes no futuro
 
 Como regra geral para este projeto:
