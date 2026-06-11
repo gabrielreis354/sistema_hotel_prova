@@ -10,12 +10,13 @@ import ReservationModel from '../Models/ReservationModel.js';
  * Reservas com status CANCELLED ou CHECKED_OUT não bloqueiam novas reservas.
  *
  * @param {string} roomId
- * @param {string} checkInDate  — formato YYYY-MM-DD
- * @param {string} checkOutDate — formato YYYY-MM-DD
+ * @param {string} checkInDate        — formato YYYY-MM-DD
+ * @param {string} checkOutDate       — formato YYYY-MM-DD
  * @param {string|null} excludeReservationId — ignorar reserva específica (útil no update)
+ * @param {string|null} tenantId      — quando fornecido, garante isolamento multi-tenant na query
  * @returns {Promise<boolean>} true se há conflito
  */
-export async function checkReservationConflict(roomId, checkInDate, checkOutDate, excludeReservationId = null) {
+export async function checkReservationConflict(roomId, checkInDate, checkOutDate, excludeReservationId = null, tenantId = null) {
     const where = {
         room_id: roomId,
         status: { [Op.notIn]: ['CANCELLED', 'CHECKED_OUT'] },
@@ -25,6 +26,10 @@ export async function checkReservationConflict(roomId, checkInDate, checkOutDate
 
     if (excludeReservationId) {
         where.id = { [Op.ne]: excludeReservationId };
+    }
+
+    if (tenantId) {
+        where.tenant_id = tenantId;
     }
 
     const conflict = await ReservationModel.findOne({ where });

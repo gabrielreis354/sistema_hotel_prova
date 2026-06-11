@@ -24,7 +24,7 @@ export default async function ListAvailableRoomsController(request, response) {
         // Filtra os quartos que não têm conflito de reserva no período (DRY: reutiliza checkReservationConflict)
         const availabilityChecks = await Promise.all(
             rooms.map(async (room) => {
-                const hasConflict = await checkReservationConflict(room.id, check_in, check_out);
+                const hasConflict = await checkReservationConflict(room.id, check_in, check_out, null, tenantId);
                 return hasConflict ? null : room;
             })
         );

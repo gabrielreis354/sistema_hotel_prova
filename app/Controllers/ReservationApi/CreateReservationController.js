@@ -15,7 +15,7 @@ export default async function CreateReservationController(request, response) {
         if (!check_out_date) errors.push('check_out_date obrigatório');
         if (errors.length) return response.status(400).json({ errors });
 
-        const hasConflict = await checkReservationConflict(room_id, check_in_date, check_out_date);
+        const hasConflict = await checkReservationConflict(room_id, check_in_date, check_out_date, null, tenantId);
         if (hasConflict) {
             return response.status(409).json({ error: 'Quarto indisponível no período solicitado' });
         }
