@@ -37,7 +37,16 @@ const GuestModel = sequelize.define(
         createdAt: 'created_at',
         updatedAt: 'updated_at',
         paranoid: true,
-        deletedAt: 'deleted_at'
+        deletedAt: 'deleted_at',
+        indexes: [
+            {
+                // CPF único por tenant — PostgreSQL não considera dois NULLs como iguais,
+                // então múltiplos hóspedes sem CPF são permitidos naturalmente.
+                unique: true,
+                fields: ['cpf', 'tenant_id'],
+                name: 'guests_cpf_tenant_unique'
+            }
+        ]
     }
 );
 

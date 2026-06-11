@@ -38,7 +38,14 @@ const UserModel = sequelize.define(
         createdAt: 'created_at',
         updatedAt: 'updated_at',
         paranoid: true,
-        deletedAt: 'deleted_at'
+        deletedAt: 'deleted_at',
+        indexes: [
+            {
+                unique: true,
+                fields: ['email', 'tenant_id'],
+                name: 'users_email_tenant_unique'
+            }
+        ]
     }
 );
 
