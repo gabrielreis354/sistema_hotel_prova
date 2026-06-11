@@ -1,6 +1,6 @@
 # Sistema de Gestão de Hotel — Backend API
 
-API REST multi-tenant para gerenciamento hoteleiro, desenvolvida em Node.js (ESModules) com Express, Sequelize (PostgreSQL) e autenticação JWT. Containerizada com Docker (Nginx + Node.js + PostgreSQL).
+API REST multi-tenant para gerenciamento hoteleiro, desenvolvida em Node.js (ESModules) com Express, Sequelize (PostgreSQL) e autenticação JWT. Containerizada com Docker (Nginx + Node.js + PostgreSQL) e preparada para orquestração com Kubernetes.
 
 ---
 
@@ -86,6 +86,45 @@ Cliente → Nginx (porta 80) → node_web:3000 → postgres:5432
 ```
 
 O container `node_web` **não expõe portas ao host**, acessível apenas via Nginx.
+
+---
+
+## Kubernetes
+
+A pasta `k8s/` contém os manifests para executar a mesma arquitetura no Kubernetes:
+
+| Recurso | Função |
+|---------|--------|
+| `namespace.yaml` | Isola os recursos no namespace `hotel-system` |
+| `configmap.yaml` | Guarda variáveis não sensíveis da aplicação |
+| `secret.yaml` | Guarda senha do banco e segredo JWT |
+| `postgres.yaml` | Cria PostgreSQL com volume persistente e Service interno |
+| `backend.yaml` | Cria 3 réplicas da API Express e Service interno |
+| `nginx.yaml` | Cria Nginx como ponto de entrada HTTP |
+| `kustomization.yaml` | Aplica todos os manifests em conjunto |
+
+Fluxo no cluster:
+
+```
+Cliente → Nginx Service → Backend Service → PostgreSQL Service
+```
+
+Aplicação dos manifests:
+
+```bash
+docker build -t sistema-gestao-hotel-backend:latest .
+kubectl apply -k k8s
+kubectl get pods -n hotel-system
+```
+
+Mais detalhes em `docs/infra/KUBERNETES.md`.
+
+Para o exercício básico do Lab 9, também há manifests simples em `docker/kubernetes/`:
+
+```bash
+kubectl apply -f docker/kubernetes/deployment.yaml
+kubectl apply -f docker/kubernetes/service.yaml
+```
 
 ---
 
@@ -180,6 +219,8 @@ node _web.js              # inicia o servidor
 ├── command.js               # CLI: node command.js migrate
 ├── Dockerfile               # Multi-stage build Node.js 24 Alpine
 ├── docker-compose.yml       # 3 serviços: postgres, node_web, nginx
+├── k8s/                     # Manifests Kubernetes
+├── docker/kubernetes/       # Deployment e Service simples do Lab 9
 ├── docker/nginx/            # Configuração do Nginx reverse proxy
 ├── config/swagger.js        # Spec OpenAPI 3.0
 ├── app/
