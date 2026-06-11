@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { UniqueConstraintError } from 'sequelize';
 import TenantModel from '../../Models/TenantModel.js';
 import UserModel from '../../Models/UserModel.js';
 
@@ -46,6 +47,9 @@ export default async function RegisterController(request, response) {
             user: { id: user.id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
+        if (error instanceof UniqueConstraintError) {
+            return response.status(409).json({ error: 'E-mail ou subdomain já em uso' });
+        }
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
