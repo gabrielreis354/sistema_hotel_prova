@@ -1,6 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import RoomModel from '../../Models/RoomModel.js';
+import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 
 export default async function CheckOutController(request, response) {
     const { id } = request.params;
@@ -22,6 +23,18 @@ export default async function CheckOutController(request, response) {
             room.status = 'CLEANING';
             await reservation.save({ transaction: t });
             await room.save({ transaction: t });
+
+            const pivotRows = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id } });
+            const extraRoomIds = pivotRows
+                .map(r => r.room_id)
+                .filter(rid => rid !== reservation.room_id);
+
+            if (extraRoomIds.length > 0) {
+                await RoomModel.update(
+                    { status: 'CLEANING' },
+                    { where: { id: extraRoomIds, tenant_id: tenantId }, transaction: t }
+                );
+            }
         });
 
         return response.json(reservation);
