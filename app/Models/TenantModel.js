@@ -29,7 +29,7 @@ const TenantModel = sequelize.define(
         }
     },
     {
-        tableName: 'hotels',
+        tableName: 'tenants',
         timestamps: true,
         createdAt: 'created_at',
         updatedAt: 'updated_at'
