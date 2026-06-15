@@ -13,11 +13,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 -- =============================================================================
--- 2) Tabela principal — Hotels (tenants SaaS)
--- Model: app/Models/TenantModel.js  |  tableName: 'hotels'
--- ATENÇÃO: a coluna FK nas tabelas filhas é tenant_id (não hotel_id).
+-- 2) Tabela principal — Tenants (SaaS)
+-- Model: app/Models/TenantModel.js  |  tableName: 'tenants'
+-- ATENÇÃO: a coluna FK nas tabelas filhas é tenant_id.
 -- =============================================================================
-CREATE TABLE IF NOT EXISTS hotels (
+CREATE TABLE IF NOT EXISTS tenants (
   id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name       TEXT NOT NULL,
   subdomain  TEXT NOT NULL UNIQUE,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS hotels (
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS users (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id     UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name          TEXT NOT NULL,
   email         TEXT NOT NULL,
   password_hash TEXT NOT NULL,
@@ -174,7 +174,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_hotels_updated_at          BEFORE UPDATE ON hotels            FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER trg_tenants_updated_at         BEFORE UPDATE ON tenants           FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_users_updated_at           BEFORE UPDATE ON users             FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_room_categories_updated_at BEFORE UPDATE ON room_categories   FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_rooms_updated_at           BEFORE UPDATE ON rooms             FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
