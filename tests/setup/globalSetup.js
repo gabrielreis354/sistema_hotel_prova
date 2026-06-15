@@ -39,6 +39,9 @@ export async function setup() {
 
     initRelations();
     await sequelize.sync({ force: true });
+    // NOTA: sequelize.sync não cria constraints customizadas (ex: EXCLUDE USING gist em reservations).
+    // A proteção de double-booking é testada via lógica de aplicação (checkReservationConflict.js).
+    // Para testar a constraint de banco, seria necessário rodar db/schema.sql aqui.
     await sequelize.close();
 
     console.log('✅ [globalSetup] Schema sincronizado no banco de teste');

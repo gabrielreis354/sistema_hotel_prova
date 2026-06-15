@@ -16,7 +16,15 @@ export async function registerAndLogin(app, overrides = {}) {
         password,
     });
 
+    if (regRes.status !== 201) {
+        throw new Error(`[registerAndLogin] Register falhou: ${regRes.status} — ${JSON.stringify(regRes.body)}`);
+    }
+
     const loginRes = await request(app).post('/auth/login').send({ email, password });
+
+    if (loginRes.status !== 200) {
+        throw new Error(`[registerAndLogin] Login falhou: ${loginRes.status} — ${JSON.stringify(loginRes.body)}`);
+    }
 
     return {
         jwt:      loginRes.body.token,

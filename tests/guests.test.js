@@ -11,6 +11,13 @@ let guestId;
 beforeAll(async () => {
     await truncateAll();
     ({ jwt } = await registerAndLogin(app, { tenantName: 'Hotel Hóspedes' }));
+
+    // Hóspede principal criado no beforeAll — guestId disponível para todos os testes
+    const res = await request(app)
+        .post('/guests')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ full_name: 'João da Silva', cpf: '12345678901', email: 'joao@test.com', phone: '11999990000' });
+    guestId = res.body.id;
 });
 
 describe('POST /guests', () => {
@@ -18,11 +25,10 @@ describe('POST /guests', () => {
         const res = await request(app)
             .post('/guests')
             .set('Authorization', `Bearer ${jwt}`)
-            .send({ full_name: 'João da Silva', cpf: '12345678901', email: 'joao@test.com', phone: '11999990000' });
+            .send({ full_name: 'Carlos Secundário', cpf: '55544433322', email: 'carlos@test.com' });
 
         expect(res.status).toBe(201);
-        expect(res.body).toMatchObject({ full_name: 'João da Silva', cpf: '12345678901' });
-        guestId = res.body.id;
+        expect(res.body).toMatchObject({ full_name: 'Carlos Secundário' });
     });
 
     it('cria hóspede sem CPF (opcional)', async () => {

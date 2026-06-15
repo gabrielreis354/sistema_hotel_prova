@@ -11,6 +11,13 @@ let categoryId;
 beforeAll(async () => {
     await truncateAll();
     ({ jwt } = await registerAndLogin(app, { tenantName: 'Hotel Categoria' }));
+
+    // Categoria principal criada no beforeAll — categoryId disponível para todos os testes
+    const res = await request(app)
+        .post('/room-categories')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ name: 'Luxo', description: 'Suite de luxo', capacity: 2, price_per_night: 500 });
+    categoryId = res.body.id;
 });
 
 describe('POST /room-categories', () => {
@@ -18,11 +25,10 @@ describe('POST /room-categories', () => {
         const res = await request(app)
             .post('/room-categories')
             .set('Authorization', `Bearer ${jwt}`)
-            .send({ name: 'Luxo', description: 'Suite de luxo', capacity: 2, price_per_night: 500 });
+            .send({ name: 'Standard', description: 'Quarto padrão', capacity: 2, price_per_night: 200 });
 
         expect(res.status).toBe(201);
-        expect(res.body).toMatchObject({ name: 'Luxo', price_per_night: '500.00' });
-        categoryId = res.body.id;
+        expect(res.body).toMatchObject({ name: 'Standard', price_per_night: '200.00' });
     });
 
     it('retorna 400 sem campos obrigatórios', async () => {

@@ -173,3 +173,23 @@ describe('Acesso sem autenticação', () => {
         expect(res.status).toBe(401);
     });
 });
+
+describe('Mutação cross-tenant bloqueada', () => {
+    it('Tenant B recebe 404 ao tentar atualizar quarto do Tenant A via PUT', async () => {
+        const res = await request(app)
+            .put(`/rooms/${roomIdA}`)
+            .set('Authorization', `Bearer ${jwtB}`)
+            .send({ status: 'MAINTENANCE' });
+
+        expect(res.status).toBe(404);
+    });
+
+    it('Tenant B recebe 404 ao tentar atualizar hóspede do Tenant A via PUT', async () => {
+        const res = await request(app)
+            .put(`/guests/${guestIdA}`)
+            .set('Authorization', `Bearer ${jwtB}`)
+            .send({ phone: '00000000000' });
+
+        expect(res.status).toBe(404);
+    });
+});

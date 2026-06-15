@@ -19,6 +19,13 @@ beforeAll(async () => {
     const guest  = await createGuest(app, jwt);
     const reservation = await createReservation(app, jwt, guest.id, room.id);
     reservationId = reservation.id;
+
+    // Pagamento principal criado no beforeAll — paymentId disponível para todos os testes
+    const payRes = await request(app)
+        .post('/payments')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ reservation_id: reservationId, amount: 800, method: 'PIX' });
+    paymentId = payRes.body.id;
 });
 
 describe('POST /payments', () => {
@@ -26,12 +33,11 @@ describe('POST /payments', () => {
         const res = await request(app)
             .post('/payments')
             .set('Authorization', `Bearer ${jwt}`)
-            .send({ reservation_id: reservationId, amount: 800, method: 'PIX' });
+            .send({ reservation_id: reservationId, amount: 200, method: 'DINHEIRO' });
 
         expect(res.status).toBe(201);
-        expect(res.body).toMatchObject({ method: 'PIX' });
-        expect(parseFloat(res.body.amount)).toBe(800);
-        paymentId = res.body.id;
+        expect(res.body).toMatchObject({ method: 'DINHEIRO' });
+        expect(parseFloat(res.body.amount)).toBe(200);
     });
 
     it('retorna 400 sem campos obrigatórios', async () => {
@@ -76,5 +82,28 @@ describe('GET /payments', () => {
 
         expect(res.status).toBe(200);
         expect(res.body.id).toBe(paymentId);
+    });
+
+    it('retorna 404 para ID inexistente', async () => {
+        const res = await request(app)
+            .get('/payments/00000000-0000-0000-0000-000000000000')
+            .set('Authorization', `Bearer ${jwt}`);
+
+        expect(res.status).toBe(404);
+    });
+});
+
+describe('DELETE /payments/:id', () => {
+    it('remove pagamento (soft delete) e retorna 204', async () => {
+        const createRes = await request(app)
+            .post('/payments')
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ reservation_id: reservationId, amount: 50, method: 'DINHEIRO' });
+
+        const res = await request(app)
+            .delete(`/payments/${createRes.body.id}`)
+            .set('Authorization', `Bearer ${jwt}`);
+
+        expect(res.status).toBe(204);
     });
 });

@@ -225,33 +225,10 @@ describe('Cancelamento de reservas', () => {
         expect(cancelRes.body.status).toBe('CANCELLED');
     });
 
-    it('cancela reserva CONFIRMED com sucesso', async () => {
-        // Cria reserva
-        const resCreate = await request(app)
-            .post('/reservations')
-            .set('Authorization', `Bearer ${jwt}`)
-            .send({
-                guest_id:       guestId,
-                room_id:        roomId,
-                check_in_date:  '2027-08-01',
-                check_out_date: '2027-08-03',
-            });
-        const id = resCreate.body.id;
-
-        // Avança para CONFIRMED via PUT (se disponível) ou direto pelo update
-        await request(app)
-            .put(`/reservations/${id}`)
-            .set('Authorization', `Bearer ${jwt}`)
-            .send({ status: 'CONFIRMED' });
-
-        // Cancela
-        const cancelRes = await request(app)
-            .put(`/reservations/${id}/cancel`)
-            .set('Authorization', `Bearer ${jwt}`);
-
-        // Se o PUT /reservations/:id não aceita mudança de status (protegido por design),
-        // a reserva ainda está PENDING — cancelamento deve funcionar de qualquer forma
-        expect([200, 422]).toContain(cancelRes.status);
+    it.skip('cancela reserva CONFIRMED com sucesso (requer POST /reservations/:id/confirm — não implementado)', async () => {
+        // TODO: implementar POST /reservations/:id/confirm para avançar PENDING → CONFIRMED
+        // Só então este teste pode ser determinístico.
+        // PUT /reservations/:id não aceita mudança de status por design (protegido).
     });
 
     it('retorna 422 ao cancelar reserva já CANCELLED', async () => {

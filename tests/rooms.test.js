@@ -16,6 +16,19 @@ beforeAll(async () => {
     ({ jwt } = await registerAndLogin(app, { tenantName: 'Hotel Quartos' }));
     const cat = await createCategory(app, jwt, { price_per_night: 150 });
     categoryId = cat.id;
+
+    // Quartos principais criados no beforeAll — IDs disponíveis para todos os testes
+    const r1 = await request(app)
+        .post('/rooms')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ category_id: categoryId, number: '101', floor: 1, status: 'AVAILABLE' });
+    roomId = r1.body.id;
+
+    const r2 = await request(app)
+        .post('/rooms')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ category_id: categoryId, number: '102', floor: 1, status: 'AVAILABLE' });
+    roomId2 = r2.body.id;
 });
 
 describe('POST /rooms', () => {
@@ -23,21 +36,19 @@ describe('POST /rooms', () => {
         const res = await request(app)
             .post('/rooms')
             .set('Authorization', `Bearer ${jwt}`)
-            .send({ category_id: categoryId, number: '101', floor: 1, status: 'AVAILABLE' });
+            .send({ category_id: categoryId, number: '103', floor: 1, status: 'AVAILABLE' });
 
         expect(res.status).toBe(201);
-        expect(res.body).toMatchObject({ number: '101', status: 'AVAILABLE' });
-        roomId = res.body.id;
+        expect(res.body).toMatchObject({ number: '103', status: 'AVAILABLE' });
     });
 
     it('cria segundo quarto', async () => {
         const res = await request(app)
             .post('/rooms')
             .set('Authorization', `Bearer ${jwt}`)
-            .send({ category_id: categoryId, number: '102', floor: 1, status: 'AVAILABLE' });
+            .send({ category_id: categoryId, number: '104', floor: 1, status: 'AVAILABLE' });
 
         expect(res.status).toBe(201);
-        roomId2 = res.body.id;
     });
 
     it('retorna 400 sem campos obrigatórios', async () => {
@@ -104,7 +115,9 @@ describe('GET /rooms/available', () => {
 
         expect(res.status).toBe(200);
         expect(Array.isArray(res.body)).toBe(true);
-        expect(res.body.length).toBe(2);
+        const ids = res.body.map(r => r.id);
+        expect(ids).toContain(roomId);
+        expect(ids).toContain(roomId2);
         expect(res.body[0]).toHaveProperty('category');
     });
 
