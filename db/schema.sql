@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS room_categories (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id       UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name            TEXT NOT NULL,
   capacity        INTEGER NOT NULL DEFAULT 1,
   price_per_night NUMERIC(10, 2) NOT NULL DEFAULT 0,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS room_categories (
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS rooms (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id   UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   category_id UUID NOT NULL REFERENCES room_categories(id) ON DELETE RESTRICT,
   number      TEXT NOT NULL,
   floor       INTEGER,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS rooms (
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS guests (
   id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id  UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  tenant_id  UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   full_name  TEXT NOT NULL,
   cpf        TEXT,
   phone      TEXT,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS guests (
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS reservations (
   id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id      UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   guest_id       UUID NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
   room_id        UUID NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
   user_id        UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -146,12 +146,14 @@ CREATE TABLE IF NOT EXISTS reservation_rooms (
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS payments (
   id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id      UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
   amount         NUMERIC(12, 2) NOT NULL,
   method         TEXT NOT NULL,
   paid_at        TIMESTAMPTZ DEFAULT now(),
+  deleted_at     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ DEFAULT now(),
+  updated_at     TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0)
 );
 
@@ -181,3 +183,4 @@ CREATE TRIGGER trg_rooms_updated_at           BEFORE UPDATE ON rooms            
 CREATE TRIGGER trg_guests_updated_at          BEFORE UPDATE ON guests            FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_reservations_updated_at    BEFORE UPDATE ON reservations      FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_reservation_rooms_updated  BEFORE UPDATE ON reservation_rooms FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER trg_payments_updated_at        BEFORE UPDATE ON payments         FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
