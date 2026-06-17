@@ -200,6 +200,19 @@ node command.js migrate
 
 O comando `migrate` usa `sequelize.sync({ alter: true })` para criar/atualizar todas as tabelas automaticamente.
 
+### 4. Outros comandos úteis
+
+```bash
+# Parar os containers
+docker compose down
+
+# Acompanhar logs em tempo real
+docker compose logs -f
+
+# Ver logs de um serviço específico
+docker compose logs -f node_web
+```
+
 ---
 
 ## Desenvolvimento Local (sem Docker)
@@ -232,4 +245,65 @@ node _web.js              # inicia o servidor
 │   └── relations.js         # Associações entre modelos
 ├── middlewares/             # authMiddleware, requireRole
 └── routes/                  # Router principal + sub-routers
+```
+
+---
+
+## Troubleshooting
+
+### Problema: "ECONNREFUSED 127.0.0.1:5432"
+
+**Causa:** PostgreSQL não está rodando.
+
+**Solução:**
+```bash
+# Com Docker Compose:
+docker compose up -d
+
+# Verificar se o container postgres está saudável:
+docker compose ps
+```
+
+### Problema: "password authentication failed"
+
+**Causa:** Credenciais incorretas no `.env`.
+
+**Solução:**
+```bash
+# Verifique as variáveis no .env:
+cat .env | grep POSTGRES_
+
+# Se necessário, recrie as tabelas:
+docker compose exec node_web node command.js migrate
+```
+
+### Problema: "relation 'tenants' does not exist"
+
+**Causa:** Migrations não foram executadas após subir os containers.
+
+**Solução:**
+```bash
+docker compose exec node_web node command.js migrate
+```
+
+### Problema: Porta 80 já em uso
+
+**Causa:** Outro serviço (Apache, outro Nginx) está usando a porta 80.
+
+**Solução:**
+```bash
+# Identificar o processo que usa a porta:
+sudo lsof -i :80
+
+# Parar o serviço conflitante, ou alterar a porta no docker-compose.yml:
+# ports: "8080:80"
+```
+
+### Problema: "Cannot find module" ou erro de import
+
+**Causa:** Dependências não instaladas.
+
+**Solução:**
+```bash
+npm install
 ```
