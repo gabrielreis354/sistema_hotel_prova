@@ -1,0 +1,68 @@
+# Pipeline CI/CD — Build e Push para Amazon ECR
+# Acionado automaticamente em push para a branch main.
+# Constrói a imagem Docker otimizada (multi-stage) e envia para o
+# registro privado ECR da AWS, taggeada com o SHA do commit e "latest".
+
+name: Build and Push to Amazon ECR
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  ECR_REPOSITORY: hotel-backend
+
+jobs:
+  build-and-push:
+    name: Build, Tag & Push Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout — clona o repositório para o runner
+      - name: Checkout do código-fonte
+        uses: actions/checkout@v4
+
+      # 2. Credenciais AWS — configura acesso via secrets do GitHub
+      #    As chaves NUNCA ficam no código; são injetadas pelo GitHub Secrets.
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      # 3. Login no ECR — autentica o Docker daemon no registro privado
+      - name: Login no Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 4. Build — constrói a imagem usando o Dockerfile multi-stage
+      #    Gera duas tags: SHA do commit (versionamento imutável) e latest
+      - name: Build da imagem Docker
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            .
+
+      # 5. Push — envia ambas as tags para o ECR
+      - name: Push da imagem para o ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # 6. Output — imprime a URI completa da imagem publicada
+      - name: Exibir URI da imagem publicada
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "::notice::Imagem publicada: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "::notice::Imagem latest:    $ECR_REGISTRY/$ECR_REPOSITORY:latest"
