@@ -12,18 +12,35 @@ export default async function LoginController(request, response) {
         if (!password) errors.push('password obrigatório');
         if (errors.length) return response.status(400).json({ errors });
 
-        // Se o subdomain for informado, restringe o login ao tenant correto,
-        // evitando colisão quando o mesmo e-mail existe em tenants diferentes.
-        let tenantId = undefined;
+        let user;
+
         if (subdomain) {
+            // Caminho explícito: subdomain informado → restringe ao tenant correto.
+            // Elimina ambiguidade quando o mesmo e-mail existe em tenants diferentes.
             const tenant = await TenantModel.findOne({ where: { subdomain } });
             if (!tenant) return response.status(401).json({ error: 'Credenciais inválidas' });
-            tenantId = tenant.id;
-        }
 
-        const where = tenantId ? { email, tenant_id: tenantId } : { email };
-        const user = await UserModel.findOne({ where });
-        if (!user) return response.status(401).json({ error: 'Credenciais inválidas' });
+            user = await UserModel.findOne({ where: { email, tenant_id: tenant.id } });
+            if (!user) return response.status(401).json({ error: 'Credenciais inválidas' });
+        } else {
+            // Caminho sem subdomain: busca todos os usuários com esse e-mail.
+            // Se existir mais de um (mesmo e-mail em tenants diferentes),
+            // exige o subdomain para desambiguar — evita retornar o tenant errado.
+            const candidates = await UserModel.findAll({ where: { email } });
+
+            if (candidates.length === 0) {
+                return response.status(401).json({ error: 'Credenciais inválidas' });
+            }
+
+            if (candidates.length > 1) {
+                return response.status(409).json({
+                    error: 'E-mail associado a múltiplos hotéis. Informe o subdomain para fazer login.',
+                    requires: 'subdomain'
+                });
+            }
+
+            user = candidates[0];
+        }
 
         const valid = await bcrypt.compare(password, user.password_hash);
         if (!valid) return response.status(401).json({ error: 'Credenciais inválidas' });
@@ -39,7 +56,7 @@ export default async function LoginController(request, response) {
             user: { id: user.id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
-        console.error(error);
+        console.error('LoginController:', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

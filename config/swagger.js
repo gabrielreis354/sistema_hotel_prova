@@ -118,7 +118,7 @@ const options = {
                             subdomain: { type: 'string', example: 'hotel-paraiso', description: 'Subdomain do hotel (opcional). Recomendado em ambientes multi-tenant para evitar colisão de e-mails entre hotéis.' }
                         }}}}
                     },
-                    responses: { 200: { description: 'JWT gerado com sucesso' }, 401: { description: 'Credenciais inválidas ou subdomain não encontrado' } }
+                    responses: { 200: { description: 'JWT gerado com sucesso' }, 400: { description: 'Campos obrigatórios ausentes' }, 401: { description: 'Credenciais inválidas ou subdomain não encontrado' }, 409: { description: 'E-mail existe em múltiplos hotéis — informe o subdomain para desambiguar' } }
                 }
             },
             '/users': {
