@@ -37,7 +37,9 @@ const PaymentModel = sequelize.define(
         tableName: 'payments',
         timestamps: true,
         createdAt: 'created_at',
-        updatedAt: false // payments não têm updated_at no schema
+        updatedAt: 'updated_at',
+        paranoid: true,
+        deletedAt: 'deleted_at'
     }
 );
 

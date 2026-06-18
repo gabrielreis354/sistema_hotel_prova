@@ -16,17 +16,17 @@ const ReservationModel = sequelize.define(
         },
         guest_id: {
             type: DataTypes.UUID,
-            allowNull: true,
+            allowNull: false,
             references: { model: 'guests', key: 'id' }
         },
         room_id: {
             type: DataTypes.UUID,
-            allowNull: true,
+            allowNull: false,
             references: { model: 'rooms', key: 'id' }
         },
         user_id: {
             type: DataTypes.UUID,
-            allowNull: true,
+            allowNull: false,
             references: { model: 'users', key: 'id' }
         },
         check_in_date: {
