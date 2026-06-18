@@ -10,3 +10,4 @@ data:
   POSTGRES_PORT: "5432"
   POSTGRES_DB: gestao_hotel
   POSTGRES_USER: hotel_user
+  REDIS_URL: "redis://redis:6379"

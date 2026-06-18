@@ -11,13 +11,14 @@ spec:
       storage: 1Gi
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: hotel-system
   labels:
     app: postgres
 spec:
+  serviceName: postgres
   replicas: 1
   selector:
     matchLabels:
@@ -51,21 +52,17 @@ spec:
           readinessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - hotel_user
-                - -d
-                - gestao_hotel
+                - bash
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - hotel_user
-                - -d
-                - gestao_hotel
+                - bash
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
             initialDelaySeconds: 20
             periodSeconds: 20
           resources:

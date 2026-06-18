@@ -6,6 +6,7 @@ resources:
   - configmap.yaml
   - secret.yaml
   - postgres.yaml
+  - redis.yaml
   - backend.yaml
   - nginx.yaml
   - pdb.yaml
