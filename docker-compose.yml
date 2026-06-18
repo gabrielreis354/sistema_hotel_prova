@@ -59,7 +59,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
       POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
-      JWT_SECRET: ${JWT_SECRET:-pms_hotel_secreto_academico_2026}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET obrigatório — defina no .env}
       REDIS_URL: redis://redis:6379
 
     depends_on:
@@ -70,6 +70,13 @@ services:
 
     networks:
       - hotel_network
+
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
     # Sem "ports:" — acessível somente via Nginx dentro da rede interna
 
@@ -85,7 +92,8 @@ services:
       - "80:80"
 
     depends_on:
-      - node_web
+      node_web:
+        condition: service_healthy
 
     networks:
       - hotel_network

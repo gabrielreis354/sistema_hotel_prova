@@ -26,6 +26,9 @@ coverage/
 # Infraestrutura Kubernetes (não é usada pelo container)
 k8s/
 
+# CI/CD (não pertence ao runtime)
+.github/
+
 # Git e IDE
 .git/
 .gitignore
