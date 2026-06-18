@@ -1,6 +1,8 @@
 # Sistema de Gestão de Hotel — Backend API
 
-API REST multi-tenant para gerenciamento hoteleiro, desenvolvida em Node.js (ESModules) com Express, Sequelize (PostgreSQL) e autenticação JWT. Containerizada com Docker (Nginx + Node.js + PostgreSQL) e preparada para orquestração com Kubernetes.
+API REST multi-tenant para gerenciamento hoteleiro, desenvolvida em Node.js (ESModules) com Express, Sequelize (PostgreSQL) e autenticação JWT. Containerizada com Docker (Nginx + Node.js + PostgreSQL + Redis) e preparada para orquestração com Kubernetes.
+
+**Caminho de Infraestrutura:** Opção A — Docker / Orquestração Local
 
 ---
 
@@ -74,18 +76,176 @@ O middleware `authMiddleware` valida o token em cada requisição e injeta `requ
 
 ## Containers Docker
 
-| Serviço    | Imagem            | Porta externa | Rede interna |
-|------------|-------------------|---------------|--------------|
+| Serviço    | Imagem            | Porta externa | Rede interna    |
+|------------|-------------------|---------------|-----------------|
 | `postgres` | postgres:17       | nenhuma       | `hotel_network` |
+| `redis`    | redis:7-alpine    | nenhuma       | `hotel_network` |
 | `node_web` | (build local)     | nenhuma       | `hotel_network` |
 | `nginx`    | nginx:1.27-alpine | **80:80**     | `hotel_network` |
 
 Fluxo de rede:
 ```
-Cliente → Nginx (porta 80) → node_web:3000 → postgres:5432
+Host → Nginx (porta 80) → node_web:3000 → postgres:5432
+                                         → redis:6379
 ```
 
 O container `node_web` **não expõe portas ao host**, acessível apenas via Nginx.
+
+---
+
+## Infraestrutura — Opção A: Docker/Orquestração Local
+
+Este projeto utiliza a **Opção A (Docker/Orquestração Local)** como caminho de infraestrutura.
+
+A arquitetura é composta por **4 serviços** containerizados, orquestrados via Docker Compose:
+
+| Serviço    | Papel                     |
+|------------|---------------------------|
+| `postgres` | Banco de dados relacional |
+| `redis`    | Cache (camada obrigatória)|
+| `node_web` | Aplicação Node.js (API)   |
+| `nginx`    | Proxy reverso (entrada)   |
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │          hotel_network (bridge)          │
+                    │                                         │
+  Host :80 ──────►  │  nginx ──► node_web:3000 ──► postgres   │
+                    │                          ──► redis      │
+                    │                                         │
+                    └─────────────────────────────────────────┘
+```
+
+---
+
+## Detalhamento Técnico da Infraestrutura
+
+### Otimização da Imagem Docker
+
+O `Dockerfile` utiliza **Multi-stage build** para separar dependências de produção (stage `deps`) da imagem final (stage `runner`):
+
+- **Stage 1 (`deps`):** Instala apenas dependências de produção com `npm ci --omit=dev`, excluindo devDependencies
+- **Stage 2 (`runner`):** Copia `node_modules` do stage anterior e o código-fonte, resultando em uma imagem leve
+- **Base image:** `node:24-alpine` (~50MB vs ~900MB do `node:24` full)
+- **Segurança:** Executa como usuário não-root com `USER node`, impedindo escalonamento de privilégios dentro do container
+- **`.dockerignore`:** Exclui `node_modules`, `tests/`, `docs/`, `k8s/`, `.git/`, `.env` — reduz contexto de build e evita vazamento de dados sensíveis na imagem
+
+### Persistência de Dados (Named Volumes)
+
+Named Volumes são gerenciados pelo Docker daemon e sobrevivem a `docker compose down` (sem `-v`):
+
+| Volume          | Montado em                     | Propósito                                    |
+|-----------------|--------------------------------|----------------------------------------------|
+| `postgres_data` | `/var/lib/postgresql/data`     | Dados do banco PostgreSQL                    |
+| `redis_data`    | `/data`                        | Persistência Redis com AOF (append-only file)|
+
+- **Bind mounts** foram evitados para dados persistentes, conforme boas práticas de produção
+- Redis usa `appendonly yes` para garantir durabilidade dos dados em cache mesmo após reinicialização
+
+### Rede e Comunicação (Custom Bridge)
+
+- **`hotel_network`** é uma Custom Bridge Network (`driver: bridge`)
+- **DNS Interno:** Serviços se comunicam por nome (ex: `node_web` conecta a `postgres`, não a `172.x.x.x`)
+- **IPs estáticos proibidos** — resolução via Service Discovery nativo do Docker
+- **Isolamento perimetral:** `node_web`, `postgres` e `redis` não possuem `ports:` expostos ao host — são acessíveis **somente** dentro da rede `hotel_network`
+- **Nginx** é o único ponto de entrada externo (porta 80), atuando como proxy reverso
+
+### Segurança
+
+- **Variáveis de ambiente** via arquivo `.env` — nunca hardcoded no código ou no `docker-compose.yml`
+- **`.env.example`** documenta as variáveis necessárias sem valores reais — `.env` está no `.gitignore`
+- **`USER node`** no Dockerfile — container não executa como root
+- **`node_web`** e **`postgres`** sem portas expostas ao host — isolamento perimetral contra acesso direto
+- **`JWT_SECRET`** rotacionável via variável de ambiente, sem recompilação da imagem
+
+---
+
+## Gestão de Segredos e Configurações
+
+### Configuração inicial
+
+```bash
+cp .env.example .env
+```
+
+Edite o arquivo `.env` com os valores adequados ao seu ambiente:
+
+| Variável            | Descrição                                      | Exemplo                              |
+|---------------------|-------------------------------------------------|--------------------------------------|
+| `NODE_ENV`          | Ambiente de execução                            | `production`                         |
+| `NODE_WEB_PORT`     | Porta interna da aplicação Node.js              | `3000`                               |
+| `POSTGRES_HOST`     | Hostname do banco (nome do serviço no Compose)  | `postgres`                           |
+| `POSTGRES_PORT`     | Porta do PostgreSQL                             | `5432`                               |
+| `POSTGRES_DB`       | Nome do banco de dados                          | `gestao_hotel`                       |
+| `POSTGRES_USER`     | Usuário do PostgreSQL                           | `hotel_user`                         |
+| `POSTGRES_PASSWORD` | Senha do PostgreSQL                             | *(definir no .env)*                  |
+| `JWT_SECRET`        | Chave secreta para assinar tokens JWT           | *(definir no .env)*                  |
+| `REDIS_URL`         | URL de conexão com o Redis                      | `redis://redis:6379`                 |
+
+> **NUNCA commite o arquivo `.env` ou senhas reais no repositório.** O `.gitignore` já bloqueia `.env`, mas verifique antes de cada push.
+
+### Pipeline CI/CD — Secrets no GitHub
+
+O pipeline `.github/workflows/docker-ecr.yml` depende de 3 secrets configurados no GitHub:
+
+| Secret                  | Descrição                       |
+|-------------------------|---------------------------------|
+| `AWS_ACCESS_KEY_ID`     | Chave de acesso IAM da AWS      |
+| `AWS_SECRET_ACCESS_KEY` | Chave secreta IAM da AWS        |
+| `AWS_REGION`            | Região da AWS (ex: `us-east-1`) |
+
+Configure em: **GitHub → Settings → Secrets and variables → Actions**
+
+---
+
+## Evidências de Funcionamento
+
+Comandos que o avaliador pode executar para validar a infraestrutura:
+
+```bash
+# Verificar todos os containers rodando (4 serviços: postgres, redis, node_web, nginx)
+docker compose ps
+
+# Inspecionar a rede e verificar DNS interno
+docker inspect hotel_network
+
+# Testar resolução DNS interna (prova que não usa IPs estáticos)
+docker compose exec node_web ping -c 2 postgres
+docker compose exec node_web ping -c 2 redis
+
+# Verificar Named Volumes criados
+docker volume ls | grep sistema
+
+# Testar persistência: reiniciar postgres e verificar que a API ainda responde
+docker compose restart postgres
+curl http://localhost/health
+
+# Ver logs de todos os serviços
+docker compose logs --tail=20
+
+# Verificar pipeline CI/CD (existência e conteúdo)
+cat .github/workflows/docker-ecr.yml
+
+# Verificar que .env NÃO está no repositório
+git ls-files .env
+# Esperado: nenhuma saída (arquivo não rastreado)
+```
+
+**Acesso à aplicação:** `http://localhost` (via Nginx na porta 80)
+
+---
+
+## Limpeza após Avaliação
+
+```bash
+# Parar e remover containers (mantém dados nos volumes)
+docker compose down
+
+# Parar, remover containers E destruir volumes (dados do banco e cache)
+docker compose down -v
+```
+
+> **`docker compose down -v` remove todos os dados do banco e cache — operação irreversível.** Use apenas quando quiser resetar completamente o ambiente.
 
 ---
 
@@ -231,7 +391,7 @@ node _web.js              # inicia o servidor
 ├── _web.js                  # Entrypoint do servidor Express
 ├── command.js               # CLI: node command.js migrate
 ├── Dockerfile               # Multi-stage build Node.js 24 Alpine
-├── docker-compose.yml       # 3 serviços: postgres, node_web, nginx
+├── docker-compose.yml       # 4 serviços: postgres, redis, node_web, nginx
 ├── k8s/                     # Manifests Kubernetes
 ├── docker/kubernetes/       # Deployment e Service simples do Lab 9
 ├── docker/nginx/            # Configuração do Nginx reverse proxy
