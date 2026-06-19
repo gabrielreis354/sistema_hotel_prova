@@ -54,6 +54,10 @@ export default async function CreateReservationController(request, response) {
         // Vincular quartos adicionais, se informados
         if (Array.isArray(extra_room_ids)) {
             for (const rid of extra_room_ids) {
+                const extraRoom = await RoomModel.findOne({ where: { id: rid, tenant_id: tenantId } });
+                if (!extraRoom) {
+                    return response.status(404).json({ error: `Quarto extra não encontrado: ${rid}` });
+                }
                 await ReservationRoomModel.create({ reservation_id: reservation.id, room_id: rid });
             }
         }
