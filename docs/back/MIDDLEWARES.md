@@ -1,32 +1,33 @@
-# Plano de Middlewares — CorePMS SaaS Multi-Tenant
+# Middlewares — CorePMS SaaS Multi-Tenant
 
 ## Visão Geral
 
-O sistema usa três middlewares de proteção compostos em cadeia. Cada middleware tem uma responsabilidade única (SRP) e é aplicado **por rota** no router, nunca globalmente.
+O sistema tem três middlewares de proteção. Cada middleware tem uma responsabilidade única (SRP) e é aplicado **por rota** no router, nunca globalmente.
 
-| Middleware | Arquivo | Responsabilidade |
-|-----------|---------|-----------------|
-| Auth | `auth.middleware.js` | Valida JWT → injeta `request.user = { userId, role, tenantId }` |
-| Tenant | `tenant.middleware.js` | Verifica tenant `ACTIVE` → injeta `request.tenantId` |
-| Role | `role.middleware.js` | Controla acesso por papel via `requireRole(...roles)` |
+| Middleware | Arquivo | Responsabilidade | Aplicado nas rotas? |
+|-----------|---------|-----------------|---|
+| Auth | `auth.middleware.js` | Valida JWT → injeta `request.user = { userId, role, tenantId }` | **Sim** — em todas as rotas protegidas |
+| Role | `role.middleware.js` | Controla acesso por papel via `requireRole(...roles)` | **Sim** — em rotas restritas a ADMIN |
+| Tenant | `tenant.middleware.js` | Verifica tenant `ACTIVE` → injeta `request.tenantId` | **Não** — existe mas não está aplicado nas rotas |
 
 ---
 
-## Cadeia de Execução
+## Cadeia de Execução Real
 
 ```
 Request
-  └── authMiddleware           ← verifica JWT, injeta request.user
-        └── tenantMiddleware   ← verifica tenant ACTIVE, injeta request.tenantId
-              └── requireRole  ← verifica request.user.role (apenas em rotas restritas)
-                    └── Controller
+  └── authMiddleware       ← verifica JWT, injeta request.user = { userId, role, tenantId }
+        └── requireRole    ← verifica request.user.role (somente em rotas restritas a ADMIN)
+              └── Controller
 ```
 
-A ordem é obrigatória:
-- `requireRole` depende de `request.user.role` que só existe após `authMiddleware`
-- `tenantMiddleware` depende de `request.user.tenantId` que só existe após `authMiddleware`
-
 **Rotas públicas** (`POST /auth/login`, `POST /auth/register`) não aplicam nenhum middleware.
+
+### Sobre o `tenantMiddleware`
+
+O `tenantMiddleware` faz uma verificação adicional de segurança: confirma no banco que o tenant do JWT existe e está com status `ACTIVE`. Porém, **ele não está aplicado nas rotas**. Os controllers extraem o `tenantId` diretamente de `request.user.tenantId` (payload do JWT, injetado pelo `authMiddleware`).
+
+Consequência: um token JWT emitido para um tenant que foi posteriormente suspenso continuará válido até expirar (8 horas). Aplicar `tenantMiddleware` nas rotas resolveria isso — é uma melhoria identificada para versão futura.
 
 ---
 
@@ -131,48 +132,59 @@ router.post('/', authMiddleware, tenantMiddleware, requireRole('ADMIN', 'RECEPTI
 
 ### Matriz de Acesso
 
-| Domínio | Endpoint | Método | auth | tenant | requireRole |
-|---------|----------|--------|------|--------|-------------|
-| **Auth** | `POST /auth/login` | Público | — | — | — |
-| **Auth** | `POST /auth/register` | Público | — | — | — |
-| **Users** | `GET /users` | Listar usuários | ✓ | ✓ | `ADMIN` |
-| **Users** | `POST /users` | Criar usuário | ✓ | ✓ | `ADMIN` |
-| **Users** | `PUT /users/:id` | Atualizar usuário | ✓ | ✓ | `ADMIN` |
-| **Users** | `DELETE /users/:id` | Deletar usuário | ✓ | ✓ | `ADMIN` |
-| **Room Categories** | `GET /room-categories` | Listar categorias | ✓ | ✓ | — |
-| **Room Categories** | `POST /room-categories` | Criar categoria | ✓ | ✓ | `ADMIN` |
-| **Room Categories** | `PUT /room-categories/:id` | Atualizar categoria | ✓ | ✓ | `ADMIN` |
-| **Room Categories** | `DELETE /room-categories/:id` | Deletar categoria | ✓ | ✓ | `ADMIN` |
-| **Rooms** | `GET /rooms` | Listar quartos | ✓ | ✓ | — |
-| **Rooms** | `GET /rooms/:id` | Buscar quarto | ✓ | ✓ | — |
-| **Rooms** | `POST /rooms` | Criar quarto | ✓ | ✓ | `ADMIN` |
-| **Rooms** | `PUT /rooms/:id` | Atualizar quarto | ✓ | ✓ | `ADMIN` |
-| **Rooms** | `DELETE /rooms/:id` | Deletar quarto | ✓ | ✓ | `ADMIN` |
-| **Guests** | `GET /guests` | Listar hóspedes | ✓ | ✓ | — |
-| **Guests** | `GET /guests/:id` | Buscar hóspede | ✓ | ✓ | — |
-| **Guests** | `POST /guests` | Criar hóspede | ✓ | ✓ | — |
-| **Guests** | `PUT /guests/:id` | Atualizar hóspede | ✓ | ✓ | — |
-| **Guests** | `DELETE /guests/:id` | Deletar hóspede | ✓ | ✓ | `ADMIN` |
-| **Reservations** | `GET /reservations` | Listar reservas | ✓ | ✓ | — |
-| **Reservations** | `GET /reservations/:id` | Buscar reserva | ✓ | ✓ | — |
-| **Reservations** | `POST /reservations` | Criar reserva | ✓ | ✓ | — |
-| **Reservations** | `PUT /reservations/:id/check-in` | Check-in | ✓ | ✓ | — |
-| **Reservations** | `PUT /reservations/:id/check-out` | Check-out | ✓ | ✓ | — |
-| **Reservations** | `PUT /reservations/:id` | Editar reserva | ✓ | ✓ | — |
-| **Reservations** | `DELETE /reservations/:id` | Cancelar reserva | ✓ | ✓ | `ADMIN` |
+> **Legenda:** `auth ✓` = `authMiddleware` aplicado | `role` = `requireRole(...)` aplicado | `—` = rota pública ou sem restrição de role
 
-> Colunas `auth` e `tenant` com `—` indicam rotas públicas. `requireRole` com `—` significa que qualquer usuário autenticado com tenant ACTIVE tem acesso.
+| Domínio | Endpoint | auth | requireRole |
+|---------|----------|------|-------------|
+| **Auth** | `POST /auth/login` | — | — |
+| **Auth** | `POST /auth/register` | — | — |
+| **Users** | `GET /users` | ✓ | `ADMIN` |
+| **Users** | `GET /users/:id` | ✓ | `ADMIN` |
+| **Users** | `POST /users` | ✓ | `ADMIN` |
+| **Users** | `PUT /users/:id` | ✓ | `ADMIN` |
+| **Users** | `DELETE /users/:id` | ✓ | `ADMIN` |
+| **Room Categories** | `GET /room-categories` | ✓ | — |
+| **Room Categories** | `GET /room-categories/:id` | ✓ | — |
+| **Room Categories** | `POST /room-categories` | ✓ | `ADMIN` |
+| **Room Categories** | `PUT /room-categories/:id` | ✓ | `ADMIN` |
+| **Room Categories** | `DELETE /room-categories/:id` | ✓ | `ADMIN` |
+| **Rooms** | `GET /rooms/available` | ✓ | — |
+| **Rooms** | `GET /rooms` | ✓ | — |
+| **Rooms** | `GET /rooms/:id` | ✓ | — |
+| **Rooms** | `POST /rooms` | ✓ | `ADMIN` |
+| **Rooms** | `PUT /rooms/:id` | ✓ | `ADMIN` |
+| **Rooms** | `DELETE /rooms/:id` | ✓ | `ADMIN` |
+| **Guests** | `GET /guests` | ✓ | — |
+| **Guests** | `GET /guests/:id` | ✓ | — |
+| **Guests** | `POST /guests` | ✓ | — |
+| **Guests** | `PUT /guests/:id` | ✓ | — |
+| **Guests** | `DELETE /guests/:id` | ✓ | `ADMIN` |
+| **Reservations** | `GET /reservations` | ✓ | — |
+| **Reservations** | `GET /reservations/:id` | ✓ | — |
+| **Reservations** | `POST /reservations` | ✓ | — |
+| **Reservations** | `PUT /reservations/:id` | ✓ | — |
+| **Reservations** | `PUT /reservations/:id/check-in` | ✓ | — |
+| **Reservations** | `PUT /reservations/:id/check-out` | ✓ | — |
+| **Reservations** | `PUT /reservations/:id/cancel` | ✓ | — |
+| **Reservations** | `DELETE /reservations/:id` | ✓ | `ADMIN` |
+| **Reservations** | `POST /reservations/:id/rooms` | ✓ | — |
+| **Reservations** | `DELETE /reservations/:id/rooms/:roomId` | ✓ | — |
+| **Payments** | `GET /payments` | ✓ | — |
+| **Payments** | `GET /payments/:id` | ✓ | — |
+| **Payments** | `POST /payments` | ✓ | — |
+| **Payments** | `PUT /payments/:id` | ✓ | — |
+| **Payments** | `DELETE /payments/:id` | ✓ | `ADMIN` |
 
 ---
 
-## Exemplo de Router com Cadeia Completa
+## Exemplo de Router com Cadeia Real
 
 ```javascript
-// routes/apis/roomRouter.js
+// routes/apis/roomRouter.js  (implementação real)
 import { Router } from 'express';
-import authMiddleware    from '../../middlewares/auth.middleware.js';
-import tenantMiddleware  from '../../middlewares/tenant.middleware.js';
-import { requireRole }   from '../../middlewares/role.middleware.js';
+import authMiddleware  from '../../middlewares/auth.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
+import ListAvailableRoomsController from '../../app/Controllers/RoomApi/ListAvailableRoomsController.js';
 import ListRoomController   from '../../app/Controllers/RoomApi/ListRoomController.js';
 import GetRoomController    from '../../app/Controllers/RoomApi/GetRoomController.js';
 import CreateRoomController from '../../app/Controllers/RoomApi/CreateRoomController.js';
@@ -182,14 +194,17 @@ import DeleteRoomController from '../../app/Controllers/RoomApi/DeleteRoomContro
 export default (() => {
     const router = Router();
 
-    // Leitura — ADMIN e RECEPTIONIST
-    router.get('/',    authMiddleware, tenantMiddleware, ListRoomController);
-    router.get('/:id', authMiddleware, tenantMiddleware, GetRoomController);
+    // /available antes de /:id para não ser capturado como parâmetro
+    router.get('/available', authMiddleware, ListAvailableRoomsController);
 
-    // Escrita — ADMIN apenas
-    router.post('/',    authMiddleware, tenantMiddleware, requireRole('ADMIN'), CreateRoomController);
-    router.put('/:id',  authMiddleware, tenantMiddleware, requireRole('ADMIN'), UpdateRoomController);
-    router.delete('/:id', authMiddleware, tenantMiddleware, requireRole('ADMIN'), DeleteRoomController);
+    // Leitura — qualquer usuário autenticado
+    router.get('/',    authMiddleware, ListRoomController);
+    router.get('/:id', authMiddleware, GetRoomController);
+
+    // Escrita — somente ADMIN
+    router.post('/',      authMiddleware, requireRole('ADMIN'), CreateRoomController);
+    router.put('/:id',    authMiddleware, requireRole('ADMIN'), UpdateRoomController);
+    router.delete('/:id', authMiddleware, requireRole('ADMIN'), DeleteRoomController);
 
     return router;
 })();
@@ -203,9 +218,10 @@ export default (() => {
 |---------|----------------------|--------|
 | `requireRole` como HOF | Um middleware por papel (`adminMiddleware.js`) | DRY: evita arquivos duplicados para cada role |
 | Middlewares aplicados por rota | `router.use(authMiddleware)` global | Permite rotas públicas sem exceção manual |
-| Ordem: auth → tenant → role | Qualquer outra ordem | `role` depende de `request.user` (injetado por `auth`) |
-| `RECEPTIONIST` lê quartos | Restringir leitura a ADMIN | Recepcionista precisa consultar disponibilidade |
-| `ADMIN` exclusivo para deleções | Permitir deleção por qualquer role | Operações destrutivas exigem autorização mais alta |
+| Ordem: auth → requireRole | Qualquer outra ordem | `requireRole` depende de `request.user` (injetado por `auth`) |
+| `tenantId` extraído de `request.user` | Aplicar `tenantMiddleware` em cada rota | Simplicidade: JWT já carrega o `tenantId` verificado na emissão |
+| `RECEPTIONIST` lê quartos/reservas/hóspedes | Restringir leitura a ADMIN | Recepcionista precisa operar o PMS diariamente |
+| `ADMIN` exclusivo para deleções e criação de usuários | Permitir por qualquer role | Operações destrutivas e estruturais exigem autorização mais alta |
 
 ---
 

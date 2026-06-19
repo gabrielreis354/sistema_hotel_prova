@@ -70,13 +70,13 @@ Multi-tenant Schema (fundação completa — sem retrabalho no TCC)
 └── Middleware lendo tenantId do JWT
 
 Infraestrutura
-├── Docker Compose (local)
-├── Docker Swarm com 3 réplicas do backend
-├── Nginx como reverse proxy
-└── PostgreSQL containerizado
+├── Kubernetes com 3 réplicas do backend (manifests em k8s/)
+├── Nginx como reverse proxy (Service LoadBalancer)
+├── PostgreSQL containerizado com PVC
+└── Docker Compose disponível como alternativa para testes locais
 
 Qualidade
-├── TypeScript sem erros
+├── JavaScript ESModules sem erros (sem TypeScript nesta fase)
 ├── Swagger documentado
 └── Código organizado (SOLID, DRY, KISS)
 ```
@@ -97,7 +97,7 @@ Qualidade
 | 1-2 | Setup + Docker + PostgreSQL + Models + seed do tenant |
 | 3-4 | Auth com JWT (tenantId) + CRUD Quartos + Categorias |
 | 5-6 | CRUD Hóspedes + Reservas + Regras de negócio |
-| 7-8 | Docker Swarm + Swagger + Apresentação |
+| 7-8 | Kubernetes + Swagger + Apresentação |
 
 ---
 
@@ -199,7 +199,7 @@ Testes automatizados (mínimo 60% coverage):
   └── Transições de status (check-in, check-out, cancelar)
 
 GitHub Actions: roda lint + testes a cada push
-Docker Swarm: stack completo com health checks e restart policy
+Kubernetes: stack completo com health probes, replicas e PDB configurados
 ```
 
 ### Timeline
@@ -373,7 +373,7 @@ O código da demo é idêntico ao do TCC. A única diferença é que o banco tem
 |---------|------|-----|---------|
 | Tenants | Schema completo, 1 seedado | + Onboarding self-service | + Billing + planos |
 | Banco | Shared + tenant_id | igual + índices | Shared → DB dedicado (premium) |
-| Infra | Compose + Swarm | Swarm stack completo | Cloud (AWS/GCP) + K8s |
+| Infra | Kubernetes + Compose (testes) | K8s stack completo | Cloud (AWS/GCP) + K8s gerenciado |
 | Auth | JWT com tenantId | igual | + 2FA + OAuth |
 | Deploy | Manual | GitHub Actions | CI/CD automático |
 | Testes | Manual | 60%+ cobertura | 80%+ cobertura |

@@ -25,13 +25,15 @@ O backend continua privado dentro do cluster. A entrada externa acontece pelo Se
 
 ```txt
 k8s/
-  namespace.yaml
-  configmap.yaml
-  secret.yaml
-  postgres.yaml
-  backend.yaml
-  nginx.yaml
-  kustomization.yaml
+  kustomization.yaml     — ponto de entrada (kubectl apply -k k8s/)
+  namespace.yaml         — namespace hotel-system
+  configmap.yaml         — variaveis nao sensiveis
+  secret.yaml            — POSTGRES_PASSWORD e JWT_SECRET
+  postgres.yaml          — PVC + Deployment + Service do PostgreSQL
+  backend.yaml           — Deployment (3 replicas) + Service do backend
+  nginx.yaml             — ConfigMap nginx + Deployment + Service LoadBalancer
+  pdb.yaml               — PodDisruptionBudget (minAvailable: 2 para o backend)
+  networkpolicy.yaml     — isolamento: postgres so aceita backend; backend so aceita nginx
 ```
 
 Tambem existe uma versao simples para o Lab 9 dentro da pasta Docker:
