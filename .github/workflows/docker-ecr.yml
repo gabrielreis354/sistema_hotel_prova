@@ -1,0 +1,109 @@
+# Pipeline CI/CD — Testes + Build e Push para Amazon ECR
+# Acionado em push para main (build+push) e em pull requests (apenas testes).
+# Garante que a suite de testes do Gabriel (78 testes) passe ANTES de gerar imagem.
+
+name: CI — Tests, Build & Push to ECR
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  ECR_REPOSITORY: hotel-backend
+
+jobs:
+  # ── Job 1: Rodar testes automatizados ─────────────────────���────────────────
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: gestao_hotel_test
+          POSTGRES_USER: hotel_user
+          POSTGRES_PASSWORD: hotel_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U hotel_user -d gestao_hotel_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout do codigo-fonte
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Executar suite de testes
+        env:
+          NODE_ENV: test
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: gestao_hotel_test
+          POSTGRES_USER: hotel_user
+          POSTGRES_PASSWORD: hotel_password
+          JWT_SECRET: ci-test-secret-not-for-production
+        run: npm test
+
+  # ── Job 2: Build e Push (apenas em push para main, após testes) ────────────
+  build-and-push:
+    name: Build, Tag & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout do codigo-fonte
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login no Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build da imagem Docker
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            .
+
+      - name: Push da imagem para o ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Exibir URI da imagem publicada
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "::notice::Imagem publicada: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "::notice::Imagem latest:    $ECR_REGISTRY/$ECR_REPOSITORY:latest"
