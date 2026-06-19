@@ -1,10 +1,18 @@
 import RoomModel from '../../Models/RoomModel.js';
 
+const VALID_ROOM_STATUSES = ['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'];
+
 export default async function UpdateRoomController(request, response) {
     try {
         const { id } = request.params;
         const tenantId = request.user.tenantId;
         const { category_id, number, floor, status } = request.body;
+
+        if (status !== undefined && !VALID_ROOM_STATUSES.includes(status)) {
+            return response.status(400).json({
+                error: `Status inválido. Valores permitidos: ${VALID_ROOM_STATUSES.join(', ')}`
+            });
+        }
 
         const room = await RoomModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!room) return response.status(404).json({ error: 'Quarto não encontrado' });
