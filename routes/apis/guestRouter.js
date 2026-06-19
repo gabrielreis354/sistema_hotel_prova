@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import authMiddleware  from '../../middlewares/auth.middleware.js';
-import { requireRole } from '../../middlewares/role.middleware.js';
+import authMiddleware   from '../../middlewares/auth.middleware.js';
+import tenantMiddleware from '../../middlewares/tenant.middleware.js';
+import { requireRole }  from '../../middlewares/role.middleware.js';
 import ListGuestController   from '../../app/Controllers/GuestApi/ListGuestController.js';
 import GetGuestController    from '../../app/Controllers/GuestApi/GetGuestController.js';
 import CreateGuestController from '../../app/Controllers/GuestApi/CreateGuestController.js';
@@ -10,11 +11,13 @@ import DeleteGuestController from '../../app/Controllers/GuestApi/DeleteGuestCon
 export default (() => {
     const router = Router();
 
-    router.get('/',       authMiddleware, ListGuestController);
-    router.get('/:id',    authMiddleware, GetGuestController);
-    router.post('/',      authMiddleware, CreateGuestController);
-    router.put('/:id',    authMiddleware, UpdateGuestController);
-    router.delete('/:id', authMiddleware, requireRole('ADMIN'), DeleteGuestController);
+    router.use(authMiddleware, tenantMiddleware);
+
+    router.get('/',       ListGuestController);
+    router.get('/:id',    GetGuestController);
+    router.post('/',      CreateGuestController);
+    router.put('/:id',    UpdateGuestController);
+    router.delete('/:id', requireRole('ADMIN'), DeleteGuestController);
 
     return router;
 })();

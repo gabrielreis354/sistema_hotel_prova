@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import authMiddleware from '../../middlewares/auth.middleware.js';
+import authMiddleware   from '../../middlewares/auth.middleware.js';
+import tenantMiddleware from '../../middlewares/tenant.middleware.js';
 import ListPaymentController   from '../../app/Controllers/PaymentApi/ListPaymentController.js';
 import GetPaymentController    from '../../app/Controllers/PaymentApi/GetPaymentController.js';
 import CreatePaymentController from '../../app/Controllers/PaymentApi/CreatePaymentController.js';
@@ -8,7 +9,7 @@ import DeletePaymentController from '../../app/Controllers/PaymentApi/DeletePaym
 
 const paymentRouter = Router();
 
-paymentRouter.use(authMiddleware);
+paymentRouter.use(authMiddleware, tenantMiddleware);
 
 paymentRouter.get('/',     ListPaymentController);
 paymentRouter.get('/:id',  GetPaymentController);

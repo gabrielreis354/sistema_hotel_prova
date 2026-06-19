@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import authMiddleware  from '../../middlewares/auth.middleware.js';
-import { requireRole } from '../../middlewares/role.middleware.js';
+import authMiddleware   from '../../middlewares/auth.middleware.js';
+import tenantMiddleware from '../../middlewares/tenant.middleware.js';
+import { requireRole }  from '../../middlewares/role.middleware.js';
 import ListReservationController      from '../../app/Controllers/ReservationApi/ListReservationController.js';
 import GetReservationController       from '../../app/Controllers/ReservationApi/GetReservationController.js';
 import CreateReservationController    from '../../app/Controllers/ReservationApi/CreateReservationController.js';
@@ -15,20 +16,22 @@ import RemoveRoomFromReservationController from '../../app/Controllers/Reservati
 export default (() => {
     const router = Router();
 
-    router.get('/',       authMiddleware, ListReservationController);
-    router.get('/:id',    authMiddleware, GetReservationController);
-    router.post('/',      authMiddleware, CreateReservationController);
-    router.put('/:id',    authMiddleware, UpdateReservationController);
-    router.delete('/:id', authMiddleware, requireRole('ADMIN'), DeleteReservationController);
+    router.use(authMiddleware, tenantMiddleware);
+
+    router.get('/',       ListReservationController);
+    router.get('/:id',    GetReservationController);
+    router.post('/',      CreateReservationController);
+    router.put('/:id',    UpdateReservationController);
+    router.delete('/:id', requireRole('ADMIN'), DeleteReservationController);
 
     // Transições de estado
-    router.put('/:id/check-in',  authMiddleware, CheckInController);
-    router.put('/:id/check-out', authMiddleware, CheckOutController);
-    router.put('/:id/cancel',    authMiddleware, CancelReservationController);
+    router.put('/:id/check-in',  CheckInController);
+    router.put('/:id/check-out', CheckOutController);
+    router.put('/:id/cancel',    CancelReservationController);
 
     // Gerenciar quartos da reserva (N:N — tabela pivô reservation_rooms)
-    router.post('/:id/rooms',           authMiddleware, AddRoomToReservationController);
-    router.delete('/:id/rooms/:roomId', authMiddleware, RemoveRoomFromReservationController);
+    router.post('/:id/rooms',           AddRoomToReservationController);
+    router.delete('/:id/rooms/:roomId', RemoveRoomFromReservationController);
 
     return router;
 })();
