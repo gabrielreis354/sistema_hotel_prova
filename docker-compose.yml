@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
       POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD obrigatório — defina no .env}
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -58,7 +58,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
       POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD obrigatório — defina no .env}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET obrigatório — defina no .env}
       REDIS_URL: redis://redis:6379
 
