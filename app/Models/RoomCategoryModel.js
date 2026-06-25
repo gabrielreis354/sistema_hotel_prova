@@ -35,7 +35,14 @@ const RoomCategoryModel = sequelize.define(
         createdAt: 'created_at',
         updatedAt: 'updated_at',
         paranoid: true,
-        deletedAt: 'deleted_at'
+        deletedAt: 'deleted_at',
+        indexes: [
+            {
+                unique: true,
+                fields: ['tenant_id', 'name'],
+                name: 'room_categories_name_tenant_unique'
+            }
+        ]
     }
 );
 
