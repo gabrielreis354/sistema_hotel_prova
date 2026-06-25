@@ -207,7 +207,7 @@ Saída esperada:
 ### Passo 6 — (Opcional) Popular com dados de exemplo
 
 ```bash
-kubectl exec -n hotel-system -i deploy/postgres -- \
+kubectl exec -n hotel-system -i statefulset/postgres -- \
   psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
 ```
 
@@ -644,7 +644,7 @@ Para recriar o banco do zero a partir do schema SQL:
 
 ```bash
 # Via Kubernetes
-kubectl exec -n hotel-system -i deploy/postgres -- \
+kubectl exec -n hotel-system -i statefulset/postgres -- \
   psql -U hotel_user -d gestao_hotel < scripts/setup.sql
 ```
 
@@ -670,7 +670,7 @@ Distribuição de status das reservas (Hotel Aurora): 8 CHECKED_OUT · 5 CONFIRM
 
 ```bash
 # Via Kubernetes (ambiente principal)
-kubectl exec -n hotel-system -i deploy/postgres -- \
+kubectl exec -n hotel-system -i statefulset/postgres -- \
   psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
 
 # Via Docker Compose (ambiente alternativo)
