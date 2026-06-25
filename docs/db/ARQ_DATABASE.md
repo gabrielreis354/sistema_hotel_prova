@@ -1,292 +1,250 @@
-# Banco de Dados
+# Banco de Dados — Arquitetura e Decisões
+
+> **Fonte de verdade:** `db/schema.sql`
+> **ORM:** Sequelize 6 (`sequelize.sync({ alter: true })` via `node command.js migrate`)
+> **Provedor:** PostgreSQL 17
+
+---
 
 ## Banco Escolhido
 
-PostgreSQL.
-
-## ORM Escolhido
-
-Sequelize ORM.
-
----
-
-# Entidades (Modelagem Normalizada)
-
-Para garantir integridade, redução de redundância e adequação às Formas Normais (1FN, 2FN, 3FN), a estrutura do banco de dados está normalizada da seguinte maneira:
-
-### 1. User
-Representa os funcionários do sistema (ex: administradores, recepcionistas).
-- `id`: UUID (Primary Key)
-- `name`: String
-- `email`: String (Unique)
-- `password`: String
-- `role`: Enum ('ADMIN', 'RECEPTIONIST')
-- `createdAt`, `updatedAt`: Timestamps
-
-### 2. RoomCategory
-Separa os atributos de tipos de quarto da entidade física para evitar redundância de dados (3FN).
-- `id`: UUID (Primary Key)
-- `name`: String (ex: 'Standard', 'Suite')
-- `capacity`: Integer
-- `pricePerNight`: Decimal
-- `createdAt`, `updatedAt`: Timestamps
-
-### 3. Room
-Representa o quarto físico do hotel.
-- `id`: UUID (Primary Key)
-- `number`: String (Unique)
-- `floor`: Integer
-- `status`: Enum ('AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING')
-- `categoryId`: UUID (Foreign Key -> RoomCategory)
-- `createdAt`, `updatedAt`: Timestamps
-
-### 4. Guest
-Representa os hóspedes.
-- `id`: UUID (Primary Key)
-- `fullName`: String
-- `cpf`: String (Unique)
-- `phone`: String
-- `email`: String (Unique)
-- `createdAt`, `updatedAt`: Timestamps
-
-### 5. Reservation
-Registra as reservas. Inclui o `totalAmount` para manter histórico financeiro caso os preços das categorias mudem no futuro.
-- `id`: UUID (Primary Key)
-- `checkInDate`: Date
-- `checkOutDate`: Date
-- `status`: Enum ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED')
-- `totalAmount`: Decimal
-- `guestId`: UUID (Foreign Key -> Guest)
-- `roomId`: UUID (Foreign Key -> Room)
-- `userId`: UUID (Foreign Key -> User) - Usuário que registrou a reserva
-- `createdAt`, `updatedAt`: Timestamps
+**PostgreSQL 17** — banco relacional com suporte a:
+- Integridade ACID para operações financeiras
+- UUID nativo como chave primária (`uuid-ossp`)
+- Índices GIST e constraint `EXCLUDE USING gist` para evitar double-booking
+- Soft delete via coluna `deleted_at` (histórico nunca é destruído)
+- Multi-tenancy lógico eficiente via `tenant_id` em todas as tabelas filhas
 
 ---
 
-# Relacionamentos
+## Estrutura — 8 Tabelas
 
-```txt
-RoomCategory 1:N Room
-Guest 1:N Reservation
-Room 1:N Reservation
-User 1:N Reservation
+O banco está estruturado em 8 tabelas, todas com UUID como PK e `tenant_id` como FK de isolamento (exceto a tabela raiz `tenants` e a tabela pivô `reservation_rooms`).
+
+### 1. `tenants` — Raiz do SaaS
+Representa cada hotel/pousada cliente da plataforma.
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | Identificador único do tenant |
+| `name` | TEXT | NOT NULL | Nome do hotel |
+| `subdomain` | TEXT | NOT NULL, UNIQUE | Identificador único na URL de login |
+| `legal_id` | TEXT | nullable | CNPJ ou documento fiscal |
+| `status` | TEXT | NOT NULL, DEFAULT 'ACTIVE' | ACTIVE ou SUSPENDED |
+| `created_at` | TIMESTAMPTZ | DEFAULT now() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT now() | Atualizado por trigger |
+
+---
+
+### 2. `users` — Funcionários do hotel
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID | FK → tenants(id) NOT NULL | Isolamento multi-tenant |
+| `name` | TEXT | NOT NULL | |
+| `email` | TEXT | NOT NULL | |
+| `password_hash` | TEXT | NOT NULL | Hash bcrypt — nunca senha em texto claro |
+| `role` | TEXT | NOT NULL, DEFAULT 'RECEPTIONIST' | ADMIN ou RECEPTIONIST |
+| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete |
+| `created_at` / `updated_at` | TIMESTAMPTZ | | |
+
+**Constraint:** `UNIQUE (tenant_id, email)` — mesmo e-mail pode existir em hotéis diferentes.
+
+---
+
+### 3. `room_categories` — Tipos de quarto
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID | FK → tenants(id) NOT NULL | |
+| `name` | TEXT | NOT NULL | Ex: Standard, Suíte, Luxo |
+| `capacity` | INTEGER | NOT NULL, DEFAULT 1, CHECK > 0 | |
+| `price_per_night` | NUMERIC(10,2) | NOT NULL, CHECK >= 0 | Preço-base por noite |
+| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete |
+
+**Constraint:** `UNIQUE (tenant_id, name)` — nome único por hotel.
+
+**Decisão de modelagem (3FN):** separar categoria de quarto do quarto físico evita repetição de `price_per_night` em cada registro de `rooms`.
+
+---
+
+### 4. `rooms` — Quartos físicos
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID | FK → tenants(id) NOT NULL | |
+| `category_id` | UUID | FK → room_categories(id) NOT NULL | |
+| `number` | TEXT | NOT NULL | Número ou código do quarto |
+| `floor` | INTEGER | nullable | Andar |
+| `status` | TEXT | NOT NULL, DEFAULT 'AVAILABLE' | Máquina de estados operacional |
+| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete |
+
+**Status possíveis:** `AVAILABLE` → `OCCUPIED` (check-in) → `CLEANING` (check-out) → `AVAILABLE` (limpeza concluída).
+
+**Constraint:** `UNIQUE (tenant_id, number)` — número único por hotel.
+
+---
+
+### 5. `guests` — Hóspedes
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID | FK → tenants(id) NOT NULL | |
+| `full_name` | TEXT | NOT NULL | |
+| `cpf` | TEXT | nullable | CPF — nullable para hóspedes estrangeiros |
+| `phone` | TEXT | nullable | |
+| `email` | TEXT | nullable | |
+| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete |
+
+**Constraints:** `UNIQUE (tenant_id, cpf)` e `UNIQUE (tenant_id, email)` — unicidade por hotel, não global.
+
+---
+
+### 6. `reservations` — Reservas
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID | FK → tenants(id) NOT NULL | |
+| `guest_id` | UUID | FK → guests(id) ON DELETE RESTRICT | Hóspede titular |
+| `room_id` | UUID | FK → rooms(id) ON DELETE RESTRICT | Quarto principal |
+| `user_id` | UUID | FK → users(id) ON DELETE RESTRICT | Usuário que registrou |
+| `check_in_date` | DATE | NOT NULL | |
+| `check_out_date` | DATE | NOT NULL | |
+| `status` | TEXT | NOT NULL, DEFAULT 'PENDING' | Máquina de estados |
+| `total_amount` | NUMERIC(12,2) | NOT NULL, DEFAULT 0 | Valor histórico — preserva preço na data da reserva |
+| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete |
+
+**Status possíveis:** `PENDING` → `CONFIRMED` → `CHECKED_IN` → `CHECKED_OUT`. Cancelamento: `PENDING` ou `CONFIRMED` → `CANCELLED`.
+
+**Constraint crítica (anti-double-booking):**
+```sql
+EXCLUDE USING gist (
+  room_id WITH =,
+  daterange(check_in_date, check_out_date, '[)') WITH &&
+)
+```
+Impede sobreposição de datas no nível do banco — mesmo que dois processos tentem criar a segunda reserva simultaneamente.
+
+---
+
+### 7. `reservation_rooms` — Pivô N:N (Reservas ↔ Quartos adicionais)
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE | |
+| `room_id` | UUID | FK → rooms(id) ON DELETE CASCADE | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | | |
+
+**Constraint:** `UNIQUE (reservation_id, room_id)` — um quarto não pode aparecer duas vezes na mesma reserva.
+
+**Decisão de modelagem (1FN):** uma reserva pode abranger múltiplos quartos (ex: família reserva 2 quartos). A tabela pivô elimina a necessidade de arrays ou grupos repetitivos em `reservations`.
+
+---
+
+### 8. `payments` — Pagamentos
+
+| Coluna | Tipo | Constraint | Descrição |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID | FK → tenants(id) NOT NULL | Desnormalizado — acelera relatórios financeiros por hotel sem JOIN extra |
+| `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE | |
+| `amount` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | Valor do pagamento |
+| `method` | TEXT | NOT NULL | PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO |
+| `paid_at` | TIMESTAMPTZ | DEFAULT now() | |
+| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete — histórico financeiro nunca é destruído |
+
+---
+
+## Relacionamentos
+
+```
+tenants  1:N  users
+tenants  1:N  room_categories
+tenants  1:N  rooms
+tenants  1:N  guests
+tenants  1:N  reservations
+tenants  1:N  payments
+
+room_categories  1:N  rooms
+guests           1:N  reservations
+users            1:N  reservations
+reservations     N:N  rooms   (via reservation_rooms)
+reservations     1:N  payments
 ```
 
 ---
 
-# Objetivos Acadêmicos
+## Normalização
 
-O projeto busca demonstrar:
-
-* APIs REST;
-* modelagem relacional;
-* autenticação;
-* Docker;
-* Docker Swarm;
-* infraestrutura moderna;
-* backend com Node.js;
-* persistência de dados (usando Sequelize ORM);
-* escalabilidade básica.
+| Forma Normal | Status | Evidência |
+|---|---|---|
+| **1FN** | Atendida | Todos os atributos são atômicos. Relação N:N (reservas ↔ quartos) resolvida pela tabela pivô `reservation_rooms` em vez de grupos repetitivos |
+| **2FN** | Atendida | Toda coluna depende da chave primária completa (UUID) |
+| **3FN** | Atendida | `price_per_night` fica em `room_categories`, não em `rooms` |
+| **Desnormalizações intencionais** | `tenant_id` em `payments`; `total_amount` em `reservations` | Desnormalizações documentadas e justificadas: `tenant_id` evita JOIN com `reservations` em relatórios financeiros; `total_amount` preserva o valor histórico quando o preço da categoria muda |
 
 ---
 
-# Roadmap Resumido
-
-## Fase 1
-
-* setup Docker;
-* PostgreSQL;
-* Express.
-
----
-
-## Fase 2
-
-* Sequelize ORM;
-* autenticação JWT.
-
----
-
-## Fase 3
-
-* CRUD hóspedes;
-* CRUD quartos.
-
----
-
-## Fase 4
-
-* reservas;
-* regras de negócio.
-
----
-
-## Fase 5
-
-* Swagger;
-* testes;
-* documentação.
-
----
-
-## Fase 6
-
-* Docker Swarm;
-* Kubernetes (complementar).
-
----
-
-## Observação sobre Multi-tenant (SaaS)
-
-- **Abordagem:** Cada hotel é uma `tenant` lógico. A modelagem inclui a entidade `Hotel` e todas as entidades operacionais (usuários, quartos, categorias, reservas, hóspedes) referenciam `hotel_id` para isolar dados por cliente.
-- **Vantagem:** permite compartilhar a mesma base com separação lógica, facilitar backups/monitoramento por cliente e aplicar políticas específicas por hotel.
-
-## Esquema SQL (resumido) — Exemplo
-
-O arquivo de script completo está em [db/schema.sql](db/schema.sql). Abaixo há um resumo com trechos comentados para orientação.
+## Índices
 
 ```sql
--- Habilita geração de UUIDs (Postgres). Execute como superuser quando configurar o DB.
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Filtro principal de isolamento multi-tenant + data de check-in
+CREATE INDEX idx_reservations_tenant_checkin ON reservations (tenant_id, check_in_date);
 
--- Tabela de hotéis (tenants)
-CREATE TABLE IF NOT EXISTS hotels (
-	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), -- identificador do hotel (tenant)
-	name TEXT NOT NULL,                          -- nome do hotel/empresa
-	legal_id TEXT,                                -- documento fiscal (CNPJ/ID)
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
+-- Filtro de quartos por status por hotel (painel de disponibilidade)
+CREATE INDEX idx_rooms_tenant_status ON rooms (tenant_id, status);
 
--- Usuários do sistema (funcionários do hotel)
-CREATE TABLE IF NOT EXISTS users (
-	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), -- id do usuário
-	hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE, -- link para tenant
-	name TEXT NOT NULL,
-	email TEXT NOT NULL,
-	password_hash TEXT NOT NULL,
-	role TEXT NOT NULL, -- valores esperados: 'ADMIN','RECEPTIONIST'
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	UNIQUE (hotel_id, email) -- mesmo email pode existir em hotéis distintos
-);
+-- Login: lookup rápido por e-mail dentro do tenant
+CREATE INDEX idx_users_tenant_email ON users (tenant_id, email);
 
--- Categorias de quarto (por hotel)
-CREATE TABLE IF NOT EXISTS room_categories (
-	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-	hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-	name TEXT NOT NULL,
-	capacity INTEGER NOT NULL DEFAULT 1,
-	price_per_night NUMERIC(10,2) NOT NULL DEFAULT 0,
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	UNIQUE (hotel_id, name)
-);
-
--- Quartos físicos
-CREATE TABLE IF NOT EXISTS rooms (
-	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-	hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-	category_id UUID NOT NULL REFERENCES room_categories(id) ON DELETE RESTRICT,
-	number TEXT NOT NULL, -- número ou identificação do quarto
-	floor INTEGER,
-	status TEXT NOT NULL DEFAULT 'AVAILABLE', -- 'AVAILABLE','OCCUPIED','MAINTENANCE','CLEANING'
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	UNIQUE (hotel_id, number) -- número único por hotel
-);
-
--- Hóspedes
-CREATE TABLE IF NOT EXISTS guests (
-	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-	hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-	full_name TEXT NOT NULL,
-	cpf TEXT, -- documento nacional (pode ser NULL para estrangeiros)
-	phone TEXT,
-	email TEXT,
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	UNIQUE (hotel_id, cpf), -- evita duplicidade por hotel quando informado
-	UNIQUE (hotel_id, email)
-);
-
--- Reservas
-CREATE TABLE IF NOT EXISTS reservations (
-	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-	hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-	guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
-	room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
-	user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT, -- quem registrou/atualizou
-	check_in_date DATE NOT NULL,
-	check_out_date DATE NOT NULL,
-	status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING','CONFIRMED','CHECKED_IN',... 
-	total_amount NUMERIC(12,2) NOT NULL DEFAULT 0, -- histórico de valor
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-	CHECK (check_out_date > check_in_date),
-	CHECK (status IN ('PENDING','CONFIRMED','CHECKED_IN','CHECKED_OUT','CANCELLED')),
-	EXCLUDE USING gist (
-		room_id WITH =,
-		daterange(check_in_date, check_out_date, '[)') WITH &&
-	)
-);
-
--- Índices para consultas comuns
-CREATE INDEX IF NOT EXISTS idx_reservations_hotel_checkin ON reservations (hotel_id, check_in_date);
-CREATE INDEX IF NOT EXISTS idx_rooms_hotel_status ON rooms (hotel_id, status);
+-- Busca de pagamentos por reserva
+CREATE INDEX idx_reservation_rooms_res_id ON reservation_rooms (reservation_id);
 ```
 
-Cada trecho acima no script é acompanhado por comentários curtos explicando o propósito das colunas e constraints.
-
-> Observação: o esquema agora inclui validações adicionais de valores, unicidade de e-mail de hóspede por hotel, `updated_at` em pagamentos e um bloqueio de reservas sobrepostas por quarto usando `btree_gist`.
+Todos os índices de queries multi-tenant são **compostos começando por `tenant_id`** — garante que buscas de um hotel usem sempre o índice e não façam full-table-scan em dados de outros hotéis.
 
 ---
 
-## Próximos passos (técnicos)
+## Migrations
 
-- Adicionar scripts de migração com ferramenta (ex: Sequelize Migrations ou Flyway).
-- Definir políticas de backup e esquemas de particionamento caso o volume por tenant cresça.
-- Implementar testes de integridade e dados fictícios para QA.
+O projeto não usa `sequelize-cli`. As tabelas são criadas e atualizadas via:
 
----
+```bash
+# Kubernetes (ambiente principal)
+kubectl exec -n hotel-system deploy/backend -- node command.js migrate
 
-## Entrega acadêmica — requisitos do professor
+# Docker Compose (alternativo — testes)
+docker compose exec node_web node command.js migrate
+```
 
-1) Escolha do SGBD
+O comando executa `sequelize.sync({ alter: true })` — cria tabelas novas e adiciona colunas sem destruir dados existentes.
 
-- **Provedor:** PostgreSQL
-- **Justificativa curta:** PostgreSQL oferece robustez ACID, suporte a tipos avançados (UUID, JSONB), extensões (uuid-ossp), e forte suporte a índices e transações—adequado para integridade e consistência exigidas por um sistema de reservas hoteleiras multi-tenant. Para um SaaS com relações bem definidas e necessidade de consultas complexas/joins e agregações, um banco relacional como PostgreSQL é preferível a NoSQL.
-
-2) Modelagem e Estrutura
-
-- **Diagrama Entidade-Relacionamento (DER):** disponível em [modelagem/DER.mmd](modelagem/DER.mmd)
-- **Diagrama Lógico:** disponível em [modelagem/diagrama_logico.md](modelagem/diagrama_logico.md)
-- **DDL (scripts):** o DDL final está em [scripts/setup.sql](scripts/setup.sql). O arquivo contém tabelas, chaves estrangeiras, índices e triggers de atualização de timestamps.
-
-3) Requisitos de Performance
-
-- **Estratégia de indexação (resumo):**
-	- `reservations(hotel_id, check_in_date)` — acelera buscas por calendário e verificações de disponibilidade.
-	- `reservations(hotel_id, check_out_date)` — para filtros por período.
-	- `rooms(hotel_id, status)` — lista rápida de quartos disponíveis/ocupados por hotel.
-	- `users(hotel_id, email)` — lookup para autenticação (login).
-	- `guests(hotel_id, cpf)` — busca por documento fiscal.
-
-- **Justificativa:** índices compostos por `hotel_id` garantem que buscas por cliente (tenant) utilizem índices e mantenham separação lógica do SaaS; colunas de data indexadas otimizam consultas por período que são comuns em relatórios e verificações de disponibilidade.
-
-4) Organização do Repositório (conforme solicitado)
-
-- **/modelagem:** Diagramas e mapa lógico — [modelagem/DER.mmd](modelagem/DER.mmd), [modelagem/diagrama_logico.md](modelagem/diagrama_logico.md)
-- **/scripts:** DDL final e observações — [scripts/setup.sql](scripts/setup.sql)
-- **/seed:** Seeds para popular DB em desenvolvimento — [seed/seed_hotels.sql](seed/seed_hotels.sql)
-- **/queries:** Exemplos das operações principais e agregações — [queries/queries.sql](queries/queries.sql)
-
-5) Observações finais e próximos passos acadêmicos
-
-- Gerar migrations com `sequelize-cli` para aplicar o `scripts/setup.sql` em etapas controladas.
-- Criar `seed` mais completo com transações para manter integridade ao popular múltiplas tabelas.
-- Implementar testes de performance (ex: pgbench ou scripts que simulem reservas concorrentes) e considerar particionamento de `reservations` por time-range se o volume for muito alto.
+O schema SQL completo (DDL com triggers e constraints) está em `db/schema.sql`.
 
 ---
 
-Se quiser, eu posso gerar os arquivos de migrations do Sequelize (arquivos `up`/`down`) correspondentes ao `scripts/setup.sql` ou criar os modelos Sequelize em JavaScript/TypeScript com comentários explicativos. Qual opção prefere? 
+## Recursos de documentação
+
+| Arquivo | Conteúdo |
+|---|---|
+| `db/schema.sql` | DDL completo — fonte de verdade |
+| `scripts/setup.sql` | DDL comentado para fins acadêmicos |
+| `modelagem/der.png` | Diagrama Entidade-Relacionamento |
+| `modelagem/DER.mmd` | Fonte do DER em Mermaid |
+| `modelagem/modelo_logico.png` | Diagrama Lógico |
+| `modelagem/dicionario_dados.md` | Dicionário completo de colunas |
+| `queries/crud.sql` | Consultas CRUD com isolamento por tenant_id |
+| `queries/consultas_avancadas.sql` | 5 JOINs complexos |
+| `queries/agregacoes.sql` | 5 consultas de agregação (relatórios) |
+| `seed/seed_hotels.sql` | 165 registros de exemplo (2 hotéis) |
+| `justificativa/arquitetura.md` | Justificativa completa da escolha tecnológica |
+
+---
+
+*Última atualização: 18/06/2026*

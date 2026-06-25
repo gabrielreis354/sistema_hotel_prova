@@ -23,8 +23,7 @@ O projeto busca demonstrar:
 * modelagem relacional;
 * autenticação;
 * Docker;
-* Docker Swarm;
-* Kubernetes;
+* Kubernetes (ambiente principal);
 * infraestrutura moderna;
 * backend com Node.js;
 * persistência de dados;
@@ -44,7 +43,7 @@ O projeto busca demonstrar:
 
 ## Fase 2
 
-* Prisma ORM;
+* Sequelize ORM;
 * autenticação JWT.
 
 ---
@@ -73,14 +72,13 @@ O projeto busca demonstrar:
 
 ## Fase 6
 
-* Docker Swarm;
-* Kubernetes.
+* Kubernetes (ambiente principal de execucao).
 
 ---
 
 # Kubernetes na Infraestrutura
 
-O Kubernetes foi adicionado como uma alternativa moderna para orquestrar os containers do sistema. Ele mantém a mesma ideia da infraestrutura com Docker/Nginx/PostgreSQL, mas organiza cada parte como recurso do cluster.
+O Kubernetes e o ambiente de execucao do projeto. Ele organiza cada parte do sistema como recurso do cluster (Deployment, Service, ConfigMap, Secret, PVC), mantendo a mesma arquitetura logica de Docker/Nginx/PostgreSQL.
 
 ## Componentes Kubernetes
 

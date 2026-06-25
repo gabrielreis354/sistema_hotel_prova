@@ -40,9 +40,9 @@ Diagrama lógico (tabelas, chaves primárias e estrangeiras)
 - reservations (id PK)
   - id UUID PK
   - tenant_id UUID FK -> tenants(id)
-  - guest_id UUID FK -> guests(id) (nullable — ON DELETE SET NULL preserva histórico)
-  - room_id UUID FK -> rooms(id)   (nullable — mesma razão)
-  - user_id UUID FK -> users(id)   (nullable — mesma razão)
+  - guest_id UUID FK NOT NULL -> guests(id) ON DELETE RESTRICT
+  - room_id UUID FK NOT NULL -> rooms(id)   ON DELETE RESTRICT
+  - user_id UUID FK NOT NULL -> users(id)   ON DELETE RESTRICT
   - check_in_date DATE
   - check_out_date DATE
   - status TEXT                    -- PENDING | CONFIRMED | CHECKED_IN | CHECKED_OUT | CANCELLED

@@ -9,7 +9,7 @@
 | Sequelize ORM | Integração com o Banco de Dados Relacional |
 | PostgreSQL | Banco de dados principal |
 | JWT + bcryptjs | Autenticação e criptografia de senhas |
-| Docker Compose | Infraestrutura de desenvolvimento local |
+| Kubernetes | Infraestrutura principal (manifests em `k8s/`) |
 
 ---
 
@@ -26,8 +26,6 @@ sistema_gestao_hotel/           ← raiz do repositório
 │   │   ├── AuthApi/
 │   │   │   ├── LoginController.js
 │   │   │   └── RegisterController.js
-│   │   ├── TenantApi/
-│   │   │   └── RegisterTenantController.js
 │   │   ├── RoomApi/
 │   │   │   ├── CreateRoomController.js
 │   │   │   ├── ListRoomController.js
@@ -44,6 +42,7 @@ sistema_gestao_hotel/           ← raiz do repositório
 │       ├── RoomModel.js
 │       ├── GuestModel.js
 │       ├── ReservationModel.js
+│       ├── ReservationRoomModel.js
 │       └── PaymentModel.js
 │
 ├── database/
@@ -77,9 +76,10 @@ sistema_gestao_hotel/           ← raiz do repositório
 │
 ├── _web.js                      ← Entrypoint do Express (listen na porta)
 ├── package.json                 ← "type": "module" + dependências
-├── docker-compose.yml           ← PostgreSQL local (dev)
-├── .env                         ← Variáveis de ambiente (não commitado)
-└── .env.example                 ← Template de variáveis para novos devs
+├── k8s/                         ← Manifests Kubernetes (ambiente principal)
+├── docker-compose.yml           ← Alternativo — usado somente para testes automatizados
+├── .env                         ← Variáveis de ambiente para uso com Docker Compose (não commitado)
+└── .env.example                 ← Template de variáveis para uso com Docker Compose
 ```
 
 ---
@@ -109,7 +109,7 @@ export default async function CreateRoomController(request, response) {
         if (error.length > 0) return response.status(400).json({ error });
 
         const room = await RoomModel.create({
-            tenant_id:   request.tenantId, // injetado pelo tenant.middleware.js
+            tenant_id:   request.user.tenantId, // extraído do JWT pelo authMiddleware
             number:      number,
             category_id: category_id
         });
@@ -144,38 +144,23 @@ return response.status(204).send();
 
 ---
 
-### Controller — Listagem com Paginação
+### Controller — Listagem
 
-Endpoints de listagem seguem o padrão de paginação do projeto de referência — `page` e `limit` via query string, com campo `next` indicando a próxima página:
+Endpoints de listagem usam `findAll` com filtro obrigatório de `tenant_id` e retornam a lista diretamente como array JSON. Não há paginação implementada nesta fase do projeto.
 
 ```javascript
 // app/Controllers/RoomApi/ListRoomController.js
 export default async function ListRoomController(request, response) {
     try {
-        const pageRequest  = Number(request.query.page)  || 1;
-        const limitRequest = Number(request.query.limit) || 10;
-
-        const page   = (pageRequest < 1) ? 1 : pageRequest;
-        const limit  = (limitRequest > 20) ? 20 : ((limitRequest < 1) ? 10 : limitRequest);
-        const offset = (page - 1) * limit;
-
-        let next = null;
-
-        const { rows, count: total } = await RoomModel.findAndCountAll({
-            where:    { tenant_id: request.tenantId },
-            order:    [["id", "ASC"]],
-            limit:    limit + 1,
-            offset:   offset,
-            distinct: true
+        const tenantId = request.user.tenantId; // extraído do JWT pelo authMiddleware
+        const rooms = await RoomModel.findAll({
+            where: { tenant_id: tenantId },
+            include: [{ model: RoomCategoryModel, as: 'category', attributes: ['id', 'name', 'price_per_night'] }]
         });
-
-        const rooms = rows;
-        if (rooms.length > limit) { next = page + 1; rooms.pop(); }
-
-        return response.json({ page, limit, total, next, data: rooms });
+        return response.json(rooms);
     } catch (error) {
         console.error(error);
-        return response.status(500).json({ error: "Internal server error" });
+        return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }
 ```
@@ -270,22 +255,23 @@ Os middlewares ficam em `middlewares/` e são aplicados **por rota** diretamente
 | Middleware | Arquivo | Responsabilidade |
 |-----------|---------|------------------|
 | Auth | `auth.middleware.js` | Valida JWT → injeta `request.user = { userId, role, tenantId }` |
-| Tenant | `tenant.middleware.js` | Verifica tenant `ACTIVE` → injeta `request.tenantId` |
+| Tenant | `tenant.middleware.js` | Verifica tenant `ACTIVE` (disponível mas não aplicado nas rotas — veja nota) |
 | Role | `role.middleware.js` | Controla acesso por papel via `requireRole(...roles)` (HOF) |
 
 Cadeia de execução em rotas protegidas:
 
 ```
 Request
-  └── authMiddleware           ← verifica JWT, injeta request.user
-        └── tenantMiddleware   ← verifica tenant ACTIVE, injeta request.tenantId
-              └── requireRole  ← verifica request.user.role (somente em rotas restritas)
-                    └── Controller
+  └── authMiddleware       ← verifica JWT, injeta request.user (inclui tenantId)
+        └── requireRole    ← verifica request.user.role (somente em rotas restritas a ADMIN)
+              └── Controller
 ```
+
+> **Nota sobre `tenantMiddleware`:** o arquivo existe e verifica se o tenant está ativo (`status = ACTIVE`). No entanto, ele não está aplicado nas rotas atualmente — os controllers extraem `tenantId` diretamente de `request.user.tenantId` (injetado pelo `authMiddleware`). Isso significa que tenants suspensos ainda conseguem autenticar, embora o JWT seja válido pelo tempo de expiração. Isso é uma melhoria futura.
 
 > Rotas públicas (`POST /auth/login`, `POST /auth/register`) **não** aplicam nenhum middleware.
 
-Para o plano completo — código de cada middleware, tabela de permissões por rota e decisões de design — veja [docs/back/MIDDLEWARES.md](MIDDLEWARES.md).
+Para o código de cada middleware e a tabela de permissões por rota — veja [docs/back/MIDDLEWARES.md](MIDDLEWARES.md).
 
 ---
 
@@ -296,17 +282,16 @@ Cada roteador de domínio em `routes/apis/` é uma **IIFE** que retorna o `Route
 ```javascript
 // routes/apis/roomRouter.js
 import { Router } from 'express';
-import authMiddleware    from '../../middlewares/auth.middleware.js';
-import tenantMiddleware  from '../../middlewares/tenant.middleware.js';
-import { requireRole }   from '../../middlewares/role.middleware.js';
+import authMiddleware  from '../../middlewares/auth.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
 import ListRoomController   from '../../app/Controllers/RoomApi/ListRoomController.js';
 import CreateRoomController from '../../app/Controllers/RoomApi/CreateRoomController.js';
 
 export default (() => {
     const router = Router();
 
-    router.get('/',  authMiddleware, tenantMiddleware, ListRoomController);
-    router.post('/', authMiddleware, tenantMiddleware, requireRole('ADMIN'), CreateRoomController);
+    router.get('/',  authMiddleware, ListRoomController);
+    router.post('/', authMiddleware, requireRole('ADMIN'), CreateRoomController);
     // ...
 
     return router;
@@ -337,19 +322,20 @@ O sistema é estruturado como um SaaS Multi-Tenant desde a base. Cada hotel ou p
 
 Todas as entidades principais possuem uma coluna `tenant_id`. O isolamento é garantido através do cabeçalho de autenticação JWT, contendo o payload `{ userId, role, tenantId }`:
 
-1. **Injeção do Tenant**: O middleware decodifica o JWT e injeta a propriedade `tenantId` no objeto `request` (`request.tenantId`).
-2. **Criação de Registros**: Durante a criação de qualquer entidade, o `tenant_id` é injetado diretamente a partir do request:
+1. **Extração do Tenant**: O `authMiddleware` decodifica o JWT e injeta `request.user = { userId, role, tenantId }`. Os controllers extraem o tenant a partir de `request.user.tenantId`.
+2. **Criação de Registros**: O `tenant_id` vem de `request.user.tenantId`:
    ```javascript
    const room = await RoomModel.create({
-       tenant_id: request.tenantId, // Injetado automaticamente pelo middleware
+       tenant_id: request.user.tenantId, // extraído do JWT pelo authMiddleware
        number: number,
        category_id: category_id
    });
    ```
-3. **Leitura/Atualização/Deleção**: Todas as consultas e operações do Sequelize aplicam um filtro obrigatório no campo `tenant_id` para impedir que um hotel visualize ou altere dados de outro:
+3. **Leitura/Atualização/Deleção**: Todas as consultas filtram por `tenant_id` para impedir que um hotel acesse dados de outro:
    ```javascript
+   const tenantId = request.user.tenantId;
    const rooms = await RoomModel.findAll({
-       where: { tenant_id: request.tenantId }
+       where: { tenant_id: tenantId }
    });
    ```
 
@@ -360,7 +346,7 @@ Todas as entidades principais possuem uma coluna `tenant_id`. O isolamento é ga
 A API REST utiliza os códigos de status nativos do protocolo HTTP para expressar resultados:
 
 * **`200 OK`**: Sucesso para consultas de leitura simples (GET por ID) e atualizações.
-* **`200 OK` (listagem)**: Retorna envelope de paginação `{ page, limit, total, next, data: [...] }`.
+* **`200 OK` (listagem)**: Retorna array JSON direto com os registros do tenant.
 * **`201 Created`**: Sucesso na criação de novos registros. Retorna o objeto criado.
 * **`204 No Content`**: Sucesso para deleções (soft delete via `destroy()`).
 * **`400 Bad Request`**: Parâmetros inválidos ou campos obrigatórios ausentes. Retorna array: `{ error: ["campo obrigatório!"] }`.

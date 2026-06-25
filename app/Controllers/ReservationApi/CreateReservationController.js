@@ -2,6 +2,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
+import sequelize from '../../../database/connections/sequelize.js';
 import { checkReservationConflict } from '../../utils/checkReservationConflict.js';
 
 export default async function CreateReservationController(request, response) {
@@ -32,33 +33,53 @@ export default async function CreateReservationController(request, response) {
             return response.status(422).json({ error: 'Categoria do quarto não possui preço definido' });
         }
 
+        // Validar todos os quartos extras ANTES de iniciar qualquer escrita no banco.
+        // Se a validação ocorresse dentro do loop de criação, uma falha no segundo ou terceiro ID
+        // deixaria a reserva e as pivot rows anteriores órfãs no banco.
+        if (Array.isArray(extra_room_ids)) {
+            for (const rid of extra_room_ids) {
+                const extraRoom = await RoomModel.findOne({ where: { id: rid, tenant_id: tenantId } });
+                if (!extraRoom) {
+                    return response.status(404).json({ error: `Quarto extra não encontrado: ${rid}` });
+                }
+            }
+        }
+
         const checkIn  = new Date(check_in_date);
         const checkOut = new Date(check_out_date);
         const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
         const total_amount = parseFloat(room.category.price_per_night) * nights;
 
-        const reservation = await ReservationModel.create({
-            tenant_id: tenantId,
-            guest_id,
-            room_id,
-            user_id: userId,
-            check_in_date,
-            check_out_date,
-            status: 'PENDING',
-            total_amount
-        });
+        // Transação: reserva + pivot rows são atômicas — ou tudo persiste, ou nada persiste.
+        const transaction = await sequelize.transaction();
+        try {
+            const reservation = await ReservationModel.create({
+                tenant_id: tenantId,
+                guest_id,
+                room_id,
+                user_id: userId,
+                check_in_date,
+                check_out_date,
+                status: 'PENDING',
+                total_amount
+            }, { transaction });
 
-        // Vincular quarto principal na tabela pivô (N:N)
-        await ReservationRoomModel.create({ reservation_id: reservation.id, room_id });
+            // Vincular quarto principal na tabela pivô (N:N)
+            await ReservationRoomModel.create({ reservation_id: reservation.id, room_id }, { transaction });
 
-        // Vincular quartos adicionais, se informados
-        if (Array.isArray(extra_room_ids)) {
-            for (const rid of extra_room_ids) {
-                await ReservationRoomModel.create({ reservation_id: reservation.id, room_id: rid });
+            // Vincular quartos adicionais (todos já validados acima)
+            if (Array.isArray(extra_room_ids)) {
+                for (const rid of extra_room_ids) {
+                    await ReservationRoomModel.create({ reservation_id: reservation.id, room_id: rid }, { transaction });
+                }
             }
-        }
 
-        return response.status(201).json(reservation);
+            await transaction.commit();
+            return response.status(201).json(reservation);
+        } catch (txError) {
+            await transaction.rollback();
+            throw txError;
+        }
     } catch (error) {
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });

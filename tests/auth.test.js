@@ -59,7 +59,7 @@ describe('POST /auth/register', () => {
 });
 
 describe('POST /auth/login', () => {
-    it('retorna JWT válido com credenciais corretas', async () => {
+    it('retorna JWT válido com credenciais corretas (sem subdomain)', async () => {
         const res = await request(app).post('/auth/login').send({
             email: 'admin@aurora.com',
             password: 'senha123',
@@ -71,10 +71,32 @@ describe('POST /auth/login', () => {
         expect(res.body.user).toMatchObject({ email: 'admin@aurora.com', role: 'ADMIN' });
     });
 
+    it('retorna JWT válido com credenciais corretas e subdomain explícito', async () => {
+        const res = await request(app).post('/auth/login').send({
+            email: 'admin@aurora.com',
+            password: 'senha123',
+            subdomain: 'hotel-aurora',
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.token).toBeDefined();
+        expect(res.body.token.split('.')).toHaveLength(3);
+    });
+
     it('retorna 401 com senha incorreta', async () => {
         const res = await request(app).post('/auth/login').send({
             email: 'admin@aurora.com',
             password: 'senhaerrada',
+        });
+
+        expect(res.status).toBe(401);
+    });
+
+    it('retorna 401 com subdomain inexistente', async () => {
+        const res = await request(app).post('/auth/login').send({
+            email: 'admin@aurora.com',
+            password: 'senha123',
+            subdomain: 'hotel-fantasma',
         });
 
         expect(res.status).toBe(401);
@@ -92,6 +114,78 @@ describe('POST /auth/login', () => {
     it('retorna 400 sem campos obrigatórios', async () => {
         const res = await request(app).post('/auth/login').send({});
         expect(res.status).toBe(400);
+    });
+});
+
+describe('POST /auth/login — colisão de e-mail multi-tenant', () => {
+    // Cria dois tenants com o mesmo e-mail para validar o comportamento
+    // de desambiguação via subdomain introduzido no fix de segurança.
+    beforeAll(async () => {
+        await request(app).post('/auth/register').send({
+            tenantName: 'Hotel Alpha',
+            name: 'Admin Alpha',
+            email: 'shared@multihotel.com',
+            password: 'senha123',
+        });
+        await request(app).post('/auth/register').send({
+            tenantName: 'Hotel Beta',
+            name: 'Admin Beta',
+            email: 'shared@multihotel.com',
+            password: 'senha123',
+        });
+    });
+
+    it('retorna 409 quando e-mail existe em múltiplos tenants e subdomain não é informado', async () => {
+        const res = await request(app).post('/auth/login').send({
+            email: 'shared@multihotel.com',
+            password: 'senha123',
+        });
+
+        expect(res.status).toBe(409);
+        expect(res.body.requires).toBe('subdomain');
+    });
+
+    it('retorna 200 com subdomain correto desambiguando o tenant', async () => {
+        const res = await request(app).post('/auth/login').send({
+            email: 'shared@multihotel.com',
+            password: 'senha123',
+            subdomain: 'hotel-alpha',
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.token).toBeDefined();
+        expect(res.body.token.split('.')).toHaveLength(3);
+    });
+
+    it('retorna JWT com tenantId do hotel correto ao usar subdomain', async () => {
+        const resAlpha = await request(app).post('/auth/login').send({
+            email: 'shared@multihotel.com',
+            password: 'senha123',
+            subdomain: 'hotel-alpha',
+        });
+        const resBeta = await request(app).post('/auth/login').send({
+            email: 'shared@multihotel.com',
+            password: 'senha123',
+            subdomain: 'hotel-beta',
+        });
+
+        expect(resAlpha.status).toBe(200);
+        expect(resBeta.status).toBe(200);
+
+        // Os dois tokens devem ter tenantIds diferentes
+        const payloadAlpha = JSON.parse(Buffer.from(resAlpha.body.token.split('.')[1], 'base64').toString());
+        const payloadBeta  = JSON.parse(Buffer.from(resBeta.body.token.split('.')[1],  'base64').toString());
+        expect(payloadAlpha.tenantId).not.toBe(payloadBeta.tenantId);
+    });
+
+    it('retorna 401 com subdomain inexistente mesmo com e-mail e senha corretos', async () => {
+        const res = await request(app).post('/auth/login').send({
+            email: 'shared@multihotel.com',
+            password: 'senha123',
+            subdomain: 'hotel-fantasma',
+        });
+
+        expect(res.status).toBe(401);
     });
 });
 
