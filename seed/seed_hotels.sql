@@ -9,6 +9,7 @@
 --   - Referências por sub-SELECT/JOIN (subdomain, cpf, número do quarto) —
 --     NUNCA UUID hardcoded.
 --   - ~165 registros distribuídos em 2 tenants (Hotel Aurora e Pousada Sol).
+--   - Todos os usuários criados têm senha: senha123
 --
 -- PRÉ-REQUISITO: o schema já deve existir (node command.js migrate
 --   ou npm run setup:db).
@@ -117,10 +118,10 @@ ON CONFLICT (tenant_id, number) DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Usuários do Hotel Aurora (3: 1 ADMIN + 2 RECEPTIONIST)
--- password_hash é placeholder de seed (não corresponde a senha real).
+-- Senha: senha123 (hash bcrypt 10 rounds)
 -- -----------------------------------------------------------------------------
 INSERT INTO users (tenant_id, name, email, password_hash, role)
-SELECT t.id, v.name, v.email, '$2b$10$placeholder.hash.for.seed.only', v.role
+SELECT t.id, v.name, v.email, '$2a$10$dU7xkr/NZyY00/rPNy6kcu2IiP1FVGg1IXjk/YqzJEmjZsWDwL5jS', v.role
 FROM tenants t
 CROSS JOIN (VALUES
   ('Admin Aurora',       'admin@aurora.example',  'ADMIN'),
@@ -333,9 +334,10 @@ ON CONFLICT (tenant_id, number) DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Usuários da Pousada Sol (2: 1 ADMIN + 1 RECEPTIONIST)
+-- Senha: senha123 (hash bcrypt 10 rounds)
 -- -----------------------------------------------------------------------------
 INSERT INTO users (tenant_id, name, email, password_hash, role)
-SELECT t.id, v.name, v.email, '$2b$10$placeholder.hash.for.seed.only', v.role
+SELECT t.id, v.name, v.email, '$2a$10$dU7xkr/NZyY00/rPNy6kcu2IiP1FVGg1IXjk/YqzJEmjZsWDwL5jS', v.role
 FROM tenants t
 CROSS JOIN (VALUES
   ('Admin Sol',      'admin@sol.example',  'ADMIN'),

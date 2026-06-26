@@ -678,6 +678,143 @@ docker compose exec postgres psql -U hotel_user -d gestao_hotel \
 
 O seed é **idempotente** — pode ser executado múltiplas vezes sem duplicar registros (usa `ON CONFLICT DO NOTHING`).
 
+### Verificar o seed via API
+
+Após rodar o seed, confirme que os dados estão presentes fazendo login com um dos usuários criados e consultando as rotas. Todos os usuários do seed têm senha **`senha123`**.
+
+**1. Login como Hotel Aurora:**
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@aurora.example","password":"senha123","subdomain":"aurora"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+echo "Token obtido: ${TOKEN:0:40}..."
+```
+
+**2. Categorias de quartos (espera 3: Standard, Suite, Presidencial):**
+
+```bash
+curl -s http://localhost/room-categories \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "
+import sys, json
+cats = json.load(sys.stdin)
+print(f'{len(cats)} categorias:')
+for c in cats:
+    print(f'  - {c[\"name\"]} | capacidade {c[\"capacity\"]} | R\${c[\"price_per_night\"]}/noite')
+"
+```
+
+Resposta esperada:
+```
+3 categorias:
+  - Standard     | capacidade 2 | R$150.00/noite
+  - Suite        | capacidade 4 | R$350.00/noite
+  - Presidencial | capacidade 6 | R$800.00/noite
+```
+
+**3. Quartos (espera 15):**
+
+```bash
+curl -s http://localhost/rooms \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "
+import sys, json
+rooms = json.load(sys.stdin)
+print(f'{len(rooms)} quartos cadastrados')
+by_cat = {}
+for r in rooms:
+    cat = r['category']['name']
+    by_cat[cat] = by_cat.get(cat, 0) + 1
+for cat, n in by_cat.items():
+    print(f'  {cat}: {n} quarto(s)')
+"
+```
+
+Resposta esperada:
+```
+15 quartos cadastrados
+  Standard: 8 quarto(s)
+  Suite: 5 quarto(s)
+  Presidencial: 2 quarto(s)
+```
+
+**4. Quartos disponíveis para uma data futura:**
+
+```bash
+curl -s "http://localhost/rooms/available?check_in=2026-12-01&check_out=2026-12-05" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "
+import sys, json
+rooms = json.load(sys.stdin)
+print(f'{len(rooms)} quarto(s) disponível(is) para dez/2026:')
+for r in rooms:
+    print(f'  Quarto {r[\"number\"]} ({r[\"category\"][\"name\"]}) — R\${r[\"category\"][\"price_per_night\"]}/noite')
+"
+```
+
+**5. Hóspedes (espera 40):**
+
+```bash
+curl -s http://localhost/guests \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "import sys,json; g=json.load(sys.stdin); print(f'{len(g)} hóspedes cadastrados')"
+```
+
+**6. Reservas com distribuição de status (espera 25):**
+
+```bash
+curl -s http://localhost/reservations \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "
+import sys, json
+from collections import Counter
+reservations = json.load(sys.stdin)
+status = Counter(r['status'] for r in reservations)
+print(f'{len(reservations)} reservas no total:')
+for s, n in sorted(status.items()):
+    print(f'  {s}: {n}')
+"
+```
+
+Resposta esperada:
+```
+25 reservas no total:
+  CANCELLED: 3
+  CHECKED_IN: 4
+  CHECKED_OUT: 8
+  CONFIRMED: 5
+  PENDING: 5
+```
+
+**7. Pagamentos (espera 18):**
+
+```bash
+curl -s http://localhost/payments \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "
+import sys, json
+from collections import Counter
+payments = json.load(sys.stdin)
+methods = Counter(p['method'] for p in payments)
+total = sum(float(p['amount']) for p in payments)
+print(f'{len(payments)} pagamentos | Total: R\${total:,.2f}')
+for m, n in sorted(methods.items()):
+    print(f'  {m}: {n} pagamento(s)')
+"
+```
+
+Resposta esperada:
+```
+18 pagamentos | Total: R$18.500,00
+  CARTAO: 6 pagamento(s)
+  DINHEIRO: 3 pagamento(s)
+  PIX: 9 pagamento(s)
+```
+
+> **Isolamento multi-tenant:** repita o login com `admin@sol.example` / `aurora` → `sol` e verá apenas os dados da Pousada Sol (10 quartos, 20 hóspedes, 15 reservas, 10 pagamentos) — os dados do Hotel Aurora **nunca aparecem**.
+
 ---
 
 ## Testes Automatizados
