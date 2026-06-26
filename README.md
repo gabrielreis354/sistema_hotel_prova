@@ -64,8 +64,6 @@ Sistema de gestão hoteleira **SaaS multi-tenant**: múltiplos hotéis utilizam 
 
 O ambiente de execução é **Kubernetes**, aplicado via `kustomize` a partir dos manifests em `k8s/`. Cada componente do sistema roda como um recurso K8s dedicado — Deployment, Service, ConfigMap, Secret, PVC — dentro do namespace `hotel-system`.
 
-O `docker-compose.yml` ainda está disponível no repositório exclusivamente como apoio para rodar os **testes automatizados** localmente (os testes precisam de PostgreSQL em `localhost:5432`).
-
 ---
 
 # Parte 2 — Infraestrutura e Ambiente
@@ -505,9 +503,7 @@ sistema_gestao_hotel/
 ├── config/swagger.js         # Especificação OpenAPI 3.0
 │
 ├── Dockerfile                # Multi-stage build (deps + runner) — gera a imagem do backend
-├── docker-compose.yml        # Ambiente alternativo — usado apenas para testes automatizados
 ├── .dockerignore             # Exclui arquivos desnecessários do build
-├── .env.example              # Template de variáveis de ambiente (para uso com Docker Compose)
 │
 ├── k8s/                      # Manifests Kubernetes (ambiente principal)
 │   ├── kustomization.yaml    #   Ponto de entrada do kustomize (kubectl apply -k k8s/)
@@ -629,11 +625,7 @@ As consultas estão organizadas em `queries/`:
 O schema completo está em `db/schema.sql`. Para criar ou atualizar todas as tabelas:
 
 ```bash
-# Via Kubernetes (ambiente principal)
 kubectl exec -n hotel-system deploy/backend -- node command.js migrate
-
-# Via Docker Compose (ambiente alternativo, para desenvolvimento local)
-docker compose exec node_web node command.js migrate
 ```
 
 O comando usa `sequelize.sync({ alter: true })` — cria tabelas inexistentes e adiciona colunas novas sem derrubar dados existentes.
@@ -667,13 +659,8 @@ Distribuição de status das reservas (Hotel Aurora): 8 CHECKED_OUT · 5 CONFIRM
 **Executar o seed:**
 
 ```bash
-# Via Kubernetes (ambiente principal)
 kubectl exec -n hotel-system -i statefulset/postgres -- \
   psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
-
-# Via Docker Compose (ambiente alternativo)
-docker compose exec postgres psql -U hotel_user -d gestao_hotel \
-  -f /dev/stdin < seed/seed_hotels.sql
 ```
 
 O seed é **idempotente** — pode ser executado múltiplas vezes sem duplicar registros (usa `ON CONFLICT DO NOTHING`).
@@ -828,12 +815,6 @@ Os testes usam `Supertest` que executa a API em processo, mas precisam de **Post
 ```bash
 # Abre o túnel postgres → localhost:5432 (mantenha este terminal aberto)
 kubectl port-forward -n hotel-system svc/postgres 5432:5432
-```
-
-Alternativa com Docker Compose (mais simples para testes):
-
-```bash
-docker compose up -d postgres
 ```
 
 ### Executar os testes
