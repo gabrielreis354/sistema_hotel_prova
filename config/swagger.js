@@ -8,7 +8,10 @@ const options = {
             version: '1.0.0',
             description: 'API REST para gerenciamento hoteleiro. Autenticação via JWT Bearer token.'
         },
-        servers: [{ url: 'http://localhost/api', description: 'Servidor local via Nginx' }],
+        // URL relativa: o Swagger UI resolve as requisições contra a mesma origem/porta
+        // em que a doc foi aberta (localhost, :8080, :18080, etc.). As rotas são montadas
+        // na raiz pelo router/nginx — sem prefixo /api.
+        servers: [{ url: '/', description: 'Mesma origem em que a documentação foi aberta' }],
         components: {
             securitySchemes: {
                 bearerAuth: {
