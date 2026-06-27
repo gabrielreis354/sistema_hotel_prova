@@ -10,6 +10,7 @@ import roomRouter         from './apis/roomRouter.js';
 import guestRouter        from './apis/guestRouter.js';
 import reservationRouter  from './apis/reservationRouter.js';
 import paymentRouter      from './apis/paymentRouter.js';
+import analyticsRouter    from './apis/analyticsRouter.js';
 
 const router = Router();
 
@@ -45,5 +46,6 @@ router.use('/rooms',            roomRouter);
 router.use('/guests',           guestRouter);
 router.use('/reservations',     reservationRouter);
 router.use('/payments',         paymentRouter);
+router.use('/analytics',        analyticsRouter);
 
 export default router;

@@ -24,10 +24,11 @@ Multi-tenant schema + repositories    ✅     ✅     ✅
 Pagamentos por reserva                ✗      ✅     ✅
 Consumos extras                       ✗      ✅     ✅
 Fechamento de conta (bill)            ✗      ✅     ✅
-── MÓDULO RELATÓRIOS ──
+── MÓDULO RELATÓRIOS / ANALYTICS ──
 Relatório diário                      ✗      ✅     ✅
 Ocupação por período                  ✗      ✅     ✅
 Receita por período                   ✗      ✅     ✅
+Analytics (ADR · RevPAR · Alertas)    ✗      ✅     ✅
 ── MÓDULO TARIFAS ──
 RatePlan (preços por período)         ✗      ✅     ✅
 ── MÓDULO HÓSPEDE ──
@@ -45,7 +46,7 @@ Channel Manager (Booking/Airbnb)      ✗      ✗      ✅
 Nota Fiscal (NFS-e)                   ✗      ✗      ✅
 Billing / Planos SaaS                 ✗      ✗      ✅
 ──────────────────────────────────────────────────────────
-COBERTURA                            44%    74%    95%+
+COBERTURA                            44%    78%    95%+
 ```
 
 ---
@@ -170,6 +171,33 @@ Novos campos em Guest:
 Novo endpoint:
   GET /guests/:id/history
       → todas as reservas, total de noites, total gasto, primeira e última estadia
+```
+
+---
+
+### Módulo Analytics (Inteligência Financeira e Operacional)
+
+**Por que é módulo separado**: decisões operacionais hoje exigem planilhas externas. O analytics transforma dados já existentes em insights acionáveis — e justifica upgrade de plano para hotéis que querem gestão profissional.
+
+Sem mudança de schema — queries sobre os dados existentes com isolamento multi-tenant completo.
+
+```
+Endpoints implementados (GET /analytics/*):
+
+  /revenue              → Caixa realizado (por mês) vs esperado vs inadimplência
+  /occupancy            → Taxa de ocupação (%) + ADR + RevPAR para uma data
+  /alerts               → No-show risk (confirmados sem pagamento hoje),
+                          quartos em CLEANING, reservas PENDING >48h
+  /seasonality          → Histórico mensal: reservas, receita e média de noites
+  /revenue-by-category  → Ranking de rentabilidade por tipo de quarto
+  /payment-mix          → PIX vs CARTÃO vs DINHEIRO com percentual
+  /top-guests           → Hóspedes mais valiosos por lifetime value
+
+KPIs hoteleiros entregues:
+  ADR       = Receita total / Número de diárias vendidas
+  RevPAR    = ADR × Taxa de Ocupação
+  LTV       = Soma de total_amount por hóspede (lifetime value)
+  No-show   = CONFIRMED sem pagamento no dia do check-in
 ```
 
 ---
