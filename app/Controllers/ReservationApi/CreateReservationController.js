@@ -2,6 +2,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
+import GuestModel from '../../Models/GuestModel.js';
 import sequelize from '../../../database/connections/sequelize.js';
 import { checkReservationConflict } from '../../utils/checkReservationConflict.js';
 
@@ -17,6 +18,11 @@ export default async function CreateReservationController(request, response) {
         if (!check_in_date)  errors.push('check_in_date obrigatório');
         if (!check_out_date) errors.push('check_out_date obrigatório');
         if (errors.length) return response.status(400).json({ errors });
+
+        // Valida a FK do hóspede antes de qualquer escrita: um guest_id inexistente
+        // estouraria a foreign key dentro da transação e retornaria 500 genérico.
+        const guest = await GuestModel.findOne({ where: { id: guest_id, tenant_id: tenantId } });
+        if (!guest) return response.status(404).json({ error: 'Hóspede não encontrado' });
 
         const hasConflict = await checkReservationConflict(room_id, check_in_date, check_out_date, null, tenantId);
         if (hasConflict) {
