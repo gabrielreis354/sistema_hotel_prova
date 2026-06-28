@@ -41,9 +41,11 @@ END $$;
 -- =============================================================================
 -- TENANTS (2 registros)
 -- =============================================================================
-INSERT INTO tenants (name, subdomain, legal_id, status) VALUES
-  ('Hotel Aurora', 'aurora', '00.000.000/0001-01', 'ACTIVE'),
-  ('Pousada Sol',  'sol',    '00.000.000/0001-02', 'ACTIVE')
+-- booking_enabled / deposit_percent alimentam o motor de reserva direta.
+-- Sinal diferente por hotel demonstra a configuração por tenant (Aurora 30%, Sol 50%).
+INSERT INTO tenants (name, subdomain, legal_id, status, booking_enabled, deposit_percent) VALUES
+  ('Hotel Aurora', 'aurora', '00.000.000/0001-01', 'ACTIVE', true, 30),
+  ('Pousada Sol',  'sol',    '00.000.000/0001-02', 'ACTIVE', true, 50)
 ON CONFLICT (subdomain) DO NOTHING;
 
 

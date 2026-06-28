@@ -11,6 +11,8 @@ import guestRouter        from './apis/guestRouter.js';
 import reservationRouter  from './apis/reservationRouter.js';
 import paymentRouter      from './apis/paymentRouter.js';
 import analyticsRouter    from './apis/analyticsRouter.js';
+import publicBookingRouter from './apis/publicBookingRouter.js';
+import webhookRouter       from './apis/webhookRouter.js';
 
 const router = Router();
 
@@ -47,5 +49,11 @@ router.use('/guests',           guestRouter);
 router.use('/reservations',     reservationRouter);
 router.use('/payments',         paymentRouter);
 router.use('/analytics',        analyticsRouter);
+
+// Motor de reserva direta — rotas PÚBLICAS (sem auth), tenant resolvido pelo subdomínio
+router.use('/public/:subdomain', publicBookingRouter);
+
+// Webhooks de provedores externos (ex.: confirmação de PIX)
+router.use('/webhooks', webhookRouter);
 
 export default router;

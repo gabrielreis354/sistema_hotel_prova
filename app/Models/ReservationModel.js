@@ -24,9 +24,11 @@ const ReservationModel = sequelize.define(
             allowNull: false,
             references: { model: 'rooms', key: 'id' }
         },
+        // Nullable: reservas vindas do motor de reserva direta (online) não têm
+        // recepcionista associado. Reservas manuais continuam preenchendo este campo.
         user_id: {
             type: DataTypes.UUID,
-            allowNull: false,
+            allowNull: true,
             references: { model: 'users', key: 'id' }
         },
         check_in_date: {
@@ -46,6 +48,13 @@ const ReservationModel = sequelize.define(
             type: DataTypes.DECIMAL(12, 2),
             allowNull: false,
             defaultValue: 0
+        },
+        // Origem da reserva: MANUAL (recepção) ou DIRECT (motor de reserva direta online).
+        // Alimenta relatórios de canal e o futuro Channel Manager.
+        source: {
+            type: DataTypes.TEXT,
+            allowNull: false,
+            defaultValue: 'MANUAL'
         }
     },
     {

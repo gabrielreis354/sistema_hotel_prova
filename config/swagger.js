@@ -91,6 +91,86 @@ const options = {
         },
         security: [{ bearerAuth: [] }],
         paths: {
+            '/public/{subdomain}/hotel': {
+                get: {
+                    tags: ['Reserva Direta (Público)'],
+                    summary: 'Dados públicos do hotel (cabeçalho da página de reservas)',
+                    security: [],
+                    parameters: [{ in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' }],
+                    responses: { 200: { description: 'Nome, subdomínio e % de sinal' }, 404: { description: 'Hotel não encontrado' }, 403: { description: 'Reservas online desativadas' } }
+                }
+            },
+            '/public/{subdomain}/availability': {
+                get: {
+                    tags: ['Reserva Direta (Público)'],
+                    summary: 'Categorias disponíveis no período, com preço da estadia',
+                    security: [],
+                    parameters: [
+                        { in: 'path',  name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' },
+                        { in: 'query', name: 'check_in',  required: true, schema: { type: 'string', format: 'date' }, example: '2026-10-10' },
+                        { in: 'query', name: 'check_out', required: true, schema: { type: 'string', format: 'date' }, example: '2026-10-13' },
+                        { in: 'query', name: 'guests',    required: false, schema: { type: 'integer' }, example: 2 }
+                    ],
+                    responses: { 200: { description: 'Lista de categorias disponíveis + preço' }, 400: { description: 'Datas inválidas' }, 404: { description: 'Hotel não encontrado' } }
+                }
+            },
+            '/public/{subdomain}/bookings': {
+                post: {
+                    tags: ['Reserva Direta (Público)'],
+                    summary: 'Cria reserva online e gera cobrança PIX do sinal',
+                    security: [],
+                    parameters: [{ in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' }],
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: { type: 'object', required: ['category_id', 'check_in', 'check_out', 'guest'], properties: {
+                            category_id: { type: 'string', format: 'uuid' },
+                            check_in:    { type: 'string', format: 'date', example: '2026-10-10' },
+                            check_out:   { type: 'string', format: 'date', example: '2026-10-13' },
+                            guests:      { type: 'integer', example: 2 },
+                            guest: { type: 'object', required: ['full_name'], properties: {
+                                full_name: { type: 'string', example: 'Maria Oliveira' },
+                                email:     { type: 'string', example: 'maria@example.com' },
+                                phone:     { type: 'string', example: '(11) 99999-9999' },
+                                cpf:       { type: 'string', example: '123.456.789-00' }
+                            }}
+                        }}}}
+                    },
+                    responses: {
+                        201: { description: 'Reserva PENDING criada + QR PIX do sinal' },
+                        400: { description: 'Campos obrigatórios ausentes ou datas inválidas' },
+                        404: { description: 'Hotel ou categoria não encontrados' },
+                        409: { description: 'Sem disponibilidade na categoria para o período' },
+                        422: { description: 'Categoria não comporta os hóspedes ou sem preço' }
+                    }
+                }
+            },
+            '/public/{subdomain}/bookings/{id}/status': {
+                get: {
+                    tags: ['Reserva Direta (Público)'],
+                    summary: 'Status da reserva (polling pós-pagamento PIX)',
+                    security: [],
+                    parameters: [
+                        { in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' },
+                        { in: 'path', name: 'id',        required: true, schema: { type: 'string', format: 'uuid' } }
+                    ],
+                    responses: { 200: { description: 'Status da reserva e do sinal' }, 404: { description: 'Reserva não encontrada' } }
+                }
+            },
+            '/webhooks/pix': {
+                post: {
+                    tags: ['Webhooks'],
+                    summary: 'Confirmação de pagamento PIX (callback do PSP)',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. No provider simulado, dispare manualmente com o provider_charge_id retornado na criação da reserva.',
+                    security: [],
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: { type: 'object', required: ['provider_charge_id'], properties: {
+                            provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
+                        }}}}
+                    },
+                    responses: { 200: { description: 'Pagamento confirmado (ou já processado)' }, 400: { description: 'provider_charge_id ausente' }, 404: { description: 'Cobrança não encontrada' } }
+                }
+            },
             '/auth/register': {
                 post: {
                     tags: ['Auth'],
