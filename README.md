@@ -907,9 +907,9 @@ Sequência de comandos usada na apresentação para demonstrar persistência de 
 # 1. Confirmar que o PVC está Bound (armazenamento persistente ativo)
 kubectl get pvc -n hotel-system
 
-# 2. Contar tenants antes de derrubar o pod
+# 2. Contar reservas antes de derrubar o pod
 kubectl exec -n hotel-system statefulset/postgres -- \
-  psql -U hotel_user -d gestao_hotel -c "SELECT COUNT(*) AS total_tenants FROM tenants;"
+  psql -U hotel_user -d gestao_hotel -c "SELECT COUNT(*) AS reservas FROM reservations;"
 
 # 3. Deletar o pod do PostgreSQL
 kubectl delete pod -n hotel-system -l app=postgres
@@ -917,9 +917,9 @@ kubectl delete pod -n hotel-system -l app=postgres
 # 4. Aguardar o pod ser recriado automaticamente pelo StatefulSet
 kubectl wait --for=condition=ready pod -l app=postgres -n hotel-system --timeout=60s
 
-# 5. Contar tenants depois — número deve ser idêntico ao do passo 2
+# 5. Contar reservas depois — número deve ser idêntico ao do passo 2
 kubectl exec -n hotel-system statefulset/postgres -- \
-  psql -U hotel_user -d gestao_hotel -c "SELECT COUNT(*) AS total_tenants FROM tenants;"
+  psql -U hotel_user -d gestao_hotel -c "SELECT COUNT(*) AS reservas FROM reservations;"
 ```
 
 > O pod foi destruído e recriado do zero. O PVC preservou todos os dados.
@@ -932,7 +932,7 @@ kubectl get secret hotel-secret -n hotel-system
 
 # 7. Tentar conectar ao banco diretamente pelo host — deve recusar
 #    O banco é ClusterIP: sem nenhuma porta exposta fora do cluster
-nc -zv localhost 5432
+psql -h localhost -p 5432 -U hotel_user -d gestao_hotel
 
 # 8. Listar as NetworkPolicies ativas no namespace
 kubectl get networkpolicy -n hotel-system
