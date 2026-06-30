@@ -45,6 +45,12 @@ const GuestModel = sequelize.define(
                 unique: true,
                 fields: ['cpf', 'tenant_id'],
                 name: 'guests_cpf_tenant_unique'
+            },
+            {
+                // Email único por tenant — mesmo comportamento NULL do CPF acima.
+                unique: true,
+                fields: ['email', 'tenant_id'],
+                name: 'guests_email_tenant_unique'
             }
         ]
     }

@@ -18,14 +18,17 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- ATENÇÃO: a coluna FK nas tabelas filhas é tenant_id.
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS tenants (
-  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name       TEXT NOT NULL,
-  subdomain  TEXT NOT NULL UNIQUE,
-  legal_id   TEXT,
-  status     TEXT NOT NULL DEFAULT 'ACTIVE',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  CHECK (status IN ('ACTIVE', 'SUSPENDED'))
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name             TEXT NOT NULL,
+  subdomain        TEXT NOT NULL UNIQUE,
+  legal_id         TEXT,
+  status           TEXT NOT NULL DEFAULT 'ACTIVE',
+  booking_enabled  BOOLEAN NOT NULL DEFAULT true,
+  deposit_percent  INTEGER NOT NULL DEFAULT 30,
+  created_at       TIMESTAMPTZ DEFAULT now(),
+  updated_at       TIMESTAMPTZ DEFAULT now(),
+  CHECK (status IN ('ACTIVE', 'SUSPENDED')),
+  CHECK (deposit_percent >= 0 AND deposit_percent <= 100)
 );
 
 -- =============================================================================
@@ -109,17 +112,19 @@ CREATE TABLE IF NOT EXISTS reservations (
   tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   guest_id       UUID NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
   room_id        UUID NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
-  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  user_id        UUID REFERENCES users(id) ON DELETE RESTRICT,
   check_in_date  DATE NOT NULL,
   check_out_date DATE NOT NULL,
   status         TEXT NOT NULL DEFAULT 'PENDING',
   total_amount   NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  source         TEXT NOT NULL DEFAULT 'MANUAL',
   deleted_at     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CHECK (check_out_date > check_in_date),
   CHECK (total_amount >= 0),
   CHECK (status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED')),
+  CHECK (source IN ('MANUAL', 'DIRECT')),
   EXCLUDE USING gist (
     room_id WITH =,
     daterange(check_in_date, check_out_date, '[)') WITH &&
@@ -145,16 +150,24 @@ CREATE TABLE IF NOT EXISTS reservation_rooms (
 -- Model: app/Models/PaymentModel.js  |  tableName: 'payments'
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS payments (
-  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
-  amount         NUMERIC(12, 2) NOT NULL,
-  method         TEXT NOT NULL,
-  paid_at        TIMESTAMPTZ DEFAULT now(),
-  deleted_at     TIMESTAMPTZ,
-  created_at     TIMESTAMPTZ DEFAULT now(),
-  updated_at     TIMESTAMPTZ DEFAULT now(),
-  CHECK (amount >= 0)
+  id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id          UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  reservation_id     UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+  amount             NUMERIC(12, 2) NOT NULL,
+  method             TEXT NOT NULL,
+  status             TEXT NOT NULL DEFAULT 'PAID',
+  kind               TEXT NOT NULL DEFAULT 'FULL',
+  provider           TEXT,
+  provider_charge_id TEXT,
+  pix_qr_code        TEXT,
+  pix_expiration     TIMESTAMPTZ,
+  paid_at            TIMESTAMPTZ,
+  deleted_at         TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ DEFAULT now(),
+  updated_at         TIMESTAMPTZ DEFAULT now(),
+  CHECK (amount >= 0),
+  CHECK (status IN ('PENDING', 'PAID', 'FAILED')),
+  CHECK (kind IN ('FULL', 'DEPOSIT', 'BALANCE'))
 );
 
 -- =============================================================================

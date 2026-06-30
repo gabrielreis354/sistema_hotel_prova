@@ -28,6 +28,8 @@ Representa cada hotel ou pousada cadastrada na plataforma (unidade de isolamento
 | `subdomain` | TEXT | NN, UK | Subdomínio único para identificação na URL (ex: `aurora`) |
 | `legal_id` | TEXT | — | CNPJ ou documento fiscal do estabelecimento |
 | `status` | TEXT | NN, DEFAULT 'ACTIVE', CHECK IN ('ACTIVE','SUSPENDED') | Estado operacional do tenant na plataforma |
+| `booking_enabled` | BOOLEAN | NN, DEFAULT true | Liga/desliga o motor de reservas diretas (página pública do hotel) |
+| `deposit_percent` | INTEGER | NN, DEFAULT 30, CHECK 0–100 | Percentual do valor da reserva cobrado como sinal PIX no ato da reserva online |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora de criação do registro |
 | `updated_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora da última atualização (gerenciada por trigger) |
 
@@ -91,7 +93,7 @@ Quartos físicos do hotel. Cada quarto pertence a uma categoria e tem um status 
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora de criação |
 | `updated_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora da última atualização |
 
-**Máquina de estados:** AVAILABLE → OCCUPIED (check-in) → CLEANING (check-out) → AVAILABLE (limpeza concluída).
+**Máquina de estados:** AVAILABLE → OCCUPIED (check-in) → CLEANING (check-out) → AVAILABLE (limpeza concluída). Estado MAINTENANCE disponível para bloqueio administrativo.
 **Índice:** `idx_rooms_tenant_status (tenant_id, status)` — otimiza listagem de quartos disponíveis.
 **Trigger:** `trg_rooms_updated_at`
 
@@ -128,11 +130,12 @@ Reservas de quartos por hóspedes. É a entidade central do sistema.
 | `tenant_id` | UUID | FK → tenants(id) ON DELETE CASCADE, NN | Tenant proprietário da reserva |
 | `guest_id` | UUID | FK → guests(id) ON DELETE RESTRICT, NN | Hóspede que fez a reserva |
 | `room_id` | UUID | FK → rooms(id) ON DELETE RESTRICT, NN | Quarto principal da reserva |
-| `user_id` | UUID | FK → users(id) ON DELETE RESTRICT, NN | Funcionário que registrou a reserva |
+| `user_id` | UUID | FK → users(id) ON DELETE RESTRICT, **nullable** | Funcionário que registrou — NULL em reservas vindas do motor de reservas online |
 | `check_in_date` | DATE | NN, CHECK check_out_date > check_in_date | Data de entrada |
 | `check_out_date` | DATE | NN, CHECK check_out_date > check_in_date | Data de saída |
 | `status` | TEXT | NN, DEFAULT 'PENDING', CHECK IN ('PENDING','CONFIRMED','CHECKED_IN','CHECKED_OUT','CANCELLED') | Estado da reserva na máquina de estados |
 | `total_amount` | NUMERIC(12,2) | NN, DEFAULT 0, CHECK >= 0 | Valor total calculado no momento da criação (preço × noites) |
+| `source` | TEXT | NN, DEFAULT 'MANUAL', CHECK IN ('MANUAL','DIRECT') | Origem da reserva: MANUAL (recepção) ou DIRECT (motor de reservas online) |
 | `deleted_at` | TIMESTAMPTZ | — | Data de exclusão lógica (soft delete) |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora de criação |
 | `updated_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora da última atualização |
@@ -174,8 +177,14 @@ Registros de pagamento vinculados a reservas. Permite múltiplos pagamentos por 
 | `tenant_id` | UUID | FK → tenants(id) ON DELETE CASCADE, NN | Tenant (denormalizado para queries financeiras sem JOIN extra) |
 | `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE, NN | Reserva à qual o pagamento se refere |
 | `amount` | NUMERIC(12,2) | NN, CHECK >= 0 | Valor pago |
-| `method` | TEXT | NN | Forma de pagamento (ex: PIX, CARTAO, DINHEIRO, TRANSFERENCIA) |
-| `paid_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora em que o pagamento foi registrado |
+| `method` | TEXT | NN | Forma de pagamento: PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO |
+| `status` | TEXT | NN, DEFAULT 'PAID', CHECK IN ('PENDING','PAID','FAILED') | Ciclo de vida: pagamentos manuais nascem PAID; PIX online nasce PENDING e vira PAID via webhook |
+| `kind` | TEXT | NN, DEFAULT 'FULL', CHECK IN ('FULL','DEPOSIT','BALANCE') | Natureza do valor: FULL (integral), DEPOSIT (sinal online) ou BALANCE (saldo no check-in) |
+| `provider` | TEXT | nullable | Nome do PSP (provedor de pagamento PIX). NULL em pagamentos manuais |
+| `provider_charge_id` | TEXT | nullable | ID da cobrança no PSP. NULL em pagamentos manuais |
+| `pix_qr_code` | TEXT | nullable | Payload PIX copia-e-cola (formato EMV). NULL em pagamentos manuais |
+| `pix_expiration` | TIMESTAMPTZ | nullable | Validade da cobrança PIX. NULL em pagamentos manuais |
+| `paid_at` | TIMESTAMPTZ | nullable | Momento do pagamento — NULL enquanto PIX está pendente; preenchido ao confirmar via webhook |
 | `deleted_at` | TIMESTAMPTZ | — | Data de exclusão lógica (soft delete) |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora de criação |
 | `updated_at` | TIMESTAMPTZ | DEFAULT now() | Data/hora da última atualização |

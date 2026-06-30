@@ -6,9 +6,11 @@ erDiagram
   TENANTS ||--o{ RESERVATIONS : "has"
   TENANTS ||--o{ PAYMENTS : "has"
   RESERVATIONS }o--|| GUESTS : "made_by"
-  RESERVATIONS }o--|| ROOMS : "for_room"
-  RESERVATIONS }o--|| USERS : "created_by"
+  RESERVATIONS }o--o| USERS : "created_by"
   RESERVATIONS ||--o{ PAYMENTS : "has"
+  RESERVATIONS ||--o{ RESERVATION_ROOMS : "extra_rooms"
+  ROOMS ||--o{ RESERVATION_ROOMS : "in"
+  ROOM_CATEGORIES ||--o{ ROOMS : "categorizes"
 
   TENANTS {
     UUID id PK
@@ -16,18 +18,22 @@ erDiagram
     TEXT subdomain
     TEXT legal_id
     TEXT status
+    BOOLEAN booking_enabled
+    INTEGER deposit_percent
   }
   USERS {
     UUID id PK
     UUID tenant_id FK
     TEXT name
     TEXT email
+    TEXT role
     TIMESTAMP deleted_at
   }
   ROOM_CATEGORIES {
     UUID id PK
     UUID tenant_id FK
     TEXT name
+    INTEGER capacity
     NUMERIC price_per_night
     TIMESTAMP deleted_at
   }
@@ -36,6 +42,7 @@ erDiagram
     UUID tenant_id FK
     UUID category_id FK
     TEXT number
+    INTEGER floor
     TEXT status
     TIMESTAMP deleted_at
   }
@@ -44,6 +51,8 @@ erDiagram
     UUID tenant_id FK
     TEXT full_name
     TEXT cpf
+    TEXT phone
+    TEXT email
     TIMESTAMP deleted_at
   }
   RESERVATIONS {
@@ -51,15 +60,28 @@ erDiagram
     UUID tenant_id FK
     UUID guest_id FK
     UUID room_id FK
+    UUID user_id FK
     DATE check_in_date
     DATE check_out_date
+    TEXT status
     NUMERIC total_amount
+    TEXT source
     TIMESTAMP deleted_at
+  }
+  RESERVATION_ROOMS {
+    UUID id PK
+    UUID reservation_id FK
+    UUID room_id FK
   }
   PAYMENTS {
     UUID id PK
     UUID tenant_id FK
     UUID reservation_id FK
-    TEXT method
     NUMERIC amount
+    TEXT method
+    TEXT status
+    TEXT kind
+    TEXT provider
+    TIMESTAMP paid_at
+    TIMESTAMP deleted_at
   }

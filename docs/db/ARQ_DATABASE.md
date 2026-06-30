@@ -31,6 +31,8 @@ Representa cada hotel/pousada cliente da plataforma.
 | `subdomain` | TEXT | NOT NULL, UNIQUE | Identificador único na URL de login |
 | `legal_id` | TEXT | nullable | CNPJ ou documento fiscal |
 | `status` | TEXT | NOT NULL, DEFAULT 'ACTIVE' | ACTIVE ou SUSPENDED |
+| `booking_enabled` | BOOLEAN | NOT NULL, DEFAULT true | Liga/desliga o motor de reservas diretas (página pública) |
+| `deposit_percent` | INTEGER | NOT NULL, DEFAULT 30, CHECK 0–100 | Percentual cobrado como sinal PIX no ato da reserva online |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT now() | Atualizado por trigger |
 
@@ -82,7 +84,7 @@ Representa cada hotel/pousada cliente da plataforma.
 | `status` | TEXT | NOT NULL, DEFAULT 'AVAILABLE' | Máquina de estados operacional |
 | `deleted_at` | TIMESTAMPTZ | nullable | Soft delete |
 
-**Status possíveis:** `AVAILABLE` → `OCCUPIED` (check-in) → `CLEANING` (check-out) → `AVAILABLE` (limpeza concluída).
+**Status possíveis:** `AVAILABLE` → `OCCUPIED` (check-in) → `CLEANING` (check-out) → `AVAILABLE` (limpeza concluída). Estado `MAINTENANCE` também disponível para quartos em manutenção (bloqueados para reserva).
 
 **Constraint:** `UNIQUE (tenant_id, number)` — número único por hotel.
 
@@ -110,13 +112,14 @@ Representa cada hotel/pousada cliente da plataforma.
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `tenant_id` | UUID | FK → tenants(id) NOT NULL | |
-| `guest_id` | UUID | FK → guests(id) ON DELETE RESTRICT | Hóspede titular |
-| `room_id` | UUID | FK → rooms(id) ON DELETE RESTRICT | Quarto principal |
-| `user_id` | UUID | FK → users(id) ON DELETE RESTRICT | Usuário que registrou |
+| `guest_id` | UUID | FK → guests(id) ON DELETE RESTRICT, NOT NULL | Hóspede titular |
+| `room_id` | UUID | FK → rooms(id) ON DELETE RESTRICT, NOT NULL | Quarto principal |
+| `user_id` | UUID | FK → users(id) ON DELETE RESTRICT, **nullable** | Recepcionista que registrou — NULL em reservas vindas do motor online |
 | `check_in_date` | DATE | NOT NULL | |
 | `check_out_date` | DATE | NOT NULL | |
 | `status` | TEXT | NOT NULL, DEFAULT 'PENDING' | Máquina de estados |
 | `total_amount` | NUMERIC(12,2) | NOT NULL, DEFAULT 0 | Valor histórico — preserva preço na data da reserva |
+| `source` | TEXT | NOT NULL, DEFAULT 'MANUAL' | Origem da reserva: `MANUAL` (recepção) ou `DIRECT` (motor online) |
 | `deleted_at` | TIMESTAMPTZ | nullable | Soft delete |
 
 **Status possíveis:** `PENDING` → `CONFIRMED` → `CHECKED_IN` → `CHECKED_OUT`. Cancelamento: `PENDING` ou `CONFIRMED` → `CANCELLED`.
@@ -156,7 +159,13 @@ Impede sobreposição de datas no nível do banco — mesmo que dois processos t
 | `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE | |
 | `amount` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | Valor do pagamento |
 | `method` | TEXT | NOT NULL | PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO |
-| `paid_at` | TIMESTAMPTZ | DEFAULT now() | |
+| `status` | TEXT | NOT NULL, DEFAULT 'PAID' | Ciclo de vida: `PAID` (pagamentos manuais) ou `PENDING` → `PAID` (PIX online via webhook) |
+| `kind` | TEXT | NOT NULL, DEFAULT 'FULL' | Natureza do valor: `FULL`, `DEPOSIT` (sinal online) ou `BALANCE` (saldo no check-in) |
+| `provider` | TEXT | nullable | Nome do PSP (provedor de pagamento). NULL em pagamentos manuais |
+| `provider_charge_id` | TEXT | nullable | ID da cobrança no PSP. NULL em pagamentos manuais |
+| `pix_qr_code` | TEXT | nullable | Payload PIX copia-e-cola (EMV). NULL em pagamentos manuais |
+| `pix_expiration` | TIMESTAMPTZ | nullable | Validade da cobrança PIX. NULL em pagamentos manuais |
+| `paid_at` | TIMESTAMPTZ | nullable | Momento do pagamento — NULL enquanto PIX está pendente; preenchido no webhook |
 | `deleted_at` | TIMESTAMPTZ | nullable | Soft delete — histórico financeiro nunca é destruído |
 
 ---
