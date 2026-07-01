@@ -178,7 +178,7 @@ Registros de pagamento vinculados a reservas. Permite múltiplos pagamentos por 
 | `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE, NN | Reserva à qual o pagamento se refere |
 | `amount` | NUMERIC(12,2) | NN, CHECK >= 0 | Valor pago |
 | `method` | TEXT | NN | Forma de pagamento: PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO |
-| `status` | TEXT | NN, DEFAULT 'PAID', CHECK IN ('PENDING','PAID','FAILED') | Ciclo de vida: pagamentos manuais nascem PAID; PIX online nasce PENDING e vira PAID via webhook |
+| `status` | TEXT | NN, DEFAULT 'PAID', CHECK IN ('PENDING','PAID','EXPIRED','FAILED') | Ciclo de vida: pagamentos manuais nascem PAID; PIX online nasce PENDING e vira PAID via webhook. EXPIRED/FAILED reservados para o PSP real |
 | `kind` | TEXT | NN, DEFAULT 'FULL', CHECK IN ('FULL','DEPOSIT','BALANCE') | Natureza do valor: FULL (integral), DEPOSIT (sinal online) ou BALANCE (saldo no check-in) |
 | `provider` | TEXT | nullable | Nome do PSP (provedor de pagamento PIX). NULL em pagamentos manuais |
 | `provider_charge_id` | TEXT | nullable | ID da cobrança no PSP. NULL em pagamentos manuais |

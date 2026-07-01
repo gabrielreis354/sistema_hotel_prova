@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at         TIMESTAMPTZ DEFAULT now(),
   updated_at         TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0),
-  CHECK (status IN ('PENDING', 'PAID', 'FAILED')),
+  CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'FAILED')),
   CHECK (kind IN ('FULL', 'DEPOSIT', 'BALANCE'))
 );
 

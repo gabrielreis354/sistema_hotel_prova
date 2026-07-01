@@ -159,7 +159,7 @@ Impede sobreposição de datas no nível do banco — mesmo que dois processos t
 | `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE | |
 | `amount` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | Valor do pagamento |
 | `method` | TEXT | NOT NULL | PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO |
-| `status` | TEXT | NOT NULL, DEFAULT 'PAID' | Ciclo de vida: `PAID` (pagamentos manuais) ou `PENDING` → `PAID` (PIX online via webhook) |
+| `status` | TEXT | NOT NULL, DEFAULT 'PAID', CHECK IN ('PENDING','PAID','EXPIRED','FAILED') | Ciclo de vida: `PAID` (pagamentos manuais) ou `PENDING` → `PAID` (PIX online via webhook). `EXPIRED`/`FAILED` reservados para o PSP real |
 | `kind` | TEXT | NOT NULL, DEFAULT 'FULL' | Natureza do valor: `FULL`, `DEPOSIT` (sinal online) ou `BALANCE` (saldo no check-in) |
 | `provider` | TEXT | nullable | Nome do PSP (provedor de pagamento). NULL em pagamentos manuais |
 | `provider_charge_id` | TEXT | nullable | ID da cobrança no PSP. NULL em pagamentos manuais |

@@ -27,8 +27,10 @@ const PaymentModel = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: false
         },
-        // Ciclo de vida do pagamento. Pagamentos manuais (recepção) já nascem PAID;
-        // cobranças PIX online nascem PENDING e viram PAID quando o webhook confirma.
+        // Ciclo de vida do pagamento (conjunto canônico): PENDING, PAID, EXPIRED, FAILED.
+        // Pagamentos manuais (recepção) já nascem PAID; cobranças PIX online nascem PENDING
+        // e viram PAID quando o webhook confirma. EXPIRED (cobrança PIX vencida) e FAILED
+        // (recusada pelo PSP) ficam reservados para o provedor de pagamento real.
         status: {
             type: DataTypes.TEXT,
             allowNull: false,
