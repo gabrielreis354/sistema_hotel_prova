@@ -503,5 +503,78 @@ sistema_hotel_prova/
 
 ---
 
+## [08:00 – 08:30] CONCLUSÃO — Encerramento (Weslley)
+
+> **Apresentador desta parte:** Weslley
+> *(Gabriel apresentou da Escolha Tecnológica até a Demonstração da Exclusion Constraint)*
+
+### Parte 1 — Preparar o ambiente (fazer ANTES de começar a falar)
+
+1. Verificar se o `tree` está instalado (rodar antes do dia da apresentação):
+   ```bash
+   which tree
+   ```
+   Se não retornar nada, instalar:
+   ```bash
+   sudo apt install tree
+   ```
+2. Ir para a raiz do repositório:
+   ```bash
+   cd ~/faculdade/TCC/sistema_hotel_prova
+   ```
+3. Limpar o terminal antes de entrar em cena:
+   ```bash
+   clear
+   ```
+4. Aumentar a fonte do terminal para leitura da plateia, se necessário.
+5. Exibir a estrutura final do repositório e deixar na tela — serve de apoio
+   visual para "schema, modelagem, queries e seed" citados na fala:
+   ```bash
+   tree -L 2 -I 'node_modules'
+   ```
+   Se o `tree` não puder ser instalado no dia, usar alternativa nativa
+   (sem dependências):
+   ```bash
+   find . -maxdepth 2 -not -path '*/node_modules*' -not -path '*/.git*' | sort
+   ```
+
+### Parte 2 — Fala
+
+> "Para fechar a nossa parte de banco de dados, deixa eu recapitular rapidamente
+> o que o Gabriel mostrou e o porquê disso importa.
+>
+> Vocês viram que cada decisão do nosso schema tem uma justificativa técnica,
+> não foi arbitrária:
+>
+> - Escolhemos **PostgreSQL** porque o domínio do hotel exige ACID e uma
+>   constraint que só o Postgres oferece nativamente: o `EXCLUDE USING gist`,
+>   que bloqueia double-booking em nível de banco — vocês acabaram de ver
+>   o próprio banco rejeitando a tentativa de inserir uma reserva conflitante.
+> - Modelamos as **8 entidades** do sistema com UUID como chave primária,
+>   soft delete para auditoria e LGPD, e uma tabela pivô para o relacionamento
+>   N:N entre reservas e quartos.
+> - Aplicamos **1FN, 2FN e 3FN** em todo o schema, com uma única exceção
+>   deliberada e justificada: o `total_amount` da reserva, que é
+>   desnormalizado de propósito para proteger a integridade financeira.
+> - Criamos **índices compostos** pensando em como o sistema realmente é
+>   consultado — sempre por `tenant_id` primeiro — e validamos isso com
+>   5 consultas críticas de disponibilidade, painel do dia e relatórios
+>   gerenciais.
+> - E validamos tudo isso com uma **carga de dados real**: 165 registros
+>   distribuídos em 2 tenants, rodando no cluster Kubernetes que vocês
+>   viram no início da apresentação.
+>
+> Ou seja: não é só um schema que funciona no papel. É um banco que garante,
+> sozinho, que os dados de um hotel nunca se misturam com os de outro,
+> que dois recepcionistas nunca conseguem reservar o mesmo quarto na mesma
+> data, e que nenhum valor financeiro pode ser alterado retroativamente.
+>
+> Essa é a nossa camada de dados. Muito obrigado pela atenção de vocês.
+> Nosso repositório ficará público, com todos os artefatos disponíveis —
+> schema, modelagem, queries e seed — para quem quiser consultar com
+> mais calma depois da apresentação."
+
+---
+
 *Roteiro de sessão — Sirlande — 28/06/2026*
 *Substituição do roteiro_video_kubernetes_27062026.md para a parte de banco de dados*
