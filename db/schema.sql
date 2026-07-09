@@ -171,6 +171,24 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 -- =============================================================================
+-- 9b) Consumos extras (frigobar, restaurante, bar, spa) lançados na reserva
+-- Model: app/Models/ConsumptionModel.js  |  tableName: 'consumptions'
+-- Compõem o fechamento de conta: (diária + consumos) − pagamentos.
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS consumptions (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+  description    TEXT NOT NULL,
+  amount         NUMERIC(12, 2) NOT NULL,
+  consumed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at     TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  updated_at     TIMESTAMPTZ DEFAULT now(),
+  CHECK (amount >= 0)
+);
+
+-- =============================================================================
 -- 10) Índices
 -- =============================================================================
 CREATE INDEX IF NOT EXISTS idx_reservations_tenant_checkin ON reservations (tenant_id, check_in_date);
