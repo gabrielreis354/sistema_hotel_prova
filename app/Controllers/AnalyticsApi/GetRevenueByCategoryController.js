@@ -22,7 +22,7 @@ export default async function GetRevenueByCategoryController(request, response) 
                 END                                       AS avg_ticket
             FROM reservations r
             JOIN rooms rm ON rm.id = r.room_id
-            JOIN room_categories rc ON rc.id = rm.room_category_id
+            JOIN room_categories rc ON rc.id = rm.category_id
             WHERE r.tenant_id = :tenantId
               AND r.status NOT IN ('CANCELLED')
               AND r.deleted_at IS NULL
