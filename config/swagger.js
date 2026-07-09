@@ -220,6 +220,27 @@ const options = {
                     responses: { 200: { description: 'JWT gerado com sucesso' }, 401: { description: 'Credenciais inválidas' } }
                 }
             },
+            '/tenants/me': {
+                get: {
+                    tags: ['Hotel (Configuração)'],
+                    summary: 'Retorna a configuração do próprio hotel',
+                    responses: { 200: { description: 'Dados e config do hotel (booking_enabled, deposit_percent)' }, 401: { description: 'Sem token' } }
+                },
+                put: {
+                    tags: ['Hotel (Configuração)'],
+                    summary: 'Atualiza a config do hotel (ADMIN) — liga/desliga reservas online e ajusta o sinal',
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: { type: 'object', properties: {
+                            name:            { type: 'string', example: 'Hotel Aurora' },
+                            legal_id:        { type: 'string', example: '12.345.678/0001-90' },
+                            booking_enabled: { type: 'boolean', example: true, description: 'Liga/desliga a página pública de reservas diretas' },
+                            deposit_percent: { type: 'integer', example: 30, description: 'Percentual do sinal PIX cobrado na reserva online (0–100)' }
+                        }}}}
+                    },
+                    responses: { 200: { description: 'Config atualizada' }, 400: { description: 'Valor inválido' }, 403: { description: 'Apenas ADMIN' } }
+                }
+            },
             '/users': {
                 get:  { tags: ['Usuários'], summary: 'Lista usuários do tenant', responses: { 200: { description: 'Lista de usuários' } } },
                 post: { tags: ['Usuários'], summary: 'Cria novo usuário', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } }, responses: { 201: { description: 'Usuário criado' } } }
