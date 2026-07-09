@@ -10,4 +10,5 @@ resources:
   - backend.yaml
   - nginx.yaml
   - pdb.yaml
+  - minio.yaml
   - networkpolicy.yaml
