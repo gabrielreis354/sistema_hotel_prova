@@ -9,6 +9,7 @@
     "dev": "nodemon _web.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "setup:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f db/schema.sql",
     "seed:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f seed/seed_hotels.sql"
   },
@@ -24,6 +25,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.10",
     "nodemon": "^3.1.0",
     "supertest": "^7.2.2",
     "vitest": "^4.1.9"
