@@ -13,6 +13,10 @@ import CheckOutController from '../../app/Controllers/ReservationApi/CheckOutCon
 import CancelReservationController from '../../app/Controllers/ReservationApi/CancelReservationController.js';
 import AddRoomToReservationController from '../../app/Controllers/ReservationApi/AddRoomToReservationController.js';
 import RemoveRoomFromReservationController from '../../app/Controllers/ReservationApi/RemoveRoomFromReservationController.js';
+import GetBillController from '../../app/Controllers/ReservationApi/GetBillController.js';
+import CreateConsumptionController from '../../app/Controllers/ConsumptionApi/CreateConsumptionController.js';
+import ListConsumptionController from '../../app/Controllers/ConsumptionApi/ListConsumptionController.js';
+import DeleteConsumptionController from '../../app/Controllers/ConsumptionApi/DeleteConsumptionController.js';
 
 export default (() => {
     const router = Router();
@@ -31,6 +35,12 @@ export default (() => {
 
     router.post('/:id/rooms', AddRoomToReservationController);
     router.delete('/:id/rooms/:roomId', RemoveRoomFromReservationController);
+
+    // Módulo Financeiro — fechamento de conta e consumos extras
+    router.get('/:id/bill', GetBillController);
+    router.get('/:id/consumptions', ListConsumptionController);
+    router.post('/:id/consumptions', CreateConsumptionController);
+    router.delete('/:id/consumptions/:consumptionId', DeleteConsumptionController);
 
     return router;
 })();
