@@ -6,6 +6,11 @@ import GuestModel from "../app/Models/GuestModel.js";
 import ReservationModel from "../app/Models/ReservationModel.js";
 import ReservationRoomModel from "../app/Models/ReservationRoomModel.js";
 import PaymentModel from "../app/Models/PaymentModel.js";
+import CorporateClientModel from "../app/Models/CorporateClientModel.js";
+import EventQuoteModel from "../app/Models/EventQuoteModel.js";
+import QuoteServiceModel from "../app/Models/QuoteServiceModel.js";
+import ContractModel from "../app/Models/ContractModel.js";
+import ContractInstallmentModel from "../app/Models/ContractInstallmentModel.js";
 
 export default function initRelations() {
     // 1) Relacionamentos de Tenants (SaaS Multi-tenant)
@@ -61,4 +66,30 @@ export default function initRelations() {
     ReservationModel.hasMany(ReservationRoomModel, { foreignKey: 'reservation_id', as: 'reservation_rooms' });
     ReservationRoomModel.belongsTo(ReservationModel, { foreignKey: 'reservation_id', as: 'reservation' });
     ReservationRoomModel.belongsTo(RoomModel, { foreignKey: 'room_id', as: 'room' });
+
+    // 6) Clientes Corporativos
+    TenantModel.hasMany(CorporateClientModel, { foreignKey: 'tenant_id', as: 'corporate_clients' });
+    CorporateClientModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+
+    // 7) Orçamentos de Eventos
+    CorporateClientModel.hasMany(EventQuoteModel, { foreignKey: 'corporate_client_id', as: 'quotes' });
+    EventQuoteModel.belongsTo(CorporateClientModel, { foreignKey: 'corporate_client_id', as: 'client' });
+    TenantModel.hasMany(EventQuoteModel, { foreignKey: 'tenant_id', as: 'event_quotes' });
+    EventQuoteModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+
+    // 8) Serviços do Orçamento
+    EventQuoteModel.hasMany(QuoteServiceModel, { foreignKey: 'quote_id', as: 'services' });
+    QuoteServiceModel.belongsTo(EventQuoteModel, { foreignKey: 'quote_id', as: 'quote' });
+
+    // 9) Contratos
+    CorporateClientModel.hasMany(ContractModel, { foreignKey: 'corporate_client_id', as: 'contracts' });
+    ContractModel.belongsTo(CorporateClientModel, { foreignKey: 'corporate_client_id', as: 'client' });
+    EventQuoteModel.hasMany(ContractModel, { foreignKey: 'quote_id', as: 'contracts' });
+    ContractModel.belongsTo(EventQuoteModel, { foreignKey: 'quote_id', as: 'quote' });
+    TenantModel.hasMany(ContractModel, { foreignKey: 'tenant_id', as: 'contracts' });
+    ContractModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+
+    // 10) Parcelas do Contrato
+    ContractModel.hasMany(ContractInstallmentModel, { foreignKey: 'contract_id', as: 'installments' });
+    ContractInstallmentModel.belongsTo(ContractModel, { foreignKey: 'contract_id', as: 'contract' });
 }
