@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import authMiddleware from '../../middlewares/auth.middleware.js';
+import tenantMiddleware from '../../middlewares/tenant.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
+import CreateEventQuoteController from '../../app/Controllers/EventQuoteApi/CreateEventQuoteController.js';
+import ListEventQuoteController from '../../app/Controllers/EventQuoteApi/ListEventQuoteController.js';
+import GetEventQuoteController from '../../app/Controllers/EventQuoteApi/GetEventQuoteController.js';
+import UpdateEventQuoteController from '../../app/Controllers/EventQuoteApi/UpdateEventQuoteController.js';
+import DeleteEventQuoteController from '../../app/Controllers/EventQuoteApi/DeleteEventQuoteController.js';
+import DownloadQuotePdfController from '../../app/Controllers/EventQuoteApi/DownloadQuotePdfController.js';
+
+const router = Router();
+router.use(authMiddleware, tenantMiddleware);
+router.get('/', ListEventQuoteController);
+router.get('/:id/pdf', DownloadQuotePdfController);
+router.get('/:id', GetEventQuoteController);
+router.post('/', CreateEventQuoteController);
+router.put('/:id', UpdateEventQuoteController);
+router.delete('/:id', requireRole('ADMIN'), DeleteEventQuoteController);
+export default router;

@@ -403,22 +403,28 @@ kubectl exec -n hotel-system -it statefulset/postgres -- \
   psql -U hotel_user -d gestao_hotel
 ```
 
-```sql
--- Dentro do psql: pegar IDs reais
-SELECT id, number FROM rooms LIMIT 1;
--- Copie o room_id e a data de uma reserva existente
+> **Dica:** este INSERT também está pronto em `queries/demo_apresentacao.sql` (última
+> seção) — pode colar de lá em vez de digitar.
 
--- Tentar inserir uma reserva que conflita com datas existentes
-INSERT INTO reservations (tenant_id, guest_id, room_id, user_id, check_in_date, check_out_date, status, total_amount)
+```sql
+-- Tentar inserir uma reserva que conflita com datas existentes (quarto 101 já tem
+-- uma reserva CONFIRMED de 2026-08-10 a 2026-08-14). Tudo escopado ao Hotel Aurora.
+-- OBS: created_at/updated_at são preenchidos explicitamente — o banco vivo (criado
+-- pelo Sequelize) não tem DEFAULT nesses campos; sem eles o INSERT falharia por
+-- NOT NULL ANTES de acionar a exclusion constraint que queremos demonstrar.
+INSERT INTO reservations (tenant_id, guest_id, room_id, check_in_date, check_out_date, status, total_amount, created_at, updated_at)
 VALUES (
-  (SELECT tenant_id FROM rooms WHERE number = '101' LIMIT 1),
-  (SELECT id FROM guests WHERE cpf = '30000000001' LIMIT 1),
-  (SELECT id FROM rooms WHERE number = '101' LIMIT 1),
-  (SELECT id FROM users WHERE email = 'admin@aurora.example'),
-  '2026-08-10',  -- data que já tem reserva CONFIRMED
-  '2026-08-12',
+  (SELECT id FROM tenants WHERE subdomain = 'aurora'),
+  (SELECT id FROM guests  WHERE cpf = '30000000001'
+      AND tenant_id = (SELECT id FROM tenants WHERE subdomain = 'aurora')),
+  (SELECT id FROM rooms   WHERE number = '101'
+      AND tenant_id = (SELECT id FROM tenants WHERE subdomain = 'aurora')),
+  '2026-08-11',  -- sobrepõe a reserva CONFIRMED existente (10 a 14)
+  '2026-08-13',
   'PENDING',
-  300.00
+  300.00,
+  now(),
+  now()
 );
 ```
 

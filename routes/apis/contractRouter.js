@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import authMiddleware from '../../middlewares/auth.middleware.js';
+import tenantMiddleware from '../../middlewares/tenant.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
+import CreateContractController from '../../app/Controllers/ContractApi/CreateContractController.js';
+import ListContractController from '../../app/Controllers/ContractApi/ListContractController.js';
+import GetContractController from '../../app/Controllers/ContractApi/GetContractController.js';
+import UpdateContractController from '../../app/Controllers/ContractApi/UpdateContractController.js';
+import DeleteContractController from '../../app/Controllers/ContractApi/DeleteContractController.js';
+import DownloadContractPdfController from '../../app/Controllers/ContractApi/DownloadContractPdfController.js';
+
+const router = Router();
+router.use(authMiddleware, tenantMiddleware);
+router.get('/', ListContractController);
+router.get('/:id/pdf', DownloadContractPdfController);
+router.get('/:id', GetContractController);
+router.post('/', CreateContractController);
+router.put('/:id', UpdateContractController);
+router.delete('/:id', requireRole('ADMIN'), DeleteContractController);
+export default router;

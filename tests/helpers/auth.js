@@ -27,9 +27,10 @@ export async function registerAndLogin(app, overrides = {}) {
     }
 
     return {
-        jwt:      loginRes.body.token,
-        tenantId: regRes.body.tenant?.id,
-        userId:   regRes.body.user?.id,
+        jwt:       loginRes.body.token,
+        tenantId:  regRes.body.tenant?.id,
+        subdomain: regRes.body.tenant?.subdomain,
+        userId:    regRes.body.user?.id,
         email,
         password,
         tenantName,

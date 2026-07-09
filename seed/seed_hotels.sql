@@ -443,11 +443,209 @@ WHERE t.subdomain = 'sol'
   )
 ON CONFLICT DO NOTHING;
 
+-- =============================================================================
+-- MÓDULO B2B: CLIENTES CORPORATIVOS, ORÇAMENTOS, SERVIÇOS, CONTRATOS E PARCELAS
+-- Cobre as tabelas: corporate_clients, event_quotes, quote_services,
+--                   contracts, contract_installments
+-- =============================================================================
+
+-- Ativa defaults UUID/timestamps nas novas tabelas (idempotente via IF EXISTS)
+DO $$
+DECLARE tbl text;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY['corporate_clients','event_quotes','quote_services','contracts','contract_installments']
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_name = tbl AND table_schema = 'public'
+    ) THEN
+      EXECUTE format('ALTER TABLE %I ALTER COLUMN id SET DEFAULT uuid_generate_v4()', tbl);
+      EXECUTE format('ALTER TABLE %I ALTER COLUMN created_at SET DEFAULT NOW()', tbl);
+      EXECUTE format('ALTER TABLE %I ALTER COLUMN updated_at SET DEFAULT NOW()', tbl);
+    END IF;
+  END LOOP;
+END $$;
+
+-- -----------------------------------------------------------------------------
+-- CLIENTES CORPORATIVOS — Hotel Aurora (3 organizações)
+-- -----------------------------------------------------------------------------
+INSERT INTO corporate_clients (tenant_id, razao_social, cnpj, email, telefone, endereco,
+  representante_nome, representante_cpf, representante_rg)
+SELECT t.id, v.razao_social, v.cnpj, v.email, v.telefone, v.endereco, v.rep_nome, v.rep_cpf, v.rep_rg
+FROM tenants t
+CROSS JOIN (VALUES
+  ('Igreja Batista Central',         '11111111000101', 'secretaria@ibcentral.org',      '+55-11-93000-0001',
+   'Rua das Flores, 200 – Centro – São Paulo – SP, CEP: 01000-100',
+   'Pastor João Silva',    '11111111101', 'MG-1234567'),
+  ('TechCorp Soluções Ltda',         '22222222000102', 'eventos@techcorp.com.br',        '+55-11-93000-0002',
+   'Av. Paulista, 1000, Sala 501 – Bela Vista – São Paulo – SP, CEP: 01310-100',
+   'Maria Executiva',      '22222222202', 'SP-2345678'),
+  ('APM Escola Estadual Horizonte',  '33333333000103', 'apm@escolahorizonte.edu.br',     '+55-11-93000-0003',
+   'Rua Horizonte, 450 – Jardim Verde – São Paulo – SP, CEP: 02000-300',
+   'Carlos Diretor',       '33333333303', 'SP-3456789')
+) AS v(razao_social, cnpj, email, telefone, endereco, rep_nome, rep_cpf, rep_rg)
+WHERE t.subdomain = 'aurora'
+  AND NOT EXISTS (
+    SELECT 1 FROM corporate_clients cc WHERE cc.tenant_id = t.id AND cc.cnpj = v.cnpj
+  );
+
+-- CLIENTES CORPORATIVOS — Pousada Sol (2 organizações)
+INSERT INTO corporate_clients (tenant_id, razao_social, cnpj, email, telefone, endereco,
+  representante_nome, representante_cpf, representante_rg)
+SELECT t.id, v.razao_social, v.cnpj, v.email, v.telefone, v.endereco, v.rep_nome, v.rep_cpf, v.rep_rg
+FROM tenants t
+CROSS JOIN (VALUES
+  ('Escola Municipal Primavera',     '44444444000104', 'direcao@emprimavera.edu.br',     '+55-21-94000-0001',
+   'Rua Primavera, 100 – Vila Escolar – Rio de Janeiro – RJ, CEP: 20000-100',
+   'Ana Lucia Pereira',   '44444444404', 'RJ-4567890'),
+  ('Associação Família Reunida',     '55555555000105', 'contato@familiaereunida.org',    '+55-21-94000-0002',
+   'Rua das Famílias, 50 – Bairro Unido – Rio de Janeiro – RJ, CEP: 21000-200',
+   'Rogério Familiar',    '55555555505', 'RJ-5678901')
+) AS v(razao_social, cnpj, email, telefone, endereco, rep_nome, rep_cpf, rep_rg)
+WHERE t.subdomain = 'sol'
+  AND NOT EXISTS (
+    SELECT 1 FROM corporate_clients cc WHERE cc.tenant_id = t.id AND cc.cnpj = v.cnpj
+  );
+
+-- -----------------------------------------------------------------------------
+-- ORÇAMENTOS DE EVENTOS — Hotel Aurora (4 orçamentos)
+-- Totais calculados: hospedagem + serviços - desconto
+--   Quote 1: 120 pax × 5 noites × R$85  = R$51.000 + serviços R$5.500  = R$56.500 (CONFIRMED)
+--   Quote 2: 50 pax  × 3 noites × R$120 = R$18.000 + serviços R$6.150 - 5% = R$22.942,50 (SENT)
+--   Quote 3: 80 pax  × 7 noites × R$55  = R$30.800, sem refeição (SENT)
+--   Quote 4: 30 pax  × 2 noites × R$85  = R$5.100, cancelado (CANCELLED)
+-- -----------------------------------------------------------------------------
+INSERT INTO event_quotes (tenant_id, corporate_client_id, check_in, check_out, pessoas,
+  valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama,
+  desconto_pct, total, observacoes, status)
+SELECT t.id, cc.id,
+  v.check_in::date, v.check_out::date, v.pessoas::int,
+  v.vdc::numeric, v.vds::numeric, v.refeicao::bool, v.roupa::bool,
+  v.desconto::numeric, v.total::numeric, v.obs, v.status
+FROM (VALUES
+  ('11111111000101','2026-08-15','2026-08-20',120, 85.00, 60.00,true, true, 0,   56500.00,
+   'Programa completo: café da manhã, almoço e jantar inclusos. Pedido de sala para cultos noturno.',
+   'CONFIRMED'),
+  ('22222222000102','2026-09-10','2026-09-13', 50,120.00, 90.00,true, true, 5,   22942.50,
+   'Espaço para apresentações e workshops. Projetor e sistema de som necessários.',
+   'SENT'),
+  ('33333333000103','2026-10-05','2026-10-12', 80,  0.00, 55.00,false,true, 0,   30800.00,
+   'Grupos de alunos de 10 a 14 anos com monitores. Sem refeição inclusa (escola traz marmitas).',
+   'SENT'),
+  ('11111111000101','2026-12-10','2026-12-12', 30, 85.00, 60.00,true, false,0,    5100.00,
+   'Cancelado pela organização por conflito de agenda com calendário litúrgico.',
+   'CANCELLED')
+) AS v(cnpj, check_in, check_out, pessoas, vdc, vds, refeicao, roupa, desconto, total, obs, status)
+JOIN tenants t ON t.subdomain = 'aurora'
+JOIN corporate_clients cc ON cc.tenant_id = t.id AND cc.cnpj = v.cnpj
+WHERE NOT EXISTS (
+  SELECT 1 FROM event_quotes eq
+  WHERE eq.tenant_id = t.id AND eq.corporate_client_id = cc.id AND eq.check_in = v.check_in::date
+);
+
+-- ORÇAMENTOS DE EVENTOS — Pousada Sol (2 orçamentos)
+INSERT INTO event_quotes (tenant_id, corporate_client_id, check_in, check_out, pessoas,
+  valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama,
+  desconto_pct, total, observacoes, status)
+SELECT t.id, cc.id,
+  v.check_in::date, v.check_out::date, v.pessoas::int,
+  v.vdc::numeric, v.vds::numeric, v.refeicao::bool, v.roupa::bool,
+  v.desconto::numeric, v.total::numeric, v.obs, v.status
+FROM (VALUES
+  ('44444444000104','2026-09-15','2026-09-18',45, 70.00,50.00,true, true, 0, 9450.00,
+   'Excursão pedagógica com atividades ao ar livre. Necessário espaço para assembléia.',
+   'CONFIRMED'),
+  ('55555555000105','2026-11-20','2026-11-22',25,  0.00,55.00,false,false,0, 2750.00,
+   'Reunião anual de família. Sem alimentação inclusa.',
+   'SENT')
+) AS v(cnpj, check_in, check_out, pessoas, vdc, vds, refeicao, roupa, desconto, total, obs, status)
+JOIN tenants t ON t.subdomain = 'sol'
+JOIN corporate_clients cc ON cc.tenant_id = t.id AND cc.cnpj = v.cnpj
+WHERE NOT EXISTS (
+  SELECT 1 FROM event_quotes eq
+  WHERE eq.tenant_id = t.id AND eq.corporate_client_id = cc.id AND eq.check_in = v.check_in::date
+);
+
+-- -----------------------------------------------------------------------------
+-- SERVIÇOS DOS ORÇAMENTOS (4 serviços em 2 orçamentos do Aurora)
+-- -----------------------------------------------------------------------------
+INSERT INTO quote_services (tenant_id, quote_id, nome, quantidade, valor_unitario, diarias, total)
+SELECT t.id, eq.id,
+  v.nome, v.quantidade::int, v.valor_unitario::numeric, v.diarias::int,
+  (v.quantidade::int * v.valor_unitario::numeric * v.diarias::int)::numeric
+FROM (VALUES
+  -- Retiro Espiritual (aurora · Igreja Batista · check_in 2026-08-15)
+  ('aurora','11111111000101','2026-08-15', 'Coffee Break',    120, 5.00,  5),
+  ('aurora','11111111000101','2026-08-15', 'Sonorização',       1, 500.00,5),
+  -- Congresso TechCorp (aurora · TechCorp · check_in 2026-09-10)
+  ('aurora','22222222000102','2026-09-10', 'Almoço Executivo', 50, 35.00, 3),
+  ('aurora','22222222000102','2026-09-10', 'Projetor e AV',     1, 300.00,3)
+) AS v(subdomain, cnpj, check_in, nome, quantidade, valor_unitario, diarias)
+JOIN tenants t ON t.subdomain = v.subdomain
+JOIN corporate_clients cc ON cc.tenant_id = t.id AND cc.cnpj = v.cnpj
+JOIN event_quotes eq ON eq.tenant_id = t.id AND eq.corporate_client_id = cc.id AND eq.check_in = v.check_in::date
+WHERE NOT EXISTS (
+  SELECT 1 FROM quote_services qs WHERE qs.quote_id = eq.id AND qs.nome = v.nome
+);
+
+-- -----------------------------------------------------------------------------
+-- CONTRATOS — Hotel Aurora (2) + Pousada Sol (1)
+-- quote_id resolvido via JOIN no orçamento de origem (campo nullable preservado)
+-- -----------------------------------------------------------------------------
+INSERT INTO contracts (tenant_id, corporate_client_id, quote_id, objeto, check_in, check_out,
+  pessoas, total, testemunha_1, testemunha_2, status)
+SELECT t.id, cc.id, eq.id, v.objeto, v.check_in::date, v.check_out::date,
+  v.pessoas::int, v.total::numeric, v.test1, v.test2, v.status
+FROM (VALUES
+  ('aurora','11111111000101','2026-08-15',
+   'Locação temporária de espaço para Retiro Espiritual com hospedagem completa e alimentação para 120 pessoas, no período de 15 a 20 de agosto de 2026.',
+   '2026-08-15','2026-08-20',120, 56500.00,'João Carlos Santos','Maria Aparecida Lima','SIGNED'),
+  ('aurora','22222222000102','2026-09-10',
+   'Locação de espaço para Congresso Corporativo com hospedagem, salas de reunião e serviços de alimentação para 50 participantes da TechCorp Soluções.',
+   '2026-09-10','2026-09-13', 50, 22942.50,'Roberto Alves',     'Sandra Mota',        'GENERATED'),
+  ('sol',   '44444444000104','2026-09-15',
+   'Locação de acomodações e espaços para Excursão Escolar da Escola Municipal Primavera com 45 alunos e monitores, no período de 15 a 18 de setembro de 2026.',
+   '2026-09-15','2026-09-18', 45,  9450.00,'Pedro Coordenador', 'Luiza Secretária',   'SIGNED')
+) AS v(subdomain, cnpj, check_in_quote, objeto, check_in, check_out, pessoas, total, test1, test2, status)
+JOIN tenants t ON t.subdomain = v.subdomain
+JOIN corporate_clients cc ON cc.tenant_id = t.id AND cc.cnpj = v.cnpj
+LEFT JOIN event_quotes eq ON eq.tenant_id = t.id AND eq.corporate_client_id = cc.id AND eq.check_in = v.check_in_quote::date
+WHERE NOT EXISTS (
+  SELECT 1 FROM contracts ct WHERE ct.tenant_id = t.id AND ct.corporate_client_id = cc.id AND ct.check_in = v.check_in::date
+);
+
+-- -----------------------------------------------------------------------------
+-- PARCELAS DOS CONTRATOS (7 parcelas em 3 contratos)
+-- Totais conferidos: Aurora C1=56500, Aurora C2=22942.50, Sol C3=9450
+-- -----------------------------------------------------------------------------
+INSERT INTO contract_installments (tenant_id, contract_id, descricao, data_vencimento, valor)
+SELECT t.id, ct.id, v.descricao, v.data_vencimento::date, v.valor::numeric
+FROM (VALUES
+  -- Contrato 1: Retiro Espiritual Aurora (SIGNED) — 2 parcelas
+  ('aurora','11111111000101','2026-08-15', 'Entrada (40%)',        '2026-07-01', 22600.00),
+  ('aurora','11111111000101','2026-08-15', 'Saldo (60%)',          '2026-08-14', 33900.00),
+  -- Contrato 2: Congresso TechCorp Aurora (GENERATED) — 3 parcelas
+  ('aurora','22222222000102','2026-09-10', 'Entrada (40%)',        '2026-07-31',  9177.00),
+  ('aurora','22222222000102','2026-09-10', 'Segunda Parcela (30%)','2026-08-31',  6882.75),
+  ('aurora','22222222000102','2026-09-10', 'Saldo (30%)',          '2026-09-09',  6882.75),
+  -- Contrato 3: Excursão Escolar Sol (SIGNED) — 2 parcelas
+  ('sol',   '44444444000104','2026-09-15', 'Sinal (30%)',          '2026-07-15',  2835.00),
+  ('sol',   '44444444000104','2026-09-15', 'Saldo (70%)',          '2026-09-10',  6615.00)
+) AS v(subdomain, cnpj, check_in_contract, descricao, data_vencimento, valor)
+JOIN tenants t ON t.subdomain = v.subdomain
+JOIN corporate_clients cc ON cc.tenant_id = t.id AND cc.cnpj = v.cnpj
+JOIN contracts ct ON ct.tenant_id = t.id AND ct.corporate_client_id = cc.id AND ct.check_in = v.check_in_contract::date
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_installments ci WHERE ci.contract_id = ct.id AND ci.descricao = v.descricao
+);
+
 COMMIT;
 
 -- =============================================================================
 -- RESUMO DO SEED
--- tenants: 2 | room_categories: 5 | rooms: 25 | users: 5
--- guests: 60 | reservations: 40 | payments: 28
--- TOTAL: 165 registros
+-- tenants: 2          | room_categories: 5  | rooms: 25      | users: 5
+-- guests: 60          | reservations: 40    | payments: 28
+-- corporate_clients: 5 | event_quotes: 6   | quote_services: 4
+-- contracts: 3        | contract_installments: 7
+-- TOTAL: ~190 registros
 -- =============================================================================
