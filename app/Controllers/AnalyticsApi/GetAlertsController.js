@@ -29,11 +29,11 @@ export default async function GetAlertsController(request, response) {
         const cleaningPending = await sequelize.query(`
             SELECT
                 r.id          AS room_id,
-                r.room_number,
+                r.number      AS room_number,
                 rc.name       AS category,
                 r.updated_at  AS cleaning_since
             FROM rooms r
-            JOIN room_categories rc ON rc.id = r.room_category_id
+            JOIN room_categories rc ON rc.id = r.category_id
             WHERE r.tenant_id = :tenantId
               AND r.status = 'CLEANING'
               AND r.deleted_at IS NULL
