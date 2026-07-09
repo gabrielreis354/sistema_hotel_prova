@@ -10,6 +10,10 @@ export default defineConfig({
         pool: 'forks',
         singleFork: true,
         isolate: false,
+        // Testes de integração compartilham UM banco. Cada arquivo faz truncateAll()
+        // no beforeAll — então os arquivos DEVEM rodar estritamente sequenciais, senão
+        // o truncate de um arquivo apaga os dados que outro acabou de criar (FK errors).
+        fileParallelism: false,
         sequence: { concurrent: false },
         reporters: ['verbose'],
         include: ['tests/**/*.test.js'],
