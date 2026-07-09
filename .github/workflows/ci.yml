@@ -1,0 +1,59 @@
+name: CI
+
+# Roda a suíte de testes + cobertura a cada push e pull request nas branches principais.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Testes + Cobertura
+    runs-on: ubuntu-latest
+
+    # Banco PostgreSQL efêmero para os testes de integração.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: hotel_user
+          POSTGRES_PASSWORD: hotel_password
+          POSTGRES_DB: gestao_hotel_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hotel_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: gestao_hotel_test
+      POSTGRES_USER: hotel_user
+      POSTGRES_PASSWORD: hotel_password
+      JWT_SECRET: pms_hotel_test_secret_ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar sintaxe (ESM)
+        run: |
+          find app routes middlewares database -name '*.js' -print0 \
+            | xargs -0 -n1 node --check
+
+      - name: Rodar testes + cobertura (falha abaixo de 60%)
+        run: npm run test:coverage

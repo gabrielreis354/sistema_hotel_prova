@@ -19,9 +19,15 @@ export default defineConfig({
             // Cobrir apenas o código de aplicação (controllers, rotas, middlewares, models, utils).
             include: ['app/**', 'routes/**', 'middlewares/**', 'database/**'],
             // Fora: entrypoints, bootstrap e o próprio harness de testes.
-            exclude: ['**/node_modules/**', 'tests/**', '_web.js', 'command.js', 'bootstrap/**']
-            // NOTA: os thresholds (meta TCC: 60%) serão habilitados no passo de CI,
-            // depois que a suíte de testes elevar a cobertura acima da meta.
+            exclude: ['**/node_modules/**', 'tests/**', '_web.js', 'command.js', 'bootstrap/**'],
+            // Meta do TCC: 60% de cobertura. O CI (e `npm run test:coverage`) falha abaixo disso.
+            // Cobertura atual bem acima (~77% stmts / ~80% lines) — margem confortável.
+            thresholds: {
+                statements: 60,
+                lines: 60,
+                functions: 60,
+                branches: 55
+            }
         }
     }
 });
