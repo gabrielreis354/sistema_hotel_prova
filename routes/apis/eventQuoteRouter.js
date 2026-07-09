@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authMiddleware from '../../middlewares/auth.middleware.js';
 import tenantMiddleware from '../../middlewares/tenant.middleware.js';
-import requireRole from '../../middlewares/role.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
 import CreateEventQuoteController from '../../app/Controllers/EventQuoteApi/CreateEventQuoteController.js';
 import ListEventQuoteController from '../../app/Controllers/EventQuoteApi/ListEventQuoteController.js';
 import GetEventQuoteController from '../../app/Controllers/EventQuoteApi/GetEventQuoteController.js';
