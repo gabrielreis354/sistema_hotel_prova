@@ -5,6 +5,7 @@ import swaggerSpec from '../config/swagger.js';
 import authRouter         from './apis/authRouter.js';
 import LoginController    from '../app/Controllers/AuthApi/LoginController.js';
 import userRouter         from './apis/userRouter.js';
+import tenantRouter       from './apis/tenantRouter.js';
 import roomCategoryRouter from './apis/roomCategoryRouter.js';
 import roomRouter         from './apis/roomRouter.js';
 import guestRouter        from './apis/guestRouter.js';
@@ -43,6 +44,7 @@ router.post('/login', LoginController);
 // APIs REST
 router.use('/auth',             authRouter);
 router.use('/users',            userRouter);
+router.use('/tenants',          tenantRouter);
 router.use('/room-categories',  roomCategoryRouter);
 router.use('/rooms',            roomRouter);
 router.use('/guests',           guestRouter);
