@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authMiddleware from '../../middlewares/auth.middleware.js';
 import tenantMiddleware from '../../middlewares/tenant.middleware.js';
-import requireRole from '../../middlewares/role.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
 import CreateCorporateClientController from '../../app/Controllers/CorporateClientApi/CreateCorporateClientController.js';
 import ListCorporateClientController from '../../app/Controllers/CorporateClientApi/ListCorporateClientController.js';
 import GetCorporateClientController from '../../app/Controllers/CorporateClientApi/GetCorporateClientController.js';

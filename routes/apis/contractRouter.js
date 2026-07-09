@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authMiddleware from '../../middlewares/auth.middleware.js';
 import tenantMiddleware from '../../middlewares/tenant.middleware.js';
-import requireRole from '../../middlewares/role.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
 import CreateContractController from '../../app/Controllers/ContractApi/CreateContractController.js';
 import ListContractController from '../../app/Controllers/ContractApi/ListContractController.js';
 import GetContractController from '../../app/Controllers/ContractApi/GetContractController.js';

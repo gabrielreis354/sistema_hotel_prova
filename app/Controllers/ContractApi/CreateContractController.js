@@ -24,9 +24,13 @@ export default async function CreateContractController(request, response) {
             if (!quote) return response.status(404).json({ error: 'Orçamento não encontrado' });
         }
 
+        // Transação cobre apenas o dado core (contrato + parcelas). O PDF é artefato
+        // derivado e NÃO deve fazer parte da atomicidade — senão uma indisponibilidade
+        // do MinIO impediria a criação do contrato (e travaria a operação do hotel).
         const t = await sequelize.transaction();
+        let contract;
         try {
-            const contract = await ContractModel.create({
+            contract = await ContractModel.create({
                 tenant_id: tenantId, corporate_client_id, quote_id: quote_id || null,
                 objeto, check_in, check_out, pessoas, total, testemunha_1, testemunha_2
             }, { transaction: t });
@@ -42,21 +46,27 @@ export default async function CreateContractController(request, response) {
                 await ContractInstallmentModel.bulkCreate(instRows, { transaction: t });
             }
 
-            // Gerar PDF e fazer upload no MinIO
-            const allInstallments = await ContractInstallmentModel.findAll({ where: { contract_id: contract.id }, transaction: t });
-            const pdfData = { ...contract.toJSON(), client: client.toJSON(), installments: allInstallments.map(i => i.toJSON()) };
-            const pdfBuffer = await generateContractPdf(pdfData);
-            const key = `${tenantId}/contracts/${contract.id}.pdf`;
-            const pdfUrl = await uploadToMinIO(pdfBuffer, key);
-
-            await contract.update({ pdf_url: pdfUrl }, { transaction: t });
             await t.commit();
-
-            return response.status(201).json({ ...contract.toJSON(), pdf_url: pdfUrl });
         } catch (err) {
             await t.rollback();
             throw err;
         }
+
+        // Geração do PDF em best-effort (fora da transação). Se o MinIO falhar, o contrato
+        // permanece criado com pdf_url null — o PDF pode ser gerado depois via GET /:id/pdf.
+        let pdfUrl = null;
+        try {
+            const allInstallments = await ContractInstallmentModel.findAll({ where: { contract_id: contract.id } });
+            const pdfData = { ...contract.toJSON(), client: client.toJSON(), installments: allInstallments.map(i => i.toJSON()) };
+            const pdfBuffer = await generateContractPdf(pdfData);
+            const key = `${tenantId}/contracts/${contract.id}.pdf`;
+            pdfUrl = await uploadToMinIO(pdfBuffer, key);
+            await contract.update({ pdf_url: pdfUrl });
+        } catch (pdfError) {
+            console.warn('CreateContractController: contrato criado, mas PDF/MinIO falhou:', pdfError.message);
+        }
+
+        return response.status(201).json({ ...contract.toJSON(), pdf_url: pdfUrl });
     } catch (error) {
         console.error('CreateContractController:', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
