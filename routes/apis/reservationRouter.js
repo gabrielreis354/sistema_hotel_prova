@@ -40,7 +40,7 @@ export default (() => {
     router.get('/:id/bill', GetBillController);
     router.get('/:id/consumptions', ListConsumptionController);
     router.post('/:id/consumptions', CreateConsumptionController);
-    router.delete('/:id/consumptions/:consumptionId', DeleteConsumptionController);
+    router.delete('/:id/consumptions/:consumptionId', requireRole('ADMIN'), DeleteConsumptionController);
 
     return router;
 })();

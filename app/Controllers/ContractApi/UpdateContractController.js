@@ -4,6 +4,7 @@ import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
 import uploadToMinIO from '../../utils/uploadToMinIO.js';
+import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
 
 export default async function UpdateContractController(request, response) {
     try {
@@ -11,8 +12,9 @@ export default async function UpdateContractController(request, response) {
         const contract = await ContractModel.findOne({ where: { id: request.params.id, tenant_id: tenantId } });
         if (!contract) return response.status(404).json({ error: 'Contrato não encontrado' });
 
-        const { objeto, check_in, check_out, pessoas, total, testemunha_1, testemunha_2, status, installments, regenerate_pdf } = request.body;
-        const fields = { objeto, check_in, check_out, pessoas, total, testemunha_1, testemunha_2, status };
+        // status é transição de estado — só via /:id/sign e /:id/cancel (dedicados).
+        const { objeto, check_in, check_out, pessoas, total, testemunha_1, testemunha_2, installments, regenerate_pdf } = request.body;
+        const fields = { objeto, check_in, check_out, pessoas, total, testemunha_1, testemunha_2 };
         Object.entries(fields).forEach(([k, v]) => { if (v !== undefined) contract[k] = v; });
 
         const t = await sequelize.transaction();
@@ -20,10 +22,34 @@ export default async function UpdateContractController(request, response) {
             await contract.save({ transaction: t });
 
             if (installments !== undefined) {
-                await ContractInstallmentModel.destroy({ where: { contract_id: contract.id }, transaction: t });
-                if (installments.length > 0) {
-                    const rows = installments.map(i => ({ tenant_id: tenantId, contract_id: contract.id, descricao: i.descricao, data_vencimento: i.data_vencimento, valor: i.valor }));
-                    await ContractInstallmentModel.bulkCreate(rows, { transaction: t });
+                const existing = await ContractInstallmentModel.findAll({ where: { contract_id: contract.id }, transaction: t });
+                const existingById = new Map(existing.map(i => [i.id, i]));
+                const incomingIds = new Set(installments.filter(i => i.id).map(i => i.id));
+
+                // Parcelas que sumiram do payload: só podem ser removidas se ainda não foram pagas.
+                for (const inst of existing) {
+                    if (!incomingIds.has(inst.id)) {
+                        if (inst.status === 'PAID') {
+                            await t.rollback();
+                            return response.status(409).json({ error: `Não é possível remover a parcela "${inst.descricao}" — já está paga` });
+                        }
+                        await inst.destroy({ transaction: t, force: true });
+                    }
+                }
+
+                for (const i of installments) {
+                    if (i.id && existingById.has(i.id)) {
+                        // Atualiza só os dados descritivos — status/paid_at são geridos pelo endpoint /pay.
+                        await existingById.get(i.id).update(
+                            { descricao: i.descricao, data_vencimento: i.data_vencimento, valor: i.valor },
+                            { transaction: t }
+                        );
+                    } else {
+                        await ContractInstallmentModel.create(
+                            { tenant_id: tenantId, contract_id: contract.id, descricao: i.descricao, data_vencimento: i.data_vencimento, valor: i.valor },
+                            { transaction: t }
+                        );
+                    }
                 }
             }
 
@@ -44,7 +70,7 @@ export default async function UpdateContractController(request, response) {
         }
 
         const result = await ContractModel.findOne({ where: { id: contract.id }, include: [{ model: ContractInstallmentModel, as: 'installments' }] });
-        return response.json(result);
+        return response.json({ ...result.toJSON(), ...summarizeContractInstallments(result.installments) });
     } catch (error) {
         console.error('UpdateContractController:', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });

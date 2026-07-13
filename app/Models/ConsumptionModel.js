@@ -33,6 +33,12 @@ const ConsumptionModel = sequelize.define(
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: DataTypes.NOW
+        },
+        // Quem autorizou a exclusão (soft delete) — trilha de auditoria financeira.
+        deleted_by: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: { model: 'users', key: 'id' }
         }
     },
     {

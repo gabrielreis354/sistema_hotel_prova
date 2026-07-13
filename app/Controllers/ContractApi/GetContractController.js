@@ -1,6 +1,7 @@
 import ContractModel from '../../Models/ContractModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
+import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
 
 export default async function GetContractController(request, response) {
     try {
@@ -13,7 +14,7 @@ export default async function GetContractController(request, response) {
             ]
         });
         if (!contract) return response.status(404).json({ error: 'Contrato não encontrado' });
-        return response.json(contract);
+        return response.json({ ...contract.toJSON(), ...summarizeContractInstallments(contract.installments) });
     } catch (error) {
         console.error('GetContractController:', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });

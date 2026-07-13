@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
+import { createCategory, createRoom } from './helpers/factories.js';
 
 // Smoke tests do módulo B2B (clientes corporativos, orçamentos de evento, contratos).
 // Cobre o CRUD — endpoints /pdf são omitidos (dependem de MinIO, indisponível em teste/CI).
@@ -11,13 +12,32 @@ const app = createApp();
 let jwt;
 let clientId;
 let quoteId;
+let roomA, roomB;
 
 const auth = () => ({ Authorization: `Bearer ${jwt}` });
 
 beforeAll(async () => {
     await truncateAll();
     ({ jwt } = await registerAndLogin(app, { tenantName: 'Hotel B2B' }));
+    const cat = await createCategory(app, jwt, { name: 'Evento', price_per_night: 300 });
+    roomA = await createRoom(app, jwt, cat.id, { number: '901' });
+    roomB = await createRoom(app, jwt, cat.id, { number: '902' });
 });
+
+async function createSignableContract(overrides = {}) {
+    const res = await request(app).post('/contracts').set(auth()).send({
+        corporate_client_id: clientId,
+        objeto: 'Hospedagem de evento corporativo',
+        check_in: '2027-10-01',
+        check_out: '2027-10-03',
+        pessoas: 10,
+        total: 3000,
+        testemunha_1: 'Testemunha Um',
+        testemunha_2: 'Testemunha Dois',
+        ...overrides,
+    });
+    return res.body;
+}
 
 describe('Corporate Clients — CRUD', () => {
     it('POST cria cliente corporativo (201)', async () => {
@@ -122,6 +142,108 @@ describe('Contracts — CRUD', () => {
     it('GET lista e por id (200)', async () => {
         expect((await request(app).get('/contracts').set(auth())).status).toBe(200);
         expect((await request(app).get(`/contracts/${contractId}`).set(auth())).status).toBe(200);
+    });
+});
+
+describe('Contracts — sign/cancel bloqueiam e liberam quartos (issue #67)', () => {
+    it('assina o contrato e bloqueia os quartos escolhidos', async () => {
+        const contract = await createSignableContract();
+        const res = await request(app).put(`/contracts/${contract.id}/sign`).set(auth())
+            .send({ room_ids: [roomA.id, roomB.id] });
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('SIGNED');
+        expect(res.body.reservation_id).toBeTruthy();
+    });
+
+    it('retorna 409 ao tentar assinar contrato já assinado', async () => {
+        const contract = await createSignableContract();
+        await request(app).put(`/contracts/${contract.id}/sign`).set(auth()).send({ room_ids: [roomA.id] });
+        const res = await request(app).put(`/contracts/${contract.id}/sign`).set(auth()).send({ room_ids: [roomA.id] });
+        expect(res.status).toBe(409);
+    });
+
+    it('retorna 409 ao assinar contrato usando quarto já bloqueado no mesmo período', async () => {
+        const first = await createSignableContract({ check_in: '2027-11-01', check_out: '2027-11-03' });
+        await request(app).put(`/contracts/${first.id}/sign`).set(auth()).send({ room_ids: [roomA.id] });
+
+        const second = await createSignableContract({ check_in: '2027-11-02', check_out: '2027-11-04' });
+        const res = await request(app).put(`/contracts/${second.id}/sign`).set(auth()).send({ room_ids: [roomA.id] });
+        expect(res.status).toBe(409);
+        expect(res.body.room_ids).toContain(roomA.id);
+    });
+
+    it('cancelar o contrato libera o quarto para um novo contrato no mesmo período', async () => {
+        const first = await createSignableContract({ check_in: '2027-12-01', check_out: '2027-12-03' });
+        await request(app).put(`/contracts/${first.id}/sign`).set(auth()).send({ room_ids: [roomB.id] });
+
+        const cancel = await request(app).put(`/contracts/${first.id}/cancel`).set(auth());
+        expect(cancel.status).toBe(200);
+        expect(cancel.body.status).toBe('CANCELLED');
+
+        const second = await createSignableContract({ check_in: '2027-12-01', check_out: '2027-12-03' });
+        const res = await request(app).put(`/contracts/${second.id}/sign`).set(auth()).send({ room_ids: [roomB.id] });
+        expect(res.status).toBe(200);
+    });
+});
+
+describe('Contracts — parcelas com status de pagamento (issue #68)', () => {
+    let contractId, installmentId;
+
+    it('cria contrato com parcelas (PENDING por padrão)', async () => {
+        const res = await request(app).post('/contracts').set(auth()).send({
+            corporate_client_id: clientId,
+            objeto: 'Evento com parcelamento',
+            check_in: '2028-01-01', check_out: '2028-01-03', pessoas: 5, total: 1000,
+            testemunha_1: 'T1', testemunha_2: 'T2',
+            installments: [{ descricao: '1/2', data_vencimento: '2028-01-01', valor: 500 }],
+        });
+        expect(res.status).toBe(201);
+        contractId = res.body.id;
+        installmentId = res.body.installments?.[0]?.id;
+
+        const get = await request(app).get(`/contracts/${contractId}`).set(auth());
+        expect(get.body.installments[0].status).toBe('PENDING');
+        expect(get.body.installments_paid_total).toBe(0);
+        expect(get.body.installments_balance).toBe(500);
+    });
+
+    it('PUT .../installments/:id/pay marca como paga', async () => {
+        const res = await request(app).put(`/contracts/${contractId}/installments/${installmentId}/pay`).set(auth());
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('PAID');
+        expect(res.body.paid_at).toBeTruthy();
+
+        const get = await request(app).get(`/contracts/${contractId}`).set(auth());
+        expect(get.body.installments_paid_total).toBe(500);
+        expect(get.body.installments_balance).toBe(0);
+    });
+
+    it('retorna 409 ao tentar pagar parcela já paga', async () => {
+        const res = await request(app).put(`/contracts/${contractId}/installments/${installmentId}/pay`).set(auth());
+        expect(res.status).toBe(409);
+    });
+
+    it('editar installments via PUT genérico não derruba parcela já paga, e bloqueia removê-la', async () => {
+        const get = await request(app).get(`/contracts/${contractId}`).set(auth());
+        const paid = get.body.installments[0];
+
+        // Tentar remover a parcela paga (não reenviá-la no array) deve falhar
+        const removeAttempt = await request(app).put(`/contracts/${contractId}`).set(auth())
+            .send({ installments: [{ descricao: 'Nova parcela', data_vencimento: '2028-02-01', valor: 200 }] });
+        expect(removeAttempt.status).toBe(409);
+
+        // Reenviando a parcela paga (com o mesmo id) + uma nova é aceito e preserva o status
+        const update = await request(app).put(`/contracts/${contractId}`).set(auth()).send({
+            installments: [
+                { id: paid.id, descricao: paid.descricao, data_vencimento: paid.data_vencimento, valor: paid.valor },
+                { descricao: '2/2', data_vencimento: '2028-02-01', valor: 500 },
+            ],
+        });
+        expect(update.status).toBe(200);
+        const stillPaid = update.body.installments.find(i => i.id === paid.id);
+        expect(stillPaid.status).toBe('PAID');
+        expect(update.body.installments_paid_total).toBe(500);
     });
 });
 

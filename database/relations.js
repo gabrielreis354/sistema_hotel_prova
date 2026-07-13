@@ -95,6 +95,8 @@ export default function initRelations() {
     ContractModel.belongsTo(EventQuoteModel, { foreignKey: 'quote_id', as: 'quote' });
     TenantModel.hasMany(ContractModel, { foreignKey: 'tenant_id', as: 'contracts' });
     ContractModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+    // Reserva-bloco criada ao assinar o contrato (bloqueio de quartos do evento)
+    ContractModel.belongsTo(ReservationModel, { foreignKey: 'reservation_id', as: 'reservation' });
 
     // 10) Parcelas do Contrato
     ContractModel.hasMany(ContractInstallmentModel, { foreignKey: 'contract_id', as: 'installments' });
