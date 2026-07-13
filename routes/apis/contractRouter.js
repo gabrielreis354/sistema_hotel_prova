@@ -8,6 +8,9 @@ import GetContractController from '../../app/Controllers/ContractApi/GetContract
 import UpdateContractController from '../../app/Controllers/ContractApi/UpdateContractController.js';
 import DeleteContractController from '../../app/Controllers/ContractApi/DeleteContractController.js';
 import DownloadContractPdfController from '../../app/Controllers/ContractApi/DownloadContractPdfController.js';
+import SignContractController from '../../app/Controllers/ContractApi/SignContractController.js';
+import CancelContractController from '../../app/Controllers/ContractApi/CancelContractController.js';
+import PayContractInstallmentController from '../../app/Controllers/ContractApi/PayContractInstallmentController.js';
 
 const router = Router();
 router.use(authMiddleware, tenantMiddleware);
@@ -16,5 +19,8 @@ router.get('/:id/pdf', DownloadContractPdfController);
 router.get('/:id', GetContractController);
 router.post('/', CreateContractController);
 router.put('/:id', UpdateContractController);
+router.put('/:id/sign', SignContractController);
+router.put('/:id/cancel', CancelContractController);
+router.put('/:id/installments/:installmentId/pay', PayContractInstallmentController);
 router.delete('/:id', requireRole('ADMIN'), DeleteContractController);
 export default router;

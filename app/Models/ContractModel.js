@@ -15,6 +15,9 @@ const ContractModel = sequelize.define('Contract', {
     testemunha_2: { type: DataTypes.STRING, allowNull: false },
     status: { type: DataTypes.ENUM('GENERATED', 'SIGNED', 'CANCELLED'), defaultValue: 'GENERATED' },
     pdf_url: { type: DataTypes.TEXT, allowNull: true },
+    // Reserva-bloco criada ao assinar o contrato (ver SignContractController) — garante
+    // que os quartos do evento fiquem indisponíveis para venda avulsa no período.
+    reservation_id: { type: DataTypes.UUID, allowNull: true },
 }, {
     tableName: 'contracts',
     timestamps: true,
