@@ -103,4 +103,3 @@ delete de consumo exige ADMIN (403 para RECEPTIONIST).
 - `EventQuote` (orcamento) continua sem nenhum vinculo com quartos — por
   desenho (decisao validada com o usuario): so o contrato assinado bloqueia
   quarto, pois o orcamento e so uma cotacao informal.
-EOF
