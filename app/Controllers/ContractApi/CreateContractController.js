@@ -23,6 +23,9 @@ export default async function CreateContractController(request, response) {
         if (quote_id) {
             const quote = await EventQuoteModel.findOne({ where: { id: quote_id, tenant_id: tenantId } });
             if (!quote) return response.status(404).json({ error: 'Orçamento não encontrado' });
+            if (Math.abs(Number(quote.total) - Number(total)) > 0.01) {
+                return response.status(409).json({ error: `Total do contrato (${total}) não confere com o total do orçamento vinculado (${quote.total})` });
+            }
         }
 
         // Transação cobre apenas o dado core (contrato + parcelas). O PDF é artefato
