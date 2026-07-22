@@ -8,6 +8,8 @@ const ContractInstallmentModel = sequelize.define('ContractInstallment', {
     descricao: { type: DataTypes.STRING, allowNull: false },
     data_vencimento: { type: DataTypes.DATEONLY, allowNull: false },
     valor: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    status: { type: DataTypes.ENUM('PENDING', 'PAID'), defaultValue: 'PENDING' },
+    paid_at: { type: DataTypes.DATE, allowNull: true },
 }, {
     tableName: 'contract_installments',
     timestamps: true,

@@ -94,7 +94,7 @@ describe('GET /reservations/:id/bill', () => {
 });
 
 describe('DELETE /reservations/:id/consumptions/:consumptionId', () => {
-    it('remove consumo e o bill reflete a remoção', async () => {
+    it('remove consumo e o bill reflete a remoção (ADMIN)', async () => {
         const created = await addConsumption('Lavanderia', 40);
         const before = await getBill();
 
@@ -105,5 +105,19 @@ describe('DELETE /reservations/:id/consumptions/:consumptionId', () => {
 
         const after = await getBill();
         expect(after.body.consumptions_total).toBe(before.body.consumptions_total - 40);
+    });
+
+    it('retorna 403 quando quem tenta apagar não é ADMIN', async () => {
+        const created = await addConsumption('Spa', 90);
+
+        await request(app).post('/users').set('Authorization', `Bearer ${jwt}`)
+            .send({ name: 'Recepcionista', email: 'recep_consumo@test.com', password: 'senha123' });
+        const login = await request(app).post('/auth/login').send({ email: 'recep_consumo@test.com', password: 'senha123' });
+        const recepJwt = login.body.token;
+
+        const del = await request(app)
+            .delete(`/reservations/${reservationId}/consumptions/${created.body.id}`)
+            .set('Authorization', `Bearer ${recepJwt}`);
+        expect(del.status).toBe(403);
     });
 });

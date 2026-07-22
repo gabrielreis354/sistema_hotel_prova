@@ -2,7 +2,8 @@ import ConsumptionModel from '../../Models/ConsumptionModel.js';
 
 /**
  * DELETE /reservations/:id/consumptions/:consumptionId
- * Remove (soft delete) um consumo extra da reserva.
+ * Remove (soft delete) um consumo extra da reserva. Restrito a ADMIN (rota) —
+ * grava quem autorizou a exclusão para trilha de auditoria financeira.
  */
 export default async function DeleteConsumptionController(request, response) {
     try {
@@ -14,6 +15,8 @@ export default async function DeleteConsumptionController(request, response) {
         });
         if (!consumption) return response.status(404).json({ error: 'Consumo não encontrado' });
 
+        consumption.deleted_by = request.user.userId;
+        await consumption.save();
         await consumption.destroy(); // soft delete (paranoid)
         return response.status(204).send();
     } catch (error) {
