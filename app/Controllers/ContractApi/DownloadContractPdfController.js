@@ -2,6 +2,7 @@ import ContractModel from '../../Models/ContractModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
+import { getPresignedDownloadUrl } from '../../utils/uploadToMinIO.js';
 
 export default async function DownloadContractPdfController(request, response) {
     try {
@@ -15,8 +16,13 @@ export default async function DownloadContractPdfController(request, response) {
         });
         if (!contract) return response.status(404).json({ error: 'Contrato não encontrado' });
 
-        // Se já tem URL no MinIO, redireciona; se não, gera on-demand
-        if (contract.pdf_url) return response.redirect(contract.pdf_url);
+        // Se já tem PDF no MinIO, gera uma URL assinada (bucket é privado, link direto
+        // retorna 403) e redireciona; se não, gera o PDF on-demand.
+        if (contract.pdf_url) {
+            const key = `${tenantId}/contracts/${contract.id}.pdf`;
+            const signedUrl = await getPresignedDownloadUrl(key);
+            return response.redirect(signedUrl);
+        }
 
         const buffer = await generateContractPdf(contract.toJSON());
         response.setHeader('Content-Type', 'application/pdf');
