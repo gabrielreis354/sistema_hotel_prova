@@ -1,8 +1,20 @@
-import express from 'express';
-import router from './routes/router.js';
-import app from "./bootstrap/app.js";
+import dotenv from 'dotenv';
 
-// Inicializa variáveis de ambiente e relacionamentos do Sequelize
+// dotenv precisa carregar ANTES de qualquer módulo que leia process.env na própria
+// avaliação (ex.: database/connections/sequelize.js, minio.js). Em ESM, imports
+// estáticos são avaliados antes do corpo deste arquivo — não importa a ordem textual
+// das linhas — então usamos import() dinâmico pra adiar esse carregamento pra depois
+// do dotenv.config(). Mesmo padrão já usado em command.js.
+dotenv.config({
+    quiet: true,
+    path: process.cwd() + '/.env'
+});
+
+const { default: express } = await import('express');
+const { default: router } = await import('./routes/router.js');
+const { default: app } = await import('./bootstrap/app.js');
+
+// Inicializa os relacionamentos do Sequelize
 app();
 
 const web = express();
