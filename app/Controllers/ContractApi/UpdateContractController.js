@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import ContractModel from '../../Models/ContractModel.js';
 import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
+import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
 import uploadToMinIO from '../../utils/uploadToMinIO.js';
 import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
@@ -14,6 +15,14 @@ export default async function UpdateContractController(request, response) {
 
         // status é transição de estado — só via /:id/sign e /:id/cancel (dedicados).
         const { objeto, check_in, check_out, pessoas, total, testemunha_1, testemunha_2, installments, regenerate_pdf } = request.body;
+
+        if (total !== undefined && contract.quote_id) {
+            const quote = await EventQuoteModel.findOne({ where: { id: contract.quote_id, tenant_id: tenantId } });
+            if (quote && Math.abs(Number(quote.total) - Number(total)) > 0.01) {
+                return response.status(409).json({ error: `Total do contrato (${total}) não confere com o total do orçamento vinculado (${quote.total})` });
+            }
+        }
+
         const fields = { objeto, check_in, check_out, pessoas, total, testemunha_1, testemunha_2 };
         Object.entries(fields).forEach(([k, v]) => { if (v !== undefined) contract[k] = v; });
 

@@ -8,6 +8,8 @@ import GetEventQuoteController from '../../app/Controllers/EventQuoteApi/GetEven
 import UpdateEventQuoteController from '../../app/Controllers/EventQuoteApi/UpdateEventQuoteController.js';
 import DeleteEventQuoteController from '../../app/Controllers/EventQuoteApi/DeleteEventQuoteController.js';
 import DownloadQuotePdfController from '../../app/Controllers/EventQuoteApi/DownloadQuotePdfController.js';
+import ConfirmEventQuoteController from '../../app/Controllers/EventQuoteApi/ConfirmEventQuoteController.js';
+import CancelEventQuoteController from '../../app/Controllers/EventQuoteApi/CancelEventQuoteController.js';
 
 const router = Router();
 router.use(authMiddleware, tenantMiddleware);
@@ -16,5 +18,7 @@ router.get('/:id/pdf', DownloadQuotePdfController);
 router.get('/:id', GetEventQuoteController);
 router.post('/', CreateEventQuoteController);
 router.put('/:id', UpdateEventQuoteController);
+router.put('/:id/confirm', ConfirmEventQuoteController);
+router.put('/:id/cancel', CancelEventQuoteController);
 router.delete('/:id', requireRole('ADMIN'), DeleteEventQuoteController);
 export default router;
