@@ -58,27 +58,29 @@ independente da lista. J1 resolve a prioridade.
 ```
 J2 BACKEND                                  J3 FRONTEND
 ──────────────────────────────────────────────────────────────────────
-Sprint 0  fix/backend-prep-frontend         Fase 0  monorepo + design system
-          CORS, ?from=&to=, paginação,              (não depende de API)
-          role WAITER
+0   prep: CORS, ?from=&to=, paginação,      Fase 0  monorepo + design system
+    role WAITER                                     (não depende de API)
                     │                                       │
                     └───────────── desbloqueia ─────────────┤
                                                             ▼
-Sprint 1  feature/product-catalog           Fase 1  rack, reservas, check-in/out,
-Sprint 2  feature/account-accountitem               hóspedes, quartos
-          (+ migração do Consumption)
-Sprint 3  feature/account-billing                           │
-          (refatorar /bill + Payment)                       │
+1   product-catalog                         Fase 1  rack, reservas, check-in/out,
+2a  account-entities                                hóspedes, quartos
+2b  consumption-migration
+3a  account-bill  ← parada segura                           │
                     │                                       │
                     └───────────── desbloqueia ─────────────┤
                                                             ▼
-Sprint 4  feature/split-bill-dayuse         Fase 2  comanda do garçom
-Sprint 5  feature/consumo-seed-swagger      Fase 3  financeiro + analytics
-                                            Fase 4  grupos (B2B)
+3b  payment-account-link   [risco: PIX]     Fase 2  comanda do garçom
+3c  reservation-bill-delegate               Fase 3  financeiro + analytics
+4   split-bill-dayuse                       Fase 4  grupos (B2B)
+5   seed-swagger
 ```
 
-**Sprint 0 é o caminho crítico.** Enquanto ela não estiver em `develop`, J3 fica na Fase 0 —
+**A fatia 0 é o caminho crítico.** Enquanto não estiver em `develop`, J3 fica na Fase 0 —
 que é justamente a parte que não toca a API.
+
+**A Fase 2 do frontend depende da 3a**, não do módulo inteiro: com catálogo, contas e bill,
+o app do garçom já tem o que consumir.
 
 ---
 

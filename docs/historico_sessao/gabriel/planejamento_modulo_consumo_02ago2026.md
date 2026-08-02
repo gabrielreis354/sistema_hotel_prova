@@ -110,17 +110,43 @@ lançamento produziriam um `/bill` que soma errado.
 
 ## Sprints
 
-| Sprint | Feature | Estimativa | Branch |
-|---|---|---|---|
-| **0** | Pré-requisitos de backend (CORS, filtro de datas, role `WAITER`) | 1 dia | `fix/backend-prep-frontend` |
-| 1 | Catálogo de Produtos (Product CRUD) | 2–3 dias | `feature/product-catalog` |
-| 2 | Account + AccountItem **+ migração do Consumption** | **6–7 dias** ⬆ | `feature/account-accountitem` |
-| 3 | **Refatorar** Bill + Payment com `account_id` | **4–5 dias** ⬆ | `feature/account-billing` |
-| 4 | Check-in auto-cria conta + Split Bill + Day-use | 3–4 dias | `feature/split-bill-dayuse` |
-| 5 | Qualidade, Seed e Swagger Final | 2 dias | `feature/consumo-seed-swagger` |
+Fatiadas para serem **gerenciáveis**: cada fatia entrega em ≤ 3 dias, tem merge próprio e é
+**ou puramente aditiva, ou um único risco isolado**. Isso vale mais do que parecer enxuto —
+com 3 agentes em paralelo, merge grande é o que trava o time.
 
-**Total revisado:** ~19 dias (era ~15 — as Sprints 2 e 3 cresceram com migração e refatoração)
-**PR único ao final:** `develop → main`
+| # | Fatia | Natureza | Est. | Branch |
+|---|---|---|---|---|
+| **0** | CORS + filtro de datas/paginação + role `WAITER` | Aditiva | 1 d | `fix/backend-prep-frontend` |
+| **1** | Catálogo de Produtos (Product CRUD) | Aditiva | 2 d | `feature/product-catalog` |
+| **2a** | `Account` + `AccountItem` + CRUD — sem tocar no que existe | Aditiva | 3 d | `feature/account-entities` |
+| **2b** | Migração `Consumption` → `AccountItem` + deprecar endpoints antigos | ⚠️ Migração de dados | 2–3 d | `feature/consumption-migration` |
+| **3a** | `GET /accounts/:id/bill` + `PUT /accounts/:id/close` | Aditiva | 2 d | `feature/account-bill` |
+| **3b** | `Payment.account_id` + `reservation_id` nullable + CHECK | 🔴 **Risco isolado** | 2–3 d | `feature/payment-account-link` |
+| **3c** | `GET /reservations/:id/bill` passa a delegar para as contas | ⚠️ Refatoração | 1–2 d | `feature/reservation-bill-delegate` |
+| **4** | Check-in auto-cria conta + Split Bill + Day-use | Aditiva | 3 d | `feature/split-bill-dayuse` |
+| **5** | Seed, Swagger e testes de isolamento | Aditiva | 2 d | `feature/consumo-seed-swagger` |
+
+**Total:** ~19 dias · **PR único ao final:** `develop → main`
+
+### Por que 3a / 3b / 3c separados
+
+A Sprint 3 original juntava três coisas de risco muito diferente num único merge. Separadas:
+
+- **3a é aditiva** — endpoint novo, nada existente muda. Merge sem medo.
+- **3b é o único ponto que pode quebrar o motor de reservas e o PIX.** Sozinha numa branch, se
+  `tests/public-booking.test.js` ficar vermelho, a causa é inequívoca. Junto com 3a e 3c, seria
+  preciso bissectar dentro do próprio merge.
+- **3c é refatoração pura** — o contrato de resposta não muda e `tests/bill-consumptions.test.js`
+  é o critério de aceite.
+
+Mesma lógica em 2a/2b: criar entidade é seguro, migrar dado é o que exige atenção e rollback.
+
+### Ponto de parada seguro
+
+Se o prazo apertar, **parar depois da 3a ainda entrega um módulo coerente**: catálogo, comanda,
+lançamento de itens e conta com total — que é o que o app do garçom precisa. As fatias 3b, 3c e 4
+adicionam day-use, split bill e unificação do pagamento, e podem ficar para depois do TCC sem
+deixar nada quebrado pela metade.
 
 ---
 
@@ -336,27 +362,35 @@ continuar funcionando.
 ## Sequência de branches
 
 ```
-Sprint 0:  fix/backend-prep-frontend     → merge develop
-Sprint 1:  feature/product-catalog       → merge develop
-Sprint 2:  feature/account-accountitem   → merge develop
-Sprint 3:  feature/account-billing       → merge develop
-Sprint 4:  feature/split-bill-dayuse     → merge develop
-Sprint 5:  feature/consumo-seed-swagger  → merge develop
-           PR único: develop → main
+0    fix/backend-prep-frontend         → merge develop   [desbloqueia o frontend]
+1    feature/product-catalog           → merge develop
+2a   feature/account-entities          → merge develop
+2b   feature/consumption-migration     → merge develop
+3a   feature/account-bill              → merge develop   ← ponto de parada seguro
+3b   feature/payment-account-link      → merge develop   [risco: PIX]
+3c   feature/reservation-bill-delegate → merge develop
+4    feature/split-bill-dayuse         → merge develop
+5    feature/consumo-seed-swagger      → merge develop
+     PR único: develop → main
 ```
+
+Cada merge passa pelo `qa-redteam` antes — ver `docs/COORDENACAO_AGENTES.md` §5.
 
 ---
 
-## Status das Sprints
+## Status das fatias
 
-| Sprint | Status |
-|---|---|
-| Sprint 0 — Pré-requisitos de backend | 🔲 Pendente |
-| Sprint 1 — Product Catalog | 🔲 Pendente |
-| Sprint 2 — Account + AccountItem + migração | 🔲 Pendente |
-| Sprint 3 — Refatorar Bill + Payment | 🔲 Pendente |
-| Sprint 4 — Check-in + Split Bill + Day-use | 🔲 Pendente |
-| Sprint 5 — Qualidade e Swagger | 🔲 Pendente |
+| # | Fatia | Status |
+|---|---|---|
+| 0 | Pré-requisitos de backend | 🔲 Pendente |
+| 1 | Product Catalog | 🔲 Pendente |
+| 2a | Account + AccountItem | 🔲 Pendente |
+| 2b | Migração do Consumption | 🔲 Pendente |
+| 3a | Bill da conta + close | 🔲 Pendente |
+| 3b | Payment ↔ Account | 🔲 Pendente |
+| 3c | Delegação do bill da reserva | 🔲 Pendente |
+| 4 | Check-in + Split Bill + Day-use | 🔲 Pendente |
+| 5 | Seed, Swagger e testes | 🔲 Pendente |
 
 ---
 
