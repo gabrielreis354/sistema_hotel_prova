@@ -326,16 +326,47 @@ Verificados no código em `develop @ 227d905`.
 
 | # | Gap | Evidência | Severidade |
 |---|---|---|---|
-| 1 | **CORS não existe** | Nenhuma ocorrência de `cors` no projeto; `bootstrap/app.js` só chama `initRelations()` | 🔴 **Bloqueante.** Primeira requisição do frontend falha |
-| 2 | **`GET /reservations` sem filtro de data e sem paginação** | `ListReservationController.js:9` — `findAll` do tenant inteiro com 3 joins | 🔴 **Bloqueante para o rack.** Cresce sem limite |
-| 3 | **Não existe role `WAITER`** | `UserModel.js:29-33` — só `ADMIN` e `RECEPTIONIST` (default) | 🔴 Sem isso o garçom entra como recepcionista e vê o sistema todo |
+| 1 | **CORS não existe** | Nenhuma ocorrência de `cors` no projeto; `bootstrap/app.js` só chama `initRelations()` | 🟡 **Bloqueia produção, não o desenvolvimento** — ver nota abaixo |
+| 2 | **`GET /reservations` sem filtro de data e sem paginação** | `ListReservationController.js:9` — `findAll` do tenant inteiro com 3 joins | 🟡 Necessário para o rack em escala. Em dev, o seed (~190 registros) permite filtrar no cliente |
+| 3 | **Não existe role `WAITER`** | `UserModel.js:29-33` — só `ADMIN` e `RECEPTIONIST` (default) | 🟡 Necessário na Fase 2 (comanda), não antes |
 | 4 | **JWT de 8h sem refresh token** | `LoginController.js:51` — `expiresIn: '8h'` | 🟡 Sessão cai no meio do turno; garçom perde comanda em andamento |
 | 5 | **Não existe super-admin** | Todo `User` tem `tenant_id` NOT NULL | 🟡 Bloqueia `app-admin` (pós-TCC) |
 | 6 | **`DECIMAL` chega como string** | Padrão do driver `pg` | 🟡 Tratar em `packages/domain`, nunca `Number()` direto |
 | 7 | **Sem upload de imagem** | — | 🟢 MinIO já existe; reaproveitar `uploadToMinIO.js` para fotos de quarto no site público |
 | 8 | **Sem realtime** | — | 🟢 Polling do TanStack Query resolve a v1. Dois recepcionistas simultâneos são raros em pousada pequena |
 
-Os itens 1, 2 e 3 devem virar uma branch `fix/backend-prep-frontend` **antes** da Fase 1.
+Os itens 1, 2 e 3 viram a branch `fix/backend-prep-frontend` (Fatia 0 do backend). Mas
+**nenhum deles bloqueia o início do frontend** — correção de uma avaliação anterior que
+estava pessimista demais.
+
+### Por que CORS não bloqueia o desenvolvimento
+
+O Vite tem proxy de dev:
+
+```js
+// apps/pms/vite.config.ts
+server: {
+  proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true } }
+}
+```
+
+O navegador chama `localhost:5173/api/...` e o Vite encaminha do lado do servidor. Do ponto
+de vista do browser é **mesma origem** — não há preflight, não há CORS. Dá para integrar
+contra o backend real desde o primeiro dia.
+
+O CORS continua obrigatório para **produção**, onde frontend e API ficam em origens
+diferentes de verdade. É trabalho da Fatia 0, apenas não é pré-requisito.
+
+### O que realmente espera o backend
+
+| Item | Espera o quê | Contorno enquanto isso |
+|---|---|---|
+| Rack em escala | `?from=&to=` | Filtrar no cliente — o seed tem ~190 registros |
+| Fase 2 (comanda) | `/products` e `/accounts` | Nenhum. É dependência real |
+| Role do garçom | `WAITER` | Só importa na Fase 2 |
+| Deploy em produção | CORS | Nenhum em dev |
+
+**Fases 0, 1, 3 e 4 estão destravadas** — é a maior parte do frontend.
 
 ---
 
@@ -356,11 +387,37 @@ Os itens 1, 2 e 3 devem virar uma branch `fix/backend-prep-frontend` **antes** d
 
 ## 11. Roadmap
 
-**Fase 0 — Fundação** *(~1 semana)*
-Correções de backend (CORS, filtro de datas, role `WAITER`) · monorepo · design system base · autenticação e rota protegida · cliente de API gerado do OpenAPI
+**Fase 0 — Fundação** *(~1 semana)* — **começa imediatamente, não espera o backend**
+
+Em ordem:
+
+```
+1. Monorepo pnpm + Turborepo · packages/config (eslint, tsconfig, tailwind preset)
+2. packages/domain    → dinheiro (DECIMAL vem como STRING do pg) e datas (America/Sao_Paulo)
+3. packages/ui        → design system do §10
+4. app-pms            → shell, login, rota por role, proxy do Vite para a API
+5. packages/api-client → gerado do OpenAPI em config/swagger.js
+```
+
+`packages/domain` vem antes da UI de propósito: dinheiro e data são as duas fontes de bug
+silencioso deste domínio, e toda tela depende delas.
 
 **Fase 1 — Recepção** *(~3 semanas)*
-Hoje · Rack (grid desktop + agenda mobile) · Reservas · Check-in/out · Hóspedes · Quartos e categorias
+
+Em ordem, do menor risco para o maior:
+
+```
+1. Hóspedes (CRUD + ficha)      ← valida design system e cliente de API com risco baixo
+2. Quartos e categorias
+3. Reservas (lista, detalhe, criar)
+4. Check-in / check-out / cancelar
+5. Hoje (painel operacional)
+6. Rack (grid desktop + agenda mobile)   ← a tela mais complexa, por último
+```
+
+Hóspedes antes do rack é deliberado: é CRUD simples que exercita autenticação, cliente de
+API, formulários, tabela e estados de erro — tudo que o rack também usa — antes de encarar
+a tela difícil. Se o design system estiver errado, descobrimos ali e não no rack.
 
 **Fase 2 — Consumo e comanda** *(~2 semanas)*
 Depende do backend do módulo de consumo (§8.1 revisado)
