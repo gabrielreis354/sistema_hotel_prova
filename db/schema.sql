@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now(),
   UNIQUE (tenant_id, email),
-  CHECK (role IN ('ADMIN', 'RECEPTIONIST'))
+  CHECK (role IN ('ADMIN', 'RECEPTIONIST', 'WAITER'))
 );
 
 -- =============================================================================

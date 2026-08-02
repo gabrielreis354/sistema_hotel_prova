@@ -285,7 +285,7 @@ quem escreve de quem audita.
 | Agente | Worktree | Tarefa atual | Branch | Status | Atualizado em |
 |---|---|---|---|---|---|
 | J1 Orquestrador | `~/sistema_gestao_hotel` | Setup de worktrees e portão de QA | `develop` | ✅ Mergeado | 02/08/2026 |
-| J2 Backend | `~/hotel-j2` | Fatia 0 — pré-requisitos de backend | `fix/backend-prep-frontend` | ⚪ NÃO INICIADO | — |
+| J2 Backend | `~/hotel-j2` | Fatia 0 — pré-requisitos de backend | `fix/backend-prep-frontend` | 🟢 PRONTO PARA MERGE | 02/08/2026 |
 | J3 Frontend | `~/hotel-j3` | Fase 0 — monorepo e design system | `feature/frontend-fase0-fundacao` | ⚪ NÃO INICIADO | — |
 
 Legenda: ⚪ não iniciado · 🟡 em andamento · 🔵 em auditoria QA · 🟢 pronto para merge ·

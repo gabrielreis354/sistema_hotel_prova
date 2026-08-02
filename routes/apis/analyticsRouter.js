@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authMiddleware from '../../middlewares/auth.middleware.js';
 import tenantMiddleware from '../../middlewares/tenant.middleware.js';
+import { requireRole } from '../../middlewares/role.middleware.js';
 import GetRevenueController           from '../../app/Controllers/AnalyticsApi/GetRevenueController.js';
 import GetOccupancyController         from '../../app/Controllers/AnalyticsApi/GetOccupancyController.js';
 import GetAlertsController            from '../../app/Controllers/AnalyticsApi/GetAlertsController.js';
@@ -11,7 +12,8 @@ import GetTopGuestsController         from '../../app/Controllers/AnalyticsApi/G
 
 const analyticsRouter = Router();
 
-analyticsRouter.use(authMiddleware, tenantMiddleware);
+// Analytics é dado gerencial — restrito a recepção/admin. Garçom (WAITER) não vê.
+analyticsRouter.use(authMiddleware, tenantMiddleware, requireRole('ADMIN', 'RECEPTIONIST'));
 
 analyticsRouter.get('/revenue',              GetRevenueController);
 analyticsRouter.get('/occupancy',            GetOccupancyController);

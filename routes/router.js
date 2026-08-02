@@ -2,6 +2,7 @@ import { Router } from 'express';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from '../config/swagger.js';
+import corsMiddleware from '../middlewares/cors.middleware.js';
 import authRouter         from './apis/authRouter.js';
 import LoginController    from '../app/Controllers/AuthApi/LoginController.js';
 import userRouter         from './apis/userRouter.js';
@@ -19,6 +20,10 @@ import publicBookingRouter from './apis/publicBookingRouter.js';
 import webhookRouter       from './apis/webhookRouter.js';
 
 const router = Router();
+
+// CORS antes de tudo — o preflight (OPTIONS) precisa ser respondido sem passar
+// por auth. Fica aqui, no router compartilhado por _web.js e pelos testes.
+router.use(corsMiddleware);
 
 router.use(express.json());
 
