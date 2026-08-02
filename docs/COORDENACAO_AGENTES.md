@@ -5,16 +5,93 @@
 
 ---
 
-## 1. Papéis
+## 1. Papéis e onde cada um trabalha
 
-| Janela | Papel | Responsabilidade |
-|---|---|---|
-| **J1** | **Orquestrador** (Gabriel + Claude) | Planeja, divide tarefas, resolve conflitos, revisa QA, faz o merge final em `develop` e o PR para `main` |
-| **J2** | **Agente BACKEND** | Módulo de consumo (Sprints 0–5) — `docs/historico_sessao/gabriel/planejamento_modulo_consumo_02ago2026.md` |
-| **J3** | **Agente FRONTEND** | `app-pms` (Fases 0–4) — `docs/frontend/PLANEJAMENTO_FRONTEND.md` §11 |
+| Janela | Papel | Diretório | Responsabilidade |
+|---|---|---|---|
+| **J1** | **Orquestrador** | `~/sistema_gestao_hotel` | Planeja, divide tarefas, resolve conflitos, revisa QA, faz o merge em `develop` e o PR para `main` |
+| **J2** | **Agente BACKEND** | `~/hotel-j2` | Módulo de consumo — `docs/delegacoes/modulo_consumo_02ago2026.md` |
+| **J3** | **Agente FRONTEND** | `~/hotel-j3` | `app-pms` — `docs/frontend/PLANEJAMENTO_FRONTEND.md` §11 |
 
 **J2 e J3 não fazem merge em `develop`.** Entregam a branch pronta e auditada; quem integra é J1.
 Isso existe para que ninguém sobrescreva o trabalho do outro em `develop`.
+
+---
+
+## 1.1 Git worktree — leia antes do primeiro comando
+
+As três janelas compartilham **um único repositório**. Não são clones separados.
+
+```
+~/sistema_gestao_hotel   → repo principal, sempre em develop   (J1)
+~/hotel-j2               → worktree                            (J2)
+~/hotel-j3               → worktree                            (J3)
+        └── todos apontam para o MESMO .git
+```
+
+Isso existe porque dois clones separados divergem silenciosamente — foi o que fez um agente
+concluir que "não existe `ConsumptionModel`" trabalhando numa base 106 commits atrasada, e
+depois não encontrar a própria delegação. Com worktree há um só conjunto de refs: o que um
+`fetch` traz, todos enxergam.
+
+### A regra que muda tudo
+
+**A mesma branch não pode estar em duas worktrees ao mesmo tempo.** Como `develop` está
+checada no repo principal, **você não consegue fazer `git checkout develop`** — e não precisa.
+
+```bash
+# ❌ NÃO funciona na sua worktree
+git checkout develop && git pull
+
+# ✅ Use isto para começar uma branch nova
+git fetch origin
+git checkout -b <nova-branch> origin/develop
+```
+
+`origin/develop` é a referência remota atualizada pelo `fetch` — você parte sempre do estado
+mais recente sem precisar de uma cópia local de `develop`.
+
+### Outras regras da worktree
+
+- **Rode git sempre pelo WSL.** O `.git` da worktree é um ponteiro para um caminho Linux
+  (`/home/gabri/...`). Git do Windows não resolve esse caminho e corrompe o estado.
+- `node_modules/` e `.env` **não** são compartilhados — cada worktree tem os seus. Já foram
+  provisionados; se precisar refazer, veja a armadilha do Node abaixo antes.
+- Nunca apague o diretório da worktree na mão. Se precisar remover:
+  `git worktree remove ~/hotel-jX` a partir do repo principal.
+- Para ver o estado geral: `git worktree list` (funciona de qualquer uma das três).
+
+### ⚠️ Armadilha do Node neste ambiente
+
+Em shell **não-interativo** o PATH deste WSL resolve errado:
+
+| Comando | Resolve para | Deveria ser |
+|---|---|---|
+| `node` | `/usr/bin/node` → **v18.19.1** | v24 |
+| `npm` | `/mnt/c/Program Files/nodejs/npm` → **npm do Windows** | npm do Linux |
+
+O projeto exige **Node 24**. O nvm tem o v24.14.0 instalado, mas só carrega em shell
+interativo (vem do `.bashrc`). Se você rodar `npm ci` sem carregar o nvm, ou falha em
+silêncio ou instala com o runtime errado.
+
+Carregue o nvm antes de qualquer comando npm:
+
+```bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+nvm use 24
+node --version    # deve responder v24.x
+```
+
+Cuidado extra com pipe: `npm ci | tail -3` devolve o exit code do `tail`, não do `npm` —
+o comando parece ter dado certo mesmo tendo falhado.
+
+### O clone antigo está aposentado
+
+`C:\Users\gabri\sistema_hotel_prova` era um segundo clone e **não deve mais ser usado**.
+Foi a origem de duas falhas: um agente trabalhou 106 commits atrasado e concluiu que não
+existia `ConsumptionModel`; depois outro não achou a própria delegação. Trabalhe só nas
+três worktrees acima.
 
 ---
 
@@ -131,17 +208,22 @@ roda uma vez por fatia, não a cada push.
 **Nenhuma branch vai para `develop` sem passar pelas duas.**
 
 ```
-1. git pull origin develop
-2. git checkout -b <tipo>/<nome>
-3. Implementar em commits lógicos (Conventional Commits)
-4. npm run qa:checks  → sem erro bloqueante
-5. npm test           → tudo verde
-6. Rodar o QA Red Team (abaixo)
-7. Corrigir todos os 🔴 e decidir sobre os 🟡
-8. Se houve correção → voltar ao passo 4
-9. Atualizar o quadro (§6) → 🟢 PRONTO PARA MERGE
-10. Avisar J1. J1 faz o merge.
+1. cd ~/hotel-jX                              ← sua worktree, sempre
+2. git fetch origin
+3. git checkout -b <tipo>/<nome> origin/develop   ← NÃO use "checkout develop"
+4. Implementar em commits lógicos (Conventional Commits)
+5. npm run qa:checks  → sem erro bloqueante
+6. npm test           → tudo verde
+7. Rodar o QA Red Team (abaixo)
+8. Corrigir todos os 🔴 e decidir sobre os 🟡
+9. Se houve correção → voltar ao passo 5
+10. git push -u origin <sua-branch>
+11. Atualizar o quadro (§6) → 🟢 PRONTO PARA MERGE
+12. Avisar J1. J1 faz o merge.
 ```
+
+Depois que J1 mergear, para começar a próxima tarefa basta repetir do passo 2 — o `fetch`
+traz o `develop` já com o seu trabalho integrado.
 
 O CI agora dispara em `feature/**`, `fix/**`, `chore/**` e `docs/**` — antes só rodava em
 `main` e `develop`, então branch de agente não era verificada até o merge.
@@ -191,11 +273,11 @@ quem escreve de quem audita.
 
 > Atualize **apenas a sua linha**. Commit isolado, mensagem `docs(coord): <o que mudou>`.
 
-| Agente | Tarefa atual | Branch | Status | Atualizado em |
-|---|---|---|---|---|
-| J1 Orquestrador | Planejamento e setup da coordenação | `docs/planejamento-frontend-briefing` | 🟢 PRONTO PARA MERGE | 02/08/2026 |
-| J2 Backend | Sprint 0 — pré-requisitos de backend | `fix/backend-prep-frontend` | ⚪ NÃO INICIADO | — |
-| J3 Frontend | Fase 0 — monorepo e design system | `feature/frontend-fase0-fundacao` | ⚪ NÃO INICIADO | — |
+| Agente | Worktree | Tarefa atual | Branch | Status | Atualizado em |
+|---|---|---|---|---|---|
+| J1 Orquestrador | `~/sistema_gestao_hotel` | Setup de worktrees e portão de QA | `develop` | ✅ Mergeado | 02/08/2026 |
+| J2 Backend | `~/hotel-j2` | Fatia 0 — pré-requisitos de backend | `fix/backend-prep-frontend` | ⚪ NÃO INICIADO | — |
+| J3 Frontend | `~/hotel-j3` | Fase 0 — monorepo e design system | `feature/frontend-fase0-fundacao` | ⚪ NÃO INICIADO | — |
 
 Legenda: ⚪ não iniciado · 🟡 em andamento · 🔵 em auditoria QA · 🟢 pronto para merge ·
 🔴 bloqueado · ✅ mergeado
@@ -215,30 +297,36 @@ Cole no início da janela correspondente.
 ```
 Você é o Agente BACKEND (J2) do projeto PMS Hotel SaaS.
 
+Trabalhe SEMPRE em ~/hotel-j2. É uma git worktree, não um clone: compartilha o
+.git com as outras janelas. Rode git sempre pelo WSL.
+Você JÁ ESTÁ na branch fix/backend-prep-frontend, criada a partir de develop.
+Para branches futuras: git fetch origin && git checkout -b <nome> origin/develop
+NUNCA "git checkout develop" — develop está travada no repo do orquestrador.
+
 Leia nesta ordem, antes de qualquer coisa:
-1. docs/BRIEFING_AGENTE_EXECUTOR_02ago2026.md   ← corrige premissas erradas, leia inteiro
-2. docs/COORDENACAO_AGENTES.md                  ← como nos coordenamos
-3. CLAUDE.md e docs/CODING_STANDARDS.md
-4. docs/historico_sessao/gabriel/planejamento_modulo_consumo_02ago2026.md
+1. docs/delegacoes/modulo_consumo_02ago2026.md  ← sua delegação, leia inteira
+2. docs/BRIEFING_AGENTE_EXECUTOR_02ago2026.md   ← corrige premissas erradas
+3. docs/COORDENACAO_AGENTES.md                  ← como nos coordenamos
+4. CLAUDE.md e docs/CODING_STANDARDS.md
 
 ATENÇÃO: documentos anteriores afirmavam que não existe modelo de consumo.
 Está ERRADO. A develop já tem ConsumptionModel, os endpoints
 /reservations/:id/consumptions, o GetBillController e tests/bill-consumptions.test.js.
 Antes de criar qualquer arquivo, verifique se ele já existe.
 
-Sua tarefa agora: Sprint 0 — branch fix/backend-prep-frontend
-  1. Habilitar CORS (hoje não existe em lugar nenhum — bloqueia o frontend inteiro)
+Sua tarefa agora: Fatia 0 (caminho crítico — o Agente Frontend está bloqueado até
+ela entrar em develop):
+  1. Habilitar CORS (hoje não existe em lugar nenhum)
   2. GET /reservations com ?from=&to= e paginação
      (hoje ListReservationController.js:9 faz findAll do tenant inteiro com 3 joins)
   3. Criar a role WAITER (hoje só existem ADMIN e RECEPTIONIST)
 
-Critérios de aceite: plano de consumo, seção "Sprint 0".
+Comece respondendo as 3 perguntas de verificação da delegação, seção
+"Instruções iniciais obrigatórias".
 
-Sprint 0 é o caminho crítico — o Agente Frontend está bloqueado até ela entrar em develop.
-
-Ao terminar: npm test, depois rode o subagente qa-redteam conforme
-docs/COORDENACAO_AGENTES.md §5. Corrija os 🔴, atualize o quadro (§6) e me avise.
-NÃO faça merge em develop.
+Ao terminar: npm run qa:checks, npm test, depois o subagente qa-redteam
+(§5 da coordenação). Corrija os 🔴, dê push na sua branch, atualize o quadro (§6)
+e me avise. NÃO faça merge em develop.
 ```
 
 ### J3 — Agente Frontend
@@ -246,12 +334,18 @@ NÃO faça merge em develop.
 ```
 Você é o Agente FRONTEND (J3) do projeto PMS Hotel SaaS.
 
+Trabalhe SEMPRE em ~/hotel-j3. É uma git worktree, não um clone: compartilha o
+.git com as outras janelas. Rode git sempre pelo WSL.
+Você JÁ ESTÁ na branch feature/frontend-fase0-fundacao, criada a partir de develop.
+Para branches futuras: git fetch origin && git checkout -b <nome> origin/develop
+NUNCA "git checkout develop" — develop está travada no repo do orquestrador.
+
 Leia nesta ordem, antes de qualquer coisa:
 1. docs/frontend/PLANEJAMENTO_FRONTEND.md       ← seu plano completo, leia inteiro
 2. docs/COORDENACAO_AGENTES.md                  ← como nos coordenamos
 3. CLAUDE.md e docs/CODING_STANDARDS.md
 
-Sua tarefa agora: Fase 0 — branch feature/frontend-fase0-fundacao
+Sua tarefa agora: Fase 0
   1. Monorepo pnpm + Turborepo com apps/pms, apps/booking, apps/admin,
      packages/{ui,api-client,domain,config}
   2. apps/pms: React + TypeScript + Vite + Tailwind + shadcn/ui
@@ -264,12 +358,12 @@ Sua tarefa agora: Fase 0 — branch feature/frontend-fase0-fundacao
 
 NÃO toque em app/, routes/, database/, db/, seed/ nem tests/ — são do Agente Backend.
 
-Você está BLOQUEADO para integração real de API até a Sprint 0 do backend entrar em
+Você está BLOQUEADO para integração real de API até a Fatia 0 do backend entrar em
 develop (CORS não existe ainda). Isso não impede a Fase 0: faça o scaffolding e o
 design system, e use mock no que precisar de dado.
 
-Ao terminar: rode o subagente qa-redteam conforme docs/COORDENACAO_AGENTES.md §5.
-Corrija os 🔴, atualize o quadro (§6) e me avise. NÃO faça merge em develop.
+Ao terminar: rode o subagente qa-redteam (§5 da coordenação). Corrija os 🔴, dê push
+na sua branch, atualize o quadro (§6) e me avise. NÃO faça merge em develop.
 ```
 
 ---
