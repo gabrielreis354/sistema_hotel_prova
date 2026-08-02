@@ -287,18 +287,41 @@ Check-in cria conta automaticamente · split bill · day-use.
 1. git checkout develop && git pull origin develop
 2. git checkout -b <branch-da-fatia>
 3. Implementar em commits lógicos (Conventional Commits)
-4. npm test  → tudo verde
-5. Rodar o QA Red Team (abaixo)
-6. Corrigir todos os 🔴; decidir sobre os 🟡
-7. Se corrigiu → voltar ao passo 4
-8. Atualizar o quadro em docs/COORDENACAO_AGENTES.md §6 → 🟢 PRONTO PARA MERGE
-9. Avisar J1
+4. npm run qa:checks  → sem erro bloqueante
+5. npm test           → tudo verde
+6. Rodar o QA Red Team (abaixo)
+7. Corrigir todos os 🔴; decidir sobre os 🟡
+8. Se corrigiu → voltar ao passo 4
+9. Atualizar o quadro em docs/COORDENACAO_AGENTES.md §6 → 🟢 PRONTO PARA MERGE
+10. Avisar J1
 ```
 
 **Você não faz merge em `develop`.** Quem integra é J1. Isso evita que três janelas disputem
 a mesma branch.
 
-### Portão de QA — obrigatório antes de avisar J1
+### O portão tem duas camadas
+
+| Camada | O quê | Quando |
+|---|---|---|
+| **1 — Determinística** | `scripts/qa_checks.sh` | Automática no CI a cada push. Local: `npm run qa:checks` |
+| **2 — Semântica** | Subagente `qa-redteam` | Manual, ao terminar a fatia |
+
+**Camada 1** pega violação objetiva e **reprova o build**: `require()`, `findByPk()` em recurso
+de tenant, `tenant_id` lido do body/query, rota literal depois de `/:param`, log com objeto de
+requisição (PII), `include` de model sensível sem `attributes`, router fora do Swagger.
+
+O CI agora dispara em `feature/**` e `fix/**` — antes só rodava em `main` e `develop`, então
+branch de agente não era verificada até o merge. **Sua branch vai rodar CI a cada push.**
+
+Escape pontual, quando a violação for justificada:
+
+```js
+const r = await Model.findByPk(id); // qa-allow: findByPk
+```
+
+Rode `npm run qa:checks` **antes de commitar**, não depois de pushar. Leva 2 segundos.
+
+### Camada 2 — QA Red Team, obrigatório antes de avisar J1
 
 ```
 Use a ferramenta Agent com subagent_type "qa-redteam" e o prompt:
@@ -327,7 +350,9 @@ Por fatia:
 | Output | Onde |
 |---|---|
 | Branch com commits lógicos | `feature/*` ou `fix/*` a partir de `develop` |
+| Camada 1 sem erro | `npm run qa:checks` |
 | Suíte verde | `npm test` |
+| CI verde na branch | GitHub Actions (dispara automático no push) |
 | Relatório do QA | `docs/qa/redteam_<fatia>_<ddMMyyyy>.md` |
 | Swagger atualizado | `config/swagger.js` |
 | Quadro de status atualizado | `docs/COORDENACAO_AGENTES.md` §6, commit isolado `docs(coord):` |

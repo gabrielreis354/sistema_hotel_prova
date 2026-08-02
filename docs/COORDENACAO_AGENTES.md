@@ -118,18 +118,44 @@ conflito de 2 linhas num conflito de arquivo inteiro.
 
 ## 5. Ciclo de entrega — o portão do QA
 
-Todo agente segue este ciclo. **Nenhuma branch vai para `develop` sem passar pelo `qa-redteam`.**
+O portão tem **duas camadas**:
+
+| Camada | O quê | Quando | Custo |
+|---|---|---|---|
+| **1 — Determinística** | `scripts/qa_checks.sh` — violações objetivas pegáveis com grep | Automática no CI, a cada push. Também `npm run qa:checks` local | Zero |
+| **2 — Semântica** | Subagente `qa-redteam` — SOLID, DRY, KISS, LGPD, UI/UX | Manual, na sua janela, ao terminar a fatia | Tokens |
+
+A camada 1 **reprova o build** em erro. A camada 2 é julgamento — precisa de LLM e por isso
+roda uma vez por fatia, não a cada push.
+
+**Nenhuma branch vai para `develop` sem passar pelas duas.**
 
 ```
 1. git pull origin develop
 2. git checkout -b <tipo>/<nome>
 3. Implementar em commits lógicos (Conventional Commits)
-4. npm test  → tudo verde
-5. Rodar o QA Red Team (abaixo)
-6. Corrigir todos os 🔴 e decidir sobre os 🟡
-7. Se houve correção → voltar ao passo 4
-8. Atualizar o quadro (§6) → 🟢 PRONTO PARA MERGE
-9. Avisar J1. J1 faz o merge.
+4. npm run qa:checks  → sem erro bloqueante
+5. npm test           → tudo verde
+6. Rodar o QA Red Team (abaixo)
+7. Corrigir todos os 🔴 e decidir sobre os 🟡
+8. Se houve correção → voltar ao passo 4
+9. Atualizar o quadro (§6) → 🟢 PRONTO PARA MERGE
+10. Avisar J1. J1 faz o merge.
+```
+
+O CI agora dispara em `feature/**`, `fix/**`, `chore/**` e `docs/**` — antes só rodava em
+`main` e `develop`, então branch de agente não era verificada até o merge.
+
+### O que a camada 1 verifica
+
+`require()` · `findByPk()` em recurso de tenant · `tenant_id` lido do body/query ·
+rota literal declarada depois de `/:param` · log com objeto de requisição (PII) ·
+`include` de model sensível sem `attributes` · router ausente do Swagger.
+
+Escape pontual, quando a violação for justificada:
+
+```js
+const r = await Model.findByPk(id); // qa-allow: findByPk
 ```
 
 ### Como invocar o QA Red Team
