@@ -1,6 +1,11 @@
 import bcrypt from 'bcryptjs';
 import UserModel from '../../Models/UserModel.js';
 
+// Papéis válidos do sistema. WAITER (garçom) lança consumo pelo celular e não
+// enxerga gestão (quartos, usuários, analytics). Mantém paridade com o
+// CHECK (role IN (...)) de db/schema.sql.
+const VALID_ROLES = ['ADMIN', 'RECEPTIONIST', 'WAITER'];
+
 export default async function CreateUserController(request, response) {
     try {
         const tenantId = request.user.tenantId;
@@ -10,6 +15,9 @@ export default async function CreateUserController(request, response) {
         if (!name)     errors.push('name obrigatório');
         if (!email)    errors.push('email obrigatório');
         if (!password) errors.push('password obrigatório');
+        if (role !== undefined && !VALID_ROLES.includes(role)) {
+            errors.push(`role inválido — use um de: ${VALID_ROLES.join(', ')}`);
+        }
         if (errors.length) return response.status(400).json({ errors });
 
         const existing = await UserModel.findOne({ where: { email, tenant_id: tenantId } });

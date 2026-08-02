@@ -15,11 +15,12 @@ export default (() => {
 
     router.use(authMiddleware, tenantMiddleware);
 
-    // Rota /available antes de /:id para não ser capturada como parâmetro
-    router.get('/available', ListAvailableRoomsController);
+    // Gestão de quartos é da recepção/admin — o garçom (WAITER) não entra aqui.
+    // Rota /available antes de /:id para não ser capturada como parâmetro.
+    router.get('/available', requireRole('ADMIN', 'RECEPTIONIST'), ListAvailableRoomsController);
 
-    router.get('/', ListRoomController);
-    router.get('/:id', GetRoomController);
+    router.get('/', requireRole('ADMIN', 'RECEPTIONIST'), ListRoomController);
+    router.get('/:id', requireRole('ADMIN', 'RECEPTIONIST'), GetRoomController);
     router.post('/', requireRole('ADMIN'), CreateRoomController);
     router.put('/:id', requireRole('ADMIN'), UpdateRoomController);
     router.delete('/:id', requireRole('ADMIN'), DeleteRoomController);
