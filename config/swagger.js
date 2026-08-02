@@ -296,7 +296,12 @@ const options = {
                 delete: { tags: ['Hóspedes'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
             },
             '/reservations': {
-                get:  { tags: ['Reservas'], summary: 'Lista reservas', responses: { 200: { description: 'OK' } } },
+                get:  { tags: ['Reservas'], summary: 'Lista reservas (filtro por período e paginação opcionais)', parameters: [
+                    { in: 'query', name: 'from',  required: false, schema: { type: 'string', format: 'date' }, description: 'Início do intervalo (YYYY-MM-DD). Devolve reservas que se sobrepõem ao período.' },
+                    { in: 'query', name: 'to',    required: false, schema: { type: 'string', format: 'date' }, description: 'Fim do intervalo (YYYY-MM-DD).' },
+                    { in: 'query', name: 'page',  required: false, schema: { type: 'integer', minimum: 1 }, description: 'Página (1+). Presente page ou limit, a resposta vira { data, total, page, limit }.' },
+                    { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' }
+                ], responses: { 200: { description: 'OK — array puro sem paginação, ou { data, total, page, limit } quando page/limit presentes' } } },
                 post: { tags: ['Reservas'], summary: 'Cria reserva (vincula quarto principal na tabela pivô reservation_rooms)', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } }, responses: { 201: { description: 'Criada' } } }
             },
             '/reservations/{id}': {
