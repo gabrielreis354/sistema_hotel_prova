@@ -15,6 +15,11 @@ yarn.lock
 *.swp
 *.swo
 
+# Agentes de IA — worktrees e config local ficam de fora,
+# mas as definicoes de subagente sao compartilhadas pelo time
+.claude/*
+!.claude/agents/
+
 # OS
 .DS_Store
 Thumbs.db
