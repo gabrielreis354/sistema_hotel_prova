@@ -1,10 +1,6 @@
 import bcrypt from 'bcryptjs';
 import UserModel from '../../Models/UserModel.js';
-
-// Papéis válidos do sistema. WAITER (garçom) lança consumo pelo celular e não
-// enxerga gestão (quartos, usuários, analytics). Mantém paridade com o
-// CHECK (role IN (...)) de db/schema.sql.
-const VALID_ROLES = ['ADMIN', 'RECEPTIONIST', 'WAITER'];
+import { VALID_ROLES } from '../../utils/roles.js';
 
 export default async function CreateUserController(request, response) {
     try {

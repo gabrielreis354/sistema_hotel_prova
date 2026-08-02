@@ -101,6 +101,14 @@ describe('GET /reservations — filtro e paginação', () => {
         expect(Array.isArray(res.body.data)).toBe(true);
         expect(res.body.data.length).toBe(1);
     });
+
+    it('?from= em formato inválido retorna 400 (não 500)', async () => {
+        const res = await request(app)
+            .get('/reservations?from=abc')
+            .set('Authorization', `Bearer ${jwt}`);
+
+        expect(res.status).toBe(400);
+    });
 });
 
 // ─── Role WAITER ─────────────────────────────────────────────────────────────
@@ -120,6 +128,22 @@ describe('Role WAITER', () => {
             .post('/users')
             .set('Authorization', `Bearer ${adminJwt}`)
             .send({ name: 'X', email: `x_${Date.now()}@test.com`, password: 'senha123', role: 'HACKER' });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('PUT /users rejeita role inválido com 400 (não 500)', async () => {
+        const email = `u_${Date.now()}@test.com`;
+        const created = await request(app)
+            .post('/users')
+            .set('Authorization', `Bearer ${adminJwt}`)
+            .send({ name: 'U', email, password: 'senha123', role: 'RECEPTIONIST' });
+        expect(created.status).toBe(201);
+
+        const res = await request(app)
+            .put(`/users/${created.body.id}`)
+            .set('Authorization', `Bearer ${adminJwt}`)
+            .send({ role: 'HACKER' });
 
         expect(res.status).toBe(400);
     });

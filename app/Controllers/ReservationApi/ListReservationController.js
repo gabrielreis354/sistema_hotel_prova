@@ -9,6 +9,13 @@ export default async function ListReservationController(request, response) {
         const tenantId = request.user.tenantId;
         const { from, to, page, limit } = request.query;
 
+        // Valida formato das datas — sem isso, um valor como ?from=abc chega ao
+        // Postgres e vira 500 em vez de um 400 claro para o cliente.
+        const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+        if ((from !== undefined && !DATE_RE.test(from)) || (to !== undefined && !DATE_RE.test(to))) {
+            return response.status(400).json({ error: 'from/to devem estar no formato YYYY-MM-DD' });
+        }
+
         const where = { tenant_id: tenantId };
 
         // Filtro por período: devolve as reservas que se SOBREPÕEM ao intervalo
