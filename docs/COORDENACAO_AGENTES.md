@@ -135,29 +135,38 @@ independente da lista. J1 resolve a prioridade.
 ```
 J2 BACKEND                                  J3 FRONTEND
 ──────────────────────────────────────────────────────────────────────
-0   prep: CORS, ?from=&to=, paginação,      Fase 0  monorepo + design system
-    role WAITER                                     (não depende de API)
-                    │                                       │
-                    └───────────── desbloqueia ─────────────┤
-                                                            ▼
-1   product-catalog                         Fase 1  rack, reservas, check-in/out,
-2a  account-entities                                hóspedes, quartos
-2b  consumption-migration
-3a  account-bill  ← parada segura                           │
-                    │                                       │
-                    └───────────── desbloqueia ─────────────┤
+0   prep: CORS, ?from=&to=, WAITER          Fase 0  monorepo + design system
+1   product-catalog                         Fase 1  hóspedes, quartos, reservas,
+2a  account-entities  (+ INTERNO)                   check-in/out, hoje, rack
+2b  consumption-migration                   Fase 3  financeiro + analytics
+3a  account-bill  ← parada segura           Fase 4  grupos (B2B)
+                    │
+                    └───────────── desbloqueia ─────────────┐
                                                             ▼
 3b  payment-account-link   [risco: PIX]     Fase 2  comanda do garçom
-3c  reservation-bill-delegate               Fase 3  financeiro + analytics
-4   split-bill-dayuse                       Fase 4  grupos (B2B)
+3c  reservation-bill-delegate
+4   split-bill-dayuse
 5   seed-swagger
 ```
 
-**A fatia 0 é o caminho crítico.** Enquanto não estiver em `develop`, J3 fica na Fase 0 —
-que é justamente a parte que não toca a API.
+**As duas frentes rodam em paralelo de verdade.** A única dependência real é a Fase 2
+(comanda), que precisa de `/products` e `/accounts` — ou seja, da Fatia 3a.
 
-**A Fase 2 do frontend depende da 3a**, não do módulo inteiro: com catálogo, contas e bill,
-o app do garçom já tem o que consumir.
+### O CORS não bloqueia o frontend
+
+Avaliação anterior dizia que J3 estava bloqueado até a Fatia 0. **Estava errado.** O Vite
+tem proxy de dev:
+
+```js
+server: { proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true } } }
+```
+
+O navegador enxerga mesma origem — sem preflight, sem CORS. Dá para integrar contra o
+backend real desde o primeiro dia. CORS segue necessário em **produção**, e continua na
+Fatia 0; apenas não é pré-requisito.
+
+O rack em escala precisa de `?from=&to=`, mas com o seed (~190 registros) dá para filtrar
+no cliente e trocar depois. **Fases 0, 1, 3 e 4 estão destravadas.**
 
 ---
 
@@ -345,25 +354,38 @@ Leia nesta ordem, antes de qualquer coisa:
 2. docs/COORDENACAO_AGENTES.md                  ← como nos coordenamos
 3. CLAUDE.md e docs/CODING_STANDARDS.md
 
-Sua tarefa agora: Fase 0
+Sua tarefa agora: Fase 0, nesta ordem
   1. Monorepo pnpm + Turborepo com apps/pms, apps/booking, apps/admin,
      packages/{ui,api-client,domain,config}
-  2. apps/pms: React + TypeScript + Vite + Tailwind + shadcn/ui
-  3. packages/ui: design system base conforme §10 do plano
+  2. packages/domain PRIMEIRO: dinheiro (DECIMAL chega como STRING do pg —
+     nunca Number()) e datas (fuso America/Sao_Paulo fixo). Toda tela depende
+     disso e sao as duas fontes de bug silencioso do dominio.
+  3. packages/ui: design system conforme §10 do plano
      (cores de status, densidade compact/comfortable, alvo de toque 48px)
-  4. packages/domain: tratamento de dinheiro (DECIMAL chega como STRING do pg —
-     nunca Number()) e de datas (fuso America/Sao_Paulo fixo)
+  4. apps/pms: React + TypeScript + Vite + Tailwind + shadcn/ui, shell,
+     login contra POST /auth/login, rota protegida por role
   5. packages/api-client: gerar tipos do OpenAPI em config/swagger.js
-  6. Tela de login contra POST /auth/login + rota protegida por role
+
+VOCE NAO ESTA BLOQUEADO. Configure o proxy de dev do Vite e integre contra o
+backend real desde o inicio:
+
+  server: { proxy: { '/api': { target: 'http://localhost:3000',
+                               changeOrigin: true } } }
+
+O navegador enxerga mesma origem, entao nao ha CORS. Nao use mock para o que
+ja tem endpoint pronto — e quase tudo (auth, hospedes, quartos, reservas,
+check-in/out, pagamentos, analytics, B2B, config do hotel).
+
+Depois da Fase 0, siga para a Fase 1 na ordem do plano §11: hospedes e quartos
+primeiro (CRUD simples valida o design system com risco baixo), rack por ultimo
+(tela mais complexa). Para o rack, filtre no cliente por enquanto — o filtro
+?from=&to= chega na Fatia 0 do backend.
 
 NÃO toque em app/, routes/, database/, db/, seed/ nem tests/ — são do Agente Backend.
 
-Você está BLOQUEADO para integração real de API até a Fatia 0 do backend entrar em
-develop (CORS não existe ainda). Isso não impede a Fase 0: faça o scaffolding e o
-design system, e use mock no que precisar de dado.
-
-Ao terminar: rode o subagente qa-redteam (§5 da coordenação). Corrija os 🔴, dê push
-na sua branch, atualize o quadro (§6) e me avise. NÃO faça merge em develop.
+Ao terminar cada entrega: npm run qa:checks, depois o subagente qa-redteam
+(§5 da coordenação). Corrija os 🔴, dê push na sua branch, atualize o quadro (§6)
+e me avise. NÃO faça merge em develop.
 ```
 
 ---

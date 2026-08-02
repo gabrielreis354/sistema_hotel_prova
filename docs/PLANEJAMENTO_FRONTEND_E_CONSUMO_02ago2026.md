@@ -207,14 +207,24 @@ Levantamento feito no código, não suposição:
 
 | Gap | Onde | Gravidade |
 |---|---|---|
-| **CORS não existe** em lugar nenhum | `bootstrap/app.js` | 🔴 A primeira requisição do frontend falha |
-| `GET /reservations` **sem filtro de data nem paginação** | `ListReservationController.js:9` — `findAll` do tenant inteiro com 3 joins | 🔴 O rack não tem como ser construído |
-| **Não existe a role `WAITER`** | `UserModel.js:29` — só `ADMIN` e `RECEPTIONIST` | 🔴 O garçom veria o sistema inteiro |
+| **CORS não existe** em lugar nenhum | `bootstrap/app.js` | 🟡 Bloqueia produção, não o desenvolvimento |
+| `GET /reservations` **sem filtro de data nem paginação** | `ListReservationController.js:9` — `findAll` do tenant inteiro com 3 joins | 🟡 Necessário para o rack em escala |
+| **Não existe a role `WAITER`** | `UserModel.js:29` — só `ADMIN` e `RECEPTIONIST` | 🟡 Necessário na comanda |
 | JWT de 8h sem refresh | `LoginController.js:51` | 🟡 Sessão cai no meio do turno |
 | Endpoint público devolve `Payment` inteiro | `GetBookingStatusController.js:21` | 🟡 Expõe `pix_qr_code` sem autenticação |
 | 5 routers fora do Swagger | `config/swagger.js` | 🟡 Some do cliente tipado |
 
-Os três primeiros viram a **Fatia 0**, antes de qualquer tela.
+Os três primeiros viram a **Fatia 0** do backend.
+
+**Mas o frontend não precisa esperar por eles.** O Vite tem proxy de desenvolvimento: o
+navegador chama o próprio dev server, que encaminha para a API do lado do servidor. Como o
+browser enxerga mesma origem, não há CORS. Dá para integrar contra o backend real desde o
+primeiro dia — o CORS só é obrigatório em produção.
+
+Praticamente toda a Fase 1 já tem endpoint pronto: autenticação, hóspedes, quartos,
+categorias, reservas, check-in/out, conta da reserva, pagamentos, analytics, grupos B2B e
+config do hotel. **A única dependência real é a comanda (Fase 2)**, que precisa dos
+endpoints de conta e cardápio.
 
 ---
 
@@ -258,21 +268,20 @@ O CI agora também roda em branches `feature/**` e `fix/**` — antes só rodava
 BACKEND (consumo)                        FRONTEND
 ────────────────────────────────────────────────────────────────
 0   CORS, filtro de datas, role WAITER   Fase 0  monorepo + design system
-              │                                       │
-              └────────── desbloqueia ────────────────┤
-                                                      ▼
-1   Catálogo de produtos                 Fase 1  rack, reservas,
-2a  Conta + itens (+ interno)                    check-in/out, hóspedes
-2b  Migração do consumo atual
-3a  Conta e fechamento  ← parada segura              │
-              │                                       │
-              └────────── desbloqueia ────────────────┤
+1   Catálogo de produtos                 Fase 1  hóspedes, quartos, reservas,
+2a  Conta + itens (+ interno)                    check-in/out, hoje, rack
+2b  Migração do consumo atual            Fase 3  financeiro + analytics
+3a  Conta e fechamento  ← parada segura  Fase 4  grupos (B2B)
+              │
+              └────────── desbloqueia ────────────────┐
                                                       ▼
 3b  Pagamento ↔ conta   [risco: PIX]     Fase 2  comanda do garçom
-3c  Bill da reserva delegando            Fase 3  financeiro + analytics
-4   Split bill + day-use + walk-in       Fase 4  grupos (B2B)
+3c  Bill da reserva delegando
+4   Split bill + day-use + walk-in
 5   Seed, Swagger, testes
 ```
+
+As duas frentes rodam em paralelo de verdade — a única dependência é a comanda.
 
 **Backend:** ~21 dias · **Frontend até a Fase 4:** ~8 semanas
 
