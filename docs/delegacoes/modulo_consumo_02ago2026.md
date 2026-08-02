@@ -8,15 +8,37 @@
 
 ---
 
+## Onde você trabalha
+
+**Sua worktree é `~/hotel-j2`.** Não é um clone — é uma git worktree que compartilha o
+mesmo `.git` das outras janelas. Você já está na branch `fix/backend-prep-frontend`,
+criada a partir de `develop`. Dependências e `.env` já estão provisionados.
+
+Duas regras que decorrem disso:
+
+```bash
+# ❌ NÃO funciona — develop está checada no repo do orquestrador
+git checkout develop
+
+# ✅ Para começar cada fatia nova
+git fetch origin
+git checkout -b <branch-da-fatia> origin/develop
+```
+
+**Rode git sempre pelo WSL.** O `.git` da worktree aponta para um caminho Linux; git do
+Windows não resolve e corrompe o estado. Detalhes em `docs/COORDENACAO_AGENTES.md` §1.1.
+
+---
+
 ## Instruções iniciais obrigatórias
 
 Execute nesta ordem, **antes de escrever qualquer código**:
 
 ```bash
-cd ~/sistema_gestao_hotel
-git checkout develop
-git pull origin develop
-git log --oneline -15
+cd ~/hotel-j2
+git fetch origin
+git log --oneline -15 origin/develop
+git worktree list
 ```
 
 Depois leia, nesta ordem:
@@ -284,17 +306,21 @@ Check-in cria conta automaticamente · split bill · day-use.
 ## 5. Ciclo obrigatório por fatia
 
 ```
-1. git checkout develop && git pull origin develop
-2. git checkout -b <branch-da-fatia>
-3. Implementar em commits lógicos (Conventional Commits)
-4. npm run qa:checks  → sem erro bloqueante
-5. npm test           → tudo verde
-6. Rodar o QA Red Team (abaixo)
-7. Corrigir todos os 🔴; decidir sobre os 🟡
-8. Se corrigiu → voltar ao passo 4
-9. Atualizar o quadro em docs/COORDENACAO_AGENTES.md §6 → 🟢 PRONTO PARA MERGE
-10. Avisar J1
+1. cd ~/hotel-j2
+2. git fetch origin
+3. git checkout -b <branch-da-fatia> origin/develop
+4. Implementar em commits lógicos (Conventional Commits)
+5. npm run qa:checks  → sem erro bloqueante
+6. npm test           → tudo verde
+7. Rodar o QA Red Team (abaixo)
+8. Corrigir todos os 🔴; decidir sobre os 🟡
+9. Se corrigiu → voltar ao passo 5
+10. git push -u origin <branch-da-fatia>
+11. Atualizar o quadro em docs/COORDENACAO_AGENTES.md §6 → 🟢 PRONTO PARA MERGE
+12. Avisar J1
 ```
+
+Na Fatia 0 pule os passos 2–3: você já está na branch. Comece pelo 4.
 
 **Você não faz merge em `develop`.** Quem integra é J1. Isso evita que três janelas disputem
 a mesma branch.
