@@ -61,7 +61,12 @@ const ProductModel = sequelize.define(
             {
                 unique: true,
                 fields: ['tenant_id', 'name'],
-                name: 'products_name_tenant_unique'
+                name: 'products_name_tenant_unique',
+                // Índice PARCIAL. Sem o filtro, um produto soft-deletado queimaria o
+                // nome para sempre: a linha morta continua no índice, o guard da
+                // aplicação não a enxerga (escopo paranoid) e quem barra é o Postgres,
+                // virando 500. Só linhas vivas disputam unicidade.
+                where: { deleted_at: null }
             }
         ]
     }

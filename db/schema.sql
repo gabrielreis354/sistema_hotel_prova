@@ -210,8 +210,11 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 -- Unicidade por tenant, não global — dois hotéis podem ter "Cerveja 600ml".
+-- Índice PARCIAL: sem o WHERE, um produto soft-deletado queimaria o nome para
+-- sempre, já que a linha morta continuaria disputando unicidade.
 CREATE UNIQUE INDEX IF NOT EXISTS products_name_tenant_unique
-  ON products (tenant_id, name);
+  ON products (tenant_id, name)
+  WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- 9c) Módulo B2B — clientes corporativos, orçamentos e contratos de evento

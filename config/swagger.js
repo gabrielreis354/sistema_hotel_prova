@@ -1,4 +1,6 @@
 import swaggerJsdoc from 'swagger-jsdoc';
+import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
+import { VALID_ROLES } from '../app/utils/roles.js';
 
 const options = {
     definition: {
@@ -38,7 +40,7 @@ const options = {
                         tenant_id: { type: 'string', format: 'uuid' },
                         name:      { type: 'string', example: 'João Silva' },
                         email:     { type: 'string', format: 'email' },
-                        role:      { type: 'string', enum: ['ADMIN', 'RECEPTIONIST', 'WAITER'] }
+                        role:      { type: 'string', enum: VALID_ROLES }
                     }
                 },
                 Product: {
@@ -51,7 +53,7 @@ const options = {
                         // DECIMAL chega do Postgres como string — o cliente tipado precisa
                         // saber disso para não converter com Number() e perder precisão.
                         price:       { type: 'string', example: '12.00', description: 'DECIMAL(10,2) serializado como string' },
-                        category:    { type: 'string', enum: ['FOOD', 'DRINK', 'SERVICE', 'OTHER'], example: 'DRINK' },
+                        category:    { type: 'string', enum: PRODUCT_CATEGORIES, example: 'DRINK' },
                         active:      { type: 'boolean', example: true }
                     }
                 },
@@ -632,7 +634,7 @@ const options = {
                     description: 'Itens de consumo (bebida, comida, serviço). Leitura liberada a todos os papéis — o garçom precisa do cardápio para lançar consumo.',
                     parameters: [
                         { in: 'query', name: 'active',   required: false, schema: { type: 'string', enum: ['true', 'false'] }, description: 'Filtra por ativos ou inativos. Omitido devolve todos.' },
-                        { in: 'query', name: 'category', required: false, schema: { type: 'string', enum: ['FOOD', 'DRINK', 'SERVICE', 'OTHER'] } }
+                        { in: 'query', name: 'category', required: false, schema: { type: 'string', enum: PRODUCT_CATEGORIES } }
                     ],
                     responses: {
                         200: {
@@ -656,7 +658,7 @@ const options = {
                                 name:        { type: 'string', example: 'Cerveja 600ml' },
                                 description: { type: 'string', nullable: true },
                                 price:       { type: 'number', format: 'float', example: 12.00 },
-                                category:    { type: 'string', enum: ['FOOD', 'DRINK', 'SERVICE', 'OTHER'], default: 'OTHER' },
+                                category:    { type: 'string', enum: PRODUCT_CATEGORIES, default: 'OTHER' },
                                 active:      { type: 'boolean', default: true }
                             }
                         }}}
@@ -695,7 +697,7 @@ const options = {
                                 name:        { type: 'string' },
                                 description: { type: 'string', nullable: true },
                                 price:       { type: 'number', format: 'float' },
-                                category:    { type: 'string', enum: ['FOOD', 'DRINK', 'SERVICE', 'OTHER'] },
+                                category:    { type: 'string', enum: PRODUCT_CATEGORIES },
                                 active:      { type: 'boolean' }
                             }
                         }}}

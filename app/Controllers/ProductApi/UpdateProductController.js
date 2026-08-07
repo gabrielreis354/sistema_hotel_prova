@@ -1,6 +1,7 @@
-import { Op } from 'sequelize';
+import { Op, UniqueConstraintError } from 'sequelize';
 import ProductModel from '../../Models/ProductModel.js';
-import { PRODUCT_CATEGORIES } from '../../utils/productCategories.js';
+import { validateProductFields, parsePrice } from '../../utils/productValidation.js';
+import isUuid from '../../utils/isUuid.js';
 
 /**
  * PUT /products/:id
@@ -12,30 +13,27 @@ export default async function UpdateProductController(request, response) {
         const tenantId = request.user.tenantId;
         const { name, description, price, category, active } = request.body;
 
+        if (!isUuid(id)) return response.status(404).json({ error: 'Produto não encontrado' });
+
         const product = await ProductModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!product) return response.status(404).json({ error: 'Produto não encontrado' });
 
-        const errors = [];
-        if (name !== undefined && String(name).trim() === '') errors.push('name não pode ser vazio');
-        if (price !== undefined && Number(price) < 0)         errors.push('price não pode ser negativo');
-        if (category !== undefined && !PRODUCT_CATEGORIES.includes(category)) {
-            errors.push(`category deve ser uma de: ${PRODUCT_CATEGORIES.join(', ')}`);
-        }
+        const errors = validateProductFields({ name, price, category, active }, { partial: true });
         if (errors.length) return response.status(400).json({ errors });
 
-        // Renomear não pode colidir com outro produto do mesmo tenant.
-        if (name !== undefined && String(name).trim() !== product.name) {
+        // Renomear não pode colidir com outro produto VIVO do mesmo tenant.
+        if (name !== undefined && name.trim() !== product.name) {
             const clash = await ProductModel.findOne({
-                where: { tenant_id: tenantId, name: String(name).trim(), id: { [Op.ne]: id } }
+                where: { tenant_id: tenantId, name: name.trim(), id: { [Op.ne]: id } }
             });
             if (clash) {
                 return response.status(409).json({ error: 'Já existe um produto com esse nome' });
             }
         }
 
-        if (name !== undefined)        product.name = String(name).trim();
+        if (name !== undefined)        product.name = name.trim();
         if (description !== undefined) product.description = description;
-        if (price !== undefined)       product.price = price;
+        if (price !== undefined)       product.price = parsePrice(price);
         if (category !== undefined)    product.category = category;
         if (active !== undefined)      product.active = active;
 
@@ -48,6 +46,9 @@ export default async function UpdateProductController(request, response) {
         await product.reload();
         return response.json(product);
     } catch (error) {
+        if (error instanceof UniqueConstraintError) {
+            return response.status(409).json({ error: 'Já existe um produto com esse nome' });
+        }
         console.error('UpdateProductController:', error.message);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

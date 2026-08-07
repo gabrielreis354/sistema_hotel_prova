@@ -142,12 +142,25 @@ describe('GET /products', () => {
         expect(res.body.map(p => p.id)).not.toContain(criado.body.id);
     });
 
+    it('filtra por ?active=false', async () => {
+        const res = await request(app)
+            .get('/products?active=false')
+            .set('Authorization', `Bearer ${jwt}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.length).toBeGreaterThan(0);
+        expect(res.body.every(p => p.active === false)).toBe(true);
+    });
+
     it('filtra por categoria', async () => {
         const res = await request(app)
             .get('/products?category=DRINK')
             .set('Authorization', `Bearer ${jwt}`);
 
         expect(res.status).toBe(200);
+        // O length > 0 importa: sem ele, .every() é vacuamente verdadeiro numa
+        // lista vazia e o teste passaria mesmo com o filtro quebrado.
+        expect(res.body.length).toBeGreaterThan(0);
         expect(res.body.every(p => p.category === 'DRINK')).toBe(true);
     });
 
@@ -235,6 +248,11 @@ describe('RBAC do cardápio', () => {
             .set('Authorization', `Bearer ${waiterJwt}`);
 
         expect(res.status).toBe(200);
+        // Só checar o 200 passaria com corpo vazio — que é o oposto do critério:
+        // o garçom precisa ENXERGAR o cardápio para lançar consumo.
+        expect(res.body.length).toBeGreaterThan(0);
+        expect(res.body[0]).toHaveProperty('name');
+        expect(res.body[0]).toHaveProperty('price');
     });
 
     it('WAITER não cria produto', async () => {
@@ -289,6 +307,80 @@ describe('DELETE /products/:id', () => {
             .delete('/products/00000000-0000-0000-0000-000000000000')
             .set('Authorization', `Bearer ${jwt}`);
 
+        expect(res.status).toBe(404);
+    });
+
+    it('não deleta produto de outro tenant', async () => {
+        const res = await request(app)
+            .delete(`/products/${productId}`)
+            .set('Authorization', `Bearer ${otherJwt}`);
+
+        expect(res.status).toBe(404);
+
+        // E o produto continua vivo no tenant dono.
+        const get = await request(app)
+            .get(`/products/${productId}`)
+            .set('Authorization', `Bearer ${jwt}`);
+        expect(get.status).toBe(200);
+    });
+
+    it('permite recriar um produto com o nome de um que foi deletado', async () => {
+        // O unique (tenant_id, name) precisa ser PARCIAL. Sendo total, a linha
+        // soft-deletada continua no índice e queima o nome para sempre — o guard
+        // da aplicação não a enxerga e o Postgres devolve 500.
+        const nome = 'Produto Reciclavel';
+
+        const criado = await request(app)
+            .post('/products')
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ name: nome, price: 10 });
+        expect(criado.status).toBe(201);
+
+        const del = await request(app)
+            .delete(`/products/${criado.body.id}`)
+            .set('Authorization', `Bearer ${jwt}`);
+        expect(del.status).toBe(204);
+
+        const recriado = await request(app)
+            .post('/products')
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ name: nome, price: 11 });
+        expect(recriado.status).toBe(201);
+        expect(recriado.body.id).not.toBe(criado.body.id);
+    });
+});
+
+describe('Validação de entrada', () => {
+    it.each([
+        ['string não numérica', 'abc'],
+        ['vírgula decimal (formato BR)', '12,50'],
+        ['objeto', { valor: 10 }],
+        ['booleano', true],
+        ['string vazia', ''],
+        ['acima do DECIMAL(10,2)', 999999999999]
+    ])('rejeita price inválido: %s → 400', async (_label, price) => {
+        const res = await request(app)
+            .post('/products')
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ name: `Preco Invalido ${Math.random()}`, price });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('rejeita active não booleano', async () => {
+        const res = await request(app)
+            .post('/products')
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ name: 'Active Invalido', price: 10, active: 'sim' });
+
+        expect(res.status).toBe(400);
+    });
+
+    it.each(['GET', 'PUT', 'DELETE'])('%s com :id não-UUID devolve 404, não 500', async (method) => {
+        const req = request(app)[method.toLowerCase()]('/products/nao-e-uuid')
+            .set('Authorization', `Bearer ${jwt}`);
+
+        const res = method === 'PUT' ? await req.send({ price: 1 }) : await req;
         expect(res.status).toBe(404);
     });
 });

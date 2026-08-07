@@ -41,6 +41,21 @@ async function migrate() {
                 END IF;
             END $$;
         `);
+        // CHECKs que o sync() não gera: as validações `validate:` do Sequelize vivem
+        // só na aplicação. Sem isto, o banco criado por `migrate` diverge do criado
+        // por db/schema.sql — e é o de migrate que os testes usam.
+        await sequelize.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'products_price_non_negative') THEN
+                    ALTER TABLE products ADD CONSTRAINT products_price_non_negative CHECK (price >= 0);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'products_category_allowlist') THEN
+                    ALTER TABLE products ADD CONSTRAINT products_category_allowlist
+                        CHECK (category IN ('FOOD', 'DRINK', 'SERVICE', 'OTHER'));
+                END IF;
+            END $$;
+        `);
         await sequelize.query('CREATE INDEX IF NOT EXISTS idx_reservations_tenant_checkin ON reservations (tenant_id, check_in_date);');
         await sequelize.query('CREATE INDEX IF NOT EXISTS idx_rooms_tenant_status         ON rooms (tenant_id, status);');
         await sequelize.query('CREATE INDEX IF NOT EXISTS idx_users_tenant_email          ON users (tenant_id, email);');
