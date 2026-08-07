@@ -54,6 +54,11 @@ describe('multiplyCents', () => {
     expect(multiplyCents(1000, 2.5)).toBe(2500);
     expect(multiplyCents(333, 3)).toBe(999);
   });
+
+  it('aceita quantidade como string (vinda de input/DECIMAL)', () => {
+    expect(multiplyCents(1200, '2')).toBe(2400);
+    expect(multiplyCents(1000, '2.5')).toBe(2500);
+  });
 });
 
 describe('formatBRL', () => {
@@ -71,6 +76,11 @@ describe('centsToDecimalString', () => {
     expect(centsToDecimalString(60000)).toBe('600.00');
     expect(centsToDecimalString(10)).toBe('0.10');
     expect(centsToDecimalString(1234)).toBe('12.34');
+  });
+
+  it('preserva o sinal em valores negativos (estorno/desconto)', () => {
+    expect(centsToDecimalString(-1234)).toBe('-12.34');
+    expect(centsToDecimalString(-5)).toBe('-0.05');
   });
 
   it('e o inverso de decimalToCents', () => {

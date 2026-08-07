@@ -64,6 +64,7 @@ export function LoginPage() {
           <input
             type="email"
             autoComplete="username"
+            aria-invalid={!!errors.email}
             className="w-full rounded-md border border-gray-300 px-3 py-2"
             {...register('email')}
           />
@@ -73,6 +74,7 @@ export function LoginPage() {
           <input
             type="password"
             autoComplete="current-password"
+            aria-invalid={!!errors.password}
             className="w-full rounded-md border border-gray-300 px-3 py-2"
             {...register('password')}
           />

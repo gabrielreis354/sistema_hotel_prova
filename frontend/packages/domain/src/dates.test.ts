@@ -3,6 +3,7 @@ import {
   HOTEL_TZ,
   parseHotelDate,
   formatDateBR,
+  formatDateTimeBR,
   toISODate,
   nightsBetween,
   addDaysISO,
@@ -25,6 +26,13 @@ describe('formatDateBR', () => {
   it('ida e volta parseHotelDate -> toISODate preserva a data', () => {
     expect(toISODate(parseHotelDate('2026-07-01'))).toBe('2026-07-01');
     expect(toISODate(parseHotelDate('2026-02-28'))).toBe('2026-02-28');
+  });
+});
+
+describe('formatDateTimeBR', () => {
+  it('converte um instante UTC para o horario de Sao Paulo (-03:00)', () => {
+    // 17:32Z -> 14:32 em America/Sao_Paulo.
+    expect(formatDateTimeBR('2026-07-01T17:32:00Z')).toBe('01/07/2026 14:32');
   });
 });
 
