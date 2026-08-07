@@ -45,19 +45,16 @@ export function GuestDetailPage() {
         <h1 className="text-xl font-semibold">{guest.full_name}</h1>
         <div className="flex gap-2">
           <Link to={`/hospedes/${id}/editar`}>
-            <Button variant="secondary" size="compact">
-              Editar
-            </Button>
+            <Button variant="secondary">Editar</Button>
           </Link>
           {!confirming ? (
-            <Button variant="danger" size="compact" onClick={() => setConfirming(true)}>
+            <Button variant="danger" onClick={() => setConfirming(true)}>
               Excluir
             </Button>
           ) : (
             <>
               <Button
                 variant="danger"
-                size="compact"
                 disabled={del.isPending}
                 onClick={() => {
                   setDelError(null);
@@ -70,7 +67,7 @@ export function GuestDetailPage() {
               >
                 Confirmar
               </Button>
-              <Button variant="ghost" size="compact" onClick={() => setConfirming(false)}>
+              <Button variant="ghost" onClick={() => setConfirming(false)}>
                 Cancelar
               </Button>
             </>

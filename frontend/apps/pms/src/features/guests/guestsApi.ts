@@ -53,5 +53,12 @@ export async function deleteGuest(id: string): Promise<void> {
   const { error, response } = await api.DELETE('/guests/{id}', {
     params: { path: { id } },
   });
-  if (error || !response.ok) throw new ApiError('Não foi possível remover o hóspede.', response.status);
+  if (error || !response.ok) {
+    // Um hóspede com reservas vinculadas costuma bater em conflito no backend — dá a dica.
+    const hint =
+      response.status === 409
+        ? 'O hóspede pode ter reservas vinculadas.'
+        : 'Tente novamente.';
+    throw new ApiError(`Não foi possível remover o hóspede. ${hint}`, response.status);
+  }
 }

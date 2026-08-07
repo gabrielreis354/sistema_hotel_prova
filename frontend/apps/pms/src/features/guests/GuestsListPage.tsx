@@ -2,22 +2,14 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Card, EmptyState, Input, Spinner } from '@hotel/ui';
 import { useGuests } from './queries.js';
-import type { Guest } from './guestsApi.js';
-
-function matches(guest: Guest, term: string): boolean {
-  const q = term.trim().toLowerCase();
-  if (!q) return true;
-  return [guest.full_name, guest.cpf, guest.email, guest.phone]
-    .filter(Boolean)
-    .some((v) => String(v).toLowerCase().includes(q));
-}
+import { filterGuests } from './guestFilter.js';
 
 export function GuestsListPage() {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useGuests();
   const [term, setTerm] = useState('');
 
-  const filtered = useMemo(() => (data ?? []).filter((g) => matches(g, term)), [data, term]);
+  const filtered = useMemo(() => filterGuests(data ?? [], term), [data, term]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -51,6 +43,7 @@ export function GuestsListPage() {
         <>
           <Input
             type="search"
+            aria-label="Buscar hóspedes"
             placeholder="Buscar por nome, CPF, e-mail ou telefone"
             value={term}
             onChange={(e) => setTerm(e.target.value)}

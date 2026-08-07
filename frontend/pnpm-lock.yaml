@@ -82,6 +82,9 @@ importers:
       vite:
         specifier: ^5.4.11
         version: 5.4.21
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9
 
   packages/api-client:
     dependencies:
