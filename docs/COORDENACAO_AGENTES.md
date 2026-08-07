@@ -176,8 +176,9 @@ Com esta divisão o overlap é quase nulo: J3 trabalha em diretório novo.
 
 | Área | Dono | Observação |
 |---|---|---|
-| `apps/`, `packages/` (frontend) | **J3** | Diretório novo — J2 não entra |
+| `frontend/` (todo o monorepo) | **J3** | Diretório novo — J2 não entra |
 | `app/`, `routes/`, `database/`, `db/`, `seed/`, `tests/` | **J2** | J3 não entra |
+| **Raiz**: `package.json`, `Dockerfile`, `_web.js` | **J1** | J3 **não** transforma a raiz em workspace pnpm — quebra Docker, CI e K8s |
 | `docs/frontend/` | J3 | |
 | `docs/historico_sessao/<dev>/` | cada um no seu | |
 | `docs/COORDENACAO_AGENTES.md` | ambos | Só a própria linha do quadro |
@@ -284,9 +285,14 @@ quem escreve de quem audita.
 
 | Agente | Worktree | Tarefa atual | Branch | Status | Atualizado em |
 |---|---|---|---|---|---|
-| J1 Orquestrador | `~/sistema_gestao_hotel` | Setup de worktrees e portão de QA | `develop` | ✅ Mergeado | 02/08/2026 |
-| J2 Backend | `~/hotel-j2` | Fatia 0 — pré-requisitos de backend | `fix/backend-prep-frontend` | 🟢 PRONTO PARA MERGE | 02/08/2026 |
-| J3 Frontend | `~/hotel-j3` | Fase 0 — monorepo e design system | `feature/frontend-fase0-fundacao` | ⚪ NÃO INICIADO | — |
+| J1 Orquestrador | `~/sistema_gestao_hotel` | Integração e planejamento | `develop` | ✅ Mergeado | 07/08/2026 |
+| J2 Backend | `~/hotel-j2` | Fatia 1 — catálogo de produtos | `feature/product-catalog` | 🟡 EM ANDAMENTO | 07/08/2026 |
+| J3 Frontend | `~/hotel-j3` | Fase 0 — monorepo e design system | `feature/frontend-fase0-fundacao` | 🟡 EM ANDAMENTO | 07/08/2026 |
+
+**Fatia 0 do backend: ✅ mergeada** em `develop` (`313ed71`) — CORS, `?from=&to=` com
+paginação e role `WAITER`. Três pendências herdadas, com fatia definida, em
+`docs/delegacoes/modulo_consumo_02ago2026.md`. A mais séria: o `WAITER` só foi bloqueado em
+`/rooms`, `/users` e `/analytics` — **bloqueante para a Fase 2 do frontend**.
 
 Legenda: ⚪ não iniciado · 🟡 em andamento · 🔵 em auditoria QA · 🟢 pronto para merge ·
 🔴 bloqueado · ✅ mergeado
@@ -354,9 +360,20 @@ Leia nesta ordem, antes de qualquer coisa:
 2. docs/COORDENACAO_AGENTES.md                  ← como nos coordenamos
 3. CLAUDE.md e docs/CODING_STANDARDS.md
 
+ONDE FICA O CODIGO: tudo dentro de frontend/, no mesmo repositorio.
+A raiz e o backend e NAO pode ser tocada — transformar a raiz em workspace
+pnpm quebra o Dockerfile, o CI e o build da imagem K8s. Dentro de frontend/
+usa-se pnpm; na raiz continua npm.
+
+Antes de comecar, prepare o ambiente (o PATH deste WSL resolve errado em
+shell nao-interativo):
+  export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 24
+  corepack enable pnpm        # pnpm nao esta instalado, corepack esta
+  node --version              # tem que responder v24.x
+
 Sua tarefa agora: Fase 0, nesta ordem
-  1. Monorepo pnpm + Turborepo com apps/pms, apps/booking, apps/admin,
-     packages/{ui,api-client,domain,config}
+  1. frontend/ com pnpm-workspace.yaml + turbo.json, apps/{pms,booking,admin}
+     e packages/{ui,api-client,domain,config}
   2. packages/domain PRIMEIRO: dinheiro (DECIMAL chega como STRING do pg —
      nunca Number()) e datas (fuso America/Sao_Paulo fixo). Toda tela depende
      disso e sao as duas fontes de bug silencioso do dominio.
@@ -364,7 +381,7 @@ Sua tarefa agora: Fase 0, nesta ordem
      (cores de status, densidade compact/comfortable, alvo de toque 48px)
   4. apps/pms: React + TypeScript + Vite + Tailwind + shadcn/ui, shell,
      login contra POST /auth/login, rota protegida por role
-  5. packages/api-client: gerar tipos do OpenAPI em config/swagger.js
+  5. packages/api-client: gerar tipos do OpenAPI em config/swagger.js (na raiz)
 
 VOCE NAO ESTA BLOQUEADO. Configure o proxy de dev do Vite e integre contra o
 backend real desde o inicio:
