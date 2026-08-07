@@ -1,0 +1,18 @@
+/*
+ * Base de estilo do design system. Cada app importa este arquivo (junto do seu próprio
+ * tailwind que aplica o preset de @hotel/config). Mantém as diretivas do Tailwind e a
+ * fonte tabular padrão em números.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: Inter, system-ui, sans-serif;
+  }
+  /* Valores monetários e do rack usam numeral tabular por padrão. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}

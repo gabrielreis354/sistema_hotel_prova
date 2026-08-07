@@ -1,0 +1,17 @@
+{
+  "name": "@hotel/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Presets compartilhados: tsconfig e preset do Tailwind (tokens do design system).",
+  "type": "module",
+  "exports": {
+    "./tailwind-preset": "./tailwind-preset.js",
+    "./tsconfig.lib.json": "./tsconfig.lib.json",
+    "./tsconfig.react.json": "./tsconfig.react.json"
+  },
+  "files": [
+    "tailwind-preset.js",
+    "tsconfig.lib.json",
+    "tsconfig.react.json"
+  ]
+}
