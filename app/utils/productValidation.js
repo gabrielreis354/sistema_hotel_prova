@@ -14,7 +14,10 @@ export function parsePrice(value) {
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;
     if (typeof value === 'string') {
         const trimmed = value.trim();
-        if (trimmed === '') return null;
+        // Só notação decimal. Delegar ao Number() sozinho aceitaria '0x10' como 16
+        // e '1e3' como 1000 — preço de cardápio não tem hexadecimal nem notação
+        // científica, e aceitar isso silenciosamente é pior que rejeitar.
+        if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return null;
         const n = Number(trimmed);
         return Number.isFinite(n) ? n : null;
     }
@@ -25,13 +28,20 @@ export function parsePrice(value) {
  * Valida os campos de produto. `partial: true` no update — só valida o que veio.
  * Retorna array de mensagens; vazio significa entrada válida.
  */
-export function validateProductFields({ name, price, category, active }, { partial = false } = {}) {
+export function validateProductFields({ name, description, price, category, active }, { partial = false } = {}) {
     const errors = [];
 
     if (!partial || name !== undefined) {
         if (typeof name !== 'string' || name.trim() === '') {
-            errors.push('name obrigatório');
+            // No update o campo é opcional — a falha é "veio vazio", não "faltou".
+            errors.push(partial ? 'name não pode ser vazio' : 'name obrigatório');
         }
+    }
+
+    // description era o único campo sem checagem de tipo: objeto ou array chegavam
+    // ao Postgres e viravam 500, e número era gravado convertido em string.
+    if (description !== undefined && description !== null && typeof description !== 'string') {
+        errors.push('description deve ser texto');
     }
 
     if (!partial || price !== undefined) {

@@ -18,7 +18,7 @@ export default async function UpdateProductController(request, response) {
         const product = await ProductModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!product) return response.status(404).json({ error: 'Produto não encontrado' });
 
-        const errors = validateProductFields({ name, price, category, active }, { partial: true });
+        const errors = validateProductFields({ name, description, price, category, active }, { partial: true });
         if (errors.length) return response.status(400).json({ errors });
 
         // Renomear não pode colidir com outro produto VIVO do mesmo tenant.

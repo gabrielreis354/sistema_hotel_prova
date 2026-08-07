@@ -367,6 +367,41 @@ describe('Validação de entrada', () => {
         expect(res.status).toBe(400);
     });
 
+    it.each([
+        ['objeto', { a: 1 }],
+        ['array', [1, 2]],
+        ['número', 42]
+    ])('rejeita description inválida: %s → 400', async (_label, description) => {
+        const res = await request(app)
+            .post('/products')
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ name: `Desc Invalida ${Math.random()}`, price: 10, description });
+
+        expect(res.status).toBe(400);
+    });
+
+    it.each([
+        ['hexadecimal', '0x10'],
+        ['notação científica', '1e3']
+    ])('rejeita price em notação não decimal: %s → 400', async (_label, price) => {
+        const res = await request(app)
+            .post('/products')
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ name: `Notacao ${Math.random()}`, price });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('mensagem do PUT distingue vazio de ausente', async () => {
+        const res = await request(app)
+            .put(`/products/${productId}`)
+            .set('Authorization', `Bearer ${jwt}`)
+            .send({ name: '' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.errors.join(' ')).toContain('não pode ser vazio');
+    });
+
     it('rejeita active não booleano', async () => {
         const res = await request(app)
             .post('/products')

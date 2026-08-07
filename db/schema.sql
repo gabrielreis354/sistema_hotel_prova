@@ -125,10 +125,14 @@ CREATE TABLE IF NOT EXISTS reservations (
   CHECK (total_amount >= 0),
   CHECK (status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED')),
   CHECK (source IN ('MANUAL', 'DIRECT', 'B2B')),
+  -- Anti-double-booking em nível de banco. O predicado WHERE é essencial: sem ele
+  -- a constraint conta reservas CANCELADAS e soft-deletadas, e cancelar uma reserva
+  -- queimaria aquele quarto naquelas datas para sempre (a aplicação diria
+  -- "disponível" e o banco recusaria, virando 500).
   EXCLUDE USING gist (
     room_id WITH =,
     daterange(check_in_date, check_out_date, '[)') WITH &&
-  )
+  ) WHERE (status <> 'CANCELLED' AND deleted_at IS NULL)
 );
 
 -- =============================================================================

@@ -11,7 +11,7 @@ export default async function CreateProductController(request, response) {
         const tenantId = request.user.tenantId;
         const { name, description, price, category, active } = request.body;
 
-        const errors = validateProductFields({ name, price, category, active });
+        const errors = validateProductFields({ name, description, price, category, active });
         if (errors.length) return response.status(400).json({ errors });
 
         const trimmedName = name.trim();
