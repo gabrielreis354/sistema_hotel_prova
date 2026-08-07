@@ -206,9 +206,36 @@ CRUD de `Product` (cardápio). Nada existente muda.
 
 ---
 
-### Fatia 2a — `feature/account-entities` · 3 dias · aditiva
+### Fatia 2a — `feature/account-entities` · 3,5 dias · aditiva
 
 `Account` + `AccountItem` + CRUD + lançamento de item. **Não toque no `ConsumptionModel` ainda.**
+
+> **Decisões de 07/08/2026.** Esta fatia cresceu: entram consumo interno, cortesia e o split
+> da diária. Todos são caros de retrofitar depois — mudam o cálculo da conta, que na 3a já
+> estará escrito e testado.
+
+```
+Account.type          += INTERNAL          (ROOM | DAY_USE | TABLE | DIRECT | INTERNAL)
+Account.charges_lodging BOOLEAN DEFAULT true
+AccountItem.billable    BOOLEAN DEFAULT true
+AccountItem.reason      COURTESY | STAFF | LOSS | INTERNAL_USE   (nullable)
+```
+
+**Os três eventos que isso cobre:**
+
+| Situação | Como fica |
+|---|---|
+| Refeição de funcionário | Conta `INTERNAL`, `reason: STAFF` |
+| Perda / quebra | Conta `INTERNAL`, `reason: LOSS` |
+| Cortesia ao hóspede | Conta **dele**, `billable: false`, `reason: COURTESY` |
+
+**Regra única:** o total soma apenas `billable: true`; contas `INTERNAL` nunca entram em
+receita. Mas `unit_price` e `total` do item não faturável **são gravados normalmente** — sem
+o valor não dá para medir o que foi dado ou perdido.
+
+**Fora de escopo, decidido:** controle de estoque. E **não crie campos preparatórios** para
+ele — `category` já distingue serviço de produto, e coluna sem uso é a abstração especulativa
+que o `qa-redteam` reprova.
 
 **Critérios de aceite**
 - [ ] `POST /accounts/:id/items` com `product_id` preenche `description` e `unit_price` do catálogo
@@ -219,6 +246,25 @@ CRUD de `Product` (cardápio). Nada existente muda.
 - [ ] `GET /accounts?status=OPEN&type=ROOM` filtra
 - [ ] Conta `CLOSED` rejeita item novo → **422**
 - [ ] Tenant isolation em `accounts` e `account_items`
+
+**Consumo interno e cortesia**
+- [ ] `POST /accounts` aceita `type: INTERNAL` sem `reservation_id` e sem `guest_id`
+- [ ] Item com `billable: false` **exige** `reason`
+- [ ] `unit_price` e `total` gravados normalmente mesmo em item não faturável — sem o valor
+      não dá para medir o que foi dado ou perdido
+- [ ] Soma da conta ignora `billable: false`
+- [ ] `reason` validado por **allowlist**, nunca blocklist
+- [ ] Lançar item não faturável exige `ADMIN` ou `RECEPTIONIST` — **garçom não dá cortesia sozinho**
+
+**Split da diária**
+- [ ] `charges_lodging` default `true`
+- [ ] Duas contas no mesmo `room_id` ambas com `charges_lodging: true` → **422**. A diária
+      não pode ser cobrada duas vezes
+
+**Least privilege do `WAITER` — pendência #1 herdada da Fatia 0**
+- [ ] `WAITER` lança consumo e lê `/products`, e **não** alcança `GET /reservations`,
+      `/guests`, `/payments`, check-in/out nem `/bill`
+- [ ] Teste cobrindo cada 403
 
 **Armadilha:** `database/relations.js` já causou conflito neste projeto. **Acrescente ao final**
 da seção — nunca reordene nem reformate o que já está lá.
@@ -254,6 +300,11 @@ mudou um contrato que não deveria mudar. Pare e reporte a J1.
 - [ ] Resposta traz `room_charges`, `consumptions`, `total`, `payments_made`, `balance`, `items`
 - [ ] `OPEN → CLOSED` só por este endpoint
 - [ ] Tenant isolation
+- [ ] `consumptions` soma **apenas** itens `billable: true`
+- [ ] Itens não faturáveis **vêm na lista `items`** com `billable` e `reason` — a tela precisa
+      deles para mostrar a cortesia riscada com rótulo (decisão de 07/08)
+- [ ] `room_charges` é 0 quando `charges_lodging: false`
+- [ ] Conta `INTERNAL` fecha com `room_charges: 0` e `total: 0`
 
 Ao terminar esta fatia, **avise J1**: é aqui que o Agente Frontend é desbloqueado para a
 Fase 2 (comanda do garçom).
@@ -309,10 +360,24 @@ Check-in cria conta automaticamente · split bill · day-use.
 
 ---
 
-### Fatia 5 — `feature/consumo-seed-swagger` · 2 dias
+### Fatia 5 — `feature/consumo-seed-swagger` · 2,5 dias
+
+**`GET /analytics/internal-consumption?start=&end=`** — cortesias e perdas agrupadas por
+`reason`, com valor somado e contagem. Requer `ADMIN`.
+
+O motivo de estar aqui não é entregar a feature: **escrever essa query é a prova de que o
+modelo de consumo interno funciona.** Se agrupar por motivo e período for difícil, o modelo
+está errado — melhor descobrir agora. São ~2 horas. A tela vai para a Fase 3 do frontend.
+
+- [ ] Considera itens `billable: false` de qualquer conta **mais** todos os itens de contas
+      `INTERNAL`
+- [ ] Tenant isolation · requer `ADMIN`
+
+Restante:
 
 - `seed/seed_consumo.sql` — cardápio para os dois tenants + contas abertas de exemplo,
-  incluindo uma day-use. Padrão **idempotente `NOT EXISTS`**, igual ao `seed_hotels.sql`
+  incluindo uma day-use, uma `INTERNAL` e uma cortesia. Padrão **idempotente `NOT EXISTS`**,
+  igual ao `seed_hotels.sql`
 - Swagger completo de `/products` e `/accounts` — **obrigatório**, o cliente tipado do frontend
   é gerado dele
 - `tests/tenant-isolation.test.js` expandido com `Account` e `Product`
@@ -425,18 +490,28 @@ Não improvise. Marque 🔴 BLOQUEADO no quadro e avise J1 se:
 ## 8. Ordem de execução — resumo
 
 ```
-0    fix/backend-prep-frontend          🚨 primeiro, desbloqueia o frontend
-1    feature/product-catalog
-2a   feature/account-entities
+0    fix/backend-prep-frontend          ✅ MERGEADA em develop (313ed71)
+1    feature/product-catalog            ← você está aqui
+2a   feature/account-entities           + INTERNAL, billable/reason, charges_lodging, WAITER
 2b   feature/consumption-migration      ⚠️ migração de dados
 3a   feature/account-bill               ✅ parada segura · avisar J1
 3b   feature/payment-account-link       🔴 risco PIX · branch isolada
 3c   feature/reservation-bill-delegate  ⚠️ refatoração
 4    feature/split-bill-dayuse
-5    feature/consumo-seed-swagger
+5    feature/consumo-seed-swagger       + endpoint de cortesias e perdas
 ```
 
-**Estimativa total:** ~19 dias.
+**Estimativa total:** ~20 dias.
+
+### Princípio que orienta o corte de escopo
+
+**Entregar a base primeiro.** Onde couber escolher, faça agora o que é caro de retrofitar
+— modelo de dados e regra de soma — e adie o que é barato de acrescentar depois: telas,
+fluxos de aprovação, configurações por hotel.
+
+Foi exatamente esse critério que colocou `INTERNAL`, `billable` e `charges_lodging` na 2a
+(mudam o cálculo da conta, que a 3a já vai ter testado) e deixou de fora as telas de
+lançamento interno e o controle de estoque.
 
 ---
 

@@ -61,18 +61,21 @@ Product (Cardápio)
 
 Account (Conta/Comanda)
   id, tenant_id
-  type:          ROOM | DAY_USE | TABLE | DIRECT
-  status:        OPEN | CLOSED | PAID
-  reservation_id (nullable — null para day-use)
-  room_id        (nullable)
-  guest_id       (nullable)
-  label          "Suíte 201 - João" | "Mesa 5" | "Piscina - Ana"
+  type:             ROOM | DAY_USE | TABLE | DIRECT | INTERNAL
+  status:           OPEN | CLOSED | PAID
+  reservation_id    (nullable — null para day-use e interno)
+  room_id           (nullable)
+  guest_id          (nullable)
+  label             "Suíte 201 - João" | "Mesa 5" | "Piscina - Ana"
+  charges_lodging   BOOLEAN DEFAULT true   ← quem carrega a diária no split
   opened_at, closed_at
 
 AccountItem (Linha de consumo)
   id, tenant_id, account_id
   product_id      (nullable — do catálogo ou avulso)
   description, quantity, unit_price, total
+  billable        BOOLEAN DEFAULT true     ← não faturável não soma no total
+  reason          (nullable) COURTESY | STAFF | LOSS | INTERNAL_USE
   client_item_id  (nullable, UUID do cliente — idempotência da fila offline)
   created_by      (user_id do garçom)
 
@@ -81,6 +84,41 @@ Payment (alteração)
   reservation_id → passa a nullable
   CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL)
 ```
+
+### Consumo interno e cortesia — decidido em 07/08/2026
+
+Três eventos de negócio distintos, não um só:
+
+| Situação | Onde é lançado | Efeito |
+|---|---|---|
+| Refeição de funcionário | Conta `INTERNAL`, `reason: STAFF` | Custo. Nunca cobrado de ninguém |
+| Perda, quebra, vencimento | Conta `INTERNAL`, `reason: LOSS` | Custo. Registra o evento para estoque futuro |
+| **Cortesia ao hóspede** | Conta **do hóspede**, `billable: false`, `reason: COURTESY` | Aparece na conta dele, **não soma no total** |
+
+**Por que isso importa — com precisão.** `GET /analytics/revenue` hoje soma `payments` e
+`reservations.total_amount`; não lê consumos. Então consumo interno **já ficaria fora da
+receita** por não gerar pagamento. O risco real é outro e é mais direto:
+
+1. **A conta do hóspede cobraria a cortesia.** Sem `billable`, uma cerveja oferecida entra no
+   total e o hóspede paga por um presente. É erro de cobrança, não de relatório.
+2. **Refeição de funcionário não tem onde ser lançada** sem virar consumo de algum hóspede.
+3. Quando alguém somar receita de A&B a partir de `account_items` — e vai somar — o filtro
+   precisa já existir.
+
+**Regra única:** total da conta e qualquer soma de receita consideram apenas
+`billable = true` e ignoram contas `INTERNAL`.
+
+**Fora de escopo agora (decidido):** controle de estoque. E **sem campos preparatórios** —
+`category` já distingue serviço de produto, e coluna não usada é a abstração especulativa
+que o próprio `qa-redteam` reprova. O `reason: LOSS` registra o evento; isso basta para
+reconstruir depois.
+
+### Split da diária — `charges_lodging`
+
+No cenário de duas contas na mesma suíte, sem regra explícita a diária é cobrada duas vezes
+ou some. Só a conta marcada `charges_lodging: true` carrega a hospedagem; as demais nascem
+de consumo puro. Numa reserva multi-quarto com uma conta por suíte, cada conta cobra a
+diária **do seu próprio quarto**.
 
 ### Decisão de reconciliação: `Account` absorve `Consumption`
 
@@ -118,15 +156,24 @@ com 3 agentes em paralelo, merge grande é o que trava o time.
 |---|---|---|---|---|
 | **0** | CORS + filtro de datas/paginação + role `WAITER` | Aditiva | 1 d | `fix/backend-prep-frontend` |
 | **1** | Catálogo de Produtos (Product CRUD) | Aditiva | 2 d | `feature/product-catalog` |
-| **2a** | `Account` + `AccountItem` + CRUD — sem tocar no que existe | Aditiva | 3 d | `feature/account-entities` |
+| **2a** | `Account` + `AccountItem` + CRUD, com `INTERNAL`, `billable`/`reason` e `charges_lodging` · fecha o least-privilege do `WAITER` | Aditiva | 3,5 d | `feature/account-entities` |
 | **2b** | Migração `Consumption` → `AccountItem` + deprecar endpoints antigos | ⚠️ Migração de dados | 2–3 d | `feature/consumption-migration` |
 | **3a** | `GET /accounts/:id/bill` + `PUT /accounts/:id/close` | Aditiva | 2 d | `feature/account-bill` |
 | **3b** | `Payment.account_id` + `reservation_id` nullable + CHECK | 🔴 **Risco isolado** | 2–3 d | `feature/payment-account-link` |
 | **3c** | `GET /reservations/:id/bill` passa a delegar para as contas | ⚠️ Refatoração | 1–2 d | `feature/reservation-bill-delegate` |
 | **4** | Check-in auto-cria conta + Split Bill + Day-use | Aditiva | 3 d | `feature/split-bill-dayuse` |
-| **5** | Seed, Swagger e testes de isolamento | Aditiva | 2 d | `feature/consumo-seed-swagger` |
+| **5** | Endpoint de cortesias/perdas · seed, Swagger e testes de isolamento | Aditiva | 2,5 d | `feature/consumo-seed-swagger` |
 
-**Total:** ~19 dias · **PR único ao final:** `develop → main`
+**Total:** ~20 dias · **PR único ao final:** `develop → main`
+
+> **Decisões de 07/08/2026 já incorporadas:** consumo interno entra agora (só modelo e regra
+> de soma — telas de lançamento interno ficam para depois) · cortesia mostrada riscada com
+> rótulo · estoque **fora** de escopo, e sem campos preparatórios · endpoint do relatório na
+> Fatia 5, tela na Fase 3 do frontend.
+>
+> **Princípio que orienta o corte:** entregar a **base** primeiro. Onde couber escolher,
+> escolha o que é caro de retrofitar (modelo de dados, regra de soma) e adie o que é barato
+> de acrescentar depois (telas, fluxos de aprovação, configurações por hotel).
 
 ### Por que 3a / 3b / 3c separados
 
@@ -267,6 +314,26 @@ Para cada `consumption`:
 - [ ] **Migração:** todo `consumption` existente vira `AccountItem` sem perda de valor nem de data
 - [ ] **`tests/bill-consumptions.test.js` continua passando sem alteração**
 
+#### Consumo interno e cortesia
+- [ ] `POST /accounts` aceita `type: INTERNAL` sem `reservation_id` e sem `guest_id`
+- [ ] Item com `billable: false` **exige** `reason`
+- [ ] `unit_price` e `total` do item não faturável são gravados normalmente — o valor do que
+      foi dado ou perdido precisa ser mensurável
+- [ ] Soma da conta ignora itens `billable: false`
+- [ ] Conta `INTERNAL` nunca entra em soma de receita
+- [ ] `reason` restrito por **allowlist** (`COURTESY|STAFF|LOSS|INTERNAL_USE`), não blocklist
+- [ ] Lançar item não faturável exige role `ADMIN` ou `RECEPTIONIST` — **garçom não dá
+      cortesia sozinho**
+
+#### Split da diária
+- [ ] `charges_lodging` default `true`
+- [ ] Duas contas no mesmo `room_id` com `charges_lodging: true` → rejeitar (422). A diária
+      não pode ser cobrada duas vezes
+
+#### Least privilege do `WAITER` (pendência herdada da Fatia 0)
+- [ ] Definir e aplicar a allowlist do `WAITER`: ele lança consumo e lê o cardápio, e **não**
+      alcança `GET /reservations`, `/guests`, `/payments`, check-in/out nem `/bill`
+
 ---
 
 ## Sprint 3 — Refatorar Bill e Fechamento
@@ -319,6 +386,13 @@ continuar funcionando.
 - [ ] **`tests/bill-consumptions.test.js` continua passando**
 - [ ] `npm test` completo verde antes de abrir PR
 
+#### Faturável e diária no bill (fatia 3a)
+- [ ] `consumptions` do bill soma **apenas** itens `billable: true`
+- [ ] Itens não faturáveis vêm na lista `items` com `billable: false` e `reason` — a tela
+      precisa deles para mostrar a cortesia riscada
+- [ ] `room_charges` é 0 quando `charges_lodging: false`
+- [ ] Conta `INTERNAL` fecha com `room_charges: 0` e `total: 0`
+
 ---
 
 ## Sprint 4 — Check-in auto-cria conta + Split Bill + Day-use
@@ -349,8 +423,27 @@ continuar funcionando.
 
 ## Sprint 5 — Qualidade e encerramento
 
+### Endpoint de cortesias e perdas
+
+`GET /analytics/internal-consumption?start=&end=` — agrupa por `reason`, devolve valor e
+contagem.
+
+O motivo de estar aqui não é entregar a feature: é que **escrever essa query é a prova de
+que o modelo de consumo interno funciona.** Se agrupar por motivo e período for difícil, o
+modelo está errado — e é muito melhor descobrir na Fatia 5 do que semanas depois. São ~2
+horas. A tela vai para a Fase 3 do frontend, junto com as outras de analytics.
+
+- [ ] Agrupa por `reason` no período, com valor somado e contagem
+- [ ] Considera itens `billable: false` de qualquer conta **mais** todos os itens de contas
+      `INTERNAL`
+- [ ] Tenant isolation
+- [ ] Requer role `ADMIN`
+
+### Restante
+
 - `seed/seed_consumo.sql` — cardápio básico para os dois tenants, contas abertas de exemplo
-  (incluindo uma day-use), seguindo o padrão idempotente `NOT EXISTS` do `seed_hotels.sql`
+  (incluindo uma day-use, uma `INTERNAL` e uma cortesia), seguindo o padrão idempotente
+  `NOT EXISTS` do `seed_hotels.sql`
 - Swagger completo de `/products` e `/accounts` — **obrigatório**: o cliente de API do frontend
   é gerado a partir dele
 - `tests/tenant-isolation.test.js` expandido com `Account` e `Product`
