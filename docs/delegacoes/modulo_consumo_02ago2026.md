@@ -176,11 +176,11 @@ há testes existentes esperando array puro. Pagine só quando `page` ou `limit` 
 O QA aprovou a Fatia 0 com ressalvas. Estas três ficaram em aberto e **são suas** nas
 fatias seguintes. Relatório completo em `docs/qa/redteam_fatia0_02ago2026.md`.
 
-| # | Pendência | Onde resolver |
+| # | Pendência | Situação |
 |---|---|---|
-| 1 | **`WAITER` só foi bloqueado em `/rooms`, `/users` e `/analytics`.** Hoje um garçom ainda alcança `GET /reservations` (lista todas com dados de hóspede), `/guests`, `/payments`, check-in/check-out e `/reservations/:id/bill` — muito além de "lança consumo" | **Fatia 2a**, junto com os endpoints de conta. Definir a allowlist do WAITER e fechar o resto |
-| 2 | `UpdateUserController` aceita qualquer `role` sem allowlist — o banco rejeita pelo CHECK e o usuário recebe **500** em vez de **400**. Assimetria com o `CreateUserController`, que já valida | Fatia 1 (é barato: reusar `app/utils/roles.js`) |
-| 3 | `from`/`to` sem validação de formato — `?from=abc` pode virar 500 | Fatia 1 |
+| 1 | **`WAITER` só foi bloqueado em `/rooms`, `/users` e `/analytics`.** Hoje um garçom ainda alcança `GET /reservations` (lista todas com dados de hóspede), `/guests`, `/payments`, check-in/check-out e `/reservations/:id/bill` — muito além de "lança consumo" | 🔲 **Fatia 2a**, junto com os endpoints de conta |
+| 2 | `UpdateUserController` aceitava qualquer `role`, devolvendo 500 onde deveria ser 400 | ✅ Resolvida ainda na Fatia 0 (`022a4ff`) — usa `VALID_ROLES` |
+| 3 | `from`/`to` sem validação de formato | ✅ Resolvida na Fatia 0 (`022a4ff`) — regex `YYYY-MM-DD` → 400 |
 
 A pendência 1 é a que importa: **é bloqueante para a Fase 2 do frontend** (comanda). Um
 garçom com acesso à lista de reservas e ao financeiro não é aceitável em produção. Foi

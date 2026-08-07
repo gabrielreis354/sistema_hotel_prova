@@ -125,10 +125,14 @@ CREATE TABLE IF NOT EXISTS reservations (
   CHECK (total_amount >= 0),
   CHECK (status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED')),
   CHECK (source IN ('MANUAL', 'DIRECT', 'B2B')),
+  -- Anti-double-booking em nível de banco. O predicado WHERE é essencial: sem ele
+  -- a constraint conta reservas CANCELADAS e soft-deletadas, e cancelar uma reserva
+  -- queimaria aquele quarto naquelas datas para sempre (a aplicação diria
+  -- "disponível" e o banco recusaria, virando 500).
   EXCLUDE USING gist (
     room_id WITH =,
     daterange(check_in_date, check_out_date, '[)') WITH &&
-  )
+  ) WHERE (status <> 'CANCELLED' AND deleted_at IS NULL)
 );
 
 -- =============================================================================
@@ -188,6 +192,33 @@ CREATE TABLE IF NOT EXISTS consumptions (
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0)
 );
+
+-- =============================================================================
+-- 9b) Catálogo de produtos (cardápio) — base do módulo de consumo
+-- Model: ProductModel
+-- SERVICE cobre o que não é consumível (day-use, sonorização, lavanderia).
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS products (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  price       NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  category    TEXT NOT NULL DEFAULT 'OTHER',
+  active      BOOLEAN NOT NULL DEFAULT true,
+  deleted_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  updated_at  TIMESTAMPTZ DEFAULT now(),
+  CHECK (price >= 0),
+  CHECK (category IN ('FOOD', 'DRINK', 'SERVICE', 'OTHER'))
+);
+
+-- Unicidade por tenant, não global — dois hotéis podem ter "Cerveja 600ml".
+-- Índice PARCIAL: sem o WHERE, um produto soft-deletado queimaria o nome para
+-- sempre, já que a linha morta continuaria disputando unicidade.
+CREATE UNIQUE INDEX IF NOT EXISTS products_name_tenant_unique
+  ON products (tenant_id, name)
+  WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- 9c) Módulo B2B — clientes corporativos, orçamentos e contratos de evento

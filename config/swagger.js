@@ -1,4 +1,6 @@
 import swaggerJsdoc from 'swagger-jsdoc';
+import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
+import { VALID_ROLES } from '../app/utils/roles.js';
 
 const options = {
     definition: {
@@ -38,7 +40,21 @@ const options = {
                         tenant_id: { type: 'string', format: 'uuid' },
                         name:      { type: 'string', example: 'João Silva' },
                         email:     { type: 'string', format: 'email' },
-                        role:      { type: 'string', enum: ['ADMIN', 'RECEPTIONIST'] }
+                        role:      { type: 'string', enum: VALID_ROLES }
+                    }
+                },
+                Product: {
+                    type: 'object',
+                    properties: {
+                        id:          { type: 'string', format: 'uuid' },
+                        tenant_id:   { type: 'string', format: 'uuid' },
+                        name:        { type: 'string', example: 'Cerveja 600ml' },
+                        description: { type: 'string', nullable: true, example: 'Long neck gelada' },
+                        // DECIMAL chega do Postgres como string — o cliente tipado precisa
+                        // saber disso para não converter com Number() e perder precisão.
+                        price:       { type: 'string', example: '12.00', description: 'DECIMAL(10,2) serializado como string' },
+                        category:    { type: 'string', enum: PRODUCT_CATEGORIES, example: 'DRINK' },
+                        active:      { type: 'boolean', example: true }
                     }
                 },
                 RoomCategory: {
@@ -607,6 +623,104 @@ const options = {
                         },
                         400: { description: 'limit fora do intervalo permitido (1–100)' },
                         401: { description: 'Token não fornecido ou inválido' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/products': {
+                get: {
+                    tags: ['Produtos'],
+                    summary: 'Lista o cardápio do hotel',
+                    description: 'Itens de consumo (bebida, comida, serviço). Leitura liberada a todos os papéis — o garçom precisa do cardápio para lançar consumo.',
+                    parameters: [
+                        { in: 'query', name: 'active',   required: false, schema: { type: 'string', enum: ['true', 'false'] }, description: 'Filtra por ativos ou inativos. Omitido devolve todos.' },
+                        { in: 'query', name: 'category', required: false, schema: { type: 'string', enum: PRODUCT_CATEGORIES } }
+                    ],
+                    responses: {
+                        200: {
+                            description: 'Cardápio ordenado por categoria e nome',
+                            content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Product' } } } }
+                        },
+                        400: { description: 'category fora da allowlist' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        500: { description: 'Erro interno' }
+                    }
+                },
+                post: {
+                    tags: ['Produtos'],
+                    summary: 'Cria um item do cardápio (ADMIN)',
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: {
+                            type: 'object',
+                            required: ['name', 'price'],
+                            properties: {
+                                name:        { type: 'string', example: 'Cerveja 600ml' },
+                                description: { type: 'string', nullable: true },
+                                price:       { type: 'number', format: 'float', example: 12.00 },
+                                category:    { type: 'string', enum: PRODUCT_CATEGORIES, default: 'OTHER' },
+                                active:      { type: 'boolean', default: true }
+                            }
+                        }}}
+                    },
+                    responses: {
+                        201: { description: 'Produto criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Product' } } } },
+                        400: { description: 'Campos obrigatórios ausentes, price negativo ou category inválida' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
+                        409: { description: 'Já existe produto com esse nome no tenant' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/products/{id}': {
+                get: {
+                    tags: ['Produtos'],
+                    summary: 'Busca um item do cardápio',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        200: { description: 'Produto encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Product' } } } },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        404: { description: 'Produto não encontrado no tenant' },
+                        500: { description: 'Erro interno' }
+                    }
+                },
+                put: {
+                    tags: ['Produtos'],
+                    summary: 'Atualiza um item do cardápio (ADMIN)',
+                    description: 'Para tirar do cardápio preservando o histórico de comandas, use `active: false` em vez de DELETE.',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    requestBody: {
+                        content: { 'application/json': { schema: {
+                            type: 'object',
+                            properties: {
+                                name:        { type: 'string' },
+                                description: { type: 'string', nullable: true },
+                                price:       { type: 'number', format: 'float' },
+                                category:    { type: 'string', enum: PRODUCT_CATEGORIES },
+                                active:      { type: 'boolean' }
+                            }
+                        }}}
+                    },
+                    responses: {
+                        200: { description: 'Produto atualizado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Product' } } } },
+                        400: { description: 'price negativo, name vazio ou category inválida' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
+                        404: { description: 'Produto não encontrado no tenant' },
+                        409: { description: 'Nome já usado por outro produto do tenant' },
+                        500: { description: 'Erro interno' }
+                    }
+                },
+                delete: {
+                    tags: ['Produtos'],
+                    summary: 'Remove um item do cardápio — soft delete (ADMIN)',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        204: { description: 'Produto removido' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
+                        404: { description: 'Produto não encontrado no tenant' },
                         500: { description: 'Erro interno' }
                     }
                 }
