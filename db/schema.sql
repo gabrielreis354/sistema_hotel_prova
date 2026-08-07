@@ -190,6 +190,30 @@ CREATE TABLE IF NOT EXISTS consumptions (
 );
 
 -- =============================================================================
+-- 9b) Catálogo de produtos (cardápio) — base do módulo de consumo
+-- Model: ProductModel
+-- SERVICE cobre o que não é consumível (day-use, sonorização, lavanderia).
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS products (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  price       NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  category    TEXT NOT NULL DEFAULT 'OTHER',
+  active      BOOLEAN NOT NULL DEFAULT true,
+  deleted_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  updated_at  TIMESTAMPTZ DEFAULT now(),
+  CHECK (price >= 0),
+  CHECK (category IN ('FOOD', 'DRINK', 'SERVICE', 'OTHER'))
+);
+
+-- Unicidade por tenant, não global — dois hotéis podem ter "Cerveja 600ml".
+CREATE UNIQUE INDEX IF NOT EXISTS products_name_tenant_unique
+  ON products (tenant_id, name);
+
+-- =============================================================================
 -- 9c) Módulo B2B — clientes corporativos, orçamentos e contratos de evento
 -- Models: CorporateClientModel, EventQuoteModel, QuoteServiceModel, ContractModel,
 --         ContractInstallmentModel
