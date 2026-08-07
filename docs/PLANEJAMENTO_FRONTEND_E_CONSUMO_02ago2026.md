@@ -89,13 +89,23 @@ cenários reais.
 ### 3.1 Consumo interno — e por que ele não pode ser "só mais um consumo"
 
 Refeição de funcionário, cortesia para um hóspede e produto perdido **saem do estoque mas
-não são receita**. Se forem lançados como consumo comum:
+não são receita**.
 
-- A receita do mês fica inflada com dinheiro que nunca entrou
-- ADR e RevPAR ficam errados
-- Não dá para responder "quanto demos de cortesia este mês?"
+Uma correção de precisão em relação à primeira versão deste documento: `GET /analytics/revenue`
+soma `payments` e `reservations.total_amount` — **não lê consumos**. Como consumo interno nunca
+gera pagamento, ele já ficaria fora da receita automaticamente. O alerta de "infla a receita e
+quebra ADR/RevPAR" estava forte demais para a implementação atual.
 
-E são três eventos de negócio diferentes, não um só:
+O risco real é mais direto, e continua justificando a mudança:
+
+1. **A conta do hóspede cobraria a cortesia.** Sem um campo `faturável`, a cerveja oferecida
+   entra no total e o hóspede paga por um presente. É erro de cobrança, não de relatório.
+2. **Refeição de funcionário não teria onde ser lançada** sem virar consumo de algum hóspede.
+3. **Não dá para responder "quanto demos de cortesia este mês?"**
+4. Quando alguém somar receita de A&B a partir dos itens de conta — e vai somar — o filtro
+   precisa já existir.
+
+São três eventos de negócio diferentes, não um só:
 
 | Situação | Onde é lançado | Efeito |
 |---|---|---|
@@ -311,15 +321,29 @@ da API e dá para trabalhar em paralelo com todo o resto.
 
 ---
 
-## 9. O que precisamos decidir juntos
+## 9. Decisões tomadas — 07/08/2026
 
-1. **Consumo interno entra agora ou depois?** Ele muda `Account` e `AccountItem`, então é
-   muito mais barato fazer junto da Fatia 2a do que voltar depois. Recomendo agora.
-2. **Cortesia zera o valor ou mostra riscado?** Preferência de operação — muda a tela e o PDF.
-3. **Estoque entra no escopo?** Consumo interno é a porta de entrada natural para controle de
-   estoque. Recomendo **não** agora — vira um módulo inteiro. Mas o modelo já fica preparado.
-4. **Divisão das frentes** — §8.
-5. **O relatório de cortesias e perdas** entra na Fatia 5 ou fica para depois?
+**Princípio que orientou todas:** entregar a **base, o fundamento**. Onde couber escolher,
+fazer agora o que é caro de retrofitar e adiar o que é barato de acrescentar depois.
+
+| # | Decisão | Resultado |
+|---|---|---|
+| 1 | Consumo interno na Fatia 2a | ✅ **Sim** — mas só o modelo (`INTERNAL`, `faturável`, `motivo`) e a regra de soma. Telas de lançamento interno ficam para depois |
+| 2 | Como mostrar cortesia | ✅ **Preço riscado com rótulo "Cortesia"**, somando zero. Maximiza o valor percebido do gesto e o dado é o mesmo |
+| 3 | Controle de estoque | ❌ **Fora de escopo.** E **sem campos preparatórios** — `category` já distingue serviço de produto, e coluna sem uso é abstração especulativa. O `motivo: PERDA` registra o evento para reconstruir depois |
+| 4 | Divisão das frentes | ⏸️ **Adiada.** Seguimos com o que já está em andamento; revisitar quando a base estiver entregue |
+| 5 | Relatório de cortesias e perdas | ✅ **Endpoint na Fatia 5, tela na Fase 3.** O endpoint está ali menos pela feature e mais porque escrever a query **prova que o modelo funciona** |
+
+Impacto no prazo do backend: ~19 → **~20 dias**.
+
+Já incorporadas em `docs/historico_sessao/gabriel/planejamento_modulo_consumo_02ago2026.md`
+e em `docs/delegacoes/modulo_consumo_02ago2026.md`.
+
+### O que fica para depois da base
+
+Explicitamente adiado, sem nada quebrado pela metade: telas de lançamento de consumo interno ·
+fluxo de aprovação de cortesia · configuração por hotel de como exibir cortesia · controle de
+estoque · divisão formal das frentes entre a equipe.
 
 ---
 
