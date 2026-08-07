@@ -287,7 +287,7 @@ quem escreve de quem audita.
 |---|---|---|---|---|---|
 | J1 Orquestrador | `~/sistema_gestao_hotel` | Integração e planejamento | `develop` | ✅ Mergeado | 07/08/2026 |
 | J2 Backend | `~/hotel-j2` | Fatia 1 — catálogo de produtos | `feature/product-catalog` | 🟡 EM ANDAMENTO | 07/08/2026 |
-| J3 Frontend | `~/hotel-j3` | Fase 0 — monorepo e design system | `feature/frontend-fase0-fundacao` | 🟢 PRONTO PARA MERGE | 07/08/2026 |
+| J3 Frontend | `~/hotel-j3` | Fase 0 (fundação) + Fase 1 (hóspedes) | `feature/frontend-fase0-fundacao` → `feature/frontend-fase1-hospedes` | 🟢 PRONTO PARA MERGE (mergear Fase 0 antes da Fase 1) | 07/08/2026 |
 
 **Fatia 0 do backend: ✅ mergeada** em `develop` (`313ed71`) — CORS, `?from=&to=` com
 paginação e role `WAITER`. Três pendências herdadas, com fatia definida, em
