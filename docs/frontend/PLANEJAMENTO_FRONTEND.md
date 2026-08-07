@@ -134,19 +134,54 @@ Gráficos comparativos e tabelas de ADR/RevPAR pedem tela larga. No celular entr
 
 ### 6.1 Monorepo e os três apps
 
+O monorepo do frontend fica em **`frontend/`**, dentro do mesmo repositório. A raiz continua
+sendo o backend, intocada.
+
 ```
-hotel-frontend/
-├── apps/
-│   ├── pms/          → React + Vite (SPA + PWA)   — recepção, gerência, garçom, camareira
-│   ├── booking/      → Next.js (SSR/SSG)          — site público do hotel, por subdomínio
-│   └── admin/        → React + Vite (SPA)         — nosso backoffice de tenants
-├── packages/
-│   ├── ui/           → design system (Tailwind + shadcn/ui)
-│   ├── api-client/   → cliente tipado gerado do OpenAPI
-│   ├── domain/       → tipos e regras compartilhadas (máquinas de estado, dinheiro, datas)
-│   └── config/       → eslint, tsconfig, tailwind preset
-├── pnpm-workspace.yaml
-└── turbo.json
+sistema_gestao_hotel/
+├── app/  routes/  database/  ...   ← backend, permanece na raiz
+├── package.json                    ← do backend. NÃO virar workspace root
+├── Dockerfile                      ← COPY package*.json + npm ci + node _web.js
+│
+└── frontend/                       ← monorepo do frontend, isolado
+    ├── apps/
+    │   ├── pms/          → React + Vite (SPA + PWA)  — recepção, gerência, garçom
+    │   ├── booking/      → Next.js (SSR/SSG)         — site público, por subdomínio
+    │   └── admin/        → React + Vite (SPA)        — backoffice de tenants
+    ├── packages/
+    │   ├── ui/           → design system (Tailwind + shadcn/ui)
+    │   ├── api-client/   → cliente tipado gerado do OpenAPI
+    │   ├── domain/       → dinheiro, datas, máquinas de estado
+    │   └── config/       → eslint, tsconfig, tailwind preset
+    ├── pnpm-workspace.yaml
+    └── turbo.json
+```
+
+### Por que em `frontend/` e não na raiz
+
+Transformar a raiz em workspace pnpm quebraria infraestrutura que já funciona:
+
+| O que quebra | Onde |
+|---|---|
+| Build da imagem | `Dockerfile:6-7` — `COPY package*.json ./` + `npm ci --omit=dev` |
+| Start do container | `Dockerfile:29` — `CMD ["node", "_web.js"]` |
+| CI | `.github/workflows/ci.yml` — `npm ci` e `npm run test:coverage` na raiz |
+| Portão de QA | `npm run qa:checks` |
+| Deploy K8s | manifests apontam para a imagem construída desse Dockerfile |
+
+Mover o backend para `apps/api` é o desenho "puro" de monorepo, mas custa refazer Dockerfile,
+CI, scripts e manifests — churn alto, ganho zero nesta fase. `frontend/` isola as duas
+toolchains sem tocar em nada que já roda.
+
+**Consequência prática:** dentro de `frontend/` usa-se `pnpm`; na raiz continua `npm`.
+São dois gerenciadores no mesmo repositório, de propósito, com fronteira clara.
+
+### pnpm neste ambiente
+
+`pnpm` não está instalado, mas o `corepack` está:
+
+```bash
+corepack enable pnpm
 ```
 
 Por que `booking` é separado e usa Next.js: é a única superfície **pública e indexável**. Página de reservas de hotel vive de SEO e de velocidade de carregamento — conversão cai com LCP alto. Um SPA React puro entrega HTML vazio para o Google. As outras duas são atrás de login, onde SSR não agrega e só custa complexidade de deploy.
