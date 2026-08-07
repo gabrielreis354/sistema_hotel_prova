@@ -4,6 +4,9 @@ import { RequireRole } from './routes/RequireRole.js';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './features/auth/LoginPage.js';
 import { Placeholder } from './components/Placeholder.js';
+import { GuestsListPage } from './features/guests/GuestsListPage.js';
+import { GuestNewPage, GuestEditPage } from './features/guests/GuestFormPages.js';
+import { GuestDetailPage } from './features/guests/GuestDetailPage.js';
 
 /**
  * Árvore de rotas. Duas camadas de proteção: ProtectedRoute exige sessão; RequireRole exige
@@ -22,7 +25,10 @@ export function App() {
             <Route element={<RequireRole allow={['ADMIN', 'RECEPTIONIST']} />}>
               <Route index element={<Placeholder title="Hoje" phase="Fase 1 — Recepção" />} />
               <Route path="reservas" element={<Placeholder title="Reservas" phase="Fase 1 — Recepção" />} />
-              <Route path="hospedes" element={<Placeholder title="Hóspedes" phase="Fase 1 — Recepção" />} />
+              <Route path="hospedes" element={<GuestsListPage />} />
+              <Route path="hospedes/novo" element={<GuestNewPage />} />
+              <Route path="hospedes/:id" element={<GuestDetailPage />} />
+              <Route path="hospedes/:id/editar" element={<GuestEditPage />} />
             </Route>
 
             {/* Comanda: recepção, admin e garçom */}
