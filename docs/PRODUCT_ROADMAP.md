@@ -1,4 +1,4 @@
-# 🗺️ Product Roadmap — PMS Hotel
+# 🗺️ Product Roadmap — Gesway (PMS Hotel)
 ## Progressão: Demo → TCC → Produto de Mercado
 
 **Público-alvo**: Hotéis e pousadas pequenos/médios (5–80 quartos)

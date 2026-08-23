@@ -44,7 +44,7 @@ git branch -a                  # branches existentes
 
 | Campo | Valor |
 |---|---|
-| Produto | Sistema de Gestão de Hotel — SaaS multi-tenant |
+| Produto | **Gesway** — Sistema de Gestão de Hotel SaaS multi-tenant |
 | Fase atual | CorePMS (operações básicas: reservas, check-in/out, pagamentos) |
 | Stack | Node.js 24, Express 4, Sequelize 6, PostgreSQL 17, JWT, Docker, K8s |
 | Módulos ESM | Sempre `import`/`export` — **nunca `require()`** |

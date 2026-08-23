@@ -1,4 +1,4 @@
-# Sistema de Gestão de Hotel — Backend API
+# Gesway — Sistema de Gestão de Hotel · Backend API
 
 > Projeto Acadêmico (TCC) — Unifaat 2026
 > API REST multi-tenant para gerenciamento hoteleiro.
@@ -1080,6 +1080,6 @@ kubectl delete pvc postgres-data -n hotel-system
 
 ---
 
-*Sistema de Gestão de Hotel — TCC Unifaat 2026*
+*Gesway — Sistema de Gestão de Hotel · TCC Unifaat 2026*
 *Node.js 24 · Express 4 · Sequelize 6 · PostgreSQL 17 · Kubernetes · Nginx*
 *Grupo: Gabriel · Sirlande · Weslley*

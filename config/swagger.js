@@ -4,7 +4,7 @@ const options = {
     definition: {
         openapi: '3.0.0',
         info: {
-            title: 'Sistema de Gestão de Hotel — API',
+            title: 'Gesway — Sistema de Gestão de Hotel · API',
             version: '1.0.0',
             description: 'API REST para gerenciamento hoteleiro. Autenticação via JWT Bearer token.'
         },
