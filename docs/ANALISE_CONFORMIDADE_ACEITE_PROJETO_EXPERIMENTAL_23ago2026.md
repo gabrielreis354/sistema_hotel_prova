@@ -22,17 +22,32 @@
 | 9 | CI/CD com build **e deploy** automatizados | ⚠️ Parcial (só CI) | Alta |
 | 10 | Testes automatizados, cobertura ≥ 60% | ⚠️ Parcial (ver nota) | Média |
 | 11 | **Monitoramento com Prometheus + Grafana** | ❌ Não atende | 🔴 Crítica |
-| 12 | Documento de Solicitação do Sistema | ❌ Não atende | Alta |
+| 12 | Documento de Solicitação do Sistema | ✅ **Atende** *(concluído 23/08)* | — |
 | 13 | Documento de Requisitos (RF/RNF) | ❌ Não atende | Alta |
 | 14 | Diagrama de Fluxo de Dados (DFD) | ❌ Não atende | Alta |
-| 15 | Modelo Entidade-Relacionamento (MER) | ✅ Atende (precisa atualizar) | Baixa |
+| 15 | Modelo Entidade-Relacionamento (MER) | ✅ **Atende** *(v1.0 entregue 23/08 — 17 entidades)* | — |
 | 16 | Desenho de Arquitetura em Nuvem | ❌ Não atende | Alta |
 | 17 | C4 Model (Contexto/Contêineres/Componentes) | ❌ Não atende | Alta |
 | 18 | ADR (Registro de Decisões Arquiteturais) | ❌ Não atende como artefato formal | Alta |
 | 19 | Planejamento de Sprints (tarefas + responsáveis + sprint) | ❌ Não atende | Alta |
 | 20 | Docker/Docker Compose como contingência da defesa | ❌ Não atende (não existe `docker-compose.yml`) | Média |
 
-**6 critérios atendidos, 4 parciais, 10 não atendidos.** Os quatro 🔴 críticos (microsserviços, nuvem, Terraform, monitoramento) são interdependentes — resolver um sem os outros três não fecha o aceite, e são também os que mais tempo consomem.
+**7 critérios atendidos, 4 parciais, 9 não atendidos.** Os quatro 🔴 críticos (microsserviços, nuvem, Terraform, monitoramento) são interdependentes — resolver um sem os outros três não fecha o aceite, e são também os que mais tempo consomem.
+
+---
+
+> ### 🔄 Revalidação em 26/08/2026
+>
+> **O que mudou em três dias:** apenas o eixo documental. Concluídos os documentos **01 (Solicitação do Sistema)** e **04 (MER)**, o que moveu o critério 12 de ❌ para ✅ e consolidou o 15. Placar: **6 → 7 atendidos**, **10 → 9 não atendidos**.
+>
+> **O que NÃO mudou:** todos os quatro críticos permanecem exatamente como estavam. Reverificado no código em 26/08:
+>
+> - `find . -iname "*.tf"` → **nenhum arquivo Terraform**
+> - `grep -ril "prometheus\|grafana" k8s/` → **nenhuma ocorrência**
+> - `grep` por cliente HTTP em `app/` → **nenhuma integração externa real**; `PROVIDERS = { fake: FakePixProvider }`
+> - Um único `package.json` de backend, um `Dockerfile`, um deployment → **ainda monolítico**
+>
+> **Plano de execução:** as lacunas viraram Specs formais em `docs/specs/`, com tarefas e critérios de aceitação verificáveis. Ver `docs/specs/README.md` para o índice e o grafo de dependências.
 
 ---
 

@@ -4,7 +4,11 @@
 **Orquestrador:** Gabriel (J1)
 **Para:** Agente Executor BACKEND (J2 — outra janela Claude Code)
 **Branch base:** `develop` @ `53a6d9f`
-**Status:** 🔲 Não iniciado
+**Status:** 🟡 **Em andamento** — Fatias 0 e 1 mergeadas em `develop`; 2a em diante pendentes
+
+> ⚠️ **Superseded por `docs/specs/SPEC-04-modulo-consumo.md` (26/08/2026).**
+> Esta delegação continua válida como referência técnica das fatias, mas o **estado de
+> execução** e os critérios de aceitação atualizados estão na SPEC-04.
 
 ---
 

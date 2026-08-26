@@ -473,17 +473,21 @@ Cada merge passa pelo `qa-redteam` antes — ver `docs/COORDENACAO_AGENTES.md` �
 
 ## Status das fatias
 
-| # | Fatia | Status |
-|---|---|---|
-| 0 | Pré-requisitos de backend | 🔲 Pendente |
-| 1 | Product Catalog | 🔲 Pendente |
-| 2a | Account + AccountItem | 🔲 Pendente |
-| 2b | Migração do Consumption | 🔲 Pendente |
-| 3a | Bill da conta + close | 🔲 Pendente |
-| 3b | Payment ↔ Account | 🔲 Pendente |
-| 3c | Delegação do bill da reserva | 🔲 Pendente |
-| 4 | Check-in + Split Bill + Day-use | 🔲 Pendente |
-| 5 | Seed, Swagger e testes | 🔲 Pendente |
+> ⚠️ **Este documento foi superseded por `docs/specs/SPEC-04-modulo-consumo.md` em 26/08/2026.**
+> A tabela abaixo estava desatualizada — marcava como pendentes duas fatias já em produção.
+> Corrigida com base em verificação direta do código. **Consulte a SPEC-04 para o estado atual.**
+
+| # | Fatia | Status | Evidência |
+|---|---|---|---|
+| 0 | Pré-requisitos de backend | ✅ **Mergeada** | Commit `313ed71` — CORS, `?from=&to=`, role `WAITER` |
+| 1 | Product Catalog | ✅ **Mergeada** | `ProductModel`, `ProductApi/`, rota `/products`, `tests/products.test.js` |
+| 2a | Account + AccountItem | 🔲 Pendente | `app/Models/AccountModel.js` não existe |
+| 2b | Migração do Consumption | 🔲 Pendente | |
+| 3a | Bill da conta + close | 🔲 Pendente | |
+| 3b | Payment ↔ Account | 🔲 Pendente | |
+| 3c | Delegação do bill da reserva | 🔲 Pendente | |
+| 4 | Check-in + Split Bill + Day-use | 🔲 Pendente | |
+| 5 | Seed, Swagger e testes | 🔲 Pendente | |
 
 ---
 
