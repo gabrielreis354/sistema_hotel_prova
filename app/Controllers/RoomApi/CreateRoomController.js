@@ -1,5 +1,6 @@
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 export default async function CreateRoomController(request, response) {
     try {
@@ -27,6 +28,10 @@ export default async function CreateRoomController(request, response) {
         });
         return response.status(201).json(room);
     } catch (error) {
+        // Race no check-then-act acima: o índice único barra a segunda gravação.
+        // Sem isto o conflito do cliente viraria 500.
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

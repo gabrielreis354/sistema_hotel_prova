@@ -1,5 +1,6 @@
-import { Op, UniqueConstraintError } from 'sequelize';
+import { Op } from 'sequelize';
 import ProductModel from '../../Models/ProductModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import { validateProductFields, parsePrice } from '../../utils/productValidation.js';
 import isUuid from '../../utils/isUuid.js';
 
@@ -46,9 +47,8 @@ export default async function UpdateProductController(request, response) {
         await product.reload();
         return response.json(product);
     } catch (error) {
-        if (error instanceof UniqueConstraintError) {
-            return response.status(409).json({ error: 'Já existe um produto com esse nome' });
-        }
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
         console.error('UpdateProductController:', error.message);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

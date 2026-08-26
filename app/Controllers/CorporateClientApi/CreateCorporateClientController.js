@@ -1,5 +1,6 @@
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import { onlyDigits } from '../../utils/onlyDigits.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 export default async function CreateCorporateClientController(request, response) {
     try {
@@ -27,6 +28,10 @@ export default async function CreateCorporateClientController(request, response)
 
         return response.status(201).json(client);
     } catch (error) {
+        // Race no check-then-act acima: o índice único barra a segunda gravação.
+        // Sem isto o conflito do cliente viraria 500.
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
         console.error('CreateCorporateClientController:', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
