@@ -165,6 +165,42 @@ report_warn "Router sem entrada no Swagger" \
     "$(printf '%s' "$missing_swagger")"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 8. Model paranoid com unique TOTAL — queima o valor do campo para sempre
+#
+# O defeito já apareceu quatro vezes no projeto (products, reservations, e mais
+# cinco models achados de uma vez em 26/08). O mecanismo é sempre o mesmo:
+#
+#   model é `paranoid: true` + índice único SEM `where: { deleted_at: null }`
+#     → ao excluir, a linha morta continua no índice
+#     → o guard da aplicação não a enxerga (escopo paranoid diz que não existe)
+#     → quem barra a recriação é o Postgres, e o erro cai no catch genérico → 500
+#     → na prática o nome/CPF/e-mail fica QUEIMADO, e não há endpoint de restore
+#
+# Esta regra é ERRO, não aviso: é a única forma de impedir que volte pela quinta.
+#
+# Heurística: num model paranoid, cada `unique: true` precisa de um
+# `deleted_at: null`. Conta os dois no arquivo — se sobrar unique, falta índice
+# parcial. Pega também `unique: true` em COLUNA, que gera constraint total e é
+# igualmente defeituoso num model soft-delete.
+# ─────────────────────────────────────────────────────────────────────────────
+paranoid_issues=""
+for f in app/Models/*.js; do
+    [ -f "$f" ] || continue
+    grep -q "paranoid:[[:space:]]*true" "$f" || continue
+
+    n_unique=$(grep -c "unique:[[:space:]]*true" "$f")
+    n_parcial=$(grep -c "deleted_at:[[:space:]]*null" "$f")
+    [ "$n_unique" -eq 0 ] && continue
+
+    if [ "$n_unique" -gt "$n_parcial" ]; then
+        paranoid_issues+="$f: model paranoid com $n_unique unique e só $n_parcial índice(s) parcial(is)"$'\n'
+    fi
+done
+report_error "Model paranoid com índice único total" \
+    "Todo unique em model paranoid precisa de where: { deleted_at: null }, senão um registro excluído queima o valor para sempre (ver app/Models/ProductModel.js)" \
+    "$(printf '%s' "$paranoid_issues")"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Resultado
 # ─────────────────────────────────────────────────────────────────────────────
 bold "── Resultado ──"

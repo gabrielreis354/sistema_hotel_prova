@@ -49,6 +49,45 @@ describe('Constraints de banco no ambiente de teste', () => {
         expect(rows[0].indexdef).toContain('deleted_at IS NULL');
     });
 
+    // Guarda estrutural contra a regressão que já apareceu quatro vezes: model
+    // paranoid com unique TOTAL. Verifica o banco, não o model — é o predicado que
+    // realmente chegou ao Postgres que importa, e `sync({alter})` não substitui
+    // índice de mesmo nome.
+    it.each([
+        ['users',             'users_email_tenant_unique'],
+        ['room_categories',   'room_categories_name_tenant_unique'],
+        ['rooms',             'rooms_number_tenant_unique'],
+        ['guests',            'guests_cpf_tenant_unique'],
+        ['guests',            'guests_email_tenant_unique'],
+        ['corporate_clients', 'corporate_clients_cnpj_tenant_unique'],
+        ['corporate_clients', 'corporate_clients_cpf_tenant_unique']
+    ])('o índice único de %s (%s) é parcial', async (tabela, indice) => {
+        const [rows] = await sequelize.query(`
+            SELECT indexdef FROM pg_indexes
+            WHERE tablename = '${tabela}' AND indexname = '${indice}'
+        `);
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0].indexdef).toContain('deleted_at IS NULL');
+    });
+
+    it('nenhum model paranoid ficou com índice único total', async () => {
+        // Contraparte no banco da regra 8 do scripts/qa_checks.sh, que olha o código.
+        // Tabelas soft-delete: todo índice único delas tem que ter o predicado.
+        const [rows] = await sequelize.query(`
+            SELECT i.indexname, i.tablename
+            FROM pg_indexes i
+            JOIN information_schema.columns c
+              ON c.table_name = i.tablename AND c.column_name = 'deleted_at'
+            WHERE i.schemaname = 'public'
+              AND i.indexdef LIKE '%UNIQUE%'
+              AND i.indexname NOT LIKE '%_pkey'
+              AND i.indexdef NOT LIKE '%deleted_at IS NULL%'
+        `);
+
+        expect(rows).toEqual([]);
+    });
+
     it('reservations tem a EXCLUDE de anti-double-booking', async () => {
         const [rows] = await sequelize.query(`
             SELECT conname FROM pg_constraint
