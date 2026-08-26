@@ -43,7 +43,12 @@ const UserModel = sequelize.define(
             {
                 unique: true,
                 fields: ['email', 'tenant_id'],
-                name: 'users_email_tenant_unique'
+                name: 'users_email_tenant_unique',
+                // Índice PARCIAL. Sem o filtro, um usuário soft-deletado queimaria o
+                // e-mail para sempre: a linha morta continua no índice, o guard da
+                // aplicação não a enxerga (escopo paranoid) e quem barra é o Postgres,
+                // virando 500. Só linhas vivas disputam unicidade.
+                where: { deleted_at: null }
             }
         ]
     }

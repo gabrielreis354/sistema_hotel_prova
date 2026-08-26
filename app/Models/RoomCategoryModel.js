@@ -40,7 +40,12 @@ const RoomCategoryModel = sequelize.define(
             {
                 unique: true,
                 fields: ['tenant_id', 'name'],
-                name: 'room_categories_name_tenant_unique'
+                name: 'room_categories_name_tenant_unique',
+                // Índice PARCIAL. Sem o filtro, uma categoria soft-deletada queimaria o
+                // nome para sempre: a linha morta continua no índice, o guard da
+                // aplicação não a enxerga (escopo paranoid) e quem barra é o Postgres,
+                // virando 500. Só linhas vivas disputam unicidade.
+                where: { deleted_at: null }
             }
         ]
     }
