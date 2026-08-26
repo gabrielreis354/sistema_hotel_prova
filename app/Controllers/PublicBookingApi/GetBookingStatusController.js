@@ -22,11 +22,11 @@ export default async function GetBookingStatusController(request, response) {
             // pix_qr_code, provider e provider_charge_id para a memória do handler —
             // um `return reservation.payments` futuro viraria vazamento. attributes
             // explícito limita ao que o hóspede precisa para acompanhar a reserva.
-            include: [{
-                model: PaymentModel,
-                as: 'payments',
-                attributes: ['kind', 'status', 'amount', 'paid_at']
-            }]
+            //
+            // Mantenha o include em UMA linha: a regra 6 do scripts/qa_checks.sh é um
+            // grep de linha única. Quebrado em várias linhas, o include sai do alcance
+            // do detector e remover o `attributes` deixaria de reprovar o build.
+            include: [{ model: PaymentModel, as: 'payments', attributes: ['kind', 'status', 'amount', 'paid_at'] }]
         });
         if (!reservation) {
             return response.status(404).json({ error: 'Reserva não encontrada' });
