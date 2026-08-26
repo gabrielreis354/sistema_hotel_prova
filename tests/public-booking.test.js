@@ -123,6 +123,25 @@ describe('POST /public/:subdomain/bookings — fluxo completo com PIX', () => {
         expect(res.body.deposit.paid_at).toBeTruthy();
     });
 
+    it('o status público não expõe dados sensíveis do pagamento', async () => {
+        const res = await request(app).get(`/public/${subdomain}/bookings/${bookingId}/status`);
+        expect(res.status).toBe(200);
+
+        // O endpoint é público, sem autenticação. Nenhum identificador do provedor
+        // de pagamento nem o payload do PIX pode aparecer em lugar algum da resposta.
+        const corpo = JSON.stringify(res.body);
+        expect(corpo).not.toContain('pix_qr_code');
+        expect(corpo).not.toContain('provider_charge_id');
+        expect(corpo).not.toContain(providerChargeId);
+
+        // O hóspede continua vendo o que precisa para acompanhar a reserva.
+        expect(res.body.deposit).toEqual({
+            status: 'PAID',
+            amount: expect.any(Number),
+            paid_at: expect.anything()
+        });
+    });
+
     it('webhook é idempotente (reenvio não reprocessa)', async () => {
         const res = await request(app)
             .post('/webhooks/pix')

@@ -18,7 +18,15 @@ export default async function GetBookingStatusController(request, response) {
 
         const reservation = await ReservationModel.findOne({
             where: { id, tenant_id: tenant.id },
-            include: [{ model: PaymentModel, as: 'payments' }]
+            // Endpoint PÚBLICO, sem autenticação: carregar o Payment inteiro traria
+            // pix_qr_code, provider e provider_charge_id para a memória do handler —
+            // um `return reservation.payments` futuro viraria vazamento. attributes
+            // explícito limita ao que o hóspede precisa para acompanhar a reserva.
+            include: [{
+                model: PaymentModel,
+                as: 'payments',
+                attributes: ['kind', 'status', 'amount', 'paid_at']
+            }]
         });
         if (!reservation) {
             return response.status(404).json({ error: 'Reserva não encontrada' });
