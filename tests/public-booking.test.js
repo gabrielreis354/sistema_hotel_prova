@@ -3,7 +3,7 @@ import request from 'supertest';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
-import { createCategory, createRoom } from './helpers/factories.js';
+import { createCategory, createRoom, createGuest } from './helpers/factories.js';
 
 // Testes do MOTOR DE RESERVA DIRETA + PIX (diferencial nº1).
 // Rotas públicas (sem auth) resolvidas por subdomínio + webhook de confirmação PIX.
@@ -151,6 +151,31 @@ describe('POST /public/:subdomain/bookings — validações', () => {
                 guest: { full_name: 'João', email: 'joao@example.com' },
             });
         expect(res.status).toBe(404);
+    });
+
+    // Regressão do achado 🔴 da auditoria de 27/08: hóspede já cadastrada na recepção
+    // com um CPF reserva pelo site com e-mail diferente do que consta no cadastro. O
+    // find-or-create antigo só olhava e-mail — o CPF ia direto pro create, batia no
+    // índice único e o hóspede via "Erro interno do servidor" no ÚNICO fluxo sem
+    // autenticação do sistema, com o CPF impresso no log do servidor.
+    it('CPF já cadastrado com e-mail diferente reaproveita o hóspede, não quebra', async () => {
+        const cpf = '52998224725';
+        const cadastradaPelaRecepcao = await createGuest(app, jwt, {
+            full_name: 'Maria Antiga', cpf, email: 'maria.antiga@example.com'
+        });
+        expect(cadastradaPelaRecepcao.id).toBeTruthy();
+
+        const res = await request(app)
+            .post(`/public/${subdomain}/bookings`)
+            .send({
+                category_id: categoryId,
+                check_in: '2027-08-20',
+                check_out: '2027-08-22',
+                guest: { full_name: 'Maria Antiga', email: 'maria.nova@example.com', cpf },
+            });
+
+        expect(res.status).toBe(201);
+        expect(res.body.reservation.status).toBe('PENDING');
     });
 });
 
