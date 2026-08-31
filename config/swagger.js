@@ -259,27 +259,27 @@ const options = {
             },
             '/users': {
                 get:  { tags: ['Usuários'], summary: 'Lista usuários do tenant', responses: { 200: { description: 'Lista de usuários' } } },
-                post: { tags: ['Usuários'], summary: 'Cria novo usuário', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } }, responses: { 201: { description: 'Usuário criado' } } }
+                post: { tags: ['Usuários'], summary: 'Cria novo usuário', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } }, responses: { 201: { description: 'Usuário criado' }, 409: { description: 'E-mail já cadastrado neste hotel' } } }
             },
             '/users/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 get:    { tags: ['Usuários'], summary: 'Busca usuário por ID',  responses: { 200: { description: 'Usuário encontrado' }, 404: { description: 'Não encontrado' } } },
-                put:    { tags: ['Usuários'], summary: 'Atualiza usuário',       responses: { 200: { description: 'Atualizado' } } },
+                put:    { tags: ['Usuários'], summary: 'Atualiza usuário',       responses: { 200: { description: 'Atualizado' }, 409: { description: 'E-mail já cadastrado neste hotel' } } },
                 delete: { tags: ['Usuários'], summary: 'Remove usuário',         responses: { 204: { description: 'Removido' } } }
             },
             '/room-categories': {
                 get:  { tags: ['Categorias de Quarto'], summary: 'Lista categorias', responses: { 200: { description: 'OK' } } },
-                post: { tags: ['Categorias de Quarto'], summary: 'Cria categoria', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } }, responses: { 201: { description: 'Criada' } } }
+                post: { tags: ['Categorias de Quarto'], summary: 'Cria categoria', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } }, responses: { 201: { description: 'Criada' }, 409: { description: 'Já existe uma categoria com esse nome' } } }
             },
             '/room-categories/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 get:    { tags: ['Categorias de Quarto'], summary: 'Busca por ID', responses: { 200: { description: 'OK' } } },
-                put:    { tags: ['Categorias de Quarto'], summary: 'Atualiza',     responses: { 200: { description: 'OK' } } },
+                put:    { tags: ['Categorias de Quarto'], summary: 'Atualiza',     responses: { 200: { description: 'OK' }, 409: { description: 'Já existe uma categoria com esse nome' } } },
                 delete: { tags: ['Categorias de Quarto'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
             },
             '/rooms': {
                 get:  { tags: ['Quartos'], summary: 'Lista quartos', responses: { 200: { description: 'OK' } } },
-                post: { tags: ['Quartos'], summary: 'Cria quarto', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } }, responses: { 201: { description: 'Criado' } } }
+                post: { tags: ['Quartos'], summary: 'Cria quarto', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } }, responses: { 201: { description: 'Criado' }, 409: { description: 'Já existe um quarto com esse número' } } }
             },
             '/rooms/available': {
                 get: {
@@ -298,17 +298,17 @@ const options = {
             '/rooms/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 get:    { tags: ['Quartos'], summary: 'Busca por ID', responses: { 200: { description: 'OK' } } },
-                put:    { tags: ['Quartos'], summary: 'Atualiza',     responses: { 200: { description: 'OK' } } },
+                put:    { tags: ['Quartos'], summary: 'Atualiza',     responses: { 200: { description: 'OK' }, 409: { description: 'Já existe um quarto com esse número' } } },
                 delete: { tags: ['Quartos'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
             },
             '/guests': {
                 get:  { tags: ['Hóspedes'], summary: 'Lista hóspedes', responses: { 200: { description: 'OK' } } },
-                post: { tags: ['Hóspedes'], summary: 'Cria hóspede', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } }, responses: { 201: { description: 'Criado' } } }
+                post: { tags: ['Hóspedes'], summary: 'Cria hóspede', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } }, responses: { 201: { description: 'Criado' }, 409: { description: 'CPF ou e-mail já cadastrado para outro hóspede' } } }
             },
             '/guests/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 get:    { tags: ['Hóspedes'], summary: 'Busca por ID', responses: { 200: { description: 'OK' } } },
-                put:    { tags: ['Hóspedes'], summary: 'Atualiza',     responses: { 200: { description: 'OK' } } },
+                put:    { tags: ['Hóspedes'], summary: 'Atualiza',     responses: { 200: { description: 'OK' }, 409: { description: 'CPF ou e-mail já cadastrado para outro hóspede' } } },
                 delete: { tags: ['Hóspedes'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
             },
             '/reservations': {
