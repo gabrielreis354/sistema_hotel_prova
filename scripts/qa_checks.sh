@@ -178,27 +178,80 @@ report_warn "Router sem entrada no Swagger" \
 #
 # Esta regra é ERRO, não aviso: é a única forma de impedir que volte pela quinta.
 #
-# Heurística: num model paranoid, cada `unique: true` precisa de um
-# `deleted_at: null`. Conta os dois no arquivo — se sobrar unique, falta índice
-# parcial. Pega também `unique: true` em COLUNA, que gera constraint total e é
-# igualmente defeituoso num model soft-delete.
+# Versão anterior contava `unique: true` e `deleted_at: null` no ARQUIVO INTEIRO —
+# a auditoria de 27/08 (docs/qa/redteam_paranoid-unique_27ago2026.md) provou 3
+# jeitos de burlar isso sem tocar no defeito real: (a) `unique: '<nome>'` — forma
+# string, que o grep de `unique:\s*true` não via; (b) `where` removido do índice,
+# mas um `deleted_at: null` em OUTRO bloco do arquivo (ex.: defaultScope) igualava
+# a contagem; (c) o mesmo com um simples COMENTÁRIO contendo o texto
+# `deleted_at: null`, que o grep também contava.
+#
+# A heurística agora é ESTRUTURAL, não contagem: para cada bloco `{ ... }` que
+# contenha `unique:` (true ou string), o PRÓPRIO bloco — aninhados inclusive,
+# como o `where: { deleted_at: null }` dentro do índice — precisa conter
+# `deleted_at`. Comentários são removidos antes de escanear, então (c) não cola
+# mais. Blocos são delimitados de verdade (pilha de `{`/`}`), então um
+# `deleted_at: null` em defaultScope nunca conta para o bloco do índice — (b)
+# também não cola. E `unique:` casa tanto `true` quanto aspas — (a) fechado.
+#
+# Um segundo laço cobre o `db/schema.sql`: qualquer `UNIQUE (` dentro de um
+# `CREATE TABLE` que também declare `deleted_at` é sempre defeituosa — o
+# PostgreSQL não aceita predicado em UNIQUE de tabela, então isso não tem correção
+# possível a não ser virar CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL.
 # ─────────────────────────────────────────────────────────────────────────────
 paranoid_issues=""
 for f in app/Models/*.js; do
     [ -f "$f" ] || continue
     grep -q "paranoid:[[:space:]]*true" "$f" || continue
 
-    n_unique=$(grep -c "unique:[[:space:]]*true" "$f")
-    n_parcial=$(grep -c "deleted_at:[[:space:]]*null" "$f")
-    [ "$n_unique" -eq 0 ] && continue
+    achou_defeito=$(sed 's|//.*$||' "$f" | awk '
+        {
+            line = $0
+            n = length(line)
+            for (i = 1; i <= n; i++) {
+                c = substr(line, i, 1)
+                if (c == "{") {
+                    depth++
+                    stack[depth] = ""
+                } else if (c == "}") {
+                    content = stack[depth]
+                    if (content ~ /unique:[ \t]*(true|["'"'"'])/) {
+                        if (content !~ /deleted_at/) { bad = 1 }
+                    }
+                    delete stack[depth]
+                    if (depth > 0) depth--
+                }
+            }
+            for (d = 1; d <= depth; d++) { stack[d] = stack[d] "\n" line }
+        }
+        END { if (bad) print "1" }
+    ')
 
-    if [ "$n_unique" -gt "$n_parcial" ]; then
-        paranoid_issues+="$f: model paranoid com $n_unique unique e só $n_parcial índice(s) parcial(is)"$'\n'
+    if [ "$achou_defeito" = "1" ]; then
+        paranoid_issues+="$f: bloco com unique (true ou string) sem deleted_at no mesmo escopo"$'\n'
     fi
 done
 report_error "Model paranoid com índice único total" \
-    "Todo unique em model paranoid precisa de where: { deleted_at: null }, senão um registro excluído queima o valor para sempre (ver app/Models/ProductModel.js)" \
+    "Todo unique em model paranoid precisa de where: { deleted_at: null } NO MESMO BLOCO, senão um registro excluído queima o valor para sempre (ver app/Models/ProductModel.js)" \
     "$(printf '%s' "$paranoid_issues")"
+
+schema_unique_issues=$(awk '
+    /^CREATE TABLE/ {
+        intable = 1; buf = ""; tabela = $0
+        sub(/^CREATE TABLE( IF NOT EXISTS)? /, "", tabela)
+        sub(/ *\($/, "", tabela)
+    }
+    intable { buf = buf "\n" $0 }
+    intable && /^\);/ {
+        intable = 0
+        if (buf ~ /deleted_at/ && buf ~ /UNIQUE[ \t]*\(/) {
+            print "db/schema.sql: tabela " tabela " tem UNIQUE de tabela com deleted_at — Postgres nao aceita predicado nisso, precisa virar CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL"
+        }
+    }
+' db/schema.sql)
+report_error "UNIQUE de tabela em tabela soft-delete no schema.sql" \
+    "UNIQUE (...) dentro de CREATE TABLE não aceita predicado no PostgreSQL — numa tabela com deleted_at isso é sempre total e sempre defeituoso" \
+    "$schema_unique_issues"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Resultado
