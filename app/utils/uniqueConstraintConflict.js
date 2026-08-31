@@ -30,17 +30,19 @@ const MENSAGEM_POR_INDICE = {
 /**
  * @param {Error} error erro capturado no catch do controller
  * @param {import('express').Response} response
+ * @param {string} [mensagemGenerica] sobrepõe o texto quando o índice não deve ser
+ *   revelado ao cliente — ex.: cadastro público, onde "e-mail já em uso" não pode dizer
+ *   qual dos dois campos colidiu. Sem isto, cai na mensagem do índice ou no genérico.
  * @returns {import('express').Response|null} a resposta 409 já enviada, ou null se o
  *   erro não for violação de unicidade — nesse caso o controller segue para o 500.
  */
-export default function uniqueConstraintConflict(error, response) {
+export default function uniqueConstraintConflict(error, response, mensagemGenerica) {
     if (!(error instanceof UniqueConstraintError)) return null;
 
-    // O driver pg entrega o nome do índice violado em `parent.constraint`. Quando a
-    // violação vem da validação do Sequelize (antes do banco), sobra o campo em `errors`.
-    const indice = error.parent?.constraint ?? error.errors?.[0]?.path;
+    // O driver pg entrega o nome do índice violado em `parent.constraint`.
+    const indice = error.parent?.constraint;
 
     return response
         .status(409)
-        .json({ error: MENSAGEM_POR_INDICE[indice] ?? 'Registro já existe' });
+        .json({ error: mensagemGenerica ?? MENSAGEM_POR_INDICE[indice] ?? 'Registro já existe' });
 }

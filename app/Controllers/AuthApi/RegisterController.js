@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
-import { UniqueConstraintError } from 'sequelize';
 import TenantModel from '../../Models/TenantModel.js';
 import UserModel from '../../Models/UserModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 // Gera slug a partir do nome: "Hotel Aurora" → "hotel-aurora"
 function generateSubdomain(name) {
@@ -47,9 +47,12 @@ export default async function RegisterController(request, response) {
             user: { id: user.id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
-        if (error instanceof UniqueConstraintError) {
-            return response.status(409).json({ error: 'E-mail ou subdomain já em uso' });
-        }
+        // Mensagem deliberadamente vaga: e-mail (users_email_tenant_unique) e subdomain
+        // (tenants_subdomain_key) são índices diferentes, mas cadastro é público — dizer
+        // qual dos dois colidiu ajudaria alguém a enumerar tenants/e-mails existentes.
+        const conflito = uniqueConstraintConflict(error, response, 'E-mail ou subdomain já em uso');
+        if (conflito) return conflito;
+
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
