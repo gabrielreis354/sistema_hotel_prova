@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import sequelize from '../database/connections/sequelize.js';
 
 // O banco de teste é criado por sync({ force: true }), que NÃO gera extensão,
@@ -102,6 +102,21 @@ describe('Constraints de banco no ambiente de teste', () => {
     // applyDbConstraints() de novo — a mesma função que roda em migrate e em
     // globalSetup — e confirma que ela CURA os dois, não só documenta a intenção.
     describe('applyDbConstraints cura índice único total em banco legado', () => {
+        // Best-effort: restaura o estado canônico depois de CADA teste deste bloco,
+        // mesmo que o teste falhe no meio. Sem isto, uma mutação que sobra (ex.: o
+        // 🟡-2 da reauditoria — um índice com duplicata viva que não cura) vazaria
+        // para os 12 arquivos de teste que rodam depois (banco único, fileParallelism
+        // desligado) e a falha apontaria pro lugar errado.
+        afterEach(async () => {
+            try {
+                const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+                await applyDbConstraints(sequelize);
+            } catch {
+                // melhor esforço — se a própria cura falhar aqui, o teste seguinte que
+                // depender do estado vai acusar isso por conta própria
+            }
+        });
+
         it('nome canônico já existe, mas TOTAL (simula sync({alter}) sobre banco pré-fix)', async () => {
             await sequelize.query(`
                 ALTER TABLE rooms DROP CONSTRAINT IF EXISTS rooms_number_tenant_unique;
@@ -180,10 +195,17 @@ describe('Constraints de banco no ambiente de teste', () => {
             `);
 
             // Antes da cura este INSERT batia na constraint legada. Depois, passa.
+            // `.resolves.toBeDefined()`, não `.resolves.not.toThrow()` — a promise já
+            // não é uma função para `.toThrow()` avaliar; o que importa é que ela resolve.
             await expect(sequelize.query(`
                 INSERT INTO guests (id, tenant_id, full_name, cpf, created_at, updated_at)
                 VALUES (gen_random_uuid(), '${tenant.id}', 'Cura Legado Recriada', '${cpf}', now(), now())
-            `)).resolves.not.toThrow();
+            `)).resolves.toBeDefined();
+
+            // Tenant e hóspedes deste teste não pertencem a nenhuma fixture da suíte —
+            // limpa para não deixar órfão para os 12 arquivos que rodam depois.
+            await sequelize.query(`DELETE FROM guests WHERE tenant_id = '${tenant.id}'`);
+            await sequelize.query(`DELETE FROM tenants WHERE id = '${tenant.id}'`);
         });
     });
 

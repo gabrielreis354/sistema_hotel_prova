@@ -97,11 +97,18 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
         { tabela: 'corporate_clients',  colunas: ['cpf', 'tenant_id'],     nome: 'corporate_clients_cpf_tenant_unique' }
     ];
 
+    // Índice a índice, não tudo-ou-nada: um índice que falhe (duplicata viva legada
+    // nas colunas — ver comentário do catch abaixo) não pode impedir a cura dos outros
+    // 6, nem dos índices compostos de performance logo depois deste laço. Falhas são
+    // acumuladas e relançadas ao final, com tabela+colunas+índice de cada uma — Fail
+    // Fast na *reportagem*, mas Fail Safe na *execução*: o resto do banco sai curado.
+    const falhas = [];
     for (const { tabela, colunas, nome } of indicesParciais) {
         const colunasOrdenadas = [...colunas].sort();
         const arrayLiteral = 'ARRAY[' + colunasOrdenadas.map((c) => `'${c}'`).join(',') + ']::name[]';
         const colunasCreate = colunas.join(', ');
 
+        try {
         await sequelize.query(`
             DO $$
             DECLARE
@@ -140,13 +147,43 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
                 END IF;
             END $$;
         `);
+        } catch (erro) {
+            // Só chega aqui se houver DUAS OU MAIS linhas VIVAS já violando a unicidade
+            // nas colunas certas — algo que só existe em banco legado com dado real
+            // incorreto. Não é seguro decidir sozinho qual linha é a "certa" para
+            // manter, então isto não fica menos protegido do que estava: o índice
+            // antigo (se havia um) só é removido dentro do mesmo DO $$, então se o
+            // CREATE final falhar a transação da statement inteira desfaz o DROP junto.
+            // `erro.original.message` ("could not create unique index...") é mais específico
+            // que `erro.message` ("Validation error") e, ao contrário de `erro.original.detail`,
+            // NÃO carrega o valor duplicado (CPF/e-mail) — só o `.detail` traria a PII.
+            falhas.push({ tabela, colunas: colunasCreate, nome, motivo: erro.original?.message ?? erro.message });
+        }
     }
 
-    // Índices compostos (tenant_id primeiro) das consultas críticas.
+    // Índices compostos (tenant_id primeiro) das consultas críticas. Rodam mesmo se
+    // algum índice parcial acima falhou — são independentes, não há motivo para o
+    // banco ficar sem eles por causa de uma duplicata legada em outra tabela.
     await sequelize.query('CREATE INDEX IF NOT EXISTS idx_reservations_tenant_checkin ON reservations (tenant_id, check_in_date);');
     await sequelize.query('CREATE INDEX IF NOT EXISTS idx_rooms_tenant_status         ON rooms (tenant_id, status);');
     await sequelize.query('CREATE INDEX IF NOT EXISTS idx_users_tenant_email          ON users (tenant_id, email);');
     await sequelize.query('CREATE INDEX IF NOT EXISTS idx_reservation_rooms_res_id    ON reservation_rooms (reservation_id);');
+
+    // Só agora, com todo o resto do banco já curado, reportamos o que não pôde ser
+    // resolvido sozinho — mensagem com tabela + colunas + índice, para o operador
+    // saber exatamente onde olhar (`SELECT tenant_id, <colunas> FROM <tabela> GROUP BY
+    // ... HAVING count(*) > 1`), sem expor o valor conflitante (pode ser CPF/e-mail).
+    if (falhas.length) {
+        const detalhe = falhas
+            .map((f) => `  - ${f.tabela} (${f.colunas}) -> ${f.nome}: ${f.motivo}`)
+            .join('\n');
+        throw new Error(
+            `applyDbConstraints: ${falhas.length} índice(s) não puderam ser curados — ` +
+            `provavelmente há linhas VIVAS duplicadas nas colunas abaixo, e não é seguro ` +
+            `decidir sozinho qual manter:\n${detalhe}\n` +
+            `O restante das constraints e índices foi aplicado normalmente.`
+        );
+    }
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
 }
