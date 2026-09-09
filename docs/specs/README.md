@@ -37,7 +37,10 @@ Substituem as pendências espalhadas em relatórios de sessão, que não eram ex
 | [SPEC-04](SPEC-04-modulo-consumo.md) | Módulo de Consumo (Comanda) | 🟠 Alta | 🔲 | Frontend Fase 2 |
 | [SPEC-05](SPEC-05-frontend-pms.md) | Frontend — app-pms | 🟠 Alta | 🟡 Parcial | Demonstração da defesa |
 | [SPEC-06](SPEC-06-qualidade-divida-tecnica.md) | Qualidade e Dívida Técnica | 🟡 Média | 🔲 | Portão de cobertura do CI |
+| [SPEC-07](SPEC-07-tarifas-por-periodo.md) | Tarifas por Período | 🟠 Alta para o produto | 🔲 | — |
 | [SPEC_DOC](../SPEC_DOCUMENTACAO_OFICIAL_23ago2026.md) | Documentação Acadêmica | 🟠 Alta | 🟡 Fase A completa | — |
+
+> **SPEC-07** nasceu em 09/09 do levantamento `docs/frontend/REQUISITOS_TELAS_PMS_09set2026.md`. Não é exigida pelo Termo de Aceite — é exigida pela realidade: a tarifa hoje é um número por categoria, e nenhum hotel opera assim. Ficou fora da SPEC-05 porque a maior parte do trabalho é backend.
 
 ---
 
