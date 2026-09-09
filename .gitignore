@@ -16,9 +16,10 @@ yarn.lock
 *.swo
 
 # Agentes de IA — worktrees e config local ficam de fora,
-# mas as definicoes de subagente sao compartilhadas pelo time
+# mas as definicoes de subagente e os comandos sao compartilhados pelo time
 .claude/*
 !.claude/agents/
+!.claude/commands/
 
 # OS
 .DS_Store
