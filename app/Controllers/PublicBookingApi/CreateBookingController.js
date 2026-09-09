@@ -79,19 +79,27 @@ export default async function CreateBookingController(request, response) {
         // 5. Persistência atômica: hóspede + reserva + pivô + cobrança PIX
         const transaction = await sequelize.transaction();
         try {
-            // find-or-create do hóspede (por e-mail OU CPF dentro do tenant).
+            // find-or-create do hóspede (por CPF, senão por e-mail, dentro do tenant).
             // Só por e-mail deixava o CPF passar direto pro create: um hóspede já
             // cadastrado na recepção que reserva pelo site com um e-mail novo batia
             // no índice único de CPF sem nenhum guard antes — 500 em vez de reaproveitar
-            // o cadastro. CPF é identidade mais forte que e-mail (não muda), então um
-            // match por CPF é a mesma pessoa mesmo com e-mail diferente do que constava.
+            // o cadastro.
+            //
+            // Duas consultas em ORDEM EXPLÍCITA, não um `Op.or` das duas condições: com
+            // `Op.or`, se o e-mail casasse com o hóspede A e o CPF com o hóspede B — dois
+            // cadastros diferentes, situação normal numa base de hotel — o resultado
+            // dependia do plano de execução do Postgres, não determinístico. CPF vem
+            // primeiro porque é identidade mais forte (não muda; e-mail muda).
             let guestRecord = null;
-            const condicoesBusca = [];
-            if (guest.email) condicoesBusca.push({ email: guest.email });
-            if (guest.cpf)   condicoesBusca.push({ cpf: guest.cpf });
-            if (condicoesBusca.length) {
+            if (guest.cpf) {
                 guestRecord = await GuestModel.findOne({
-                    where: { tenant_id: tenant.id, [Op.or]: condicoesBusca },
+                    where: { tenant_id: tenant.id, cpf: guest.cpf },
+                    transaction
+                });
+            }
+            if (!guestRecord && guest.email) {
+                guestRecord = await GuestModel.findOne({
+                    where: { tenant_id: tenant.id, email: guest.email },
                     transaction
                 });
             }
