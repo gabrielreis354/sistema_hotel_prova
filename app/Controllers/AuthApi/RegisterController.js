@@ -47,9 +47,12 @@ export default async function RegisterController(request, response) {
             user: { id: user.id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
-        // Mensagem deliberadamente vaga: e-mail (users_email_tenant_unique) e subdomain
-        // (tenants_subdomain_key) são índices diferentes, mas cadastro é público — dizer
-        // qual dos dois colidiu ajudaria alguém a enumerar tenants/e-mails existentes.
+        // Mensagem deliberadamente vaga só quanto ao E-MAIL: se este catch for
+        // alcançado (race entre dois cadastros simultâneos — o pré-check de subdomain
+        // acima já resolveu o caso comum), não dá pra saber se colidiu email ou
+        // subdomain sem revelar qual e-mail já existe. O subdomain em si NÃO é segredo:
+        // o pré-check já devolve 409 específico pra ele, e GET /public/:subdomain/hotel
+        // confirma a existência de qualquer subdomain sem autenticação.
         const conflito = uniqueConstraintConflict(error, response, 'E-mail ou subdomain já em uso');
         if (conflito) return conflito;
 
