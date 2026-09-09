@@ -187,6 +187,28 @@ Quem abrir a `main` do repositório vê o estado de julho.
 
 ---
 
+### T-06.11 — Eliminação definitiva de dado pessoal (LGPD art. 18, VI) 🔲
+
+**Problema:** todo model de dado pessoal é `paranoid: true` e nenhum controller oferece eliminação definitiva — `grep -rn "force: true" app/Controllers/` devolve **uma** ocorrência, em `UpdateContractController.js:45`, para parcelas de contrato. `DeleteGuestController` chama `guest.destroy()` sem `force`: a linha permanece com `full_name`, `cpf`, `phone` e `email`.
+
+O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro: antes, o índice total limitava a uma a quantidade de linhas com o CPF de uma pessoa. Agora cada ciclo excluir → recadastrar deixa mais uma cópia completa e permanente. Um hóspede que se hospeda todo ano e é "limpado" da base entre temporadas acumula N cópias do próprio CPF, nenhuma alcançável por endpoint algum.
+
+**Regra violada:** LGPD art. 18, VI (eliminação a pedido do titular) e art. 16 (eliminação após o fim do tratamento).
+
+**Critérios de aceitação**
+- [ ] **CA-06.11.a** — `DELETE /guests/:id/permanent` com `requireRole('ADMIN')` e `destroy({ force: true })`
+- [ ] **CA-06.11.b** — Recusa a eliminação quando houver reserva não encerrada, com `409` e motivo
+- [ ] **CA-06.11.c** — Trilha de auditoria do pedido: quem eliminou, quando e a pedido de quem — a trilha não pode conter o dado eliminado
+- [ ] **CA-06.11.d** — Reserva histórica sobrevive à eliminação do hóspede, anonimizada, sem quebrar integridade referencial nem os indicadores de RF-037 a RF-043
+- [ ] **CA-06.11.e** — Teste do ciclo completo: criar, eliminar, confirmar que o CPF não retorna em nenhuma consulta, inclusive com `paranoid: false`
+- [ ] **CA-06.11.f** — Procedimento documentado, para que o hotel saiba como atender o titular
+
+> Achado 🟡 da auditoria de 31/08, o **único ainda aberto** daquele relatório. Não é dívida de código: é obrigação legal sobre dado de terceiro. Vale menos como nota da banca e mais como responsabilidade — o sistema guarda CPF, RG e endereço de hóspedes reais.
+>
+> **Decisão de produto pendente:** eliminar de fato ou anonimizar mantendo o histórico contábil. A segunda tende a ser a correta, porque nota fiscal e histórico financeiro têm prazo de guarda próprio. Registrar em ADR.
+
+---
+
 ## 3. Ordem sugerida
 
 ```
