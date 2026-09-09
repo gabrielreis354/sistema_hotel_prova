@@ -213,7 +213,15 @@ for f in app/Models/*.js; do
                 if (c == "{") {
                     depth++
                     stack[depth] = ""
-                } else if (c == "}") {
+                }
+                # Anexa o caractere a TODOS os níveis abertos — inclusive o que acabou
+                # de abrir nesta mesma iteração. Feito por caractere, não por linha:
+                # um bloco que abre E fecha na mesma linha (ex.: um índice curto de uma
+                # linha só) precisa ter seu conteúdo já acumulado no momento em que o
+                # "}" é avaliado logo abaixo. Anexar só no fim da linha (versão anterior)
+                # deixava esse caso com content == "", nunca casando `unique:`.
+                for (d = 1; d <= depth; d++) { stack[d] = stack[d] c }
+                if (c == "}") {
                     content = stack[depth]
                     if (content ~ /unique:[ \t]*(true|["'"'"'])/) {
                         if (content !~ /deleted_at/) { bad = 1 }
@@ -222,7 +230,10 @@ for f in app/Models/*.js; do
                     if (depth > 0) depth--
                 }
             }
-            for (d = 1; d <= depth; d++) { stack[d] = stack[d] "\n" line }
+            # Separador entre linhas nos blocos que continuam abertos — sem isto, o fim
+            # de uma linha poderia colar no início da próxima e formar um "deleted_at"
+            # que não existe no código (ex.: "...delete" + "d_at...").
+            for (d = 1; d <= depth; d++) { stack[d] = stack[d] "\n" }
         }
         END { if (bad) print "1" }
     ')
