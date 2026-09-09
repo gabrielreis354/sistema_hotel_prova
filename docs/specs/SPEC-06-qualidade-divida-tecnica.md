@@ -148,20 +148,63 @@ Quem abrir a `main` do repositório vê o estado de julho.
 
 ---
 
+### T-06.9 — Webhook PIX sem validação de assinatura 🔴 🔲
+
+**Problema:** `routes/apis/webhookRouter.js` monta `POST /webhooks/pix` **sem autenticação** — correto, o PSP não tem JWT — mas o controller não verifica assinatura alguma. O próprio comentário do router admite a lacuna: *"em produção, cada webhook deve validar a assinatura do provedor antes de confiar"*.
+
+**Cenário de falha:** qualquer pessoa que descubra a URL e um `provider_charge_id` marca um pagamento como `PAID` e promove a reserva de `PENDING` para `CONFIRMED` — sem ter pago. É perda de receita direta, com o quarto bloqueado por uma reserva confirmada e não paga.
+
+**Por que é uma tarefa própria:** o RNF-012 do Doc. 02 exige assinatura verificada em **100%** dos webhooks. A SPEC-03 T-03.2 só a menciona como "avaliar" ao integrar o PSP real — o que deixa a vulnerabilidade **atual** sem dono. Esta tarefa fecha o requisito independentemente da integração externa.
+
+**Critérios de aceitação**
+- [ ] **CA-06.9.a** — Assinatura HMAC-SHA256 verificada com `crypto.timingSafeEqual` antes de qualquer efeito colateral
+- [ ] **CA-06.9.b** — Segredo lido de variável de ambiente, nunca versionado (`.env.example` atualizado)
+- [ ] **CA-06.9.c** — Requisição sem assinatura ou com assinatura inválida responde `401` e **não altera estado**
+- [ ] **CA-06.9.d** — `FakePixProvider` assina a notificação, para que o fluxo de teste exercite o caminho real
+- [ ] **CA-06.9.e** — Teste cobrindo: assinatura válida promove; inválida recusa; ausente recusa; idempotência preservada (RF-027)
+- [ ] **CA-06.9.f** — `provider_charge_id` continua fora de resposta pública (ver T-06.5)
+
+> Rastreia **RNF-012**. Achado de auditoria `qa-redteam` ainda em aberto — a maior severidade desta Spec.
+
+---
+
+### T-06.10 — Paginação nas listagens 🔲
+
+**Problema:** o RNF-002 do Doc. 02 exige `?page=` e `?limit=` em **100%** das rotas de listagem. Hoje só `ListReservationController.js` pagina (`limit`/`offset`); as demais devolvem `findAll` completo.
+
+**Consequência:** o tempo de resposta cresce com o volume do tenant, contra o RNF-001 (P95 < 500 ms). E a SPEC-05 T-05.2 já assume paginação disponível — a suposição vale hoje apenas para reservas.
+
+**Critérios de aceitação**
+- [ ] **CA-06.10.a** — Utilitário único de paginação em `app/utils/`, reaproveitado pelos controllers (DRY)
+- [ ] **CA-06.10.b** — Todas as rotas de listagem aceitam `?page=` e `?limit=`, com teto por página e valor padrão
+- [ ] **CA-06.10.c** — Contrato de resposta uniforme, expondo o total para o cliente montar a navegação
+- [ ] **CA-06.10.d** — Retrocompatível: ausência dos parâmetros não quebra consumidor existente
+- [ ] **CA-06.10.e** — `limit` inválido, negativo ou acima do teto responde `400`, não ignora silenciosamente
+- [ ] **CA-06.10.f** — Swagger atualizado com os parâmetros e o novo formato (converge com T-06.2)
+- [ ] **CA-06.10.g** — Teste de paginação em pelo menos duas listagens de volume relevante
+
+> Rastreia **RNF-002**. Fazer junto ou imediatamente após a T-06.2 — as duas mexem no contrato das mesmas rotas, e separá-las significa documentar o Swagger duas vezes.
+
+---
+
 ## 3. Ordem sugerida
 
 ```
-1. T-06.8  promover para main       — dá visibilidade imediata ao trabalho
-2. T-06.1  cobertura                — pode reprovar o CI do PR acima
-3. T-06.5  vazamento no endpoint    — segurança, correção pequena
-4. T-06.2  schema no Swagger        — maior retorno por esforço
-5. T-06.4  docker-compose           — rede de segurança da defesa
-6. T-06.3  RoomCategoryModel        — bug confirmado, correção conhecida
-7. T-06.6  R4                       — risco baixo hoje
-8. T-06.7  refresh token            — decisão antes de implementação
+ 1. T-06.9  assinatura do webhook   — 🔴 perda de receita, vulnerabilidade atual
+ 2. T-06.5  vazamento no endpoint   — segurança, correção pequena
+ 3. T-06.8  promover para main      — dá visibilidade imediata ao trabalho
+ 4. T-06.1  cobertura               — pode reprovar o CI do PR acima
+ 5. T-06.2  schema no Swagger       — maior retorno por esforço
+ 6. T-06.10 paginação               — mesmo contrato da T-06.2, fazer junto
+ 7. T-06.4  docker-compose          — rede de segurança da defesa
+ 8. T-06.3  RoomCategoryModel       — bug confirmado, correção conhecida
+ 9. T-06.6  R4                      — risco baixo hoje
+10. T-06.7  refresh token           — decisão antes de implementação
 ```
 
 > T-06.1 antes de T-06.8 se houver dúvida sobre a cobertura — subir o portão e descobrir que reprova **durante** o PR é pior que descobrir antes.
+>
+> T-06.9 subiu ao topo por ser a única vulnerabilidade **explorável hoje**: não depende de integração externa nem de dado de produção. Promover `main` antes dela publicaria o furo na branch de release.
 
 ---
 
@@ -170,6 +213,8 @@ Quem abrir a `main` do repositório vê o estado de julho.
 - [ ] Portão de cobertura conforme o Termo, com cobertura real confirmada
 - [ ] Cliente tipado do frontend sem `as unknown as`
 - [ ] Nenhum endpoint público expondo dado sensível
+- [ ] Nenhum webhook aceitando notificação sem assinatura verificada (RNF-012)
+- [ ] Todas as rotas de listagem paginadas (RNF-002)
 - [ ] `docker compose up` funcionando e testado
 - [ ] `main` refletindo o estado atual do projeto
 - [ ] `npm run qa:checks` sem erro nem aviso pendente
@@ -181,3 +226,4 @@ Quem abrir a `main` do repositório vê o estado de julho.
 | Versão | Data | Autor | Alteração |
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Consolida achados de auditorias `qa-redteam` e itens de conformidade do Termo |
+| 1.1 | 09/09/2026 | Gabriel Reis Cunha | Acrescenta **T-06.9** (assinatura do webhook PIX, RNF-012) e **T-06.10** (paginação nas listagens, RNF-002), apuradas no cruzamento do Doc. 02 v1.2 com as Specs: os dois requisitos exigiam 100% de cobertura e não tinham tarefa em nenhuma Spec. A T-06.9 vai ao topo da ordem por ser a única vulnerabilidade explorável hoje, sem dependência de integração externa |
