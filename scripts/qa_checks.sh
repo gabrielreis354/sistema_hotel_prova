@@ -165,6 +165,53 @@ report_warn "Router sem entrada no Swagger" \
     "$(printf '%s' "$missing_swagger")"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 9. Frontend — divergência do design system
+#
+# O `packages/ui` não tem curador: três devs criam componente quando precisam, e
+# a promoção acontece no segundo módulo que precisar (frontend/packages/ui/CATALOGO.md).
+# Sem uma pessoa vigiando, é ESTA regra que impede o design system de rachar.
+#
+# Ela não julga gosto — pega três divergências objetivas dentro de `features/`:
+#   (a) elemento interativo cru, quando já existe componente para ele
+#   (b) cor literal, que escapa dos tokens do Tailwind e some no dark mode
+#   (c) a mesma string de classes repetida — componente disfarçado de copiar-colar
+#
+# É AVISO, não erro, e de propósito: o módulo de referência (`features/guests`)
+# ainda tem violações que a T-05.12 remove. Vira ERRO quando ele for canonizado —
+# ver docs/DIVISAO_TRABALHO_TIME_09set2026.md §4.5.
+#
+# Escape pontual, quando a violação for justificada:
+#   <button ... />  {/* qa-allow: ui */}
+# ─────────────────────────────────────────────────────────────────────────────
+FEATURES_DIRS=$(ls -d frontend/apps/*/src/features 2>/dev/null || true)
+
+if [ -n "$FEATURES_DIRS" ]; then
+    # 9a — elemento interativo cru onde já existe componente
+    hits=$(grep -rnE "<(button|input|select|textarea)[[:space:]/>]" $FEATURES_DIRS \
+            --include='*.tsx' 2>/dev/null \
+            | grep -v 'qa-allow: ui' || true)
+    report_warn "Elemento interativo cru em features/" \
+        "Use Button, Input ou Field de @hotel/ui — alvo de toque, foco visível e estado de erro já vêm resolvidos" \
+        "$hits"
+
+    # 9b — cor literal fora dos tokens
+    hits=$(grep -rnE "(#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\()" $FEATURES_DIRS \
+            --include='*.tsx' --include='*.ts' 2>/dev/null \
+            | grep -v 'qa-allow: ui' || true)
+    report_warn "Cor literal em features/" \
+        "Só token do Tailwind (brand, status-*, gray-*). Cor literal não acompanha o tema nem o design system" \
+        "$hits"
+
+    # 9c — mesma string de classes em 3+ lugares: é componente que ninguém promoveu
+    dup=$(grep -rhoE 'className="[^"]{40,}"' $FEATURES_DIRS --include='*.tsx' 2>/dev/null \
+            | sort | uniq -c | sort -rn \
+            | awk '$1 >= 3 { n=$1; $1=""; sub(/^ /,""); printf "%dx  %s\n", n, $0 }' || true)
+    report_warn "Bloco de classes repetido em features/" \
+        "Repetido 3+ vezes é componente disfarçado — crie local e promova no segundo módulo que precisar (packages/ui/CATALOGO.md)" \
+        "$dup"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Resultado
 # ─────────────────────────────────────────────────────────────────────────────
 bold "── Resultado ──"
