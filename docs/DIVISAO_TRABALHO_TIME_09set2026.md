@@ -117,19 +117,40 @@ A SPEC-05 tem ~35 dias e nenhum dos três tem prática de React. Por isso ela é
 11. Ação indisponível fica **desabilitada com o motivo**, não desaparece.
 12. Alvo de toque **≥ 48px** nas telas de uso móvel.
 
-### 4.3 O que tem dono único
+### 4.3 O design system — sem dono, com regra
 
-Três pessoas em `packages/` ao mesmo tempo é onde isto desanda.
+Curador único vira gargalo e empurra para abstrair cedo demais, contra o próprio princípio do projeto (*"DRY×KISS — não abstrair cedo"*). Então `packages/ui` **não tem dono**. Tem quatro mecanismos:
+
+**1. Duas fontes de registro.** `packages/ui/src/index.ts` é o registro técnico — o que está exportado é o que existe. `packages/ui/CATALOGO.md` é o humano, uma linha por componente:
+
+| Componente | Para quê | Quando **não** usar |
+|---|---|---|
+
+A terceira coluna é a que mais evita duplicata: é ela que faz a pessoa perceber que o caso dela é outro — ou que não é.
+
+**2. Regra de promoção.**
+
+> Componente nasce **local**, em `features/<módulo>/components/`.
+> **Sobe para `packages/ui` quando o segundo módulo precisar dele.**
+
+Ninguém pede autorização para criar. Quem precisa do componente pela segunda vez é quem promove: move, exporta no `index.ts`, registra no catálogo. Isso é DRY com prova de reúso, em vez de adivinhação na primeira vez.
+
+**3. Antes de criar, procura.** Trinta segundos: olhar o catálogo e o `index.ts`. Se existe e não serve, a razão vira a coluna "quando não usar".
+
+**4. Regra 9 do `qa_checks.sh`.** É o que substitui o curador — pega divergência silenciosa sem ninguém vigiando: elemento cru (`<button>`, `<input>`) dentro de `features/`, cor literal fora dos tokens, string de classes idêntica repetida em três arquivos.
+
+**Faxina semanal, dez minutos.** O que nenhuma regra pega são dois componentes *quase* iguais que ninguém promove. Os três olham juntos o que nasceu na semana e decidem. Um minuto de conversa quando é semanal; uma refatoração quando é semestral.
+
+### 4.4 O que continua com dono
 
 | Área | Dono | Regra |
 |---|---|---|
-| `packages/ui` | um só | Componente novo entra **por pedido**, não por commit direto |
-| `packages/api-client` | quem faz a T-06.2 | Regenerado uma vez, quando o Swagger estiver completo |
-| Layout, rotas e sessão | um só | Mexer aqui afeta as três trilhas |
+| `packages/api-client` | ninguém — é processo | **Regenera, nunca edita à mão.** Tipo que falta se conserta no Swagger |
+| Layout, rotas e sessão | **Gabriel** | Rota nova é **aditiva e livre**. Mudar a forma do layout, o fluxo de sessão ou o controle de papel precisa de acordo |
 
-Regra prática: se você está estilizando dentro do módulo algo que deveria ser componente, pare e peça.
+A diferença de tratamento é proposital: `packages/ui` cresce por **adição**, então descentralizar custa pouco. Layout e sessão mudam por **substituição**, e aí o conflito custa caro nas três trilhas ao mesmo tempo.
 
-### 4.4 Quando dividir
+### 4.5 Quando dividir
 
 **A partir da semana 3.** Antes disso faltam duas coisas:
 
@@ -197,7 +218,7 @@ Não por dependência de tarefa — por arquivo.
 | Cada um em sua **worktree**, com `.git` compartilhado | Já resolveu o problema de clone defasado que custou um diagnóstico errado |
 | Branch sempre a partir de `origin/develop`, nunca de `develop` local | `develop` está no working tree da raiz |
 | `git add` **arquivo por arquivo** — nunca `git add .` | Convenção do projeto |
-| Nenhum merge em `develop` sem relatório do `qa-redteam` em `docs/qa/` | Portão obrigatório. Ninguém audita o próprio código |
+| Nenhum merge em `develop` sem relatório do `qa-redteam` em `docs/qa/` | Portão obrigatório. Ninguém audita o próprio código — ver §11 |
 | Commit **e push** ao fim de cada sessão | Já tivemos 4 branches e 8 commits existindo em uma única máquina |
 | Relatório em `docs/historico_sessao/<seu-nome>/` | Quem pegar a frente depois precisa saber onde parou |
 | Spec desatualizou? **Atualiza a Spec** | A Spec é a fonte autoritativa, não o relatório |
@@ -233,15 +254,55 @@ Cortar cedo e de propósito é diferente de não entregar por acidente.
 
 ---
 
-## 11. O que ainda falta decidir
+## 11. Revisão — quem confere o quê
 
-1. **Quem é o dono de `packages/ui`, do `api-client` e do layout.** Sem isso, §4.3 não se sustenta.
-2. **Revisão cruzada:** a proposta é Sirlande revisar a infra do Weslley, Weslley revisar o domínio do Sirlande, Gabriel revisar os dois — e o `qa-redteam` auditar todos.
-3. **Cadência.** Uma conversa curta por semana com o estado das Specs é suficiente.
+### 11.1 O portão automático, agora escopado por dev
+
+O `qa-redteam` roda antes de todo merge, em qualquer trilha, e passa a operar **no escopo de um dev**:
+
+- **O escopo é o diff da branch.** É a única coisa que o veredito julga.
+- **Achado fora do escopo nunca reprova a branch.** Reprovar alguém por defeito que outra pessoa introduziu trava a entrega errada e ensina o time a ignorar o portão.
+- **O que se faz com ele é repassar:** o auditor identifica o dono pela área (§3 e §7), grava em `docs/qa/repasses/para_<dono>_<data>.md` e cita no relatório principal.
+- **Uma exceção:** 🔴 de segurança, vazamento ou dinheiro em qualquer área vai **também** para o topo do relatório, como alerta. Continua sem reprovar a branch — mas ninguém precisa abrir outro arquivo para descobrir que existe um vazamento.
+
+Quem recebe o repasse decide quando corrigir. Não é ordem de serviço; é informação com dono.
+
+### 11.2 Revisão humana — só onde o erro é irreversível
+
+O auditor automático acha vazamento, PII em log e violação de padrão. Ele **não** acha "isso resolve o problema errado" nem "essa regra não é assim no hotel". Como o tempo é curto, revisão humana obrigatória fica só onde o erro não tem volta:
+
+| Onde | Por quê |
+|---|---|
+| **T-04.2** — migração `Consumption` → `AccountItem` | Move dado financeiro. Errou, perdeu histórico de dinheiro |
+| **T-04.4, T-04.5, T-07.5** — tudo que toca valor ou pagamento | Quebra o fluxo PIX, e o erro só aparece quando o hóspede reclama |
+| **Qualquer provisionamento com custo** | Segunda pessoa confere a estimativa **antes** do `terraform apply` |
+| **T-06.8** — promover `develop` para `main` | É o que o professor abre |
+
+No resto: autor + `qa-redteam`, e segue. Revisão onde ela paga, em vez de carimbo em todo lugar.
+
+---
+
+## 12. Cadência
+
+**Uma reunião por semana, curta, com pauta fixa:**
+
+1. O que fechou desde a última?
+2. O que está travando?
+3. O que vai colidir na próxima semana?
+4. Alguma Spec mudou?
+5. Faxina do design system — o que nasceu na semana (§4.3)
+
+Metade disso o `bash scripts/estado.sh` responde antes de alguém abrir a boca.
+
+**Duas regras que valem mais que a reunião:**
+
+- **Bloqueio não espera a reunião.** Travou na segunda, avisa na segunda. A reunião coordena, não socorre.
+- **R1 e R2 são anunciados.** Quando a T-04.3 fechar, Sirlande avisa. Quando a T-01.4 fechar, Gabriel avisa. Dependência que ninguém anuncia vira espera silenciosa.
 
 ---
 
 | Versão | Data | Alteração |
 |---|---|---|
 | 1.0 | 09/09/2026 | Divisão inicial por trilha, a partir do histórico do repositório |
-| 2.0 | 09/09/2026 | Frontend dividido em módulos verticais por afinidade com o backend, com doze princípios e donos únicos das áreas compartilhadas. Grade de 10 semanas, pontos de encontro R1 e R2, mapa de colisão por arquivo e ordem de corte. SPEC-07 passa a buffer explícito |
+| 2.0 | 09/09/2026 | Frontend dividido em módulos verticais por afinidade com o backend, com doze princípios. Grade de 10 semanas, pontos de encontro R1 e R2, mapa de colisão por arquivo e ordem de corte. SPEC-07 passa a buffer explícito |
+| 2.1 | 09/09/2026 | Fecha as decisões que estavam em aberto. O design system deixa de ter curador e passa a catálogo + promoção no segundo uso + regra 9 do `qa_checks.sh` + faxina semanal — centralizar num só vira gargalo e empurra para abstrair cedo. O `qa-redteam` passa a operar **escopado no dev**: achado fora do escopo não reprova a branch, é repassado ao dono em `docs/qa/repasses/`. Revisão humana fica só onde o erro é irreversível, e a cadência ganha pauta fixa |
