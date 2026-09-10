@@ -1,183 +1,247 @@
 # Divisão de trabalho — Gabriel, Weslley e Sirlande
 
-**Data:** 09/09/2026
-**Base:** `docs/specs/` (índice mestre) · `origin/develop` @ `e2656a5`
-**Critério:** histórico real do repositório, não preferência declarada
+**Versão 2.0** · 09/09/2026 · base: `docs/specs/` @ `origin/develop`
 
 ---
 
-## 1. Não são 6 — são 7 Specs e mais a documentação
+## 1. Resumo — quem fica com o quê
 
-| Spec | Frente | Exigida pelo Termo? | Bloqueia |
-|------|--------|---------------------|----------|
-| SPEC-01 | Microsserviços | 🔴 Sim — *"monólitos simples não serão aprovados"* | SPEC-02, C4, DFD, ADR-003, MER v1.1 |
-| SPEC-02 | Cloud, IaC e Observabilidade | 🔴 Sim | Defesa do 5º semestre |
-| SPEC-03 | Integrações externas | 🔴 Sim — pelo menos uma API externa | — |
-| SPEC-04 | Módulo de Consumo (comanda) | Não — é produto | SPEC-05 T-05.5 |
-| SPEC-05 | Frontend `app-pms` | Não — mas é o que a banca vê | Demonstração |
-| SPEC-06 | Qualidade e dívida técnica | Parcial — cobertura de teste | Portão do CI |
-| SPEC-07 | Tarifas por período | Não — é produto | — |
-| SPEC_DOC | Documentação acadêmica | 🔴 Sim — 8 documentos | Nota |
+| | Backend / Infra | Frontend | Dias |
+|---|---|---|---:|
+| **Gabriel** | SPEC-01 Microsserviços · fatias da SPEC-06 · portão de QA | Reservas · Rack · Painel do dia | ~33 |
+| **Sirlande** | SPEC-04 Consumo · fatias da SPEC-06 | Comanda · Ficha do hóspede | ~31 |
+| **Weslley** | SPEC-03 Integrações · SPEC-02 Cloud/IaC · Documentação acadêmica · T-06.4 | Financeiro · Fechamento de caixa · B2B · Configurações | ~36 |
 
-As três 🔴 **não são escolha de produto: são condição de aprovação**. SPEC-04, 05 e 07 entregam produto. SPEC-06 é dívida que, ignorada, quebra o CI ou aparece na defesa.
+**SPEC-07 (Tarifas) é buffer** — fica fora da conta e só entra se o cronograma segurar.
 
----
+**Primeira tarefa de cada um:**
 
-## 2. A conta que precisa ser dita antes da divisão
-
-Estimativa de esforço, somando as tarefas de cada Spec:
-
-| Spec | Dias-dev | Origem da estimativa |
-|------|---------:|----------------------|
-| SPEC-01 (escopo mínimo T-01.1 a T-01.5) | ~14 | minha |
-| SPEC-02 | ~12 | minha |
-| SPEC-03 | ~6 | minha |
-| SPEC-04 | ~17 | declarada na Spec |
-| SPEC-05 (v2.0, 12 tarefas) | ~35 | declarada na Spec |
-| SPEC-06 (11 tarefas) | ~10 | minha |
-| SPEC-07 | ~12 | declarada na Spec |
-| SPEC_DOC (Fase B) | ~5 | minha |
-| **Total** | **~111** | |
-
-Três desenvolvedores dão **~37 dias-dev cada**. Para quem também estuda, isso não é um mês — é um semestre inteiro trabalhando sem folga e sem imprevisto.
-
-**Conclusão honesta:** o escopo atual não cabe em três pessoas até a defesa. A divisão abaixo assume isso e marca desde já **o que se corta primeiro** se o prazo apertar. Cortar cedo e de propósito é diferente de não entregar por acidente.
+- Gabriel → **T-01.1** (recorte dos serviços) e **T-06.9** (webhook sem assinatura 🔴)
+- Sirlande → **T-04.1** (`Account` + `AccountItem`)
+- Weslley → **T-03.1** (ViaCEP) e **T-02.1** (decidir Kubernetes e estimar custo)
 
 ---
 
-## 3. Como cheguei nesta divisão
+## 2. O que existe para dividir
 
-Não perguntei quem prefere o quê. Olhei o que cada um já fez:
+São **7 Specs** e mais a documentação acadêmica.
 
-| | Commits | Onde mais mexeu | Leitura |
-|---|---:|---|---|
-| **Gabriel** | 279 | tudo | Orquestrador; conhece o sistema inteiro |
-| **Sirlande** | 64 | `app/Controllers` (45), `app/Models` (13), `routes/apis` (8) | **Backend de domínio** — é quem mais escreveu regra de negócio |
-| **Weslley** | 23 | `app/Controllers` (8), `routes/apis` (7), `docker/kubernetes` (4), `docker-compose.yml` (2), `docs/infra` (2) | **Infra e documentação** — único que já mexeu em compose e k8s, e autor do Documento 02 |
+| Spec | Tema em uma frase | Termo? | Dias |
+|---|---|:--:|---:|
+| SPEC-01 | Parar de ser monólito: decidir o recorte e extrair o primeiro serviço | 🔴 | ~14 |
+| SPEC-02 | Sair da máquina local para a nuvem, tudo provisionado por código | 🔴 | ~12 |
+| SPEC-03 | Consumir API de terceiro — ViaCEP e Mercado Pago | 🔴 | ~6 |
+| SPEC-04 | A conta deixa de ser da reserva e passa a ser da conta (comanda) | — | ~17 |
+| SPEC-05 | Transformar as telas de CRUD em um PMS de verdade | — | ~35 |
+| SPEC-06 | Dívida técnica: vulnerabilidade, cobertura, Swagger, contingência | parcial | ~10 |
+| SPEC-07 | O preço deixa de ser um número fixo por categoria | — | ~12 |
+| SPEC_DOC | Os 8 documentos da coordenação — **5 ainda em branco** | 🔴 | ~5 |
 
-Weslley também escreveu `tests/bill-consumptions.test.js` — conhece a área de conta e consumo.
-
----
-
-## 4. A divisão
-
-### Gabriel — o gargalo e o portão
-
-| Spec | Por quê |
-|---|---|
-| **SPEC-01** — Microsserviços | É decisão antes de código: recorte de serviços, propriedade dos dados, padrão de comunicação, autenticação entre serviços. Quem decide precisa conhecer o sistema inteiro |
-| **SPEC-06** — Dívida técnica | Já está em curso com o agente executor |
-| Portão de QA de **todas** as frentes | O `qa-redteam` roda antes de todo merge. Ninguém aprova o próprio trabalho |
-
-**Primeira tarefa:** T-01.1 — decidir o recorte e a propriedade dos dados. Enquanto ela não sair, a SPEC-02 do Weslley e quatro documentos acadêmicos ficam parados.
-
-### Sirlande — o domínio
-
-| Spec | Por quê |
-|---|---|
-| **SPEC-04** — Módulo de Consumo | 45 commits em controllers e 13 em models: é quem mais escreveu regra de negócio. A Spec tem migração de dados financeiros (T-04.2) e o acoplamento `Payment ↔ Account` (T-04.4), que é a tarefa de maior risco do projeto |
-| **SPEC-07** — Tarifas por período | Mesmo tipo de trabalho: modelagem, precedência de regra, dinheiro. E o motor de cálculo (T-07.3) precisa da mesma cabeça que fez o `bill` |
-
-**Primeira tarefa:** T-04.1 — `Account` + `AccountItem` + CRUD. É o que destrava a comanda no frontend.
-
-**Ordem obrigatória:** SPEC-04 inteira antes da SPEC-07. A T-04.3 é ponto de parada seguro — se o prazo apertar, para ali.
-
-### Weslley — infraestrutura, integrações e documentação
-
-| Spec | Por quê |
-|---|---|
-| **SPEC-02** — Cloud, IaC e Observabilidade | Único do time com histórico em `docker/kubernetes` e `docker-compose.yml` |
-| **SPEC-03** — Integrações externas | ViaCEP é pequena e fecha sozinha um critério 🔴 do Termo. Bom primeiro entregável |
-| **SPEC_DOC** — Documentação acadêmica | Escreveu o Documento 02; conhece o formato e o que a coordenação espera |
-| **T-06.4** — `docker-compose.yml` de contingência | Movida da SPEC-06 para ele: é a área dele, e já escreveu compose neste repositório |
-
-**Primeira tarefa:** T-03.1 — ViaCEP. Fecha um critério de aprovação em poucos dias e dá uma vitória cedo.
-
-**Segunda:** T-02.1 — decidir o serviço de Kubernetes e **estimar custo antes de provisionar**.
-
-> ⚠️ **Regra absoluta do projeto, e ela vale para todo mundo:** permanecer sempre no free-tier. Recurso subiu, recurso desce no fim do uso — `terraform destroy` na hora. Nunca usar o usuário `root` da AWS. Um cluster esquecido ligado gera custo real, e nenhuma prioridade de entrega passa na frente disso.
+As três 🔴 não são escolha de produto: são condição de aprovação.
 
 ---
 
-## 5. O problema da SPEC-05
+## 3. As trilhas em detalhe
 
-**Ninguém do time tem histórico de frontend.** As telas atuais foram construídas por agente, orquestrado pelo Gabriel. E a SPEC-05 v2.0 tem 12 tarefas e ~35 dias — é a maior frente do projeto, sozinha equivalente a um dev inteiro.
+### 3.1 Gabriel — o gargalo e o portão
 
-Três caminhos, e minha recomendação:
+**SPEC-01 — Microsserviços.** É decisão antes de código: quem é dono de qual dado, como os serviços conversam, como se autenticam. Depois vem a extração do `analytics-service` e o CI por serviço. Precisa de quem conhece o sistema inteiro, e trava duas outras frentes.
 
-| Caminho | Avaliação |
-|---|---|
-| **Dividir entre os três** | ❌ Pior opção. Três pessoas sem prática de React, aprendendo em paralelo, no arquivo mais compartilhado do projeto |
-| **Agente dedicado, Gabriel orquestra e revisa** | ✅ **Recomendado.** É como as telas existentes foram feitas. O dono humano continua respondendo pelo resultado, e o portão de QA não muda |
-| **Um dev assume integralmente** | Viável só se alguém quiser aprender frontend e aceitar que a Spec dele encolha na mesma proporção |
+**Fatias da SPEC-06:** T-06.9 (assinatura do webhook), T-06.5 (vazamento no endpoint público), T-06.2 (schema no Swagger), T-06.8 (promover `develop` para `main`).
 
-**Corte planejado:** T-05.9 a T-05.12 (governança, ficha do hóspede, fechamento de caixa, busca global — ~9,5 dias) vêm **depois** do fluxo de recepção e podem ser cortadas inteiras sem quebrar nada. Foi por isso que ficaram no fim.
+**Frontend:** reservas, rack e painel do dia — o núcleo e a tela mais difícil.
+
+**Portão de QA de todas as frentes.** O `qa-redteam` roda antes de todo merge, em qualquer trilha. Ninguém aprova o próprio trabalho.
+
+### 3.2 Sirlande — o domínio
+
+**SPEC-04 — Módulo de Consumo.** É quem mais escreveu regra de negócio no projeto: 45 commits em `app/Controllers` e 13 em `app/Models`. A Spec tem dois pontos sensíveis — a T-04.2 migra dado financeiro, e a T-04.4 acopla `Payment` a `Account`, tarefa de maior risco do projeto.
+
+**Fatias da SPEC-06:** T-06.3 (`RoomCategoryModel`), T-06.6 (índice em banco legado), T-06.10 (paginação), T-06.11 (eliminação de dado pessoal).
+
+**Frontend:** comanda e ficha do hóspede — as telas do domínio que ele acabou de modelar.
+
+**SPEC-07** se o cronograma permitir, e só depois de fechar a SPEC-04.
+
+### 3.3 Weslley — infraestrutura, integrações e documentação
+
+**SPEC-03 — Integrações.** Começa por aqui: ~4 dias que fecham sozinhos um critério 🔴 do Termo. É a forma mais rápida de tirar o projeto do vermelho, e entrega algo concluído antes da SPEC-02, que é longa.
+
+**SPEC-02 — Cloud, IaC e Observabilidade.** Único do time com histórico em `docker/kubernetes` e `docker-compose.yml`.
+
+**SPEC_DOC — Documentação acadêmica.** Escreveu o Documento 02; conhece o formato. O Documento 08 pode começar já — e há uma dívida embutida: o Documento 02 que vai ao professor **afirma** que o acompanhamento de execução mora no 08, que hoje é template.
+
+**T-06.4** (docker-compose de contingência), movida da SPEC-06 por ser a área dele.
+
+**Frontend:** financeiro, fechamento de caixa, B2B e configurações.
+
+> ⚠️ **Regra absoluta, e vale para todos:** permanecer sempre no free-tier. Recurso subiu, recurso desce no fim do uso — `terraform destroy` na hora. Nunca usar o usuário `root` da AWS. Nenhuma prioridade de entrega passa na frente disso.
 
 ---
 
-## 6. As quatro primeiras semanas
+## 4. Frontend — o contrato
+
+A SPEC-05 tem ~35 dias e nenhum dos três tem prática de React. Por isso ela é **dividida em módulos verticais**, não em camadas, e sob princípios acordados.
+
+### 4.1 Os módulos
+
+| Módulo | Dono | Tarefas |
+|---|---|---|
+| Reservas, rack, painel do dia | Gabriel | T-05.2, T-05.3, T-05.4 |
+| Comanda, ficha do hóspede | Sirlande | T-05.5, T-05.10 |
+| Financeiro, caixa, B2B, configurações | Weslley | T-05.6, T-05.7, T-05.8, T-05.11 |
+| Quartos/categorias, governança, busca global | de quem terminar primeiro | T-05.1, T-05.9, T-05.12 |
+
+**O critério foi afinidade com o backend:** quem constrói a API constrói a tela dela. Sirlande modela `Account` na SPEC-04 e por isso faz a comanda; Weslley já escreveu `bill-consumptions.test.js` e o fechamento de caixa traz backend novo junto.
+
+### 4.2 Os doze princípios
+
+**Estrutura**
+
+1. **Fatia vertical, nunca camada.** Módulo é pasta em `src/features/<nome>/`, dona das próprias telas, hooks e tipos. Ninguém é "o das telas" ou "o do estado".
+2. **Módulo não importa tripa de outro módulo** — só o que ele exporta no `index.ts`. Se dois precisam do mesmo, sobe para `packages/`.
+3. **Uma rota, um dono.**
+
+**Dados**
+
+4. **Nenhum `fetch` direto.** Tudo pelo `packages/api-client` gerado do OpenAPI.
+5. **Sem `as unknown as`.** Se o tipo não existe, o problema está no Swagger — resolve-se na T-06.2, não com cast.
+6. **Dinheiro e data têm um lugar só:** `@hotel/domain`. Nunca `Number()` em `DECIMAL`, nunca data sem `America/Sao_Paulo`.
+7. **Nenhuma tela baixa coleção inteira do tenant** para filtrar na memória.
+8. **Estado de servidor é TanStack Query.** Zustand só para sessão. Estado global novo exige acordo.
+
+**Interface** — os quatro últimos já são RNF no documento oficial, então não são preferência
+
+9. Toda tela tem **quatro estados**: carregando, vazio, erro e conteúdo. O vazio ensina o próximo passo.
+10. Status sempre **cor + rótulo**, nunca só cor.
+11. Ação indisponível fica **desabilitada com o motivo**, não desaparece.
+12. Alvo de toque **≥ 48px** nas telas de uso móvel.
+
+### 4.3 O que tem dono único
+
+Três pessoas em `packages/` ao mesmo tempo é onde isto desanda.
+
+| Área | Dono | Regra |
+|---|---|---|
+| `packages/ui` | um só | Componente novo entra **por pedido**, não por commit direto |
+| `packages/api-client` | quem faz a T-06.2 | Regenerado uma vez, quando o Swagger estiver completo |
+| Layout, rotas e sessão | um só | Mexer aqui afeta as três trilhas |
+
+Regra prática: se você está estilizando dentro do módulo algo que deveria ser componente, pare e peça.
+
+### 4.4 Quando dividir
+
+**A partir da semana 3.** Antes disso faltam duas coisas:
+
+- **Canonizar o módulo de referência.** `src/features/guests/` já é uma fatia vertical completa e vira o padrão — mas primeiro corrigir nele o filtro no cliente, senão o defeito se propaga três vezes.
+- **Rodar a T-06.2.** Sem schema de resposta no Swagger, os três vão escrever `as unknown as` e o princípio 5 nasce morto.
+
+---
+
+## 5. A grade
 
 ```
-        Gabriel                Sirlande               Weslley
-S1      T-01.1 recorte         T-04.1 Account         T-03.1 ViaCEP
-        T-06.9 webhook 🔴      + AccountItem          T-02.1 decidir k8s
-S2      T-01.2 comunicação     T-04.2 migração ⚠      T-03.2 Mercado Pago
-        T-01.3 auth interna    (dado financeiro)      T-06.4 compose
-S3      T-01.4 extrair         T-04.3 bill da conta   T-02.2 Terraform base
-        analytics-service      ✅ parada segura        SPEC_DOC E-02
-S4      T-01.5 CI por serviço  T-04.4 Payment ↔       T-02.3 portar k8s
-                               Account 🔴 isolada      SPEC_DOC ADRs
+          Gabriel                  Sirlande                 Weslley
+S1-2   T-01.1 recorte           T-04.1 Account +         T-03.1 ViaCEP  ✅ Termo
+       T-06.9 webhook 🔴         AccountItem              T-02.1 decidir k8s + custo
+
+S3-4   T-01.2 comunicação       T-04.2 migração ⚠        T-03.2 Mercado Pago
+       T-01.3 auth interna      T-04.3 bill ──────┐      T-06.4 docker-compose
+       ── frontend começa ──    ── frontend ──    │      ── frontend ──
+                                                  │
+S5-6   T-01.4 extrair ────┐     T-04.4 Payment ↔  │      T-02.2 Terraform base
+       analytics-service  │     Account 🔴 isolada │      Doc 08 sprints
+                          │     T-04.5 delegação  │
+                          │                       ▼
+S7-8   T-01.5 CI/CD ──────┼──►  T-04.6 check-in   R1 comanda destravada
+       (entrega ao W)     │     T-04.7 fecha 04
+                          ▼
+S9-10  T-06.2 Swagger     R2 destrava T-02.3,     T-02.3 portar k8s
+       T-06.8 → main         docs 03 e 06, ADR-003 T-02.4 observabilidade
+                          SPEC-07 (se couber)      Docs 05 e 06
 ```
-
-Duas observações sobre esta grade:
-
-**A T-06.9 do Gabriel na semana 1 não é opcional.** O webhook PIX aceita qualquer notificação sem assinatura: quem descobrir a URL confirma reserva sem pagar. É a única vulnerabilidade explorável hoje.
-
-**A T-04.4 do Sirlande na semana 4 vai em branch isolada, nada mais junto.** É a tarefa que pode quebrar o fluxo PIX, e `public-booking.test.js` é o critério de aceite.
 
 ---
 
-## 7. Regras de convivência
+## 6. Os dois pontos de encontro
 
-Três pessoas e agentes no mesmo repositório exigem disciplina de fronteira.
+O plano tem exatamente **duas** dependências entre pessoas. Fora delas, as trilhas não se tocam.
+
+| | O quê | Quem espera |
+|---|---|---|
+| **R1** | `T-04.3` (bill da conta) pronto | A comanda no frontend (T-05.5) |
+| **R2** | `T-01.4` (`analytics-service` extraído) pronto | `T-02.3` e os documentos 03, 06 e ADR-003 |
+
+**Se a trilha do Gabriel atrasar**, o Weslley não fica parado: Documento 08 e T-06.4 não dependem de R2, e foi por isso que ficaram onde estão.
+
+---
+
+## 7. Onde as trilhas colidem
+
+Não por dependência de tarefa — por arquivo.
+
+| Arquivo | Quem quer mexer | Regra |
+|---|---|---|
+| `.github/workflows` | Gabriel (T-01.5) e Weslley (T-02.5) | **Weslley é o dono.** Gabriel entrega o que precisa e ele integra |
+| `config/swagger.js` | todos | A T-06.2 reescreve o arquivo inteiro: **uma pessoa, uma vez**, e ninguém encosta durante |
+| `db/schema.sql`, `app/Models/` | Sirlande (04, 07) e Gabriel (01) | **Sirlande é o dono.** Gabriel avisa antes |
+| `k8s/`, `terraform/`, `docker-compose.yml` | Weslley | — |
+| `packages/` do frontend | todos | Ver §4.3 |
+
+---
+
+## 8. Regras de convivência
 
 | Regra | Por quê |
 |---|---|
-| Cada dev em sua **worktree**, com `.git` compartilhado | Já resolveu o problema de clone defasado que nos custou um diagnóstico errado |
+| Cada um em sua **worktree**, com `.git` compartilhado | Já resolveu o problema de clone defasado que custou um diagnóstico errado |
 | Branch sempre a partir de `origin/develop`, nunca de `develop` local | `develop` está no working tree da raiz |
 | `git add` **arquivo por arquivo** — nunca `git add .` | Convenção do projeto |
-| Nenhum merge em `develop` sem relatório do `qa-redteam` em `docs/qa/` | Portão obrigatório; ninguém audita o próprio código |
-| Commit **e push** no fim de cada sessão | Já temos 4 branches e 8 commits existindo em uma única máquina |
-| Relatório de sessão em `docs/historico_sessao/<seu-nome>/` | O próximo a pegar a frente precisa saber onde parou |
-| Spec desatualizou? **Atualiza a Spec**, não ignora | A Spec é a fonte autoritativa |
-
-**Fronteiras de arquivo entre as frentes:**
-
-| Área | Dono | Cuidado |
-|---|---|---|
-| `app/Models/`, `db/schema.sql` | Sirlande (04, 07) | Gabriel encosta na SPEC-01; combinar antes |
-| `k8s/`, `terraform/`, `docker-compose.yml`, CI | Weslley | — |
-| `frontend/` | agente + Gabriel | — |
-| `config/swagger.js` | **todos** | Ponto de colisão mais provável do projeto — avisar no grupo antes de mexer |
-| `docs/specs/` | quem executa a Spec | Atualizar o estado da própria tarefa |
+| Nenhum merge em `develop` sem relatório do `qa-redteam` em `docs/qa/` | Portão obrigatório. Ninguém audita o próprio código |
+| Commit **e push** ao fim de cada sessão | Já tivemos 4 branches e 8 commits existindo em uma única máquina |
+| Relatório em `docs/historico_sessao/<seu-nome>/` | Quem pegar a frente depois precisa saber onde parou |
+| Spec desatualizou? **Atualiza a Spec** | A Spec é a fonte autoritativa, não o relatório |
+| `bash scripts/estado.sh` antes de perguntar o estado | Responde metade das perguntas sozinho |
 
 ---
 
-## 8. Riscos desta divisão
+## 9. A conta, e o que se corta primeiro
+
+Escopo total: **~111 dias-dev**. Três pessoas dão ~37 cada. Para quem também estuda, isso não é um mês — é um semestre sem folga e sem imprevisto.
+
+O plano assume isso e já marca o que sai, na ordem:
+
+1. **SPEC-07 — Tarifas por período** (~12 dias). É o buffer. O produto sobrevive sem tarifa por período; feio, mas vivo.
+2. **T-05.9 a T-05.12** (~9,5 dias) — governança, ficha do hóspede, fechamento de caixa e busca global. Ficaram no fim de propósito: saem inteiras sem quebrar o que veio antes.
+3. **T-04.3 é ponto de parada seguro** na SPEC-04. Se o prazo apertar no meio da comanda, para ali.
+
+Cortar cedo e de propósito é diferente de não entregar por acidente.
+
+---
+
+## 10. Riscos
 
 | Risco | Severidade | Mitigação |
 |---|---|---|
-| SPEC-01 atrasar e travar Weslley e quatro documentos | 🔴 Alto | É a primeira tarefa do Gabriel; T-02.1 e SPEC-03 não dependem dela e ocupam o Weslley enquanto isso |
-| Escopo não caber até a defesa | 🔴 Alto | Corte declarado em §5; T-04.3 é parada segura na SPEC-04 |
-| `config/swagger.js` virar campo de conflito | Médio | Avisar antes de mexer; a T-06.2 reescreve o arquivo inteiro e deve ser feita por uma pessoa só |
-| Sirlande sozinho na migração de dado financeiro (T-04.2) | Médio | Critérios CA-04.2.a a .c exigem contagem antes e depois; revisar em dupla |
-| Ninguém dono do frontend | Médio | Agente com Gabriel respondendo pelo resultado |
-| Custo de nuvem escapar | 🔴 Alto | Regra absoluta de free-tier; destruir recurso ao fim de cada uso |
+| SPEC-01 atrasar e travar Weslley e três documentos | 🔴 | É a primeira tarefa do Gabriel; Doc 08 e T-06.4 ocupam o Weslley enquanto isso |
+| Escopo não caber até a defesa | 🔴 | Cortes já declarados em §9 |
+| Custo de nuvem escapar do free-tier | 🔴 | Regra absoluta; destruir recurso ao fim de cada uso |
+| Três pessoas aprendendo React ao mesmo tempo | Médio | Princípios de §4.2 reduzem divergência, não a curva. Cada um orquestra um agente no próprio módulo |
+| Divergência visual entre os módulos | Médio | Módulo de referência canonizado + dono único de `packages/ui` |
+| Sirlande sozinho na migração de dado financeiro (T-04.2) | Médio | CA-04.2.a a .c exigem contagem antes e depois; revisar em dupla |
+| `config/swagger.js` virar campo de conflito | Médio | Dono único durante a T-06.2 |
 
 ---
 
-## 9. O que decidir antes de começar
+## 11. O que ainda falta decidir
 
-1. **A SPEC-05 fica com agente?** Se algum dos três quiser assumir frontend, a Spec dele encolhe na mesma proporção — não se acumula.
-2. **Quem revisa o quê?** Sugiro cruzado: Sirlande revisa infra do Weslley, Weslley revisa domínio do Sirlande, Gabriel revisa os dois e o `qa-redteam` audita todos.
-3. **Cadência de sincronização.** Uma conversa curta por semana com o estado das Specs é suficiente — e `bash scripts/estado.sh` responde metade das perguntas antes de alguém precisar perguntar.
+1. **Quem é o dono de `packages/ui`, do `api-client` e do layout.** Sem isso, §4.3 não se sustenta.
+2. **Revisão cruzada:** a proposta é Sirlande revisar a infra do Weslley, Weslley revisar o domínio do Sirlande, Gabriel revisar os dois — e o `qa-redteam` auditar todos.
+3. **Cadência.** Uma conversa curta por semana com o estado das Specs é suficiente.
+
+---
+
+| Versão | Data | Alteração |
+|---|---|---|
+| 1.0 | 09/09/2026 | Divisão inicial por trilha, a partir do histórico do repositório |
+| 2.0 | 09/09/2026 | Frontend dividido em módulos verticais por afinidade com o backend, com doze princípios e donos únicos das áreas compartilhadas. Grade de 10 semanas, pontos de encontro R1 e R2, mapa de colisão por arquivo e ordem de corte. SPEC-07 passa a buffer explícito |
