@@ -31,7 +31,7 @@ Substituem as pendências espalhadas em relatórios de sessão, que não eram ex
 
 | Spec | Frente | Prioridade | Estado | Bloqueia |
 |------|--------|-----------|--------|----------|
-| [SPEC-01](SPEC-01-microsservicos.md) | Arquitetura de Microsserviços | 🔴 **Crítica** | 🔲 | SPEC-02, docs C4/DFD/ADR-003, MER v1.1 |
+| [SPEC-01](SPEC-01-microsservicos.md) | Arquitetura de Microsserviços | 🔴 **Crítica** | 🟡 T-01.1 ✅ (ADR-003) | SPEC-02, docs C4/DFD, MER v1.2 |
 | [SPEC-02](SPEC-02-cloud-iac-observabilidade.md) | Cloud, IaC e Observabilidade | 🔴 **Crítica** | 🔲 | Defesa do 5º semestre |
 | [SPEC-03](SPEC-03-integracoes-externas.md) | Integrações com APIs Externas | 🔴 **Crítica** | 🔲 | — |
 | [SPEC-04](SPEC-04-modulo-consumo.md) | Módulo de Consumo (Comanda) | 🟠 Alta | 🔲 | Frontend Fase 2 |
