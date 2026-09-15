@@ -138,7 +138,7 @@ Na direção oposta, o domínio B2B mostrou fronteira limpa: **nenhum** controll
 | **SPEC-06 T-06.4** — Docker Compose | O compose de contingência precisa subir os três serviços, os três bancos e o RabbitMQ |
 | **SPEC-06 T-06.11** — LGPD | A eliminação de hóspede precisa ser propagada ao analytics por evento |
 | **SPEC-07** — Tarifas | `rate_periods` fica no core. Nenhuma referência cruzada |
-| **Documentos 03 (DFD) e 04 (MER)** — Sirlande | Insumos em `docs/sugestoes-documentos-oficiais/`. O DFD mostra só o que estiver implementado |
+| **Documentos 03 (DFD) e 04 (MER)** — Sirlande | Insumos em `docs/sugestoes-documentos-oficiais/`. Os diagramas marcam o que está implementado (✅) e o que está planejado (🔷), como o MER já faz; só entra como planejado o que está nesta Spec |
 | **Documento 06 (C4)** | Contêineres: três serviços, três bancos, RabbitMQ e Nginx como *gateway* |
 
 ---
@@ -299,7 +299,7 @@ Isso permite responder na defesa: *"por que estes serviços?"*, *"como conversam
 | Segredo JWT simétrico compartilhado permitir forjar token | **Crítico** | T-01.3 — assinatura assimétrica (RS256) |
 | Evento perdido com o broker fora | Alto — indicador errado | *Outbox* transacional, CA-01.4.a e CA-01.4.c |
 | Indicador contado em dobro por reentrega | Alto | Consumidor idempotente, CA-01.4.h |
-| Documentar o que não foi implementado | Alto — critério C9 | Diagramas só mostram serviços e fluxos existentes; notificação e channel manager ficam fora |
+| Documentar o que não foi implementado | Alto — critério C9 | Diagramas marcam cada elemento como implementado (✅) ou planejado (🔷), como o MER aceito no PR #3; só entra como planejado o que tem tarefa nesta Spec; notificação e channel manager ficam fora |
 | Operar RabbitMQ com equipe de 3 pessoas | Médio | Nó único, manifesto versionado, métricas no Grafana, fila de mensagens mortas |
 | Cópia de dado pessoal no analytics | Médio — LGPD | Projeção mínima (CA-01.4.l); eliminação propagada por evento (SPEC-06 T-06.11) |
 | T-01.4 maior que o previsto estourar a capacidade | Alto | Reestimar na conversa de capacidade; T-01.6 fica no 5º semestre |
