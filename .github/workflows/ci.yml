@@ -1,13 +1,34 @@
 name: CI
 
-# Roda a suíte de testes + cobertura a cada push e pull request nas branches principais.
+# Dispara nas branches principais E nas branches de trabalho dos agentes —
+# antes, feature/* e fix/* não rodavam CI nenhum e o código quebrado só
+# aparecia no merge.
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'docs/**'
   pull_request:
     branches: [main, develop]
 
 jobs:
+  # Camada 1 do portão de QA: checagens determinísticas, sem dependência.
+  # Roda em segundos e dá feedback antes da suíte completa.
+  # A auditoria semântica é feita pelo subagente qa-redteam, fora do CI.
+  qa:
+    name: Checagens determinísticas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rodar qa_checks
+        run: bash scripts/qa_checks.sh
+
   test:
     name: Testes + Cobertura
     runs-on: ubuntu-latest

@@ -12,6 +12,7 @@ import EventQuoteModel from "../app/Models/EventQuoteModel.js";
 import QuoteServiceModel from "../app/Models/QuoteServiceModel.js";
 import ContractModel from "../app/Models/ContractModel.js";
 import ContractInstallmentModel from "../app/Models/ContractInstallmentModel.js";
+import ProductModel from "../app/Models/ProductModel.js";
 
 export default function initRelations() {
     // 1) Relacionamentos de Tenants (SaaS Multi-tenant)
@@ -101,4 +102,8 @@ export default function initRelations() {
     // 10) Parcelas do Contrato
     ContractModel.hasMany(ContractInstallmentModel, { foreignKey: 'contract_id', as: 'installments' });
     ContractInstallmentModel.belongsTo(ContractModel, { foreignKey: 'contract_id', as: 'contract' });
+
+    // 11) Catálogo de produtos (cardápio) — base do módulo de consumo
+    TenantModel.hasMany(ProductModel, { foreignKey: 'tenant_id', as: 'products' });
+    ProductModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
 }

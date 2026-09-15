@@ -8,9 +8,10 @@ export default async function UpdateEventQuoteController(request, response) {
         const quote = await EventQuoteModel.findOne({ where: { id: request.params.id, tenant_id: tenantId } });
         if (!quote) return response.status(404).json({ error: 'Orçamento não encontrado' });
 
-        const { check_in, check_out, pessoas, valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama, desconto_pct, observacoes, status, services } = request.body;
+        // status é transição de estado — só via /:id/confirm e /:id/cancel (dedicados).
+        const { check_in, check_out, pessoas, valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama, desconto_pct, observacoes, services } = request.body;
 
-        const fields = { check_in, check_out, pessoas, valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama, desconto_pct, observacoes, status };
+        const fields = { check_in, check_out, pessoas, valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama, desconto_pct, observacoes };
         Object.entries(fields).forEach(([k, v]) => { if (v !== undefined) quote[k] = v; });
 
         // Recalcular total se campos de preço foram alterados

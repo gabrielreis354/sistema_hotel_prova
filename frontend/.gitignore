@@ -1,0 +1,15 @@
+# Dependências e build do monorepo de frontend
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Ambiente local
+.env
+.env.local
+.env.*.local
+
+# Artefato gerado a partir do Swagger do backend (regerável com pnpm gen:api)
+# packages/api-client/openapi.json é versionado de propósito (fonte do tipo)

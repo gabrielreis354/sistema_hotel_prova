@@ -2,6 +2,7 @@ import { Router } from 'express';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from '../config/swagger.js';
+import corsMiddleware from '../middlewares/cors.middleware.js';
 import authRouter         from './apis/authRouter.js';
 import LoginController    from '../app/Controllers/AuthApi/LoginController.js';
 import userRouter         from './apis/userRouter.js';
@@ -15,10 +16,15 @@ import analyticsRouter    from './apis/analyticsRouter.js';
 import corporateClientRouter from './apis/corporateClientRouter.js';
 import eventQuoteRouter from './apis/eventQuoteRouter.js';
 import contractRouter from './apis/contractRouter.js';
+import productRouter from './apis/productRouter.js';
 import publicBookingRouter from './apis/publicBookingRouter.js';
 import webhookRouter       from './apis/webhookRouter.js';
 
 const router = Router();
+
+// CORS antes de tudo — o preflight (OPTIONS) precisa ser respondido sem passar
+// por auth. Fica aqui, no router compartilhado por _web.js e pelos testes.
+router.use(corsMiddleware);
 
 router.use(express.json());
 
@@ -57,6 +63,7 @@ router.use('/analytics',        analyticsRouter);
 router.use('/corporate-clients', corporateClientRouter);
 router.use('/event-quotes',      eventQuoteRouter);
 router.use('/contracts',         contractRouter);
+router.use('/products',          productRouter);
 
 // Motor de reserva direta — rotas PÚBLICAS (sem auth), tenant resolvido pelo subdomínio
 router.use('/public/:subdomain', publicBookingRouter);

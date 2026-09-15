@@ -112,6 +112,59 @@ describe('Event Quotes — CRUD', () => {
         expect((await request(app).get('/event-quotes').set(auth())).status).toBe(200);
         expect((await request(app).get(`/event-quotes/${quoteId}`).set(auth())).status).toBe(200);
     });
+
+    it('PUT genérico ignora status no body (issue #71)', async () => {
+        const res = await request(app).put(`/event-quotes/${quoteId}`).set(auth()).send({ status: 'CONFIRMED', observacoes: 'nota' });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('SENT');
+    });
+});
+
+describe('Event Quotes — transição de status (issue #71)', () => {
+    let quoteId;
+
+    async function createQuote() {
+        const res = await request(app).post('/event-quotes').set(auth()).send({
+            corporate_client_id: clientId,
+            check_in: '2027-08-01', check_out: '2027-08-03', pessoas: 5,
+            valor_diaria_sem_refeicao: 100,
+        });
+        return res.body.id;
+    }
+
+    beforeAll(async () => { quoteId = await createQuote(); });
+
+    it('confirma orçamento SENT -> CONFIRMED', async () => {
+        const res = await request(app).put(`/event-quotes/${quoteId}/confirm`).set(auth());
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('CONFIRMED');
+    });
+
+    it('retorna 409 ao confirmar orçamento que já está confirmado', async () => {
+        const res = await request(app).put(`/event-quotes/${quoteId}/confirm`).set(auth());
+        expect(res.status).toBe(409);
+    });
+
+    it('cancela orçamento CONFIRMED -> CANCELLED', async () => {
+        const res = await request(app).put(`/event-quotes/${quoteId}/cancel`).set(auth());
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('CANCELLED');
+    });
+
+    it('retorna 409 ao confirmar orçamento cancelado (bloqueia CANCELLED -> CONFIRMED)', async () => {
+        const res = await request(app).put(`/event-quotes/${quoteId}/confirm`).set(auth());
+        expect(res.status).toBe(409);
+    });
+
+    it('retorna 409 ao cancelar orçamento já cancelado', async () => {
+        const res = await request(app).put(`/event-quotes/${quoteId}/cancel`).set(auth());
+        expect(res.status).toBe(409);
+    });
+
+    it('retorna 404 ao confirmar orçamento inexistente', async () => {
+        const res = await request(app).put('/event-quotes/00000000-0000-0000-0000-000000000000/confirm').set(auth());
+        expect(res.status).toBe(404);
+    });
 });
 
 describe('Contracts — CRUD', () => {
@@ -125,7 +178,7 @@ describe('Contracts — CRUD', () => {
             check_in: '2027-09-01',
             check_out: '2027-09-03',
             pessoas: 20,
-            total: 5000,
+            total: 10000, // precisa bater com o total do orçamento vinculado (quoteId)
             testemunha_1: 'Testemunha Um',
             testemunha_2: 'Testemunha Dois',
         });
@@ -137,6 +190,26 @@ describe('Contracts — CRUD', () => {
     it('POST sem campos obrigatórios retorna 400', async () => {
         const res = await request(app).post('/contracts').set(auth()).send({ corporate_client_id: clientId });
         expect(res.status).toBe(400);
+    });
+
+    it('POST com quote_id e total divergente do orçamento retorna 409 (issue #71)', async () => {
+        const res = await request(app).post('/contracts').set(auth()).send({
+            corporate_client_id: clientId,
+            quote_id: quoteId,
+            objeto: 'Hospedagem de evento corporativo',
+            check_in: '2027-09-01',
+            check_out: '2027-09-03',
+            pessoas: 20,
+            total: 1,
+            testemunha_1: 'Testemunha Um',
+            testemunha_2: 'Testemunha Dois',
+        });
+        expect(res.status).toBe(409);
+    });
+
+    it('PUT altera total de contrato vinculado a orçamento pra valor divergente retorna 409 (issue #71)', async () => {
+        const res = await request(app).put(`/contracts/${contractId}`).set(auth()).send({ total: 1 });
+        expect(res.status).toBe(409);
     });
 
     it('GET lista e por id (200)', async () => {
