@@ -132,17 +132,19 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ---
 
-### T-06.8 — Promover `develop` para `main` 🔲
+### T-06.8 — Promover `develop` para `main` ✅
 
-**Problema:** `origin/main` está em `0c463fd` (PR #70). `origin/develop` tem **62 commits não promovidos**, incluindo o frontend inteiro, o catálogo de produtos e a correção do bug da EXCLUDE.
+**Concluída em 15/09/2026** — PR #76, 98 commits, merge feito pelo Gabriel.
 
-Quem abrir a `main` do repositório vê o estado de julho.
+**Problema original:** `origin/main` estava em `0c463fd` (PR #70), sem o frontend, o catálogo de produtos e a correção do bug da EXCLUDE. Quem abria a `main` via o estado de julho.
 
 **Critérios de aceitação**
-- [ ] **CA-06.8.a** — Suíte completa verde em `develop` antes do PR
-- [ ] **CA-06.8.b** — PR `develop → main` aberto, com descrição da release
-- [ ] **CA-06.8.c** — CI verde no PR
-- [ ] **CA-06.8.d** — Merge realizado
+- [x] **CA-06.8.a** — Suíte completa verde em `develop` antes do PR — CI da `develop` com sucesso nas últimas execuções
+- [x] **CA-06.8.b** — PR `develop → main` aberto, com descrição da release gerada dos commits
+- [x] **CA-06.8.c** — CI verde no PR — checagens determinísticas e testes com cobertura aprovados
+- [x] **CA-06.8.d** — Merge realizado
+
+> **Ficaram fora do release**, por não estarem na `develop`: `fix/paranoid-unique-constraints` (16 commits, aguardando suíte e nova auditoria) e `fix/public-booking-payment-leak` (2 commits, correção da T-06.5).
 
 > Convenção do projeto: *"1 PR de `develop → main` por release"*. Estávamos acumulando corretamente — a release é que nunca foi fechada.
 
@@ -226,7 +228,9 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 
 > T-06.1 antes de T-06.8 se houver dúvida sobre a cobertura — subir o portão e descobrir que reprova **durante** o PR é pior que descobrir antes.
 >
-> T-06.9 subiu ao topo por ser a única vulnerabilidade **explorável hoje**: não depende de integração externa nem de dado de produção. Promover `main` antes dela publicaria o furo na branch de release.
+> T-06.9 subiu ao topo por ser a única vulnerabilidade **explorável hoje**: não depende de integração externa nem de dado de produção.
+>
+> **Correção de 14/09.** Esta nota dizia que promover a `main` antes da T-06.9 publicaria o furo na branch de release. A verificação mostrou o contrário: a `main` já continha o *webhook* sem assinatura e a consulta pública de status desde julho. Promover não introduz os furos — eles seguem abertos nas duas branches. A T-06.8 foi executada antes, e a T-06.9 continua sendo a prioridade de segurança.
 
 ---
 
