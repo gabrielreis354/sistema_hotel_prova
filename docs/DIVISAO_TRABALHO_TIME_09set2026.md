@@ -65,7 +65,7 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 **SPEC-07** se o cronograma permitir, e só depois de fechar a SPEC-04.
 
-**Documentos 03 (DFD) e 04 (MER).** Insumos do DFD e sugestão de revisão do MER, com os motivos, em `docs/sugestoes-documentos-oficiais/`. O DFD só mostra o que estiver implementado — combinar a data de entrega com a T-01.4. O MER já foi entregue ao professor: aplicar a sugestão significa nova entrega.
+**Documentos 03 (DFD) e 04 (MER)**, em paralelo com a T-04.1. Insumos do DFD e sugestão de revisão do MER, com os motivos, em `docs/sugestoes-documentos-oficiais/`; roteiro de início em `docs/delegacoes/briefing_sirlande_docs_03_04_14set2026.md`. Os diagramas usam a legenda do MER — implementado (✅) e planejado (🔷) —, então o DFD pode ser desenhado antes da T-01.4. O MER já foi entregue ao professor: aplicar a sugestão significa nova entrega, conferida antes contra todos os critérios de aceite.
 
 ### 3.3 Weslley — infraestrutura, integrações e documentação
 

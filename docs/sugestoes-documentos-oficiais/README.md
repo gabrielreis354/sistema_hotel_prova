@@ -30,6 +30,9 @@ sugestoes-documentos-oficiais/
     INSUMOS.md                  ← quando o dono ainda vai produzir o documento
 ```
 
+**As evidências de código** citadas nos motivos e nos insumos valem para a branch **`develop`**
+do repositório do hotel. A `main` ainda está na versão de julho.
+
 Para ver exatamente o que muda, compare a versão sugerida com a oficial. O `--strip-trailing-cr`
 é necessário: no Windows o repositório da UniFAAT é extraído com fim de linha CRLF, e sem a opção
 o `diff` aponta o arquivo inteiro como diferente.
@@ -59,7 +62,8 @@ Todas decorrem da **T-01.1 da SPEC-01** e do **ADR-003**, de 14/09/2026: o recor
 em `core-service`, `b2b-service` e `analytics-service`, com eventos via RabbitMQ do core para o
 analytics. Ver `docs/specs/SPEC-01-microsservicos.md`.
 
-> **Critério C9:** os 8 documentos precisam estar *"válidos e atualizados"*. Como o C1 exige a
-> arquitetura *implementada*, **nenhum documento deve mostrar serviço ou fluxo que não exista no
-> código.** As sugestões e os insumos daqui marcam o que já está implementado e o que só existirá
-> depois da T-01.4.
+> **Critério C9:** os 8 documentos precisam estar *"válidos e atualizados"*. A regra adotada é a
+> mesma que o MER já usa e que o professor aceitou no PR #3: **cada elemento é marcado como
+> implementado (✅) ou planejado (🔷)**, e só entra como planejado o que consta do plano de
+> implementação da SPEC-01. Notificação ao hóspede e channel manager não entram: estão fora do
+> escopo.

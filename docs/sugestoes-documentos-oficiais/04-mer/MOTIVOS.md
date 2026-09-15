@@ -27,6 +27,9 @@ status da v1.1 foram registrados a partir de uma **cópia desatualizada** do rep
 | 6 | §8 — política de versões | Seção 7 *"prevista como v1.1"* | *"consolidada na v1.2"* | A v1.1 já foi usada em 28/08 |
 | 7 | §2 — justificativa do banco, linha *Escalabilidade* | *"horizontal via réplicas de leitura para a carga analítica"* | Carga analítica isolada no banco próprio do `analytics-service`, alimentado por eventos | ADR-003 — o analytics não lê o banco do núcleo |
 
+Todas as evidências valem para a branch **`develop`** do repositório do hotel. A `main` ainda está
+na versão de julho e não tem o catálogo de produtos.
+
 Conferi os atributos de `PRODUCTS` campo a campo contra `db/schema.sql` e o model — batem com a
 tabela da §4.10. A promoção a ✅ não exige mudar nenhum atributo.
 
