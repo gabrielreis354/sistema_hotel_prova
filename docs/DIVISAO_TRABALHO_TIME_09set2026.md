@@ -8,9 +8,9 @@
 
 | | Backend / Infra | Frontend | Dias |
 |---|---|---|---:|
-| **Gabriel** | SPEC-01 Microsserviços · fatias da SPEC-06 · portão de QA | Reservas · Rack · Painel do dia | ~33 |
-| **Sirlande** | SPEC-04 Consumo · fatias da SPEC-06 | Comanda · Ficha do hóspede | ~31 |
-| **Weslley** | SPEC-03 Integrações · SPEC-02 Cloud/IaC · Documentação acadêmica · T-06.4 | Financeiro · Fechamento de caixa · B2B · Configurações | ~36 |
+| **Gabriel** | SPEC-01 Microsserviços · fatias da SPEC-06 · portão de QA · **Documentos 01 e 02** | Reservas · Rack · Painel do dia | ~34 |
+| **Sirlande** | SPEC-04 Consumo · fatias da SPEC-06 · **Documentos 03 (DFD) e 04 (MER)** | Comanda · Ficha do hóspede | ~33 |
+| **Weslley** | SPEC-03 Integrações · SPEC-02 Cloud/IaC · Documentação acadêmica (exceto 01 a 04) · T-06.4 | Financeiro · Fechamento de caixa · B2B · Configurações | ~33 |
 
 **SPEC-07 (Tarifas) é buffer** — fica fora da conta e só entra se o cronograma segurar.
 
@@ -53,6 +53,8 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 **Portão de QA de todas as frentes.** O `qa-redteam` roda antes de todo merge, em qualquer trilha. Ninguém aprova o próprio trabalho.
 
+**Documentos 01 e 02.** O 02 foi entregue ao professor e tem sugestão de revisão em `docs/sugestoes-documentos-oficiais/02-requisitos/`. Só vai à reunião de reentrega depois de conferido contra todos os critérios de aceite.
+
 ### 3.2 Sirlande — o domínio
 
 **SPEC-04 — Módulo de Consumo.** É quem mais escreveu regra de negócio no projeto: 45 commits em `app/Controllers` e 13 em `app/Models`. A Spec tem dois pontos sensíveis — a T-04.2 migra dado financeiro, e a T-04.4 acopla `Payment` a `Account`, tarefa de maior risco do projeto.
@@ -63,13 +65,15 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 **SPEC-07** se o cronograma permitir, e só depois de fechar a SPEC-04.
 
+**Documentos 03 (DFD) e 04 (MER)**, em paralelo com a T-04.1. Insumos do DFD e sugestão de revisão do MER, com os motivos, em `docs/sugestoes-documentos-oficiais/`; roteiro de início em `docs/delegacoes/briefing_sirlande_docs_03_04_14set2026.md`. Os diagramas usam a legenda do MER — implementado (✅) e planejado (🔷) —, então o DFD pode ser desenhado antes da T-01.4. O MER já foi entregue ao professor: aplicar a sugestão significa nova entrega, conferida antes contra todos os critérios de aceite.
+
 ### 3.3 Weslley — infraestrutura, integrações e documentação
 
 **SPEC-03 — Integrações.** Começa por aqui: ~4 dias que fecham sozinhos um critério 🔴 do Termo. É a forma mais rápida de tirar o projeto do vermelho, e entrega algo concluído antes da SPEC-02, que é longa.
 
 **SPEC-02 — Cloud, IaC e Observabilidade.** Único do time com histórico em `docker/kubernetes` e `docker-compose.yml`.
 
-**SPEC_DOC — Documentação acadêmica.** Escreveu o Documento 02; conhece o formato. O Documento 08 pode começar já — e há uma dívida embutida: o Documento 02 que vai ao professor **afirma** que o acompanhamento de execução mora no 08, que hoje é template.
+**Documentação acadêmica — exceto os documentos 01 a 04.** Os documentos 01 e 02 são do Gabriel, e 03 e 04 do Sirlande. O Documento 08 pode começar já — e há uma dívida embutida: o Documento 02 entregue ao professor **afirma** que o acompanhamento de execução mora no 08, que hoje é template.
 
 **T-06.4** (docker-compose de contingência), movida da SPEC-06 por ser a área dele.
 
@@ -178,7 +182,7 @@ S7-8   T-01.5 CI/CD ──────┼──►  T-04.6 check-in   R1 comanda
        (entrega ao W)     │     T-04.7 fecha 04
                           ▼
 S9-10  T-06.2 Swagger     R2 destrava T-02.3,     T-02.3 portar k8s
-       T-06.8 → main         docs 03 e 06, ADR-003 T-02.4 observabilidade
+       T-06.8 → main         docs 03 e 06 (final)  T-02.4 observabilidade
                           SPEC-07 (se couber)      Docs 05 e 06
 ```
 
@@ -191,7 +195,7 @@ O plano tem exatamente **duas** dependências entre pessoas. Fora delas, as tril
 | | O quê | Quem espera |
 |---|---|---|
 | **R1** | `T-04.3` (bill da conta) pronto | A comanda no frontend (T-05.5) |
-| **R2** | `T-01.4` (`analytics-service` extraído) pronto | `T-02.3` e os documentos 03, 06 e ADR-003 |
+| **R2** | `T-01.4` (`analytics-service` extraído, com RabbitMQ) pronto | `T-02.3` e a versão final dos documentos 03 (Sirlande) e 06 — o ADR-003 já está escrito |
 
 **Se a trilha do Gabriel atrasar**, o Weslley não fica parado: Documento 08 e T-06.4 não dependem de R2, e foi por isso que ficaram onde estão.
 
@@ -306,3 +310,4 @@ Metade disso o `bash scripts/estado.sh` responde antes de alguém abrir a boca.
 | 1.0 | 09/09/2026 | Divisão inicial por trilha, a partir do histórico do repositório |
 | 2.0 | 09/09/2026 | Frontend dividido em módulos verticais por afinidade com o backend, com doze princípios. Grade de 10 semanas, pontos de encontro R1 e R2, mapa de colisão por arquivo e ordem de corte. SPEC-07 passa a buffer explícito |
 | 2.1 | 09/09/2026 | Fecha as decisões que estavam em aberto. O design system deixa de ter curador e passa a catálogo + promoção no segundo uso + regra 9 do `qa_checks.sh` + faxina semanal — centralizar num só vira gargalo e empurra para abstrair cedo. O `qa-redteam` passa a operar **escopado no dev**: achado fora do escopo não reprova a branch, é repassado ao dono em `docs/qa/repasses/`. Revisão humana fica só onde o erro é irreversível, e a cadência ganha pauta fixa |
+| 2.2 | 14/09/2026 | Donos dos documentos oficiais corrigidos: **01 e 02 são do Gabriel**, **03 (DFD) e 04 (MER) são do Sirlande**, e a documentação acadêmica do Weslley passa a ser a restante. Sugestões de revisão e insumos para os donos ficam em `docs/sugestoes-documentos-oficiais/` — o documento oficial não é editado diretamente. O ponto de encontro R2 passa a incluir o RabbitMQ, adotado no ADR-003, e deixa de citar o ADR-003 como pendente |
