@@ -1,6 +1,6 @@
 # Divisão de trabalho — Gabriel, Weslley e Sirlande
 
-**Versão 2.3** · 16/09/2026 · base: `docs/specs/` @ `origin/develop`
+**Versão 2.4** · 16/09/2026 · base: `docs/specs/` @ `origin/develop`
 
 ---
 
@@ -23,15 +23,30 @@
 | `fix/paranoid-unique-constraints` — 16 commits | **T-06.3** e **T-06.6** | Suíte, nova auditoria do `qa-redteam` e sincronizar com o layout novo |
 | `fix/public-booking-payment-leak` — 2 commits | **T-06.5** | Verificação e merge |
 
-As duas foram feitas pelo agente executor, na trilha do Gabriel. Por isso **a T-06.3 e a T-06.6 saem da fila do Sirlande** — ele não deve refazê-las.
+As duas foram feitas pelo agente executor, na trilha do Gabriel. A T-06.3 e a T-06.6 **pertencem ao Sirlande** e continuam na trilha dele — agora como **revisão**, não como implementação.
+
+### Revisão pelos donos — o que o Gabriel adiantou em outras trilhas
+
+Para não travar o plano, algumas entregas foram feitas pelo Gabriel em áreas de outra pessoa. A divisão continua valendo: **o dono da área revisa** se o que foi feito corresponde ao que estava previsto — aprova, pede ajuste ou recusa, com o motivo escrito. Até lá, esses itens contam como **pendentes de revisão** na trilha do dono.
+
+| Dono | O que revisar | Onde |
+|---|---|---|
+| **Sirlande** | **T-06.3 e T-06.6** — índice único parcial nos models com exclusão lógica e correção do índice em banco já existente, contra os critérios CA-06.3 e CA-06.6 | branch `fix/paranoid-unique-constraints` |
+| **Sirlande** | **Sugestão de revisão do MER (v1.2)** — aceitar ou recusar item a item | `docs/sugestoes-documentos-oficiais/04-mer/` |
+| **Sirlande** | **Insumos do DFD** — levantamento de fluxos completo? | `docs/sugestoes-documentos-oficiais/03-dfd/` |
+| **Sirlande** | **Impacto do ADR-003 na SPEC-04** — `accounts` e `account_items` no core, com FK normal | SPEC-01 §5.3 · SPEC-04 |
+| **Weslley** | **Infraestrutura do PR #77** — `infra/k8s/`, `docker/` antigo em `docs/legado/`, contexto do Dockerfile, `infra_up.sh`, `start.sh` | PR #77 |
+| **Weslley** | **CI** — testes rodando em `services/core-service` | `.github/workflows/ci.yml` |
+| **Weslley** | **ADR-003** — o Documento 07 é dele: forma e conteúdo da decisão de recorte e do RabbitMQ | fork da UniFAAT, `Projetos/gesway/07-…` |
+| **Weslley** | **Impacto na SPEC-02** — três bancos, RabbitMQ no cluster, Redis sem uso | SPEC-01 §5.3 · SPEC-02 |
 
 ### Disponível agora, sem bloqueio
 
 | Pessoa | Pode começar hoje |
 |---|---|
 | **Gabriel** | **T-06.9** — webhook sem assinatura 🔴, atrasada · **T-06.2** — schema no Swagger, antecipada · verificar e integrar as duas branches acima · T-01.2 (contratos) · T-01.3 (RS256) · conferir o Documento 02 contra todos os critérios de aceite |
-| **Sirlande** | **T-04.1** — `accounts` fica no core, com FK normal · **Documentos 03 e 04**, com os insumos já publicados · depois, T-06.10 e T-06.11 |
-| **Weslley** | **T-03.1** — ViaCEP · **T-02.1** — decidir Kubernetes e estimar custo · **T-06.4** — docker-compose, já no layout novo · **RabbitMQ no cluster** (CA-01.4.e) · Documento 08 |
+| **Sirlande** | **Revisar** o que foi adiantado na trilha dele · **T-04.1** — `accounts` fica no core, com FK normal · **Documentos 03 e 04**, com os insumos já publicados · depois, T-06.10 e T-06.11 |
+| **Weslley** | **Revisar** o que foi adiantado na trilha dele · **T-03.1** — ViaCEP · **T-02.1** — decidir Kubernetes e estimar custo · **T-06.4** — docker-compose, já no layout novo · **RabbitMQ no cluster** (CA-01.4.e) · Documento 08 |
 
 ### Bloqueado
 
@@ -63,8 +78,8 @@ As duas foram feitas pelo agente executor, na trilha do Gabriel. Por isso **a T-
 **Próxima tarefa de cada um** — situação em 16/09:
 
 - Gabriel → **T-06.9** (webhook sem assinatura 🔴, atrasada) e **T-06.2** (schema no Swagger, antecipada)
-- Sirlande → **T-04.1** (`Account` + `AccountItem`) e os documentos 03 e 04
-- Weslley → **T-03.1** (ViaCEP) e **T-02.1** (decidir Kubernetes e estimar custo)
+- Sirlande → **revisar a T-06.3 e a T-06.6**, **T-04.1** (`Account` + `AccountItem`) e os documentos 03 e 04
+- Weslley → **revisar a infraestrutura do PR #77 e o ADR-003**, **T-03.1** (ViaCEP) e **T-02.1** (decidir Kubernetes e estimar custo)
 
 ---
 
@@ -93,7 +108,7 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 **SPEC-01 — Microsserviços.** É decisão antes de código: quem é dono de qual dado, como os serviços conversam, como se autenticam. Depois vem a extração do `analytics-service` e o CI por serviço. Precisa de quem conhece o sistema inteiro, e trava duas outras frentes.
 
-**Fatias da SPEC-06:** T-06.9 (assinatura do webhook), T-06.5 (vazamento no endpoint público), T-06.2 (schema no Swagger — **antecipada**: é pré-requisito da divisão do frontend), T-06.8 (promover `develop` para `main` — ✅ concluída). A T-06.3 e a T-06.6 também foram implementadas nesta trilha, pelo agente executor.
+**Fatias da SPEC-06:** T-06.9 (assinatura do webhook), T-06.5 (vazamento no endpoint público), T-06.2 (schema no Swagger — **antecipada**: é pré-requisito da divisão do frontend), T-06.8 (promover `develop` para `main` — ✅ concluída). A T-06.3 e a T-06.6, da trilha do Sirlande, foram adiantadas aqui pelo agente executor e seguem para revisão dele.
 
 **Frontend:** reservas, rack e painel do dia — o núcleo e a tela mais difícil.
 
@@ -105,7 +120,7 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 **SPEC-04 — Módulo de Consumo.** É quem mais escreveu regra de negócio no projeto: 45 commits em `services/core-service/app/Controllers` e 13 em `services/core-service/app/Models`. A Spec tem dois pontos sensíveis — a T-04.2 migra dado financeiro, e a T-04.4 acopla `Payment` a `Account`, tarefa de maior risco do projeto.
 
-**Fatias da SPEC-06:** T-06.10 (paginação) e T-06.11 (eliminação de dado pessoal). A T-06.3 e a T-06.6 saíram desta trilha: já foram implementadas pelo agente executor e aguardam verificação.
+**Fatias da SPEC-06:** T-06.3 (`RoomCategoryModel`) e T-06.6 (índice em banco legado) — **para revisar**, já implementadas pelo agente executor da trilha do Gabriel —, T-06.10 (paginação) e T-06.11 (eliminação de dado pessoal).
 
 **Frontend:** comanda e ficha do hóspede — as telas do domínio que ele acabou de modelar.
 
@@ -215,8 +230,8 @@ A diferença de tratamento é proposital: `packages/ui` cresce por **adição**,
           Gabriel                  Sirlande                 Weslley
 S1-2   T-01.1 recorte ✓        T-04.1 Account +         T-03.1 ViaCEP  ✅ Termo
        T-01.0 layout ✓         AccountItem              T-02.1 decidir k8s + custo
-       T-06.8 → main ✓         Docs 03 e 04 (início)
-       T-06.9 webhook 🔴 atrasada
+       T-06.8 → main ✓         Docs 03 e 04             revisar infra + ADR-003
+       T-06.9 webhook 🔴 atrasada  revisar T-06.3 e T-06.6
 
 S3-4   T-06.2 Swagger  ◄ antecipada
        T-06.5 integrar          T-04.2 migração ⚠        T-03.2 Mercado Pago
@@ -362,3 +377,4 @@ Metade disso o `bash scripts/estado.sh` responde antes de alguém abrir a boca.
 | 2.1 | 09/09/2026 | Fecha as decisões que estavam em aberto. O design system deixa de ter curador e passa a catálogo + promoção no segundo uso + regra 9 do `qa_checks.sh` + faxina semanal — centralizar num só vira gargalo e empurra para abstrair cedo. O `qa-redteam` passa a operar **escopado no dev**: achado fora do escopo não reprova a branch, é repassado ao dono em `docs/qa/repasses/`. Revisão humana fica só onde o erro é irreversível, e a cadência ganha pauta fixa |
 | 2.2 | 14/09/2026 | Donos dos documentos oficiais corrigidos: **01 e 02 são do Gabriel**, **03 (DFD) e 04 (MER) são do Sirlande**, e a documentação acadêmica do Weslley passa a ser a restante. Sugestões de revisão e insumos para os donos ficam em `docs/sugestoes-documentos-oficiais/` — o documento oficial não é editado diretamente. O ponto de encontro R2 passa a incluir o RabbitMQ, adotado no ADR-003, e deixa de citar o ADR-003 como pendente |
 | 2.3 | 16/09/2026 | Situação da semana 2: concluídos T-01.0, T-01.1 e T-06.8; T-06.3, T-06.5 e T-06.6 implementadas em branch e aguardando verificação. **T-06.2 antecipada** para as semanas 3 e 4 — a grade a colocava nas semanas 9 e 10, depois da divisão do frontend que depende dela. **T-06.3 e T-06.6 saem da fila do Sirlande**, por já estarem feitas. Novo quadro do que está disponível e do que está bloqueado por pessoa, e registro de que não há commits do Weslley nem do Sirlande desde 09/09 |
+| 2.4 | 16/09/2026 | **Revisão pelos donos.** O que o Gabriel adiantou em trilhas alheias volta para a trilha do dono como revisão, em vez de ser retirado dela: a T-06.3 e a T-06.6 permanecem com o Sirlande, que revisa também a sugestão do MER, os insumos do DFD e o impacto na SPEC-04; o Weslley revisa a infraestrutura e o CI do PR #77, o ADR-003 — que está no Documento 07, documento dele — e o impacto na SPEC-02. Desfaz a decisão da v2.3 de retirar a T-06.3 e a T-06.6 da fila do Sirlande |
