@@ -15,7 +15,7 @@ O Termo de Aceite exige, sem margem de interpretação:
 
 O Termo da banca do 5º semestre transforma isso no critério **C1 — Arquitetura de Microsserviços *implementada***, avaliado junto dos demais *"sem exceção"*. E o **C9** exige os 8 documentos *"válidos e atualizados"*: **tudo o que os documentos mostrarem precisa existir no código.**
 
-**Estado atual verificado em 26/08:** existe um único backend. Todo `app/`, `routes/` e `database/` roda num só processo Node/Express, com um `package.json`, um `Dockerfile`, um `command.js` e um deployment Kubernetes (`k8s/backend.yaml`) com 3 réplicas do **mesmo** container.
+**Estado atual verificado em 26/08:** existe um único backend. Todo `app/`, `routes/` e `database/` roda num só processo Node/Express, com um `package.json`, um `Dockerfile`, um `services/core-service/command.js` e um deployment Kubernetes (`infra/k8s/backend.yaml`) com 3 réplicas do **mesmo** container.
 
 Isso é um monólito — bem organizado internamente por domínio, o que facilita a separação, mas ainda assim um monólito.
 
@@ -57,7 +57,7 @@ Decompor o backend em microsserviços independentes, com fronteiras de dados def
 |-----------|--------|
 | Equipe de 3 pessoas, dois semestres | Composição real do grupo |
 | Não pode quebrar as 220 funcionalidades já testadas | Suíte de testes existente |
-| A invariante anti-*double-booking* depende de constraint de banco (`EXCLUDE USING gist`) e **não pode** ser distribuída | `db/schema.sql` |
+| A invariante anti-*double-booking* depende de constraint de banco (`EXCLUDE USING gist`) e **não pode** ser distribuída | `services/core-service/db/schema.sql` |
 | Multi-tenancy por `tenant_id` precisa continuar íntegro em todos os serviços **e em todos os eventos** | Decisão arquitetural do produto |
 | Tudo que for documentado precisa estar implementado | Critérios C1 e C9 |
 | ESM puro, Node 24, Sequelize 6 | Convenção do repositório |
@@ -134,7 +134,7 @@ Na direção oposta, o domínio B2B mostrou fronteira limpa: **nenhum** controll
 | Frente | O que muda |
 |---|---|
 | **SPEC-04** — Consumo | `accounts` e `account_items` ficam no core, com FK normal para `reservations`, `rooms` e `guests`; a T-04.4 é transação no mesmo banco. **Pode começar sem esperar esta Spec** |
-| **SPEC-02** — Cloud | Três bancos (core, b2b, analytics) e o RabbitMQ no cluster. O **Redis provisionado em `k8s/redis.yaml` não é usado por nenhuma linha de código**: sai do cluster ou ganha propósito declarado |
+| **SPEC-02** — Cloud | Três bancos (core, b2b, analytics) e o RabbitMQ no cluster. O **Redis provisionado em `infra/k8s/redis.yaml` não é usado por nenhuma linha de código**: sai do cluster ou ganha propósito declarado |
 | **SPEC-06 T-06.4** — Docker Compose | O compose de contingência precisa subir os três serviços, os três bancos e o RabbitMQ |
 | **SPEC-06 T-06.11** — LGPD | A eliminação de hóspede precisa ser propagada ao analytics por evento |
 | **SPEC-07** — Tarifas | `rate_periods` fica no core. Nenhuma referência cruzada |
@@ -144,6 +144,32 @@ Na direção oposta, o domínio B2B mostrou fronteira limpa: **nenhum** controll
 ---
 
 ## 6. Tarefas
+
+### T-01.0 — Reorganizar o repositório em layout de serviços ✅
+
+**Concluída em 15/09/2026.** Movimento estrutural puro, sem alterar uma linha de lógica: o
+backend saiu da raiz para `services/core-service/`, os manifests foram para `infra/k8s/` e o
+material superado para `docs/legado/`.
+
+**Por que antes da extração:** cada dia de espera era mais branch nascendo na estrutura antiga.
+A simulação do `git mv` contra as branches abertas mostrou que os renomes são detectados — os 14
+controllers e 5 models da `fix/paranoid-unique-constraints` mergeiam limpos.
+
+**Critérios de aceitação**
+- [x] **CA-01.0.a** — 204 arquivos movidos como renomes, em commit separado e auditável
+- [x] **CA-01.0.b** — `node --check` em 140 arquivos JS, sem erro
+- [x] **CA-01.0.c** — `qa_checks.sh` rodando com os caminhos novos: 0 erros
+- [x] **CA-01.0.d** — CI ajustado: `working-directory` e cache do `package-lock.json` do serviço
+- [x] **CA-01.0.e** — `Dockerfile` e `.dockerignore` com o serviço como contexto de build
+- [x] **CA-01.0.f** — `dump-openapi.mjs` do frontend apontando para o novo caminho do swagger
+- [x] **CA-01.0.g** — Documentos vivos atualizados; relatórios históricos preservados como estão
+
+> **Para quem for rebasear uma branch aberta:** os arquivos que você **alterou** seguem sozinhos
+> pelo renome. Os que você **criou** dentro de pastas movidas precisam ser reposicionados — o git
+> sugere o destino. O conflito no `scripts/qa_checks.sh` é anterior a esta mudança: a regra 8 e a
+> regra 9 tocaram a mesma região.
+
+---
 
 ### T-01.1 — Decidir o recorte e a propriedade dos dados ✅
 
@@ -176,7 +202,7 @@ Protocolos decididos no ADR-003. Faltam os contratos e os números de falha.
 
 **DEP:** T-01.1 ✅
 
-Hoje o JWT é validado por *middleware* local (`middlewares/auth.middleware.js`), com `tenant_id` extraído do *payload*. Com serviços separados, é preciso decidir como a identidade e o tenant se propagam.
+Hoje o JWT é validado por *middleware* local (`services/core-service/middlewares/auth.middleware.js`), com `tenant_id` extraído do *payload*. Com serviços separados, é preciso decidir como a identidade e o tenant se propagam.
 
 **Critérios de aceitação**
 - [ ] **CA-01.3.a** — Estratégia definida: cada serviço valida o JWT, ou existe *gateway* que valida e propaga
@@ -187,9 +213,9 @@ Hoje o JWT é validado por *middleware* local (`middlewares/auth.middleware.js`)
 
 > **Achado da pesquisa de 14/09 — o CA-01.3.b não é atingível com o esquema atual.** O token usa HS256 com um único `JWT_SECRET`. Distribuído a três serviços, qualquer um deles passa a poder **emitir** token válido de qualquer tenant. A candidata natural é **RS256**: o core assina com chave privada, os demais só verificam com a pública.
 >
-> **Achado lateral:** o `JWT_SECRET` está em texto puro em `k8s/secret.yaml`, versionado — o que contradiz o RNF-011 do Documento 02. Resolver junto, já que a T-01.3 muda a forma de distribuir segredos.
+> **Achado lateral:** o `JWT_SECRET` está em texto puro em `infra/k8s/secret.yaml`, versionado — o que contradiz o RNF-011 do Documento 02. Resolver junto, já que a T-01.3 muda a forma de distribuir segredos.
 >
-> **O que já ajuda:** o Nginx já é o ponto único de entrada (`k8s/nginx.yaml`), e existe `NetworkPolicy`.
+> **O que já ajuda:** o Nginx já é o ponto único de entrada (`infra/k8s/nginx.yaml`), e existe `NetworkPolicy`.
 
 ---
 
@@ -206,7 +232,7 @@ Primeiro serviço a sair: não altera estado do hotel, então a extração não 
 - [ ] **CA-01.4.d** — Todos os eventos da §5 publicados, com `tenant_id`
 
 **No broker**
-- [ ] **CA-01.4.e** — RabbitMQ no `k8s/` e no Docker Compose, com fila durável do analytics e fila de mensagens mortas
+- [ ] **CA-01.4.e** — RabbitMQ no `infra/k8s/` e no Docker Compose, com fila durável do analytics e fila de mensagens mortas
 - [ ] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8)
 
 **No analytics**
@@ -221,10 +247,10 @@ Primeiro serviço a sair: não altera estado do hotel, então a extração não 
 **Integração**
 - [ ] **CA-01.4.n** — Deployment Kubernetes independente
 - [ ] **CA-01.4.o** — O monólito não responde mais `/analytics`, e o Nginx roteia `/analytics/` para o novo serviço
-- [ ] **CA-01.4.p** — `tests/analytics.test.js` passa contra o novo serviço
+- [ ] **CA-01.4.p** — `services/core-service/tests/analytics.test.js` passa contra o novo serviço
 - [ ] **CA-01.4.q** — Suíte completa continua verde
 
-> **Cuidado com o teste:** `tests/analytics.test.js` semeia dados pelos endpoints do core (`registerAndLogin`, `factories`). Com eventos, o teste semeia pelo core, aguarda o consumo e consulta o analytics — é teste de integração do pipeline, não só do endpoint.
+> **Cuidado com o teste:** `services/core-service/tests/analytics.test.js` semeia dados pelos endpoints do core (`registerAndLogin`, `factories`). Com eventos, o teste semeia pelo core, aguarda o consumo e consulta o analytics — é teste de integração do pipeline, não só do endpoint.
 >
 > **Coordenação:** a suíte usa um único banco de teste com `truncateAll`. Duas suítes rodando ao mesmo tempo, de worktrees diferentes, se sabotam. Combinar antes de rodar.
 >
@@ -258,8 +284,8 @@ O fluxo de pagamento não sai do core, e restam duas operações entre serviços
 **Critérios de aceitação**
 - [ ] **CA-01.6.a** — Rotas internas do core para criar e cancelar reserva-bloco, idempotentes por `contract_id`
 - [ ] **CA-01.6.b** — A verificação de disponibilidade dos quartos acontece **dentro** da transação do core que cria a reserva-bloco
-- [ ] **CA-01.6.c** — `tests/b2b-smoke.test.js` passa contra os dois serviços
-- [ ] **CA-01.6.d** — `tests/public-booking.test.js` passa **sem alteração** — o PIX não é tocado por esta extração
+- [ ] **CA-01.6.c** — `services/core-service/tests/b2b-smoke.test.js` passa contra os dois serviços
+- [ ] **CA-01.6.d** — `services/core-service/tests/public-booking.test.js` passa **sem alteração** — o PIX não é tocado por esta extração
 - [ ] **CA-01.6.e** — Core fora do ar: assinar e cancelar respondem `503` e o contrato permanece no status anterior
 - [ ] **CA-01.6.f** — Repetir uma assinatura interrompida não cria segunda reserva-bloco
 - [ ] **CA-01.6.g** — Banco próprio, deployment próprio e rota `/contracts`, `/event-quotes` e `/corporate-clients` servidas pelo novo serviço
@@ -314,3 +340,4 @@ Isso permite responder na defesa: *"por que estes serviços?"*, *"como conversam
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação a partir do inventário de 26/08 |
 | 1.1 | 14/09/2026 | Gabriel Reis Cunha | **T-01.1 concluída — ADR-003.** Recorte refeito pela consistência transacional: pagamento, consumo, produtos e contas vão para o core; o domínio contratual vira `b2b-service`; analytics lê réplica. Corrigida a recomendação da v1.0 |
 | 1.2 | 14/09/2026 | Gabriel Reis Cunha | **Mensageria adotada.** Após leitura integral dos critérios de aceite, o analytics deixa de ler réplica e passa a ter banco próprio, alimentado por eventos do core via **RabbitMQ**, com *outbox* transacional e consumidor idempotente. B2B → core continua síncrono. Notificação ao hóspede e channel manager registrados como evolução, fora dos diagramas. Escopo passa a incluir os três serviços (C1 *"implementada"*). T-01.4 reescrita com o pipeline de eventos; T-01.2 ganha catálogo de eventos; T-01.3 ganha credenciais por serviço no broker; impactos em SPEC-02, T-06.4 e T-06.11 |
+| 1.3 | 15/09/2026 | Gabriel Reis Cunha | **T-01.0 concluída — repositório em layout de serviços.** O backend saiu da raiz para `services/core-service/`, os manifests para `infra/k8s/` e o material superado para `docs/legado/`: 204 arquivos movidos como renomes puros, sem alterar lógica. Ajustados o CI, o `Dockerfile`, o `.dockerignore`, os quatro scripts com caminho embutido e o `dump-openapi.mjs` do frontend. Verificado: 140 arquivos no `node --check`, `qa_checks.sh` sem erro, imagem Docker construída com o novo contexto e o spec OpenAPI carregando do caminho novo. Documentos vivos atualizados; relatórios históricos preservados como registro da data |

@@ -224,7 +224,7 @@ A tela que **não existe**. Camareira e supervisora não usam a tela da recepç�
 **Atravessa a fronteira:** o `GuestModel` tem quatro campos (`full_name`, `cpf`, `phone`, `email`). Esta tarefa inclui os campos no backend, porque sem eles não há o que exibir.
 
 **Critérios de aceitação**
-- [ ] **CA-05.10.a** — Campos da ficha no model, no `db/schema.sql` e no Doc. 04: documento e tipo, data de nascimento, nacionalidade, endereço e motivo da viagem (RT-26)
+- [ ] **CA-05.10.a** — Campos da ficha no model, no `services/core-service/db/schema.sql` e no Doc. 04: documento e tipo, data de nascimento, nacionalidade, endereço e motivo da viagem (RT-26)
 - [ ] **CA-05.10.b** — Formulário organizado em seções, e não uma coluna de vinte campos
 - [ ] **CA-05.10.c** — Histórico de estadias do hóspede: quantas vezes voltou, quanto gastou, última estadia (RT-27)
 - [ ] **CA-05.10.d** — Observações operacionais — preferência de quarto, alergia, restrição alimentar (RT-28)

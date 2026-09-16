@@ -17,9 +17,9 @@ Este documento apresenta a modelagem estrutural de dados do sistema, detalhando 
 
 O modelo descreve o **alvo arquitetural do projeto** — o conjunto completo de entidades necessárias para a solução, incluindo as já implementadas e as já especificadas mas ainda não construídas. São **17 entidades**: 15 implementadas e 2 planejadas.
 
-> **Correção desta versão:** a checagem contra `app/Models/` e `db/schema.sql` do repositório **atual** de implementação, em 14/09/2026, mostrou que `PRODUCTS` (§4.10) possui `Model`, tabela e testes automatizados — a versão 1.1 o havia rebaixado a 🔷 Planejado com base numa cópia defasada do repositório. O status foi restabelecido para ✅ Implementado, e o `role` de `USERS` (§4.2) passou a incluir `WAITER`, já presente na constraint do banco. Os identificadores `RF-xxx` seguem alinhados ao Documento 02, fonte de verdade da numeração.
+> **Correção desta versão:** a checagem contra `services/core-service/app/Models/` e `services/core-service/db/schema.sql` do repositório **atual** de implementação, em 14/09/2026, mostrou que `PRODUCTS` (§4.10) possui `Model`, tabela e testes automatizados — a versão 1.1 o havia rebaixado a 🔷 Planejado com base numa cópia defasada do repositório. O status foi restabelecido para ✅ Implementado, e o `role` de `USERS` (§4.2) passou a incluir `WAITER`, já presente na constraint do banco. Os identificadores `RF-xxx` seguem alinhados ao Documento 02, fonte de verdade da numeração.
 
-A base implementada foi extraída dos *models* Sequelize (`app/Models/`) e do script de criação (`db/schema.sql`) do repositório. As entidades planejadas têm desenho fechado, registrado em decisão de arquitetura datada.
+A base implementada foi extraída dos *models* Sequelize (`services/core-service/app/Models/`) e do script de criação (`services/core-service/db/schema.sql`) do repositório. As entidades planejadas têm desenho fechado, registrado em decisão de arquitetura datada.
 
 ### 1.1 Legenda de Status
 
@@ -558,7 +558,7 @@ Consumos extras lançados na reserva (frigobar, restaurante, spa).
 
 ### 4.10 Entidade: PRODUCTS ✅
 
-> **Status:** implementado — `Model`, tabela em `db/schema.sql` e testes automatizados, verificados contra o
+> **Status:** implementado — `Model`, tabela em `services/core-service/db/schema.sql` e testes automatizados, verificados contra o
 > repositório atual em 14/09/2026. Restabelecido na v1.2, após rebaixamento indevido na v1.1. · **Requisitos:** RF-018
 
 Catálogo de itens do cardápio (bebidas, comidas, serviços).
@@ -862,7 +862,7 @@ Este é um documento oficial do Projeto Experimental. Para evitar revisões freq
 | Versão | Data | Autor | Descrição da Alteração |
 |--------|------|-------|------------------------|
 | 1.0 | 23/08/2026 | Gabriel Reis Cunha | Versão inicial. 17 entidades: 15 implementadas e 2 planejadas (`ACCOUNTS`, `ACCOUNT_ITEMS`, desenho fechado em 07/08/2026). Seção 7 preliminar, aguardando ADR-003 |
-| 1.1 | 28/08/2026 | Weslley Lucas | Correção de status: `PRODUCTS` reclassificada de ✅ Implementado para 🔷 Planejado — sem `Model` nem tabela em `db/schema.sql` no repositório de implementação (`sistema_hotel_prova`). Contagem ajustada para 14 implementadas / 3 planejadas. `role` de `USERS` corrigido — `WAITER` ainda não está na constraint do banco. Todos os identificadores `RF-xxx` realinhados com o Documento 02 (Requisitos Funcionais), agora fonte de verdade da numeração |
+| 1.1 | 28/08/2026 | Weslley Lucas | Correção de status: `PRODUCTS` reclassificada de ✅ Implementado para 🔷 Planejado — sem `Model` nem tabela em `services/core-service/db/schema.sql` no repositório de implementação (`sistema_hotel_prova`). Contagem ajustada para 14 implementadas / 3 planejadas. `role` de `USERS` corrigido — `WAITER` ainda não está na constraint do banco. Todos os identificadores `RF-xxx` realinhados com o Documento 02 (Requisitos Funcionais), agora fonte de verdade da numeração |
 | 1.2 | 14/09/2026 | Gabriel Reis Cunha | **Seção 7 consolidada conforme o ADR-003** (Documento 07). O recorte de microsserviços foi revisto pelo critério de consistência transacional: `PAYMENTS`, `CONSUMPTIONS`, `PRODUCTS`, `ACCOUNTS` e `ACCOUNT_ITEMS` passam ao `core-service`; o domínio contratual forma o `b2b-service`; o `analytics-service` tem banco próprio, alimentado por eventos do núcleo via RabbitMQ. **Correções de status contra o repositório atual:** `PRODUCTS` volta a ✅ Implementado — possui `Model`, tabela e testes, que a v1.1 não encontrou por consultar cópia defasada; o `role` de `USERS` passa a incluir `WAITER`, já presente na constraint do banco. Contagem ajustada para 15 implementadas e 2 planejadas. Documento alinhado ao Documento 02 v1.4 |
 
 ---
