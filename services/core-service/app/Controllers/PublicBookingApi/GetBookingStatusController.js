@@ -23,9 +23,11 @@ export default async function GetBookingStatusController(request, response) {
             // um `return reservation.payments` futuro viraria vazamento. attributes
             // explícito limita ao que o hóspede precisa para acompanhar a reserva.
             //
-            // Mantenha o include em UMA linha: a regra 6 do scripts/qa_checks.sh é um
-            // grep de linha única. Quebrado em várias linhas, o include sai do alcance
-            // do detector e remover o `attributes` deixaria de reprovar o build.
+            // Mantenha o include em UMA linha: a regra 6 do scripts/qa_checks.sh (grep de
+            // linha única) é só um AVISO (report_warn) — não bloqueia o CI sozinha. Quem
+            // garante esta restrição de verdade é o teste "a query do status público
+            // restringe os atributos do Payment carregado" em tests/public-booking.test.js,
+            // que espiona a query e falha se o `attributes` sumir daqui.
             include: [{ model: PaymentModel, as: 'payments', attributes: ['kind', 'status', 'amount', 'paid_at'] }]
         });
         if (!reservation) {
