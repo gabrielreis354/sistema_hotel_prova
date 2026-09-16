@@ -2,6 +2,8 @@
 
 **Versão 2.4** · 16/09/2026 · base: `docs/specs/` @ `origin/develop`
 
+Versão visual para compartilhar com o time: `docs/trilhas-do-gesway.html` — abra no navegador.
+
 ---
 
 ## 0. Situação em 16/09 — semana 2
