@@ -24,8 +24,8 @@ O backend continua privado dentro do cluster. A entrada externa acontece pelo Se
 ## Arquivos criados
 
 ```txt
-k8s/
-  kustomization.yaml     — ponto de entrada (kubectl apply -k k8s/)
+infra/k8s/
+  kustomization.yaml     — ponto de entrada (kubectl apply -k infra/k8s/)
   namespace.yaml         — namespace hotel-system
   configmap.yaml         — variaveis nao sensiveis
   secret.yaml            — POSTGRES_PASSWORD e JWT_SECRET

@@ -71,7 +71,7 @@ Multi-tenant Schema (fundação completa — sem retrabalho no TCC)
 └── Middleware lendo tenantId do JWT
 
 Infraestrutura
-├── Kubernetes com 3 réplicas do backend (manifests em k8s/)
+├── Kubernetes com 3 réplicas do backend (manifests em infra/k8s/)
 ├── Nginx como reverse proxy (Service LoadBalancer)
 ├── PostgreSQL containerizado com PVC
 └── Docker Compose disponível como alternativa para testes locais

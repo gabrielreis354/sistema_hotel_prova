@@ -11,12 +11,12 @@ FROM node:24-alpine AS runner
 
 WORKDIR /app
 
-# Copia somente o necessário
+# O contexto de build é services/core-service (o backend saiu da raiz em 15/09).
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Remove pastas que não pertencem ao runtime
-RUN rm -rf docker/ docs/ db/ modelagem/ queries/ scripts/ seed/ .gitignore
+# Remove o que não pertence ao runtime
+RUN rm -rf db/ seed/ tests/ vitest.config.js
 
 # Segurança: não executar como root
 USER node

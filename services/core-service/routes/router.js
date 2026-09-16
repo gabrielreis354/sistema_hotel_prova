@@ -19,6 +19,7 @@ import contractRouter from './apis/contractRouter.js';
 import productRouter from './apis/productRouter.js';
 import publicBookingRouter from './apis/publicBookingRouter.js';
 import webhookRouter       from './apis/webhookRouter.js';
+import addressRouter       from './apis/addressRouter.js';
 
 const router = Router();
 
@@ -64,6 +65,7 @@ router.use('/corporate-clients', corporateClientRouter);
 router.use('/event-quotes',      eventQuoteRouter);
 router.use('/contracts',         contractRouter);
 router.use('/products',          productRouter);
+router.use('/address',           addressRouter);
 
 // Motor de reserva direta — rotas PÚBLICAS (sem auth), tenant resolvido pelo subdomínio
 router.use('/public/:subdomain', publicBookingRouter);

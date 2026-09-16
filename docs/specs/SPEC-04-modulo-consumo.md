@@ -18,7 +18,7 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 | Fatia | Plano dizia | **Realidade verificada** |
 |-------|-------------|--------------------------|
 | 0 — Pré-requisitos (CORS, filtro de datas, `WAITER`) | 🔲 Pendente | ✅ **Mergeada** em `313ed71` |
-| 1 — Catálogo de Produtos | 🔲 Pendente | ✅ **Mergeada** — `ProductModel`, `ProductApi`, `/products`, `tests/products.test.js` |
+| 1 — Catálogo de Produtos | 🔲 Pendente | ✅ **Mergeada** — `ProductModel`, `ProductApi`, `/products`, `services/core-service/tests/products.test.js` |
 | 2a — `Account` + `AccountItem` | 🔲 Pendente | 🔲 Pendente — `AccountModel.js` não existe |
 | 2b — Migração do `Consumption` | 🔲 Pendente | 🔲 Pendente |
 | 3a — Bill da conta + close | 🔲 Pendente | 🔲 Pendente |
@@ -27,9 +27,9 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 | 4 — Check-in + Split Bill + Day-use | 🔲 Pendente | 🔲 Pendente |
 | 5 — Seed, Swagger e testes | 🔲 Pendente | 🔲 Pendente |
 
-**Evidência do que existe:** `app/Models/ProductModel.js`, `app/Controllers/ProductApi/` (5 controllers), rota `/products` registrada, `tests/products.test.js` com 36 testes, tabela `products` em `db/schema.sql` com índice único parcial.
+**Evidência do que existe:** `services/core-service/app/Models/ProductModel.js`, `services/core-service/app/Controllers/ProductApi/` (5 controllers), rota `/products` registrada, `services/core-service/tests/products.test.js` com 36 testes, tabela `products` em `services/core-service/db/schema.sql` com índice único parcial.
 
-**Evidência do que falta:** `ls app/Models/AccountModel.js` → não existe.
+**Evidência do que falta:** `ls services/core-service/app/Models/AccountModel.js` → não existe.
 
 ---
 
@@ -112,7 +112,7 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 - [ ] **CA-04.1.m** — Isolamento multi-tenant em `accounts` e `account_items`
 - [ ] **CA-04.1.n** — **Least privilege do `WAITER` fechado** — ver §6
 
-**Armadilha:** `database/relations.js` já causou conflito neste projeto. Acrescentar ao final da seção, nunca reordenar.
+**Armadilha:** `services/core-service/database/relations.js` já causou conflito neste projeto. Acrescentar ao final da seção, nunca reordenar.
 
 ---
 
@@ -125,9 +125,9 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 - [ ] **CA-04.2.b** — `created_at` original preservado
 - [ ] **CA-04.2.c** — Soft-deletados preservam `deleted_at` e `deleted_by` — trilha financeira
 - [ ] **CA-04.2.d** — `POST /reservations/:id/consumptions` continua respondendo, gravando via `Account`
-- [ ] **CA-04.2.e** — **`tests/bill-consumptions.test.js` passa sem nenhuma alteração no arquivo**
+- [ ] **CA-04.2.e** — **`services/core-service/tests/bill-consumptions.test.js` passa sem nenhuma alteração no arquivo**
 
-> Se precisar editar `tests/bill-consumptions.test.js` para passar, um contrato foi quebrado. **Parar e escalar.**
+> Se precisar editar `services/core-service/tests/bill-consumptions.test.js` para passar, um contrato foi quebrado. **Parar e escalar.**
 
 ---
 
@@ -154,13 +154,13 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 
 Único ponto que pode quebrar o motor de reserva direta e o fluxo PIX.
 
-**Arquivos atingidos:** `PublicBookingApi/CreateBookingController.js`, `WebhookApi/PixWebhookController.js`, `tests/public-booking.test.js`
+**Arquivos atingidos:** `PublicBookingApi/CreateBookingController.js`, `WebhookApi/PixWebhookController.js`, `services/core-service/tests/public-booking.test.js`
 
 **Critérios de aceitação**
 - [ ] **CA-04.4.a** — `Payment` aceita `account_id` **ou** `reservation_id`
 - [ ] **CA-04.4.b** — `CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL)` no banco
 - [ ] **CA-04.4.c** — Pagamento total → `PAID`; parcial → conta segue `OPEN`
-- [ ] **CA-04.4.d** — **`tests/public-booking.test.js` passa** — fluxo PIX intacto
+- [ ] **CA-04.4.d** — **`services/core-service/tests/public-booking.test.js` passa** — fluxo PIX intacto
 - [ ] **CA-04.4.e** — Suíte completa verde
 
 ---
@@ -172,7 +172,7 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 **Critérios de aceitação**
 - [ ] **CA-04.5.a** — `GET /reservations/:id/bill` soma as `Accounts` da reserva
 - [ ] **CA-04.5.b** — **Contrato de resposta idêntico** ao atual
-- [ ] **CA-04.5.c** — `tests/bill-consumptions.test.js` passa sem alteração
+- [ ] **CA-04.5.c** — `services/core-service/tests/bill-consumptions.test.js` passa sem alteração
 
 ---
 
@@ -200,7 +200,7 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 - [ ] **CA-04.7.c** — Requer `ADMIN`
 - [ ] **CA-04.7.d** — `seed/seed_consumo.sql` idempotente, com cardápio, conta aberta, day-use, `INTERNAL` e cortesia
 - [ ] **CA-04.7.e** — Swagger completo de `/accounts`, **com schema de resposta** (ver SPEC-06)
-- [ ] **CA-04.7.f** — `tests/tenant-isolation.test.js` expandido com `Account` e `Product`
+- [ ] **CA-04.7.f** — `services/core-service/tests/tenant-isolation.test.js` expandido com `Account` e `Product`
 
 > O endpoint de relatório está aqui menos pela feature e mais porque **escrever a query prova que o modelo funciona**. Se agrupar por motivo for difícil, o modelo está errado.
 

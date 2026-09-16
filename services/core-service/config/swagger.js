@@ -86,6 +86,17 @@ const options = {
                         email:     { type: 'string', format: 'email' }
                     }
                 },
+                Address: {
+                    type: 'object',
+                    properties: {
+                        cep:          { type: 'string', example: '01310100' },
+                        street:       { type: 'string', example: 'Avenida Paulista' },
+                        neighborhood: { type: 'string', example: 'Bela Vista' },
+                        city:         { type: 'string', example: 'São Paulo' },
+                        state:        { type: 'string', example: 'SP' },
+                        complement:   { type: 'string', nullable: true, example: 'até 610 - lado par' }
+                    }
+                },
                 Reservation: {
                     type: 'object',
                     properties: {
@@ -310,6 +321,19 @@ const options = {
                 get:    { tags: ['Hóspedes'], summary: 'Busca por ID', responses: { 200: { description: 'OK' } } },
                 put:    { tags: ['Hóspedes'], summary: 'Atualiza',     responses: { 200: { description: 'OK' } } },
                 delete: { tags: ['Hóspedes'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
+            },
+            '/address/{cep}': {
+                parameters: [{ in: 'path', name: 'cep', required: true, schema: { type: 'string', example: '01310100' }, description: 'CEP com ou sem formatação (8 dígitos)' }],
+                get: {
+                    tags: ['Endereço'],
+                    summary: 'Consulta endereço por CEP (ViaCEP) — apoio ao preenchimento de cadastro',
+                    responses: {
+                        200: { description: 'Endereço encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Address' } } } },
+                        400: { description: 'CEP inválido — não tem 8 dígitos' },
+                        404: { description: 'CEP não encontrado' },
+                        503: { description: 'Serviço de CEP indisponível no momento' }
+                    }
+                }
             },
             '/reservations': {
                 get:  { tags: ['Reservas'], summary: 'Lista reservas (filtro por período e paginação opcionais)', parameters: [
