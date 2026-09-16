@@ -33,6 +33,12 @@ jobs:
     name: Testes + Cobertura
     runs-on: ubuntu-latest
 
+    # O backend vive em services/core-service desde 15/09/2026 (SPEC-01).
+    # Cada serviço novo ganha o seu próprio job, com filtro de caminho (T-01.5).
+    defaults:
+      run:
+        working-directory: services/core-service
+
     # Banco PostgreSQL efêmero para os testes de integração.
     services:
       postgres:
@@ -67,6 +73,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
+          cache-dependency-path: services/core-service/package-lock.json
 
       - name: Instalar dependências
         run: npm ci

@@ -43,7 +43,7 @@ check_kubectl() {
 cmd_up() {
     check_kubectl
     info "Aplicando manifests Kubernetes (namespace: $NS)..."
-    kubectl apply -k k8s/
+    kubectl apply -k infra/k8s/
     echo ""
     info "Aguardando todos os pods ficarem prontos (timeout: 120s)..."
     kubectl wait --for=condition=ready pod --all -n "$NS" --timeout=120s

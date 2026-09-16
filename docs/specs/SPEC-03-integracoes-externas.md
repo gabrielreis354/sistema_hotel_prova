@@ -18,7 +18,7 @@ O Termo de Aceite exige:
 A única tentativa é o PIX, e está explicitamente simulada:
 
 ```js
-// app/services/pix/index.js
+// services/core-service/app/services/pix/index.js
 const PROVIDERS = { fake: FakePixProvider };
 // "Default: 'fake' (simulado) — adequado para demo/TCC."
 ```
@@ -75,7 +75,7 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 - [ ] **CA-03.1.b** — CEP inválido devolve **400** com mensagem clara, não 500
 - [ ] **CA-03.1.c** — CEP inexistente devolve **404**
 - [ ] **CA-03.1.d** — *Timeout* configurado; API fora do ar devolve **503**, sem travar a requisição
-- [ ] **CA-03.1.e** — Serviço isolado atrás de abstração, no padrão de `app/services/pix/`
+- [ ] **CA-03.1.e** — Serviço isolado atrás de abstração, no padrão de `services/core-service/app/services/pix/`
 - [ ] **CA-03.1.f** — Testes com o cliente HTTP mockado — sem depender de rede
 - [ ] **CA-03.1.g** — Documentado no Swagger com schema de resposta
 - [ ] **CA-03.1.h** — `tenant_id` respeitado; endpoint exige autenticação
@@ -96,7 +96,7 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 - [ ] **CA-03.2.d** — *Webhook* de confirmação processa notificação real do provedor
 - [ ] **CA-03.2.e** — Validação de autenticidade da notificação — não confiar em `POST` anônimo
 - [ ] **CA-03.2.f** — `FakePixProvider` **permanece** e continua sendo o padrão em teste
-- [ ] **CA-03.2.g** — `tests/public-booking.test.js` continua passando com o *fake*
+- [ ] **CA-03.2.g** — `services/core-service/tests/public-booking.test.js` continua passando com o *fake*
 - [ ] **CA-03.2.h** — Credenciais via variável de ambiente; `.env.example` atualizado
 - [ ] **CA-03.2.i** — Falha do provedor não deixa `Payment` em estado inconsistente
 
