@@ -90,19 +90,21 @@ Verificado: **não existe nenhum `docker-compose*.yml`** no repositório. O proj
 
 ---
 
-### T-06.5 — Endpoint público vazando dados de pagamento 🔲
+### T-06.5 — Endpoint público vazando dados de pagamento ✅
 
 **Problema:** `GetBookingStatusController.js:21` faz `include: [{ model: PaymentModel, as: 'payments' }]` **sem `attributes`**, num endpoint **público, sem autenticação**.
 
 Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e `provider`.
 
 **Critérios de aceitação**
-- [ ] **CA-06.5.a** — `attributes` explícito, expondo apenas o necessário ao status
-- [ ] **CA-06.5.b** — `pix_qr_code` e `provider_charge_id` não retornados sem autenticação
-- [ ] **CA-06.5.c** — Teste garantindo que campos sensíveis não aparecem
-- [ ] **CA-06.5.d** — `npm run qa:checks` sem o aviso correspondente
+- [x] **CA-06.5.a** — `attributes` explícito, expondo apenas o necessário ao status
+- [x] **CA-06.5.b** — `pix_qr_code` e `provider_charge_id` não retornados sem autenticação *(no endpoint de status; achado novo de 16/09 mostra que `POST /public/:subdomain/bookings` ainda devolve `provider_charge_id` — pré-existente, fora deste escopo, ver pendência abaixo)*
+- [x] **CA-06.5.c** — Teste garantindo que campos sensíveis não aparecem *(teste de resposta + teste que espiona a query e falha se o `attributes` for removido — CA-06.5.c estava cumprido só na letra até 16/09, ver `docs/qa/redteam_public-booking-leak_16set2026.md`)*
+- [x] **CA-06.5.d** — `npm run qa:checks` sem o aviso correspondente
 
-> **Risco de LGPD e segurança.** Foi identificado pelo `qa_checks.sh` e continua em aberto.
+> **Risco de LGPD e segurança.** Foi identificado pelo `qa_checks.sh`. Corrigido e mergeado em 16/09/2026 — ver `docs/qa/redteam_public-booking-leak_16set2026.md`.
+>
+> **Pendência nova, fora do escopo desta task (registrar como T-06.12 ou similar):** auditoria de 16/09 encontrou dois achados 🔴 pré-existentes, não introduzidos por esta correção — (1) `GET /payments` devolve o `Payment` inteiro (incluindo `provider_charge_id`) a qualquer usuário autenticado do tenant, sem `requireRole`; (2) o webhook PIX aceita qualquer requisição com o `provider_charge_id` certo (esta é a T-06.9, já na fila). Recomendação do auditor: `defaultScope` em `PaymentModel` excluindo `pix_qr_code`, `provider_charge_id` e `provider`, resolvendo os dois controllers atuais e todo consumidor futuro de uma vez.
 
 ---
 

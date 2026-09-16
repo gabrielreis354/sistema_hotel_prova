@@ -14,7 +14,15 @@ export async function resolveTenantBySubdomain(subdomain) {
         return { tenant: null, error: { status: 400, message: 'Subdomínio obrigatório' } };
     }
 
-    const tenant = await TenantModel.findOne({ where: { subdomain } });
+    // attributes explícito: este resolver serve só as rotas PÚBLICAS, sem autenticação.
+    // Sem ele viria o tenant inteiro, incluindo legal_id (CNPJ do hotel) — dado que
+    // nenhum consumidor público usa. A lista cobre os campos realmente lidos: id,
+    // name, subdomain e deposit_percent pelos controllers; status e booking_enabled
+    // pelos guards abaixo.
+    const tenant = await TenantModel.findOne({
+        where: { subdomain },
+        attributes: ['id', 'name', 'subdomain', 'status', 'booking_enabled', 'deposit_percent']
+    });
 
     if (!tenant || tenant.status !== 'ACTIVE') {
         return { tenant: null, error: { status: 404, message: 'Hotel não encontrado' } };

@@ -18,7 +18,10 @@ export default async function GetBillController(request, response) {
             where: { id, tenant_id: tenantId },
             include: [
                 { model: GuestModel,       as: 'guest',        attributes: ['id', 'full_name'] },
-                { model: PaymentModel,     as: 'payments' },
+                // Sem attributes viriam pix_qr_code, provider e provider_charge_id — que a
+                // conta não usa e o `payments.map()` lá embaixo não devolve. Carregar só o
+                // necessário evita que um `payments` devolvido inteiro no futuro vaze o QR.
+                { model: PaymentModel,     as: 'payments',     attributes: ['id', 'amount', 'method', 'kind', 'status', 'paid_at'] },
                 { model: ConsumptionModel, as: 'consumptions' }
             ]
         });
