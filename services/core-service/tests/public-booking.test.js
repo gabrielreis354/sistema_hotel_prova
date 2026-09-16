@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom } from './helpers/factories.js';
+import ReservationModel from '../app/Models/ReservationModel.js';
 
 // Testes do MOTOR DE RESERVA DIRETA + PIX (diferencial nº1).
 // Rotas públicas (sem auth) resolvidas por subdomínio + webhook de confirmação PIX.
@@ -140,6 +141,31 @@ describe('POST /public/:subdomain/bookings — fluxo completo com PIX', () => {
             amount: expect.any(Number),
             paid_at: expect.anything()
         });
+    });
+
+    it('a query do status público restringe os atributos do Payment carregado (não confia só na serialização manual)', async () => {
+        // O teste anterior garante que a RESPOSTA não vaza campo sensível — mas a resposta
+        // é montada campo a campo, então passaria mesmo se a query trouxesse o Payment
+        // inteiro para a memória do handler. Este teste espiona a query e falha se o
+        // `attributes` do include sumir de GetBookingStatusController.js — é a rede que
+        // protege a causa raiz (CA-06.5.a), não só o sintoma (CA-06.5.b).
+        const spy = vi.spyOn(ReservationModel, 'findOne');
+
+        const res = await request(app).get(`/public/${subdomain}/bookings/${bookingId}/status`);
+        expect(res.status).toBe(200);
+
+        expect(spy).toHaveBeenCalled();
+        const options = spy.mock.calls.at(-1)[0];
+        const paymentInclude = options.include.find((include) => include.as === 'payments');
+
+        expect(paymentInclude.attributes).toEqual(
+            expect.arrayContaining(['kind', 'status', 'amount', 'paid_at'])
+        );
+        expect(paymentInclude.attributes).not.toContain('pix_qr_code');
+        expect(paymentInclude.attributes).not.toContain('provider_charge_id');
+        expect(paymentInclude.attributes).not.toContain('provider');
+
+        spy.mockRestore();
     });
 
     it('webhook é idempotente (reenvio não reprocessa)', async () => {
