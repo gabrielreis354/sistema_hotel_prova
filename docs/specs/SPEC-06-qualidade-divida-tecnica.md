@@ -63,7 +63,7 @@ Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations
 **Efeito:** excluir uma categoria **queima o nome para sempre**. A linha morta continua no índice, o guard da aplicação não a enxerga (escopo paranoid) e quem barra é o Postgres — virando **500**.
 
 **Critérios de aceitação**
-- [ ] **CA-06.3.a** — Índice parcial `WHERE deleted_at IS NULL` no model e no `db/schema.sql`
+- [ ] **CA-06.3.a** — Índice parcial `WHERE deleted_at IS NULL` no model e no `services/core-service/db/schema.sql`
 - [ ] **CA-06.3.b** — `UniqueConstraintError` mapeado para **409**, não 500
 - [ ] **CA-06.3.c** — Teste do ciclo criar → deletar → recriar com o mesmo nome
 - [ ] **CA-06.3.d** — Auditar os demais models `paranoid` com unique, aplicando o mesmo padrão
@@ -152,7 +152,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ### T-06.9 — Webhook PIX sem validação de assinatura 🔴 🔲
 
-**Problema:** `routes/apis/webhookRouter.js` monta `POST /webhooks/pix` **sem autenticação** — correto, o PSP não tem JWT — mas o controller não verifica assinatura alguma. O próprio comentário do router admite a lacuna: *"em produção, cada webhook deve validar a assinatura do provedor antes de confiar"*.
+**Problema:** `services/core-service/routes/apis/webhookRouter.js` monta `POST /webhooks/pix` **sem autenticação** — correto, o PSP não tem JWT — mas o controller não verifica assinatura alguma. O próprio comentário do router admite a lacuna: *"em produção, cada webhook deve validar a assinatura do provedor antes de confiar"*.
 
 **Cenário de falha:** qualquer pessoa que descubra a URL e um `provider_charge_id` marca um pagamento como `PAID` e promove a reserva de `PENDING` para `CONFIRMED` — sem ter pago. É perda de receita direta, com o quarto bloqueado por uma reserva confirmada e não paga.
 
@@ -177,7 +177,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 **Consequência:** o tempo de resposta cresce com o volume do tenant, contra o RNF-001 (P95 < 500 ms). E a SPEC-05 T-05.2 já assume paginação disponível — a suposição vale hoje apenas para reservas.
 
 **Critérios de aceitação**
-- [ ] **CA-06.10.a** — Utilitário único de paginação em `app/utils/`, reaproveitado pelos controllers (DRY)
+- [ ] **CA-06.10.a** — Utilitário único de paginação em `services/core-service/app/utils/`, reaproveitado pelos controllers (DRY)
 - [ ] **CA-06.10.b** — Todas as rotas de listagem aceitam `?page=` e `?limit=`, com teto por página e valor padrão
 - [ ] **CA-06.10.c** — Contrato de resposta uniforme, expondo o total para o cliente montar a navegação
 - [ ] **CA-06.10.d** — Retrocompatível: ausência dos parâmetros não quebra consumidor existente
@@ -191,7 +191,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ### T-06.11 — Eliminação definitiva de dado pessoal (LGPD art. 18, VI) 🔲
 
-**Problema:** todo model de dado pessoal é `paranoid: true` e nenhum controller oferece eliminação definitiva — `grep -rn "force: true" app/Controllers/` devolve **uma** ocorrência, em `UpdateContractController.js:45`, para parcelas de contrato. `DeleteGuestController` chama `guest.destroy()` sem `force`: a linha permanece com `full_name`, `cpf`, `phone` e `email`.
+**Problema:** todo model de dado pessoal é `paranoid: true` e nenhum controller oferece eliminação definitiva — `grep -rn "force: true" services/core-service/app/Controllers/` devolve **uma** ocorrência, em `UpdateContractController.js:45`, para parcelas de contrato. `DeleteGuestController` chama `guest.destroy()` sem `force`: a linha permanece com `full_name`, `cpf`, `phone` e `email`.
 
 O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro: antes, o índice total limitava a uma a quantidade de linhas com o CPF de uma pessoa. Agora cada ciclo excluir → recadastrar deixa mais uma cópia completa e permanente. Um hóspede que se hospeda todo ano e é "limpado" da base entre temporadas acumula N cópias do próprio CPF, nenhuma alcançável por endpoint algum.
 

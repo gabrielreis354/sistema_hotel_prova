@@ -19,7 +19,12 @@
 
 set -uo pipefail
 
-SRC_DIRS="app routes middlewares database config bootstrap"
+# Os caminhos abaixo são relativos à raiz do repositório. O script pode ser chamado
+# de qualquer lugar — do CI, da raiz ou de dentro de services/core-service via npm.
+cd "$(dirname "$0")/.." || exit 1
+
+CORE="services/core-service"
+SRC_DIRS="$CORE/app $CORE/routes $CORE/middlewares $CORE/database $CORE/config $CORE/bootstrap"
 ERRORS=0
 WARNS=0
 
@@ -93,7 +98,7 @@ report_error "tenant_id lido do body/query/params" \
 # 4. Ordem de rotas — /:param declarado antes de rota literal captura a literal
 # ─────────────────────────────────────────────────────────────────────────────
 route_issues=""
-for f in routes/apis/*.js; do
+for f in $CORE/routes/apis/*.js; do
     [ -f "$f" ] || continue
     unset seen_param 2>/dev/null || true
     declare -A seen_param=()
@@ -150,14 +155,14 @@ report_warn "include de model com dado sensível, sem attributes" \
 # 7. Endpoint novo sem Swagger — quebra o cliente tipado do frontend
 # ─────────────────────────────────────────────────────────────────────────────
 missing_swagger=""
-for f in routes/apis/*.js; do
+for f in $CORE/routes/apis/*.js; do
     [ -f "$f" ] || continue
     base=$(basename "$f" .js)
     resource=$(printf '%s' "$base" | sed -E 's/Router$//')
     # camelCase -> kebab-case (roomCategory -> room-category)
     kebab=$(printf '%s' "$resource" | sed -E 's/([a-z0-9])([A-Z])/\1-\L\2/g' | tr '[:upper:]' '[:lower:]')
-    if ! grep -qi -- "$kebab" config/swagger.js 2>/dev/null; then
-        missing_swagger+="$f: recurso '$kebab' não aparece em config/swagger.js"$'\n'
+    if ! grep -qi -- "$kebab" $CORE/config/swagger.js 2>/dev/null; then
+        missing_swagger+="$f: recurso '$kebab' não aparece em $CORE/config/swagger.js"$'\n'
     fi
 done
 report_warn "Router sem entrada no Swagger" \

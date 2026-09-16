@@ -16,6 +16,11 @@ Cada fluxo aponta o arquivo onde ele acontece, para você conferir antes de dese
 caminhos valem para a branch `develop`** do repositório do hotel — a `main` ainda está na versão
 de julho, sem o catálogo de produtos e sem o frontend.
 
+> **Atenção ao caminho.** Em 15/09 o backend saiu da raiz e passou para **`services/core-service/`**,
+> como primeiro passo da divisão em serviços. Onde a tabela cita vários arquivos na mesma linha, a
+> base vale para todos: `services/core-service/routes/apis/authRouter.js`, `…/tenantRouter.js`, e
+> assim por diante. Os manifests do Kubernetes estão em `infra/k8s/`.
+
 Decisão de arquitetura por trás de tudo isto: **ADR-003** (Documento 07, na `main` do fork da
 UniFAAT) e **SPEC-01** (`docs/specs/SPEC-01-microsservicos.md`, §5).
 
@@ -76,20 +81,20 @@ agrupados pelo serviço a que pertencem no recorte decidido:
 
 | Serviço | Módulo | Onde está no código | Como serviço separado |
 |---|---|---|---|
-| **core-service** | Autenticação e cadastro de hotel | `routes/apis/authRouter.js`, `tenantRouter.js`, `userRouter.js` | 🔷 — hoje dentro do monólito |
+| **core-service** | Autenticação e cadastro de hotel | `services/core-service/routes/apis/authRouter.js`, `tenantRouter.js`, `userRouter.js` | 🔷 — hoje dentro do monólito |
 | **core-service** | Hospedagem — categorias, quartos, hóspedes, reservas, check-in e check-out | `roomCategoryRouter.js`, `roomRouter.js`, `guestRouter.js`, `reservationRouter.js` | 🔷 — hoje dentro do monólito |
-| **core-service** | Pagamentos e PIX | `paymentRouter.js`, `webhookRouter.js`, `app/services/pix/` | 🔷 — hoje dentro do monólito |
+| **core-service** | Pagamentos e PIX | `paymentRouter.js`, `webhookRouter.js`, `services/core-service/app/services/pix/` | 🔷 — hoje dentro do monólito |
 | **core-service** | Consumo e catálogo | `reservationRouter.js` (consumos, conta), `productRouter.js` | 🔷 — hoje dentro do monólito · comanda 🔷 SPEC-04 |
 | **core-service** | Reserva direta pública | `publicBookingRouter.js` | 🔷 — hoje dentro do monólito |
 | **b2b-service** | Clientes corporativos, orçamentos e contratos | `corporateClientRouter.js`, `eventQuoteRouter.js`, `contractRouter.js` | 🔵 T-01.6 |
-| **analytics-service** | Indicadores | `analyticsRouter.js`, `app/Controllers/AnalyticsApi/` | 🟡 T-01.4 |
+| **analytics-service** | Indicadores | `analyticsRouter.js`, `services/core-service/app/Controllers/AnalyticsApi/` | 🟡 T-01.4 |
 
 **Uma sutileza sobre o `core-service`:** as funcionalidades dele existem hoje (✅), mas rodam dentro
 do monólito. Ele passa a ser um serviço separado quando o analytics e o b2b saírem. Se o diagrama
 marcar o processo, a marca vale para *o serviço*; as funcionalidades já estão implementadas.
 
-Todas as rotas são montadas em `routes/router.js`. A entrada pública é o **Nginx**
-(`k8s/nginx.yaml`), que hoje encaminha tudo para o backend único.
+Todas as rotas são montadas em `services/core-service/routes/router.js`. A entrada pública é o **Nginx**
+(`infra/k8s/nginx.yaml`), que hoje encaminha tudo para o backend único.
 
 ---
 
@@ -104,7 +109,7 @@ Todas as rotas são montadas em `routes/router.js`. A entrada pública é o **Ng
 | **Banco de grupos e eventos** | PostgreSQL | Clientes corporativos, orçamentos, contratos, parcelas | `b2b-service` | 🔵 T-01.6 — hoje essas tabelas estão no banco único |
 | **Armazenamento de PDFs** | MinIO (objetos) | PDF de **contrato** | hoje o monólito · depois o `b2b-service` | ✅ |
 
-**Não desenhar:** o **Redis** existe em `k8s/redis.yaml`, mas nenhuma linha de código o usa.
+**Não desenhar:** o **Redis** existe em `infra/k8s/redis.yaml`, mas nenhuma linha de código o usa.
 
 ---
 
@@ -114,15 +119,15 @@ Todas as rotas são montadas em `routes/router.js`. A entrada pública é o **Ng
 
 | Origem → Destino | Dado | Formato | Onde acontece | Situação |
 |---|---|---|---|---|
-| Usuário → Autenticação | E-mail, senha e, se necessário, subdomínio do hotel | JSON | `app/Controllers/AuthApi/LoginController.js` | ✅ |
+| Usuário → Autenticação | E-mail, senha e, se necessário, subdomínio do hotel | JSON | `services/core-service/app/Controllers/AuthApi/LoginController.js` | ✅ |
 | Autenticação → Usuário | Token com `userId`, `role`, `tenantId` — validade 8 h | JWT (Bearer) | `LoginController.js` | ✅ |
-| Administrador → Autenticação | Dados do hotel e do administrador | JSON | `app/Controllers/AuthApi/RegisterController.js` | ✅ |
-| Recepcionista → Hospedagem | Dados da reserva: hóspede, quarto, período | JSON | `app/Controllers/ReservationApi/CreateReservationController.js` | ✅ |
+| Administrador → Autenticação | Dados do hotel e do administrador | JSON | `services/core-service/app/Controllers/AuthApi/RegisterController.js` | ✅ |
+| Recepcionista → Hospedagem | Dados da reserva: hóspede, quarto, período | JSON | `services/core-service/app/Controllers/ReservationApi/CreateReservationController.js` | ✅ |
 | Hospedagem → Banco do núcleo | Reserva e quartos, na mesma transação | SQL | idem | ✅ |
 | Recepcionista → Hospedagem | Check-in / check-out | JSON | `CheckInController.js`, `CheckOutController.js` | ✅ — o check-out coloca o quarto em limpeza na mesma transação |
-| Recepcionista → Pagamentos | Valor, meio e natureza do pagamento | JSON | `app/Controllers/PaymentApi/` | ✅ |
+| Recepcionista → Pagamentos | Valor, meio e natureza do pagamento | JSON | `services/core-service/app/Controllers/PaymentApi/` | ✅ |
 | Recepcionista/Garçom → Consumo | Item consumido na estadia | JSON | `reservationRouter.js` — rotas `/consumptions` | ✅ · por conta 🔷 SPEC-04 |
-| Consumo → Recepcionista | Conta consolidada: diárias + consumos | JSON | `app/Controllers/ReservationApi/GetBillController.js` | ✅ |
+| Consumo → Recepcionista | Conta consolidada: diárias + consumos | JSON | `services/core-service/app/Controllers/ReservationApi/GetBillController.js` | ✅ |
 
 ### 4.2 Reserva direta e PIX
 
@@ -130,11 +135,11 @@ O fluxo mais rico do sistema, e o que melhor mostra fronteira externa.
 
 | Origem → Destino | Dado | Formato | Onde acontece | Situação |
 |---|---|---|---|---|
-| Hóspede → Reserva direta | Categoria, período, dados pessoais | JSON | `app/Controllers/PublicBookingApi/CreateBookingController.js` | ✅ |
+| Hóspede → Reserva direta | Categoria, período, dados pessoais | JSON | `services/core-service/app/Controllers/PublicBookingApi/CreateBookingController.js` | ✅ |
 | Reserva direta → Banco do núcleo | Hóspede, reserva `PENDING` e pagamento, **numa única transação** | SQL | idem | ✅ |
-| Reserva direta → Provedor PIX | Valor do sinal (`deposit_percent` do hotel) | chamada ao provedor | `app/services/pix/FakePixProvider.js` → `createCharge` | ✅ simulado |
+| Reserva direta → Provedor PIX | Valor do sinal (`deposit_percent` do hotel) | chamada ao provedor | `services/core-service/app/services/pix/FakePixProvider.js` → `createCharge` | ✅ simulado |
 | Provedor PIX → Reserva direta → Hóspede | Cobrança e código PIX | JSON | idem | ✅ |
-| **Provedor PIX → Pagamentos** | Confirmação de pagamento (*webhook*) | JSON | `app/Controllers/WebhookApi/PixWebhookController.js` | ✅ |
+| **Provedor PIX → Pagamentos** | Confirmação de pagamento (*webhook*) | JSON | `services/core-service/app/Controllers/WebhookApi/PixWebhookController.js` | ✅ |
 | Pagamentos → Banco do núcleo | Pagamento `PAID` + reserva `PENDING → CONFIRMED`, na mesma transação | SQL | idem | ✅ |
 | Hóspede → Reserva direta | Consulta de status da reserva | JSON | `GetBookingStatusController.js` | ✅ |
 
@@ -148,8 +153,8 @@ O fluxo mais rico do sistema, e o que melhor mostra fronteira externa.
 |---|---|---|---|---|
 | Administrador → B2B | Cliente corporativo, orçamento, serviços | JSON | `CorporateClientApi/`, `EventQuoteApi/` | ✅ |
 | B2B → ViaCEP → B2B | CEP → endereço do cliente corporativo | JSON | — | 🔷 RF-045 · SPEC-03 |
-| B2B → Administrador | PDF do **orçamento** — gerado na hora, **não é armazenado** | PDF | `app/utils/generateQuotePdf.js`, `DownloadQuotePdfController.js` | ✅ |
-| B2B → Armazenamento de PDFs | PDF do **contrato** | PDF | `app/utils/generateContractPdf.js` + `app/utils/uploadToMinIO.js` | ✅ |
+| B2B → Administrador | PDF do **orçamento** — gerado na hora, **não é armazenado** | PDF | `services/core-service/app/utils/generateQuotePdf.js`, `DownloadQuotePdfController.js` | ✅ |
+| B2B → Armazenamento de PDFs | PDF do **contrato** | PDF | `services/core-service/app/utils/generateContractPdf.js` + `services/core-service/app/utils/uploadToMinIO.js` | ✅ |
 | B2B → Administrador | Link temporário para baixar o contrato — expira em 5 minutos | URL assinada | `DownloadContractPdfController.js` | ✅ |
 | B2B → Hospedagem | Assinar contrato cria a reserva-bloco dos quartos do evento | hoje: mesma transação · depois: **REST interno, idempotente** | `SignContractController.js` | ✅ transação · 🔵 chamada entre serviços |
 | B2B → Hospedagem | Cancelar contrato cancela a reserva-bloco | idem | `CancelContractController.js` | ✅ transação · 🔵 chamada entre serviços |
@@ -158,7 +163,7 @@ O fluxo mais rico do sistema, e o que melhor mostra fronteira externa.
 
 | Origem → Destino | Dado | Formato | Onde acontece | Situação |
 |---|---|---|---|---|
-| Administrador/Recepcionista → Indicadores | Período consultado | JSON | `app/Controllers/AnalyticsApi/` — 7 endpoints | ✅ |
+| Administrador/Recepcionista → Indicadores | Período consultado | JSON | `services/core-service/app/Controllers/AnalyticsApi/` — 7 endpoints | ✅ |
 | Indicadores → Banco | Receita, ocupação, sazonalidade, mix de pagamento, ranking e alertas | SQL | idem | ✅ hoje lendo o banco único |
 | Hospedagem/Pagamentos → **Outbox** | Evento da alteração, na mesma transação | registro no banco | — | 🟡 T-01.4 |
 | Outbox → **RabbitMQ** | Eventos publicados | mensagem (JSON) | — | 🟡 T-01.4 |
@@ -175,8 +180,8 @@ cada um, na SPEC-01 §5.
 Úteis se você quiser marcar fronteiras de confiança ou dados pessoais nos diagramas.
 
 **Fronteiras**
-- **Nginx** é a única entrada pública (`k8s/nginx.yaml`)
-- **`NetworkPolicy`** restringe quem fala com quem dentro do cluster (`k8s/networkpolicy.yaml`)
+- **Nginx** é a única entrada pública (`infra/k8s/nginx.yaml`)
+- **`NetworkPolicy`** restringe quem fala com quem dentro do cluster (`infra/k8s/networkpolicy.yaml`)
 - **Rotas públicas sem login:** `/public/:subdomain/*` e `/webhooks/pix`
 - **Rotas internas** b2b → core não serão expostas pelo Nginx 🔵
 
@@ -204,13 +209,13 @@ cada um, na SPEC-01 §5.
 
 ```bash
 # todas as rotas montadas
-cat routes/router.js
+cat services/core-service/routes/router.js
 
 # o que cada módulo expõe
-ls routes/apis/
+ls services/core-service/routes/apis/
 
 # transações que gravam em mais de uma tabela
-grep -rlE "sequelize\.transaction" app/Controllers
+grep -rlE "sequelize\.transaction" services/core-service/app/Controllers
 ```
 
 Qualquer dúvida sobre o que existe, confira no código antes de marcar ✅ — é o critério pelo qual

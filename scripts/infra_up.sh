@@ -47,13 +47,13 @@ echo ""
 
 # ── FASE 1: Build da imagem ─────────────────────────────────────────────────
 info "=== FASE 1: BUILD ==="
-docker build -t "$IMAGE" .
+docker build -t "$IMAGE" services/core-service
 success "Imagem '$IMAGE' construída."
 echo ""
 
 # ── FASE 2: Aplicar manifests ───────────────────────────────────────────────
 info "=== FASE 2: APPLY ==="
-kubectl apply -k k8s/
+kubectl apply -k infra/k8s/
 success "Manifests aplicados no namespace '$NS'."
 echo ""
 

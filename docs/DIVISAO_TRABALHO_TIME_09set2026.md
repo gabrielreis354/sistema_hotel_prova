@@ -57,7 +57,7 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 ### 3.2 Sirlande — o domínio
 
-**SPEC-04 — Módulo de Consumo.** É quem mais escreveu regra de negócio no projeto: 45 commits em `app/Controllers` e 13 em `app/Models`. A Spec tem dois pontos sensíveis — a T-04.2 migra dado financeiro, e a T-04.4 acopla `Payment` a `Account`, tarefa de maior risco do projeto.
+**SPEC-04 — Módulo de Consumo.** É quem mais escreveu regra de negócio no projeto: 45 commits em `services/core-service/app/Controllers` e 13 em `services/core-service/app/Models`. A Spec tem dois pontos sensíveis — a T-04.2 migra dado financeiro, e a T-04.4 acopla `Payment` a `Account`, tarefa de maior risco do projeto.
 
 **Fatias da SPEC-06:** T-06.3 (`RoomCategoryModel`), T-06.6 (índice em banco legado), T-06.10 (paginação), T-06.11 (eliminação de dado pessoal).
 
@@ -208,9 +208,9 @@ Não por dependência de tarefa — por arquivo.
 | Arquivo | Quem quer mexer | Regra |
 |---|---|---|
 | `.github/workflows` | Gabriel (T-01.5) e Weslley (T-02.5) | **Weslley é o dono.** Gabriel entrega o que precisa e ele integra |
-| `config/swagger.js` | todos | A T-06.2 reescreve o arquivo inteiro: **uma pessoa, uma vez**, e ninguém encosta durante |
-| `db/schema.sql`, `app/Models/` | Sirlande (04, 07) e Gabriel (01) | **Sirlande é o dono.** Gabriel avisa antes |
-| `k8s/`, `terraform/`, `docker-compose.yml` | Weslley | — |
+| `services/core-service/config/swagger.js` | todos | A T-06.2 reescreve o arquivo inteiro: **uma pessoa, uma vez**, e ninguém encosta durante |
+| `services/core-service/db/schema.sql`, `services/core-service/app/Models/` | Sirlande (04, 07) e Gabriel (01) | **Sirlande é o dono.** Gabriel avisa antes |
+| `infra/k8s/`, `terraform/`, `docker-compose.yml` | Weslley | — |
 | `packages/` do frontend | todos | Ver §4.3 |
 
 ---
@@ -254,7 +254,7 @@ Cortar cedo e de propósito é diferente de não entregar por acidente.
 | Três pessoas aprendendo React ao mesmo tempo | Médio | Princípios de §4.2 reduzem divergência, não a curva. Cada um orquestra um agente no próprio módulo |
 | Divergência visual entre os módulos | Médio | Módulo de referência canonizado + dono único de `packages/ui` |
 | Sirlande sozinho na migração de dado financeiro (T-04.2) | Médio | CA-04.2.a a .c exigem contagem antes e depois; revisar em dupla |
-| `config/swagger.js` virar campo de conflito | Médio | Dono único durante a T-06.2 |
+| `services/core-service/config/swagger.js` virar campo de conflito | Médio | Dono único durante a T-06.2 |
 
 ---
 

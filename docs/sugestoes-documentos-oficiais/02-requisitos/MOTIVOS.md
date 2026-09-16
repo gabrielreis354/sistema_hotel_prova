@@ -45,9 +45,9 @@ fronteira entre serviços:
 
 | Evidência | Onde verificar |
 |---|---|
-| **Quatro transações atômicas** que gravam ao mesmo tempo dados do núcleo e do financeiro | `app/Controllers/PublicBookingApi/CreateBookingController.js` · `app/Controllers/WebhookApi/PixWebhookController.js` · `app/Controllers/ContractApi/SignContractController.js` · `app/Controllers/ContractApi/CancelContractController.js` |
-| **Doze chaves estrangeiras** existentes cruzando a fronteira, incluindo o `tenant_id` com `ON DELETE CASCADE` de oito tabelas | `db/schema.sql` |
-| **Duas consultas de indicadores** que fazem `JOIN` entre pagamento e reserva | `app/Controllers/AnalyticsApi/GetAlertsController.js` · `GetRevenueController.js` |
+| **Quatro transações atômicas** que gravam ao mesmo tempo dados do núcleo e do financeiro | `services/core-service/app/Controllers/PublicBookingApi/CreateBookingController.js` · `services/core-service/app/Controllers/WebhookApi/PixWebhookController.js` · `services/core-service/app/Controllers/ContractApi/SignContractController.js` · `services/core-service/app/Controllers/ContractApi/CancelContractController.js` |
+| **Doze chaves estrangeiras** existentes cruzando a fronteira, incluindo o `tenant_id` com `ON DELETE CASCADE` de oito tabelas | `services/core-service/db/schema.sql` |
+| **Duas consultas de indicadores** que fazem `JOIN` entre pagamento e reserva | `services/core-service/app/Controllers/AnalyticsApi/GetAlertsController.js` · `GetRevenueController.js` |
 
 Separar isso exigiria transação distribuída justamente na reserva direta com PIX e na
 confirmação do PIX por webhook. O recorte decidido mantém a operação do hotel — reservar,

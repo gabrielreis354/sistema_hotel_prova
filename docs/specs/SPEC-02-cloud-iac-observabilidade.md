@@ -21,7 +21,7 @@ Três exigências do Termo de Aceite, hoje **todas não atendidas**:
 |------|-----------|
 | Nuvem | Tudo em **minikube local**. Nenhuma conta AWS/GCP/Azure em uso |
 | Terraform | `find . -iname "*.tf"` → **nenhum arquivo** no repositório |
-| Prometheus/Grafana | `grep -ril` em `k8s/` → **nenhuma ocorrência**. Só aparecem em documentos de análise |
+| Prometheus/Grafana | `grep -ril` em `infra/k8s/` → **nenhuma ocorrência**. Só aparecem em documentos de análise |
 
 **Decisão da equipe (23/08):** provedor **AWS** — a equipe está aprendendo AWS.
 
@@ -49,7 +49,7 @@ Isso não é preferência: é regra operacional que **prevalece sobre qualquer o
 
 - Módulos Terraform para: rede (VPC, subnets), cluster Kubernetes gerenciado, IAM mínimo, *registry* de imagens
 - *State* do Terraform versionado e compartilhável entre a equipe
-- Portar os manifests `k8s/` existentes para o cluster em nuvem
+- Portar os manifests `infra/k8s/` existentes para o cluster em nuvem
 - Stack Prometheus + Grafana no cluster
 - Instrumentação `/metrics` na aplicação
 - Dashboard Grafana com métricas operacionais
@@ -98,7 +98,7 @@ Isso não é preferência: é regra operacional que **prevalece sobre qualquer o
 
 **DEP:** T-02.2
 
-Os manifests em `k8s/` (backend, postgres, redis, minio, nginx, networkpolicy, PDB) já existem e funcionam em minikube.
+Os manifests em `infra/k8s/` (backend, postgres, redis, minio, nginx, networkpolicy, PDB) já existem e funcionam em minikube.
 
 **Critérios de aceitação**
 - [ ] **CA-02.3.a** — Aplicação responde por endereço público
@@ -119,7 +119,7 @@ Os manifests em `k8s/` (backend, postgres, redis, minio, nginx, networkpolicy, P
 - [ ] **CA-02.4.c** — Aplicação expõe `/metrics` (Express + `prom-client`)
 - [ ] **CA-02.4.d** — Métricas de negócio além das técnicas: latência por endpoint, taxa de erro, requisições por tenant
 - [ ] **CA-02.4.e** — Dashboard com saúde do sistema, pronto para demonstração
-- [ ] **CA-02.4.f** — Manifests versionados em `k8s/`
+- [ ] **CA-02.4.f** — Manifests versionados em `infra/k8s/`
 
 > **Nota de sequência:** subir a observabilidade **antes** do split completo de microsserviços. Validar a stack sobre o backend atual é mais simples, e cada serviço novo só precisa passar a expor `/metrics`.
 
