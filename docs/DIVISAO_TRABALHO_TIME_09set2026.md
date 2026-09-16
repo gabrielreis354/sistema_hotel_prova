@@ -1,6 +1,52 @@
 # Divisão de trabalho — Gabriel, Weslley e Sirlande
 
-**Versão 2.0** · 09/09/2026 · base: `docs/specs/` @ `origin/develop`
+**Versão 2.3** · 16/09/2026 · base: `docs/specs/` @ `origin/develop`
+
+---
+
+## 0. Situação em 16/09 — semana 2
+
+### Concluído
+
+| Item | Quem | Evidência |
+|---|---|---|
+| **T-01.1** — recorte dos serviços | Gabriel | ADR-003 no Documento 07 · SPEC-01 v1.2 |
+| **T-01.0** — repositório em layout de serviços | Gabriel | PR #77 — `services/core-service` e `infra/k8s` |
+| **T-06.8** — promover `develop` para `main` | Gabriel | PR #76 — previsto para as semanas 9 e 10, saiu antes |
+| Material para os documentos 03 e 04 | Gabriel, para o Sirlande | PR #75 — insumos do DFD, sugestão do MER, briefing |
+| Documento 02 v1.3 | Gabriel | PR #5 aceito no repositório do professor |
+
+### Implementado em branch, aguardando verificação
+
+| Branch | Tarefas | Falta |
+|---|---|---|
+| `fix/paranoid-unique-constraints` — 16 commits | **T-06.3** e **T-06.6** | Suíte, nova auditoria do `qa-redteam` e sincronizar com o layout novo |
+| `fix/public-booking-payment-leak` — 2 commits | **T-06.5** | Verificação e merge |
+
+As duas foram feitas pelo agente executor, na trilha do Gabriel. Por isso **a T-06.3 e a T-06.6 saem da fila do Sirlande** — ele não deve refazê-las.
+
+### Disponível agora, sem bloqueio
+
+| Pessoa | Pode começar hoje |
+|---|---|
+| **Gabriel** | **T-06.9** — webhook sem assinatura 🔴, atrasada · **T-06.2** — schema no Swagger, antecipada · verificar e integrar as duas branches acima · T-01.2 (contratos) · T-01.3 (RS256) · conferir o Documento 02 contra todos os critérios de aceite |
+| **Sirlande** | **T-04.1** — `accounts` fica no core, com FK normal · **Documentos 03 e 04**, com os insumos já publicados · depois, T-06.10 e T-06.11 |
+| **Weslley** | **T-03.1** — ViaCEP · **T-02.1** — decidir Kubernetes e estimar custo · **T-06.4** — docker-compose, já no layout novo · **RabbitMQ no cluster** (CA-01.4.e) · Documento 08 |
+
+### Bloqueado
+
+| O quê | Espera por |
+|---|---|
+| Divisão do frontend entre os três | T-06.2 e a canonização de `features/guests` |
+| Comanda no frontend (T-05.5) | R1 — T-04.3 |
+| T-01.4 — extrair o analytics | T-01.2 e T-01.3 |
+| T-02.3 — portar o k8s com vários serviços | R2 — T-01.4 |
+
+### Sinais de atenção
+
+- **Nenhum commit do Weslley nem do Sirlande desde 09/09.** A semana 2 termina sem avanço registrado nas duas trilhas. No 5º semestre, o Termo da banca exige ao menos um commit por integrante por semana — vale criar o hábito agora.
+- **A T-01.4 ficou maior** com a adoção do RabbitMQ, e precisa ser reestimada na próxima reunião. As semanas 9 e 10 da trilha do Gabriel viraram folga para ela.
+- **Setup depois do PR #77:** `npm ci` dentro de `services/core-service/`, e `.env` e `.env.test` passam a ficar nessa pasta.
 
 ---
 
@@ -14,10 +60,10 @@
 
 **SPEC-07 (Tarifas) é buffer** — fica fora da conta e só entra se o cronograma segurar.
 
-**Primeira tarefa de cada um:**
+**Próxima tarefa de cada um** — situação em 16/09:
 
-- Gabriel → **T-01.1** (recorte dos serviços) e **T-06.9** (webhook sem assinatura 🔴)
-- Sirlande → **T-04.1** (`Account` + `AccountItem`)
+- Gabriel → **T-06.9** (webhook sem assinatura 🔴, atrasada) e **T-06.2** (schema no Swagger, antecipada)
+- Sirlande → **T-04.1** (`Account` + `AccountItem`) e os documentos 03 e 04
 - Weslley → **T-03.1** (ViaCEP) e **T-02.1** (decidir Kubernetes e estimar custo)
 
 ---
@@ -47,7 +93,7 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 **SPEC-01 — Microsserviços.** É decisão antes de código: quem é dono de qual dado, como os serviços conversam, como se autenticam. Depois vem a extração do `analytics-service` e o CI por serviço. Precisa de quem conhece o sistema inteiro, e trava duas outras frentes.
 
-**Fatias da SPEC-06:** T-06.9 (assinatura do webhook), T-06.5 (vazamento no endpoint público), T-06.2 (schema no Swagger), T-06.8 (promover `develop` para `main`).
+**Fatias da SPEC-06:** T-06.9 (assinatura do webhook), T-06.5 (vazamento no endpoint público), T-06.2 (schema no Swagger — **antecipada**: é pré-requisito da divisão do frontend), T-06.8 (promover `develop` para `main` — ✅ concluída). A T-06.3 e a T-06.6 também foram implementadas nesta trilha, pelo agente executor.
 
 **Frontend:** reservas, rack e painel do dia — o núcleo e a tela mais difícil.
 
@@ -59,7 +105,7 @@ As três 🔴 não são escolha de produto: são condição de aprovação.
 
 **SPEC-04 — Módulo de Consumo.** É quem mais escreveu regra de negócio no projeto: 45 commits em `services/core-service/app/Controllers` e 13 em `services/core-service/app/Models`. A Spec tem dois pontos sensíveis — a T-04.2 migra dado financeiro, e a T-04.4 acopla `Payment` a `Account`, tarefa de maior risco do projeto.
 
-**Fatias da SPEC-06:** T-06.3 (`RoomCategoryModel`), T-06.6 (índice em banco legado), T-06.10 (paginação), T-06.11 (eliminação de dado pessoal).
+**Fatias da SPEC-06:** T-06.10 (paginação) e T-06.11 (eliminação de dado pessoal). A T-06.3 e a T-06.6 saíram desta trilha: já foram implementadas pelo agente executor e aguardam verificação.
 
 **Frontend:** comanda e ficha do hóspede — as telas do domínio que ele acabou de modelar.
 
@@ -156,7 +202,7 @@ A diferença de tratamento é proposital: `packages/ui` cresce por **adição**,
 
 ### 4.5 Quando dividir
 
-**A partir da semana 3.** Antes disso faltam duas coisas:
+**Assim que a T-06.2 sair — previsão: semana 4.** Antes disso faltam duas coisas:
 
 - **Canonizar o módulo de referência.** `src/features/guests/` já é uma fatia vertical completa e vira o padrão — mas primeiro corrigir nele o filtro no cliente, senão o defeito se propaga três vezes.
 - **Rodar a T-06.2.** Sem schema de resposta no Swagger, os três vão escrever `as unknown as` e o princípio 5 nasce morto.
@@ -167,22 +213,26 @@ A diferença de tratamento é proposital: `packages/ui` cresce por **adição**,
 
 ```
           Gabriel                  Sirlande                 Weslley
-S1-2   T-01.1 recorte           T-04.1 Account +         T-03.1 ViaCEP  ✅ Termo
-       T-06.9 webhook 🔴         AccountItem              T-02.1 decidir k8s + custo
+S1-2   T-01.1 recorte ✓        T-04.1 Account +         T-03.1 ViaCEP  ✅ Termo
+       T-01.0 layout ✓         AccountItem              T-02.1 decidir k8s + custo
+       T-06.8 → main ✓         Docs 03 e 04 (início)
+       T-06.9 webhook 🔴 atrasada
 
-S3-4   T-01.2 comunicação       T-04.2 migração ⚠        T-03.2 Mercado Pago
-       T-01.3 auth interna      T-04.3 bill ──────┐      T-06.4 docker-compose
-       ── frontend começa ──    ── frontend ──    │      ── frontend ──
+S3-4   T-06.2 Swagger  ◄ antecipada
+       T-06.5 integrar          T-04.2 migração ⚠        T-03.2 Mercado Pago
+       T-01.2 contratos         T-04.3 bill ──────┐      T-06.4 docker-compose
+       T-01.3 RS256                               │      RabbitMQ no cluster
+       ── frontend começa depois da T-06.2 ──     │      ── frontend ──
                                                   │
 S5-6   T-01.4 extrair ────┐     T-04.4 Payment ↔  │      T-02.2 Terraform base
        analytics-service  │     Account 🔴 isolada │      Doc 08 sprints
-                          │     T-04.5 delegação  │
+       (reestimar)        │     T-04.5 delegação  │
                           │                       ▼
 S7-8   T-01.5 CI/CD ──────┼──►  T-04.6 check-in   R1 comanda destravada
        (entrega ao W)     │     T-04.7 fecha 04
                           ▼
-S9-10  T-06.2 Swagger     R2 destrava T-02.3,     T-02.3 portar k8s
-       T-06.8 → main         docs 03 e 06 (final)  T-02.4 observabilidade
+S9-10  folga para a T-01.4  R2 destrava T-02.3,   T-02.3 portar k8s
+                             docs 03 e 06 (final) T-02.4 observabilidade
                           SPEC-07 (se couber)      Docs 05 e 06
 ```
 
@@ -311,3 +361,4 @@ Metade disso o `bash scripts/estado.sh` responde antes de alguém abrir a boca.
 | 2.0 | 09/09/2026 | Frontend dividido em módulos verticais por afinidade com o backend, com doze princípios. Grade de 10 semanas, pontos de encontro R1 e R2, mapa de colisão por arquivo e ordem de corte. SPEC-07 passa a buffer explícito |
 | 2.1 | 09/09/2026 | Fecha as decisões que estavam em aberto. O design system deixa de ter curador e passa a catálogo + promoção no segundo uso + regra 9 do `qa_checks.sh` + faxina semanal — centralizar num só vira gargalo e empurra para abstrair cedo. O `qa-redteam` passa a operar **escopado no dev**: achado fora do escopo não reprova a branch, é repassado ao dono em `docs/qa/repasses/`. Revisão humana fica só onde o erro é irreversível, e a cadência ganha pauta fixa |
 | 2.2 | 14/09/2026 | Donos dos documentos oficiais corrigidos: **01 e 02 são do Gabriel**, **03 (DFD) e 04 (MER) são do Sirlande**, e a documentação acadêmica do Weslley passa a ser a restante. Sugestões de revisão e insumos para os donos ficam em `docs/sugestoes-documentos-oficiais/` — o documento oficial não é editado diretamente. O ponto de encontro R2 passa a incluir o RabbitMQ, adotado no ADR-003, e deixa de citar o ADR-003 como pendente |
+| 2.3 | 16/09/2026 | Situação da semana 2: concluídos T-01.0, T-01.1 e T-06.8; T-06.3, T-06.5 e T-06.6 implementadas em branch e aguardando verificação. **T-06.2 antecipada** para as semanas 3 e 4 — a grade a colocava nas semanas 9 e 10, depois da divisão do frontend que depende dela. **T-06.3 e T-06.6 saem da fila do Sirlande**, por já estarem feitas. Novo quadro do que está disponível e do que está bloqueado por pessoa, e registro de que não há commits do Weslley nem do Sirlande desde 09/09 |

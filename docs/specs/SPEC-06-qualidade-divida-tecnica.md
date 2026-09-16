@@ -1,7 +1,7 @@
 # SPEC-06 — Qualidade e Dívida Técnica
 
 **Prioridade:** 🟡 Média — mas contém item que **quebra o portão do CI**
-**Estado:** 🔲 Não iniciado
+**Estado:** 🟡 Em andamento — T-06.8 concluída em 15/09; T-06.3, T-06.5 e T-06.6 implementadas em branch, aguardando verificação
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 
