@@ -1,6 +1,8 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
+import getPixProvider from '../../services/pix/index.js';
+import { InvalidWebhookSignatureError } from '../../services/pix/errors.js';
 
 /**
  * POST /webhooks/pix
@@ -13,11 +15,21 @@ import ReservationModel from '../../Models/ReservationModel.js';
  * para CONFIRMED — respeitando a máquina de estados (não mexe em CHECKED_IN etc.).
  * Idempotente: reprocessar o mesmo charge não duplica efeito.
  *
- * Body: { provider_charge_id: string }
+ * A extração/validação do id da cobrança é responsabilidade do provider ativo
+ * (provider.verifyWebhook) — o fake só lê provider_charge_id do body; um PSP real valida a
+ * assinatura da notificação antes de confiar em qualquer id (nunca confia em POST anônimo).
  */
 export default async function PixWebhookController(request, response) {
     try {
-        const { provider_charge_id } = request.body;
+        let provider_charge_id;
+        try {
+            ({ providerChargeId: provider_charge_id } = getPixProvider().verifyWebhook(request));
+        } catch (verifyError) {
+            if (verifyError instanceof InvalidWebhookSignatureError) {
+                return response.status(401).json({ error: 'Assinatura da notificação inválida' });
+            }
+            throw verifyError;
+        }
         if (!provider_charge_id) {
             return response.status(400).json({ error: 'provider_charge_id obrigatório' });
         }
