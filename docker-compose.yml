@@ -1,0 +1,116 @@
+# Contingência local (T-06.4) — sobe o sistema inteiro sem depender da nuvem. Serve para o
+# dia da defesa se a infraestrutura em nuvem (SPEC-02) cair; não substitui o deploy em produção.
+#
+# Uso:
+#   cp .env.example .env        # ajuste JWT_SECRET e senhas antes de usar fora do laptop
+#   docker compose up -d
+#   docker compose exec backend node command.js migrate
+#   docker compose exec backend node command.js seed   # opcional, dados de demonstração
+#
+# Os mesmos nomes de serviço (postgres, redis, minio, rabbitmq, backend) usados aqui são os
+# nomes usados em infra/k8s/ — o nginx.conf é o mesmo conteúdo nos dois ambientes.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hotel_user} -d ${POSTGRES_DB:-gestao_hotel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    # minio/minio saiu do Docker Hub em set/2026 (pulls anônimos passaram a dar 401/"denied") —
+    # a distribuição oficial migrou para quay.io, mesmas tags.
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  rabbitmq:
+    # Só provisionamento nesta etapa — nenhum código publica/consome ainda (ver infra/k8s/rabbitmq.yaml).
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-hotel_broker}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rabbitmq_local_password}
+    ports:
+      - "15672:15672" # UI de gestão — só para inspeção local, não exposta em produção
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./services/core-service
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NODE_WEB_PORT: ${NODE_WEB_PORT:-3000}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env antes de subir o compose}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-hotel-contracts}
+      MINIO_USE_SSL: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  rabbitmq_data:
