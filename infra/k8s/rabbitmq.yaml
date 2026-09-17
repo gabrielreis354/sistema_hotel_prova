@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data
+  namespace: hotel-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 512Mi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: hotel-system
+  labels:
+    app: rabbitmq
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          # Só provisionamento nesta etapa — nenhum código publica/consome ainda.
+          # O outbox transacional + consumidor chegam com a extração do analytics-service (T-01.4).
+          image: rabbitmq:4-management-alpine
+          ports:
+            - containerPort: 5672   # AMQP
+            - containerPort: 15672  # UI de gestão
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_DEFAULT_PASS
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "check_running"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "check_running"]
+            initialDelaySeconds: 45
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+      volumes:
+        - name: rabbitmq-data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: hotel-system
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
