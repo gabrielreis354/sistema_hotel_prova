@@ -29,4 +29,10 @@ export default class FakePixProvider extends PixProvider {
 
         return { providerChargeId, qrCode, expiration };
     }
+
+    // Sem assinatura para validar — o "webhook" é disparado manualmente (demo/teste),
+    // então só repassa o que veio no body, como sempre foi.
+    verifyWebhook(request) {
+        return { providerChargeId: request.body.provider_charge_id };
+    }
 }
