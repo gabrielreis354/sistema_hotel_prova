@@ -1,8 +1,11 @@
+import crypto from 'crypto';
 import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
 import { checkReservationConflict } from '../../utils/checkReservationConflict.js';
+import { onlyDigits } from '../../utils/onlyDigits.js';
 import getPixProvider from '../../services/pix/index.js';
+import { PixProviderUnavailableError } from '../../services/pix/errors.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import GuestModel from '../../Models/GuestModel.js';
@@ -75,7 +78,30 @@ export default async function CreateBookingController(request, response) {
         const totalAmount = Number((Number(category.price_per_night) * nights).toFixed(2));
         const depositAmount = Number((totalAmount * (tenant.deposit_percent / 100)).toFixed(2));
 
-        // 5. Persistência atômica: hóspede + reserva + pivô + cobrança PIX
+        // 5. Cobrança PIX do sinal via provider (simulado por padrão) — ANTES de abrir a
+        // transação. O id da reserva é gerado aqui (e não pelo default do model) para servir
+        // de chave de idempotência/correlação da cobrança sem segurar uma transação de banco
+        // aberta durante uma chamada de rede a um PSP real. Se a cobrança falhar, nada foi
+        // escrito no banco ainda.
+        const reservationId = crypto.randomUUID();
+        const pix = getPixProvider();
+        let charge;
+        try {
+            charge = await pix.createCharge({
+                amount: depositAmount,
+                description: `Sinal reserva ${tenant.name}`,
+                externalId: reservationId,
+                payerEmail: guest.email,
+                payerCpf: guest.cpf ? onlyDigits(guest.cpf) : undefined
+            });
+        } catch (chargeError) {
+            if (chargeError instanceof PixProviderUnavailableError) {
+                return response.status(503).json({ error: 'Serviço de pagamento indisponível no momento' });
+            }
+            throw chargeError;
+        }
+
+        // 6. Persistência atômica: hóspede + reserva + pivô + pagamento (a cobrança já existe no PSP)
         const transaction = await sequelize.transaction();
         try {
             // find-or-create do hóspede (por e-mail dentro do tenant)
@@ -97,6 +123,7 @@ export default async function CreateBookingController(request, response) {
             }
 
             const reservation = await ReservationModel.create({
+                id: reservationId,
                 tenant_id: tenant.id,
                 guest_id: guestRecord.id,
                 room_id: availableRoom.id,
@@ -112,14 +139,6 @@ export default async function CreateBookingController(request, response) {
                 { reservation_id: reservation.id, room_id: availableRoom.id },
                 { transaction }
             );
-
-            // Cobrança PIX do sinal via provider (simulado por padrão)
-            const pix = getPixProvider();
-            const charge = await pix.createCharge({
-                amount: depositAmount,
-                description: `Sinal reserva ${tenant.name}`,
-                externalId: reservation.id
-            });
 
             const payment = await PaymentModel.create({
                 tenant_id: tenant.id,
