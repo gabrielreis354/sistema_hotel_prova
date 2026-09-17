@@ -30,7 +30,10 @@ spec:
     spec:
       containers:
         - name: minio
-          image: minio/minio:latest
+          # minio/minio saiu do Docker Hub em set/2026 (pulls anônimos passaram a dar 401/"denied")
+          # — a distribuição oficial migrou para quay.io, mesmas tags. Bug real encontrado ao
+          # validar o docker-compose.yml (T-06.4) — corrigido aqui também.
+          image: quay.io/minio/minio:latest
           args:
             - server
             - /data
