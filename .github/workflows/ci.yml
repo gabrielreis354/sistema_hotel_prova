@@ -63,6 +63,7 @@ jobs:
       POSTGRES_USER: hotel_user
       POSTGRES_PASSWORD: hotel_password
       JWT_SECRET: pms_hotel_test_secret_ci
+      PIX_WEBHOOK_SECRET: pms_hotel_test_pix_webhook_secret_ci
 
     steps:
       - name: Checkout

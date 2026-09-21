@@ -35,6 +35,11 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: JWT_SECRET
+            - name: PIX_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: PIX_WEBHOOK_SECRET
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
