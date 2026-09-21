@@ -50,9 +50,9 @@ diff --strip-trailing-cr <UniFAAT>/Projetos/gesway/02-requisitos-funcionais-nao-
 |---|---|---|---|---|
 | **01** — Solicitação do sistema | **Gabriel** | Entregue (PR #3) | — | — |
 | **02** — Requisitos | **Gabriel** | **v1.3 — entregue ao professor** | Versão sugerida v1.4 + motivos — **em revisão** | Conferir a cobertura integral dos critérios de aceite; só com certeza absoluta, reunião com o professor |
-| **03** — DFD | **Sirlande** | Modelo em branco | Insumos | Sirlande produz o documento |
+| **03** — DFD | **Sirlande** | **v1.0 no fork — ainda não entregue** (`upstream` tem o modelo em branco) | Insumos + versão sugerida v1.1 com as correções de fluxo + motivos | Sirlande aplica; sem reunião, porque nada foi entregue ainda |
 | **04** — MER | **Sirlande** | Entregue (PR #3) — cabeçalho v1.0, histórico até v1.1 | Versão sugerida v1.2 + motivos | Sirlande avalia; aplicar significa nova entrega ao professor |
-| **07** — ADR | — | ADR-003 registrado diretamente | — | Mudança autorizada no próprio documento |
+| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork** | — | Corrigir `PRODUCTS` para 🔷 na tabela da ADR-003, conforme o Doc 04 §1.3; entregar **antes** do Doc 03, que o cita como fundamento |
 
 ---
 
@@ -62,8 +62,16 @@ Todas decorrem da **T-01.1 da SPEC-01** e do **ADR-003**, de 14/09/2026: o recor
 em `core-service`, `b2b-service` e `analytics-service`, com eventos via RabbitMQ do core para o
 analytics. Ver `docs/specs/SPEC-01-microsservicos.md`.
 
-> **Critério C9:** os 8 documentos precisam estar *"válidos e atualizados"*. A regra adotada é a
-> mesma que o MER já usa e que o professor aceitou no PR #3: **cada elemento é marcado como
-> implementado (✅) ou planejado (🔷)**, e só entra como planejado o que consta do plano de
-> implementação da SPEC-01. Notificação ao hóspede e channel manager não entram: estão fora do
-> escopo.
+> **Critério C9 — os 8 documentos precisam estar *"válidos e atualizados"*.** A regra tem dois
+> níveis, definidos em 21/09/2026:
+>
+> 1. **Documento normativo não leva status de implementação.** Requisitos (Doc 02) e fluxo de
+>    dados (Doc 03) declaram como o sistema **deve** funcionar — é contra eles que o projeto
+>    será cobrado. Marcar o que já existe transformaria a norma em relato datado, e o documento
+>    envelheceria a cada commit. O acompanhamento de execução é do **Doc 08**.
+> 2. **Entidade de dados leva status.** No MER (Doc 04) o status é atributo da própria entidade,
+>    e a legenda ✅ implementada / 🔷 planejada / ⚠️ em transição foi aceita pelo professor no
+>    PR #3. Os outros documentos apenas **citam** essa legenda ao listar entidades.
+>
+> Em qualquer nível, só entra como planejado o que consta do plano de implementação da SPEC-01.
+> Notificação ao hóspede e channel manager não entram: estão fora do escopo.
