@@ -129,6 +129,22 @@ describe('POST /public/:subdomain/bookings — fluxo completo com PIX', () => {
         expect(payment.status).toBe('PENDING');
     });
 
+    it('webhook com assinatura inválida registra log de servidor (achado qa-redteam 21/09: rejeição era silenciosa)', async () => {
+        // O caminho vizinho (secret ausente) já logava; este não logava nada —
+        // um PIX_WEBHOOK_SECRET divergente do PSP em produção viraria 401 em
+        // TODO callback, sem uma linha sequer no log para investigar.
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
+            await postSignedWebhook(rawBody, { signature: 'sha256=' + '0'.repeat(64) });
+
+            expect(errorSpy).toHaveBeenCalled();
+            expect(errorSpy.mock.calls.at(-1).join(' ')).toContain('PixWebhookController');
+        } finally {
+            errorSpy.mockRestore();
+        }
+    });
+
     it('webhook sem cabeçalho x-pix-signature retorna 401 e não altera o pagamento', async () => {
         const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
         const res = await postSignedWebhook(rawBody, { signature: null });
@@ -270,6 +286,16 @@ describe('POST /webhooks/pix — validações', () => {
     // senão o 401 da assinatura mascararia o que o teste quer provar.
     it('retorna 400 sem provider_charge_id', async () => {
         const rawBody = JSON.stringify({});
+        const res = await postSignedWebhook(rawBody);
+        expect(res.status).toBe(400);
+    });
+
+    it('retorna 400 quando provider_charge_id não é string (ex.: array vira IN() no Sequelize)', async () => {
+        // Achado da auditoria qa-redteam de 21/09: sem checar o tipo, um array em
+        // provider_charge_id vira `WHERE provider_charge_id IN (...)` — quem tem o
+        // segredo (só o PSP, agora que a assinatura é obrigatória) consegue buscar
+        // várias cobranças em lote numa única chamada.
+        const rawBody = JSON.stringify({ provider_charge_id: ['fake_a', 'fake_b'] });
         const res = await postSignedWebhook(rawBody);
         expect(res.status).toBe(400);
     });

@@ -108,6 +108,7 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 |---|---|
 | `POSTGRES_PASSWORD` | `hotel_password` |
 | `JWT_SECRET` | `pms_hotel_secreto_academico_2026` |
+| `PIX_WEBHOOK_SECRET` | `pms_hotel_pix_webhook_secreto_academico_2026` |
 
 > Em produção, substitua os valores do `secret.yaml` por credenciais reais e **nunca commite o arquivo com senhas reais**. Para este projeto acadêmico os valores estão no repositório para facilitar a avaliação.
 
@@ -307,7 +308,7 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD` e `JWT_SECRET` |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `JWT_SECRET` e `PIX_WEBHOOK_SECRET` |
 
 Os Pods leem essas variáveis via `envFrom` (ConfigMap) e `env.valueFrom.secretKeyRef` (Secret). Nenhuma credencial está hardcoded nas imagens.
 

@@ -35,11 +35,12 @@ export default async function PixWebhookController(request, response) {
         // não (400), sinal que ajudaria um atacante a enumerar cobranças.
         const signature = request.get('x-pix-signature');
         if (!verifyPixSignature(request.rawBody, signature, secret)) {
+            console.error('PixWebhookController: assinatura inválida — requisição recusada');
             return response.status(401).json({ error: 'Assinatura inválida' });
         }
 
         const { provider_charge_id } = request.body;
-        if (!provider_charge_id) {
+        if (!provider_charge_id || typeof provider_charge_id !== 'string') {
             return response.status(400).json({ error: 'provider_charge_id obrigatório' });
         }
 
