@@ -5,6 +5,8 @@ import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom } from './helpers/factories.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
+import PaymentModel from '../app/Models/PaymentModel.js';
+import getPixProvider from '../app/services/pix/index.js';
 
 // Testes do MOTOR DE RESERVA DIRETA + PIX (diferencial nº1).
 // Rotas públicas (sem auth) resolvidas por subdomínio + webhook de confirmação PIX.
@@ -13,6 +15,17 @@ const app = createApp();
 let subdomain;
 let jwt;
 let categoryId;
+
+// Envia o webhook exatamente como um PSP real assinaria: calcula o HMAC sobre a
+// string crua do corpo (não sobre o objeto) e manda os MESMOS bytes assinados —
+// exercitando o mesmo caminho de FakePixProvider.signNotification() usado em produção.
+function postSignedWebhook(rawBody, { signature } = {}) {
+    const req = request(app).post('/webhooks/pix').set('Content-Type', 'application/json');
+    if (signature !== null) {
+        req.set('x-pix-signature', signature ?? getPixProvider().signNotification(rawBody));
+    }
+    return req.send(rawBody);
+}
 
 beforeAll(async () => {
     await truncateAll();
@@ -106,10 +119,63 @@ describe('POST /public/:subdomain/bookings — fluxo completo com PIX', () => {
         expect(res.body.deposit.status).toBe('PENDING');
     });
 
+    it('webhook com assinatura inválida retorna 401 e não altera o pagamento', async () => {
+        const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
+        const res = await postSignedWebhook(rawBody, { signature: 'sha256=' + '0'.repeat(64) });
+
+        expect(res.status).toBe(401);
+
+        const payment = await PaymentModel.findOne({ where: { provider_charge_id: providerChargeId } });
+        expect(payment.status).toBe('PENDING');
+    });
+
+    it('webhook sem cabeçalho x-pix-signature retorna 401 e não altera o pagamento', async () => {
+        const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
+        const res = await postSignedWebhook(rawBody, { signature: null });
+
+        expect(res.status).toBe(401);
+
+        const payment = await PaymentModel.findOne({ where: { provider_charge_id: providerChargeId } });
+        expect(payment.status).toBe('PENDING');
+    });
+
+    it('webhook com corpo alterado depois de assinado retorna 401', async () => {
+        // Assina o corpo A, mas envia o corpo B — simula um MITM/replay adulterado.
+        const assinaturaDoOutroCorpo = getPixProvider().signNotification(
+            JSON.stringify({ provider_charge_id: 'fake_outro_charge_qualquer' })
+        );
+        const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
+
+        const res = await postSignedWebhook(rawBody, { signature: assinaturaDoOutroCorpo });
+        expect(res.status).toBe(401);
+
+        const payment = await PaymentModel.findOne({ where: { provider_charge_id: providerChargeId } });
+        expect(payment.status).toBe('PENDING');
+    });
+
+    it('webhook sem PIX_WEBHOOK_SECRET configurado recusa a requisição (fail-closed)', async () => {
+        const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
+        // Assina ANTES de derrubar o segredo — prova que nem uma assinatura
+        // genuína (válida um instante atrás) passa quando o servidor não tem
+        // segredo configurado. Fail-closed: ausência de config nunca vira "aceitar".
+        const signature = getPixProvider().signNotification(rawBody);
+
+        const original = process.env.PIX_WEBHOOK_SECRET;
+        delete process.env.PIX_WEBHOOK_SECRET;
+        try {
+            const res = await postSignedWebhook(rawBody, { signature });
+            expect(res.status).toBe(401);
+        } finally {
+            process.env.PIX_WEBHOOK_SECRET = original;
+        }
+
+        const payment = await PaymentModel.findOne({ where: { provider_charge_id: providerChargeId } });
+        expect(payment.status).toBe('PENDING');
+    });
+
     it('webhook PIX confirma o pagamento e promove a reserva para CONFIRMED', async () => {
-        const res = await request(app)
-            .post('/webhooks/pix')
-            .send({ provider_charge_id: providerChargeId });
+        const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
+        const res = await postSignedWebhook(rawBody);
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('confirmed');
@@ -168,10 +234,9 @@ describe('POST /public/:subdomain/bookings — fluxo completo com PIX', () => {
         spy.mockRestore();
     });
 
-    it('webhook é idempotente (reenvio não reprocessa)', async () => {
-        const res = await request(app)
-            .post('/webhooks/pix')
-            .send({ provider_charge_id: providerChargeId });
+    it('webhook é idempotente (reenvio assinado não reprocessa)', async () => {
+        const rawBody = JSON.stringify({ provider_charge_id: providerChargeId });
+        const res = await postSignedWebhook(rawBody);
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('already_processed');
@@ -200,15 +265,18 @@ describe('POST /public/:subdomain/bookings — validações', () => {
 });
 
 describe('POST /webhooks/pix — validações', () => {
+    // A assinatura é verificada ANTES de qualquer outra validação — mesmo os
+    // testes de erro 4xx "de negócio" precisam de uma requisição assinada,
+    // senão o 401 da assinatura mascararia o que o teste quer provar.
     it('retorna 400 sem provider_charge_id', async () => {
-        const res = await request(app).post('/webhooks/pix').send({});
+        const rawBody = JSON.stringify({});
+        const res = await postSignedWebhook(rawBody);
         expect(res.status).toBe(400);
     });
 
     it('retorna 404 para cobrança inexistente', async () => {
-        const res = await request(app)
-            .post('/webhooks/pix')
-            .send({ provider_charge_id: 'fake_inexistente_000' });
+        const rawBody = JSON.stringify({ provider_charge_id: 'fake_inexistente_000' });
+        const res = await postSignedWebhook(rawBody);
         expect(res.status).toBe(404);
     });
 });
