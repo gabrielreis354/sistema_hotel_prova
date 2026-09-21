@@ -1,7 +1,7 @@
 # SPEC-03 — Integrações com APIs Externas
 
 **Prioridade:** 🔴 Crítica — critério de aprovação
-**Estado:** 🔲 Não iniciado
+**Estado:** 🟡 Em andamento — T-03.1 concluída em 16/09/2026
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 
@@ -18,7 +18,7 @@ O Termo de Aceite exige:
 A única tentativa é o PIX, e está explicitamente simulada:
 
 ```js
-// app/services/pix/index.js
+// services/core-service/app/services/pix/index.js
 const PROVIDERS = { fake: FakePixProvider };
 // "Default: 'fake' (simulado) — adequado para demo/TCC."
 ```
@@ -65,20 +65,23 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 
 ## 5. Tarefas
 
-### T-03.1 — Integração ViaCEP 🔲
+### T-03.1 — Integração ViaCEP ✅
 
 **Estimativa:** meio dia
 **Uso no negócio:** ao cadastrar hóspede (`guests`) ou cliente corporativo (`corporate_clients`), preencher endereço a partir do CEP.
 
+**Concluída em 16/09/2026.** Branch `feature/viacep-integration`. Relatório:
+`docs/historico_sessao/weslley/viacep_e_decisao_k8s_16set2026.md`.
+
 **Critérios de aceitação**
-- [ ] **CA-03.1.a** — Endpoint `GET /address/:cep` consulta a ViaCEP e devolve endereço estruturado
-- [ ] **CA-03.1.b** — CEP inválido devolve **400** com mensagem clara, não 500
-- [ ] **CA-03.1.c** — CEP inexistente devolve **404**
-- [ ] **CA-03.1.d** — *Timeout* configurado; API fora do ar devolve **503**, sem travar a requisição
-- [ ] **CA-03.1.e** — Serviço isolado atrás de abstração, no padrão de `app/services/pix/`
-- [ ] **CA-03.1.f** — Testes com o cliente HTTP mockado — sem depender de rede
-- [ ] **CA-03.1.g** — Documentado no Swagger com schema de resposta
-- [ ] **CA-03.1.h** — `tenant_id` respeitado; endpoint exige autenticação
+- [x] **CA-03.1.a** — Endpoint `GET /address/:cep` consulta a ViaCEP e devolve endereço estruturado
+- [x] **CA-03.1.b** — CEP inválido devolve **400** com mensagem clara, não 500
+- [x] **CA-03.1.c** — CEP inexistente devolve **404**
+- [x] **CA-03.1.d** — *Timeout* configurado; API fora do ar devolve **503**, sem travar a requisição
+- [x] **CA-03.1.e** — Serviço isolado atrás de abstração, no padrão de `services/core-service/app/services/pix/`
+- [x] **CA-03.1.f** — Testes com o cliente HTTP mockado — sem depender de rede
+- [x] **CA-03.1.g** — Documentado no Swagger com schema de resposta
+- [x] **CA-03.1.h** — `tenant_id` respeitado; endpoint exige autenticação
 
 > **Decisão de desenho:** a consulta é **de apoio ao preenchimento**, não fonte de verdade. O endereço continua sendo salvo como texto no cadastro — a integração preenche o formulário, não cria dependência de terceiro para o dado existir.
 
@@ -96,7 +99,7 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 - [ ] **CA-03.2.d** — *Webhook* de confirmação processa notificação real do provedor
 - [ ] **CA-03.2.e** — Validação de autenticidade da notificação — não confiar em `POST` anônimo
 - [ ] **CA-03.2.f** — `FakePixProvider` **permanece** e continua sendo o padrão em teste
-- [ ] **CA-03.2.g** — `tests/public-booking.test.js` continua passando com o *fake*
+- [ ] **CA-03.2.g** — `services/core-service/tests/public-booking.test.js` continua passando com o *fake*
 - [ ] **CA-03.2.h** — Credenciais via variável de ambiente; `.env.example` atualizado
 - [ ] **CA-03.2.i** — Falha do provedor não deixa `Payment` em estado inconsistente
 
@@ -143,3 +146,4 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 | Versão | Data | Autor | Alteração |
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação |
+| 1.1 | 16/09/2026 | Weslley (orquestrando Claude Code) | **T-03.1 concluída.** Endpoint `GET /address/:cep`, provider ViaCEP no padrão de inversão de dependência do PIX (`AddressProvider`/`ViaCepAddressProvider`/factory), erros tipados mapeados para 400/404/503, testes com `fetch` mockado (226 passed \| 1 skipped na suíte completa), Swagger atualizado, validado também contra a API real. Critério 🔴 do Termo fechado sozinho por esta tarefa |

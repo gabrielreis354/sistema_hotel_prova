@@ -1,0 +1,28 @@
+# Dependências locais (nunca enviar ao daemon)
+node_modules/
+npm-debug.log*
+*.log
+
+# Variáveis de ambiente sensíveis
+.env
+.env.*
+!.env.example
+
+# SQL de criação e carga (não pertence ao runtime)
+db/
+seed/
+
+# Testes (não executam em produção)
+tests/
+vitest.config.js
+coverage/
+
+# Git e IDE
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+
+# Documentação
+*.md

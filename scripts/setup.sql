@@ -4,8 +4,8 @@
 --
 -- PROPÓSITO: este é o script de DDL de referência para criação de novos
 -- ambientes (desenvolvimento, homologação, avaliação acadêmica). Ele espelha
--- exatamente db/schema.sql, que é a fonte de verdade sincronizada com os
--- Models Sequelize em app/Models/. Os comentários abaixo são mais detalhados
+-- exatamente services/core-service/db/schema.sql, que é a fonte de verdade sincronizada com os
+-- Models Sequelize em services/core-service/app/Models/. Os comentários abaixo são mais detalhados
 -- para fins didáticos.
 --
 -- ORDEM DE CRIAÇÃO: as tabelas são criadas respeitando as dependências de
@@ -204,5 +204,5 @@ CREATE TRIGGER trg_payments_updated_at        BEFORE UPDATE ON payments         
 -- Observações de produção:
 -- - Em produção, gerencie alterações via migrations (node command.js migrate).
 -- - Para alto volume, considere particionar reservations por intervalo de data.
--- - Os mesmos objetos são criados por db/schema.sql; mantenha ambos em sincronia.
+-- - Os mesmos objetos são criados por services/core-service/db/schema.sql; mantenha ambos em sincronia.
 -- =============================================================================

@@ -18,7 +18,7 @@ frontend/
     ├── config/      preset de tsconfig / tailwind / eslint compartilhado
     ├── domain/      dinheiro (centavos), datas (America/Sao_Paulo), máquinas de estado
     ├── ui/          design system (tokens de status, densidade, alvo de toque)
-    └── api-client/  cliente tipado gerado do OpenAPI (config/swagger.js do backend)
+    └── api-client/  cliente tipado gerado do OpenAPI (services/core-service/config/swagger.js do backend)
 ```
 
 ## Pré-requisitos do ambiente (WSL)
@@ -36,7 +36,7 @@ node --version   # v24.x
 ```bash
 cd frontend
 pnpm install            # instala todo o workspace
-pnpm gen:api            # regenera os tipos a partir de config/swagger.js do backend
+pnpm gen:api            # regenera os tipos a partir de services/core-service/config/swagger.js do backend
 pnpm --filter @hotel/domain test
 pnpm --filter app-pms dev    # sobe o Vite em :5173 com proxy /api -> :3000
 pnpm build              # build de todos os pacotes/apps (turbo)
@@ -52,4 +52,4 @@ mesma origem (`localhost:5173/api/...`), então não há CORS em desenvolvimento
 server: { proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true, rewrite: p => p.replace(/^\/api/, '') } } }
 ```
 
-Suba o backend (`node _web.js` na raiz, com Postgres no ar) para integrar de verdade.
+Suba o backend (`node services/core-service/_web.js` na raiz, com Postgres no ar) para integrar de verdade.

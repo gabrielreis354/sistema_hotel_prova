@@ -19,7 +19,12 @@
 
 set -uo pipefail
 
-SRC_DIRS="app routes middlewares database config bootstrap"
+# Os caminhos abaixo são relativos à raiz do repositório. O script pode ser chamado
+# de qualquer lugar — do CI, da raiz ou de dentro de services/core-service via npm.
+cd "$(dirname "$0")/.." || exit 1
+
+CORE="services/core-service"
+SRC_DIRS="$CORE/app $CORE/routes $CORE/middlewares $CORE/database $CORE/config $CORE/bootstrap"
 ERRORS=0
 WARNS=0
 
@@ -93,7 +98,7 @@ report_error "tenant_id lido do body/query/params" \
 # 4. Ordem de rotas — /:param declarado antes de rota literal captura a literal
 # ─────────────────────────────────────────────────────────────────────────────
 route_issues=""
-for f in routes/apis/*.js; do
+for f in $CORE/routes/apis/*.js; do
     [ -f "$f" ] || continue
     unset seen_param 2>/dev/null || true
     declare -A seen_param=()
@@ -150,14 +155,14 @@ report_warn "include de model com dado sensível, sem attributes" \
 # 7. Endpoint novo sem Swagger — quebra o cliente tipado do frontend
 # ─────────────────────────────────────────────────────────────────────────────
 missing_swagger=""
-for f in routes/apis/*.js; do
+for f in $CORE/routes/apis/*.js; do
     [ -f "$f" ] || continue
     base=$(basename "$f" .js)
     resource=$(printf '%s' "$base" | sed -E 's/Router$//')
     # camelCase -> kebab-case (roomCategory -> room-category)
     kebab=$(printf '%s' "$resource" | sed -E 's/([a-z0-9])([A-Z])/\1-\L\2/g' | tr '[:upper:]' '[:lower:]')
-    if ! grep -qi -- "$kebab" config/swagger.js 2>/dev/null; then
-        missing_swagger+="$f: recurso '$kebab' não aparece em config/swagger.js"$'\n'
+    if ! grep -qi -- "$kebab" $CORE/config/swagger.js 2>/dev/null; then
+        missing_swagger+="$f: recurso '$kebab' não aparece em $CORE/config/swagger.js"$'\n'
     fi
 done
 report_warn "Router sem entrada no Swagger" \
@@ -200,7 +205,7 @@ report_warn "Router sem entrada no Swagger" \
 # possível a não ser virar CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL.
 # ─────────────────────────────────────────────────────────────────────────────
 paranoid_issues=""
-for f in app/Models/*.js; do
+for f in $CORE/app/Models/*.js; do
     [ -f "$f" ] || continue
     grep -q "paranoid:[[:space:]]*true" "$f" || continue
 
@@ -243,7 +248,7 @@ for f in app/Models/*.js; do
     fi
 done
 report_error "Model paranoid com índice único total" \
-    "Todo unique em model paranoid precisa de where: { deleted_at: null } NO MESMO BLOCO, senão um registro excluído queima o valor para sempre (ver app/Models/ProductModel.js)" \
+    "Todo unique em model paranoid precisa de where: { deleted_at: null } NO MESMO BLOCO, senão um registro excluído queima o valor para sempre (ver $CORE/app/Models/ProductModel.js)" \
     "$(printf '%s' "$paranoid_issues")"
 
 schema_unique_issues=$(awk '
@@ -256,13 +261,60 @@ schema_unique_issues=$(awk '
     intable && /^\);/ {
         intable = 0
         if (buf ~ /deleted_at/ && buf ~ /UNIQUE[ \t]*\(/) {
-            print "db/schema.sql: tabela " tabela " tem UNIQUE de tabela com deleted_at — Postgres nao aceita predicado nisso, precisa virar CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL"
+            print "'"$CORE"'/db/schema.sql: tabela " tabela " tem UNIQUE de tabela com deleted_at — Postgres nao aceita predicado nisso, precisa virar CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL"
         }
     }
-' db/schema.sql)
+' $CORE/db/schema.sql)
 report_error "UNIQUE de tabela em tabela soft-delete no schema.sql" \
     "UNIQUE (...) dentro de CREATE TABLE não aceita predicado no PostgreSQL — numa tabela com deleted_at isso é sempre total e sempre defeituoso" \
     "$schema_unique_issues"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Frontend — divergência do design system
+#
+# O `packages/ui` não tem curador: três devs criam componente quando precisam, e
+# a promoção acontece no segundo módulo que precisar (frontend/packages/ui/CATALOGO.md).
+# Sem uma pessoa vigiando, é ESTA regra que impede o design system de rachar.
+#
+# Ela não julga gosto — pega três divergências objetivas dentro de `features/`:
+#   (a) elemento interativo cru, quando já existe componente para ele
+#   (b) cor literal, que escapa dos tokens do Tailwind e some no dark mode
+#   (c) a mesma string de classes repetida — componente disfarçado de copiar-colar
+#
+# É AVISO, não erro, e de propósito: o módulo de referência (`features/guests`)
+# ainda tem violações que a T-05.12 remove. Vira ERRO quando ele for canonizado —
+# ver docs/DIVISAO_TRABALHO_TIME_09set2026.md §4.5.
+#
+# Escape pontual, quando a violação for justificada:
+#   <button ... />  {/* qa-allow: ui */}
+# ─────────────────────────────────────────────────────────────────────────────
+FEATURES_DIRS=$(ls -d frontend/apps/*/src/features 2>/dev/null || true)
+
+if [ -n "$FEATURES_DIRS" ]; then
+    # 9a — elemento interativo cru onde já existe componente
+    hits=$(grep -rnE "<(button|input|select|textarea)[[:space:]/>]" $FEATURES_DIRS \
+            --include='*.tsx' 2>/dev/null \
+            | grep -v 'qa-allow: ui' || true)
+    report_warn "Elemento interativo cru em features/" \
+        "Use Button, Input ou Field de @hotel/ui — alvo de toque, foco visível e estado de erro já vêm resolvidos" \
+        "$hits"
+
+    # 9b — cor literal fora dos tokens
+    hits=$(grep -rnE "(#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\()" $FEATURES_DIRS \
+            --include='*.tsx' --include='*.ts' 2>/dev/null \
+            | grep -v 'qa-allow: ui' || true)
+    report_warn "Cor literal em features/" \
+        "Só token do Tailwind (brand, status-*, gray-*). Cor literal não acompanha o tema nem o design system" \
+        "$hits"
+
+    # 9c — mesma string de classes em 3+ lugares: é componente que ninguém promoveu
+    dup=$(grep -rhoE 'className="[^"]{40,}"' $FEATURES_DIRS --include='*.tsx' 2>/dev/null \
+            | sort | uniq -c | sort -rn \
+            | awk '$1 >= 3 { n=$1; $1=""; sub(/^ /,""); printf "%dx  %s\n", n, $0 }' || true)
+    report_warn "Bloco de classes repetido em features/" \
+        "Repetido 3+ vezes é componente disfarçado — crie local e promova no segundo módulo que precisar (packages/ui/CATALOGO.md)" \
+        "$dup"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Resultado

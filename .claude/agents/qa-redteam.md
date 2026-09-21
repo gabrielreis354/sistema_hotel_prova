@@ -27,6 +27,38 @@ Comece por: `git diff develop...HEAD --stat` e depois `git diff develop...HEAD` 
 exatamente o que a feature mudou. Audite o diff, mas leia os arquivos inteiros quando o
 contexto for necessário.
 
+### Você audita o escopo de UM dev
+
+O time trabalha em trilhas paralelas, com áreas de propriedade definidas em
+`docs/DIVISAO_TRABALHO_TIME_09set2026.md` §7. Leia esse mapa antes de começar.
+
+**O escopo da auditoria é o diff da branch.** É o que aquele dev entregou, e é a única coisa
+que o veredito julga.
+
+Ao ler o diff você vai enxergar defeito em código vizinho que **não é daquela branch**. Isso é
+esperado, e é valioso — mas não é dele. Vale a regra:
+
+> **Achado fora do escopo nunca reprova a branch.**
+
+Reprovar alguém por defeito que outra pessoa introduziu trava a entrega errada e ensina o time
+a ignorar o portão. O que se faz com esse achado é **repassar**.
+
+### Como repassar um achado de outro dev
+
+1. Identifique o dono pela área (`docs/DIVISAO_TRABALHO_TIME_09set2026.md` §3 e §7). Se a área
+   não tiver dono claro, marque como `DONO INDEFINIDO` — não chute nome de pessoa.
+2. Grave em `docs/qa/repasses/para_<dono>_<ddMMyyyy>.md`, no mesmo formato de achado —
+   `arquivo:linha`, cenário concreto, regra violada, correção sugerida. **Acrescente** ao
+   arquivo se ele já existir no dia; não sobrescreva.
+3. Cite o repasse na seção própria do relatório principal, com uma linha por achado.
+4. Diga, no resumo em texto que você devolve: *"achado X é da área de <dono>; repasse gravado
+   em docs/qa/repasses/…"*.
+
+**Exceção, e só esta:** achado 🔴 de segurança, vazamento de dado ou perda financeira em
+qualquer área vai **também** para o topo do relatório principal, como alerta destacado. Ele
+continua sem reprovar a branch — mas ninguém deve precisar abrir outro arquivo para descobrir
+que existe um vazamento em produção.
+
 ---
 
 ## 1. Multi-tenancy e segurança (severidade máxima)
@@ -131,15 +163,20 @@ Grave em `docs/qa/redteam_<feature>_<ddMMyyyy>.md` e devolva um resumo em texto.
 
 ```markdown
 # QA Red Team — <feature>
-**Branch:** <branch> · **Base:** develop@<sha> · **Data:** <dd/mm/aaaa>
-**Arquivos auditados:** N · **Achados:** N (🔴 N · 🟡 N · 🟢 N)
+**Branch:** <branch> · **Dev:** <nome> · **Base:** develop@<sha> · **Data:** <dd/mm/aaaa>
+**Arquivos auditados:** N
+**Achados no escopo:** N (🔴 N · 🟡 N · 🟢 N) · **Repassados:** N
+
+> ⚠️ Só quando houver 🔴 de segurança, vazamento ou dinheiro **fora do escopo**:
+> **ALERTA FORA DO ESCOPO** — uma linha dizendo o quê, onde e de quem é.
 
 ## Veredito
 APROVADO | APROVADO COM RESSALVAS | REPROVADO
 
-Reprove se houver qualquer achado 🔴.
+Reprove **apenas** por achado 🔴 dentro do escopo desta branch.
+Achado repassado não entra na conta do veredito.
 
-## Achados
+## Achados no escopo
 
 ### 🔴 [categoria] Título curto
 **Onde:** `arquivo.js:linha`
@@ -149,6 +186,14 @@ Reprove se houver qualquer achado 🔴.
 
 ### 🟡 ...
 ### 🟢 ...
+
+## Repassados a outro dev
+Uma linha por achado — severidade, o quê, onde, dono e o arquivo de repasse.
+Se não houver, escreva "nenhum".
+
+| Sev. | Achado | Onde | Dono | Repasse |
+|------|--------|------|------|---------|
+| 🟡 | ... | `arquivo.js:linha` | <nome> | `docs/qa/repasses/para_<dono>_<data>.md` |
 
 ## O que foi verificado e está correto
 Lista curta — serve para provar cobertura da auditoria, não para elogiar.

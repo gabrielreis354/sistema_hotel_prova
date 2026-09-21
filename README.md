@@ -63,7 +63,7 @@ Sistema de gestão hoteleira **SaaS multi-tenant**: múltiplos hotéis utilizam 
 
 ## Infraestrutura — Kubernetes
 
-O ambiente de execução é **Kubernetes**, aplicado via `kustomize` a partir dos manifests em `k8s/`. Cada componente do sistema roda como um recurso K8s dedicado — Deployment, Service, ConfigMap, Secret, PVC — dentro do namespace `hotel-system`.
+O ambiente de execução é **Kubernetes**, aplicado via `kustomize` a partir dos manifests em `infra/k8s/`. Cada componente do sistema roda como um recurso K8s dedicado — Deployment, Service, ConfigMap, Secret, PVC — dentro do namespace `hotel-system`.
 
 ---
 
@@ -91,7 +91,7 @@ O ambiente de execução é **Kubernetes**, aplicado via `kustomize` a partir do
 
 No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 
-**`k8s/configmap.yaml` — variáveis não sensíveis:**
+**`infra/k8s/configmap.yaml` — variáveis não sensíveis:**
 
 | Variável | Valor |
 |---|---|
@@ -102,16 +102,17 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 | `POSTGRES_DB` | `gestao_hotel` |
 | `POSTGRES_USER` | `hotel_user` |
 
-**`k8s/secret.yaml` — variáveis sensíveis:**
+**`infra/k8s/secret.yaml` — variáveis sensíveis:**
 
 | Variável | Valor padrão (acadêmico) |
 |---|---|
 | `POSTGRES_PASSWORD` | `hotel_password` |
 | `JWT_SECRET` | `pms_hotel_secreto_academico_2026` |
+| `PIX_WEBHOOK_SECRET` | `pms_hotel_pix_webhook_secreto_academico_2026` |
 
 > Em produção, substitua os valores do `secret.yaml` por credenciais reais e **nunca commite o arquivo com senhas reais**. Para este projeto acadêmico os valores estão no repositório para facilitar a avaliação.
 
-Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `k8s/`.
+Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `infra/k8s/`.
 
 ---
 
@@ -159,7 +160,7 @@ Resultado: imagem enxuta (~120 MB), sem ferramentas de build, rodando como usuá
 ### Passo 3 — Aplicar todos os manifests com Kustomize
 
 ```bash
-kubectl apply -k k8s/
+kubectl apply -k infra/k8s/
 ```
 
 Este único comando cria em sequência:
@@ -200,7 +201,7 @@ kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
 Com o cluster rodando, crie todas as tabelas no banco:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 Saída esperada:
@@ -307,7 +308,7 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD` e `JWT_SECRET` |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `JWT_SECRET` e `PIX_WEBHOOK_SECRET` |
 
 Os Pods leem essas variáveis via `envFrom` (ConfigMap) e `env.valueFrom.secretKeyRef` (Secret). Nenhuma credencial está hardcoded nas imagens.
 
@@ -320,7 +321,7 @@ Estágio runner → node:24-alpine  |  copia node_modules + código-fonte
                                     EXPOSE 3000
 ```
 
-O `.dockerignore` exclui do build: `node_modules/`, `tests/`, `docs/`, `k8s/`, `.git/`, `.env`, `*.md`.
+O `.dockerignore` exclui do build: `node_modules/`, `tests/`, `docs/`, `infra/k8s/`, `.git/`, `.env`, `*.md`.
 
 ### Segurança
 
@@ -469,73 +470,84 @@ CLEANING  ──► AVAILABLE (limpeza concluída — via PUT /rooms/:id)
 
 ## Estrutura do Projeto
 
+> **O backend mudou de lugar em 15/09/2026.** Saiu da raiz e passou para
+> `services/core-service/`, primeiro passo da divisão em microsserviços (SPEC-01, ADR-003).
+> Os manifests do Kubernetes foram para `infra/k8s/`, e o material superado — `docker/`,
+> `modelagem/`, `queries/`, `justificativa/` — para `docs/legado/`.
+>
+> Na prática: `npm install`, `npm test`, `npm start` e `node command.js` rodam **de dentro de
+> `services/core-service/`**, onde ficam o `package.json` e o `.env`. Os scripts de `scripts/`
+> e o `start.sh` continuam sendo chamados da raiz.
+
 ```
 sistema_gestao_hotel/
 │
-├── _web.js                   # Entrypoint HTTP — inicia o servidor Express
-├── command.js                # Entrypoint CLI  — node command.js migrate
+├── services/                       # Um diretório por microsserviço
+│   └── core-service/               # Operação do hotel — reservas, hospedagem, pagamentos, consumo
+│       ├── _web.js                 # Entrypoint HTTP — inicia o servidor Express
+│       ├── command.js              # Entrypoint CLI  — node command.js migrate
+│       ├── package.json            # Dependências e scripts DO SERVIÇO
+│       ├── Dockerfile              # Multi-stage build — o contexto é esta pasta
+│       ├── .dockerignore
+│       ├── vitest.config.js
+│       │
+│       ├── bootstrap/
+│       │   ├── app.js              # Inicialização: dotenv + relações Sequelize
+│       │   └── config.js           # Constantes globais
+│       │
+│       ├── app/
+│       │   ├── Controllers/        # Um arquivo por ação (Responsabilidade Única)
+│       │   │   ├── AuthApi/        #   Register, Login
+│       │   │   ├── GuestApi/       #   CRUD de hóspedes
+│       │   │   ├── PaymentApi/     #   CRUD de pagamentos
+│       │   │   ├── ReservationApi/ #   CRUD + CheckIn + CheckOut + Cancel + Pivot
+│       │   │   ├── RoomApi/        #   CRUD + ListAvailable
+│       │   │   ├── RoomCategoryApi/#   CRUD de categorias
+│       │   │   ├── ProductApi/     #   Catálogo de consumo
+│       │   │   ├── AnalyticsApi/   #   Indicadores (sai na T-01.4)
+│       │   │   └── UserApi/        #   CRUD de usuários
+│       │   ├── Models/             # Modelos Sequelize
+│       │   ├── services/pix/       # Provedor de cobrança PIX
+│       │   └── utils/              # Utilitários compartilhados (DRY)
+│       │
+│       ├── database/
+│       │   ├── connections/        # Singleton de conexão com PostgreSQL
+│       │   └── relations.js        # Associações entre modelos
+│       │
+│       ├── middlewares/            # authMiddleware · roleMiddleware · tenantMiddleware
+│       │
+│       ├── routes/
+│       │   ├── router.js           # Router principal (monta todos os sub-routers)
+│       │   └── apis/               # Sub-routers por domínio
+│       │
+│       ├── config/swagger.js       # Especificação OpenAPI 3.0
+│       ├── db/schema.sql           # Schema SQL — fonte de verdade do banco
+│       ├── seed/seed_hotels.sql    # 165 registros de exemplo (2 hotéis)
+│       └── tests/                  # Integração (Vitest + Supertest)
 │
-├── bootstrap/
-│   ├── app.js                # Inicialização: dotenv + relações Sequelize
-│   └── config.js             # Constantes globais
+├── infra/
+│   └── k8s/                        # Manifests Kubernetes (ambiente principal)
+│       ├── kustomization.yaml      #   Ponto de entrada (kubectl apply -k infra/k8s/)
+│       ├── namespace.yaml          #   Namespace hotel-system
+│       ├── configmap.yaml          #   Variáveis de ambiente não sensíveis
+│       ├── secret.yaml             #   Credenciais (POSTGRES_PASSWORD, JWT_SECRET)
+│       ├── postgres.yaml           #   PVC + Deployment + Service do PostgreSQL
+│       ├── backend.yaml            #   Deployment (3 réplicas) + Service do Node.js
+│       ├── nginx.yaml              #   ConfigMap nginx + Deployment + Service LoadBalancer
+│       ├── pdb.yaml                #   PodDisruptionBudget (mínimo 2 réplicas)
+│       └── networkpolicy.yaml      #   Políticas de rede (postgres ← backend ← nginx)
 │
-├── app/
-│   ├── Controllers/          # Um arquivo por ação (Princípio da Responsabilidade Única)
-│   │   ├── AuthApi/          #   Register, Login
-│   │   ├── GuestApi/         #   CRUD de hóspedes
-│   │   ├── PaymentApi/       #   CRUD de pagamentos
-│   │   ├── ReservationApi/   #   CRUD + CheckIn + CheckOut + Cancel + Pivot
-│   │   ├── RoomApi/          #   CRUD + ListAvailable
-│   │   ├── RoomCategoryApi/  #   CRUD de categorias
-│   │   └── UserApi/          #   CRUD de usuários
-│   ├── Models/               # Modelos Sequelize (8 tabelas)
-│   └── utils/                # Utilitários compartilhados (DRY)
+├── frontend/                       # Monorepo pnpm — apps/pms, packages/ui, api-client...
 │
-├── database/
-│   ├── connections/          # Singleton de conexão com PostgreSQL
-│   └── relations.js          # Associações entre modelos (hasMany, belongsTo, etc.)
+├── scripts/                        # qa_checks.sh · estado.sh · setup_db.sh · infra_up.sh
+│   └── setup.sql                   # DDL de referência comentado (fins acadêmicos)
 │
-├── middlewares/              # authMiddleware · roleMiddleware · tenantMiddleware
+├── start.sh · test_rotas.sh        # Operação do cluster local
 │
-├── routes/
-│   ├── router.js             # Router principal (monta todos os sub-routers)
-│   └── apis/                 # Sub-routers por domínio
-│
-├── config/swagger.js         # Especificação OpenAPI 3.0
-│
-├── Dockerfile                # Multi-stage build (deps + runner) — gera a imagem do backend
-├── .dockerignore             # Exclui arquivos desnecessários do build
-│
-├── k8s/                      # Manifests Kubernetes (ambiente principal)
-│   ├── kustomization.yaml    #   Ponto de entrada do kustomize (kubectl apply -k k8s/)
-│   ├── namespace.yaml        #   Namespace hotel-system
-│   ├── configmap.yaml        #   Variáveis de ambiente não sensíveis
-│   ├── secret.yaml           #   Credenciais (POSTGRES_PASSWORD, JWT_SECRET)
-│   ├── postgres.yaml         #   PVC + Deployment + Service do PostgreSQL
-│   ├── backend.yaml          #   Deployment (3 réplicas) + Service do Node.js
-│   ├── nginx.yaml            #   ConfigMap nginx + Deployment + Service LoadBalancer
-│   ├── pdb.yaml              #   PodDisruptionBudget (mínimo 2 réplicas do backend)
-│   └── networkpolicy.yaml    #   Políticas de rede (postgres ← backend ← nginx apenas)
-│
-├── db/schema.sql             # Schema SQL completo — fonte de verdade do banco
-├── scripts/setup.sql         # DDL de referência comentado (fins acadêmicos)
-├── seed/seed_hotels.sql      # 165 registros de exemplo (2 hotéis)
-│
-├── queries/
-│   ├── crud.sql              # Consultas CRUD com isolamento multi-tenant
-│   ├── consultas_avancadas.sql # 5 JOINs complexos
-│   └── agregacoes.sql        # 5 consultas de agregação (relatórios)
-│
-├── modelagem/
-│   ├── der.png               # Diagrama Entidade-Relacionamento (DER)
-│   ├── modelo_logico.png     # Diagrama Lógico
-│   └── dicionario_dados.md   # Dicionário de dados completo
-│
-├── justificativa/
-│   └── arquitetura.md        # Justificativa técnica da escolha do banco
-│
-├── docs/                     # Documentação técnica e histórico de sessões
-└── tests/                    # Suite de testes de integração (Vitest + Supertest)
+└── docs/                           # Documentação técnica, specs e histórico
+    ├── specs/                      #   SPEC-01 a SPEC-07
+    ├── sugestoes-documentos-oficiais/
+    └── legado/                     #   docker/, modelagem/, queries/, justificativa/
 ```
 
 ---
@@ -623,10 +635,10 @@ As consultas estão organizadas em `queries/`:
 
 ## Schema e Migrations
 
-O schema completo está em `db/schema.sql`. Para criar ou atualizar todas as tabelas:
+O schema completo está em `services/core-service/db/schema.sql`. Para criar ou atualizar todas as tabelas:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 O comando usa `sequelize.sync({ alter: true })` — cria tabelas inexistentes e adiciona colunas novas sem derrubar dados existentes.
@@ -971,7 +983,7 @@ Causas comuns:
 As migrations não foram executadas após subir o cluster:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 ### Backend não consegue conectar ao PostgreSQL
@@ -1011,10 +1023,10 @@ kubectl get secret hotel-secret -n hotel-system -o jsonpath='{.data.POSTGRES_PAS
 
 Se precisar recriar tudo do zero:
 ```bash
-kubectl delete -k k8s/
-kubectl apply -k k8s/
+kubectl delete -k infra/k8s/
+kubectl apply -k infra/k8s/
 kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 ---
@@ -1035,7 +1047,7 @@ Configure em: **GitHub → Settings → Secrets and variables → Actions**
 
 # Kubernetes
 
-A pasta `k8s/` contém os manifests para executar a mesma arquitetura no Kubernetes:
+A pasta `infra/k8s/` contém os manifests para executar a mesma arquitetura no Kubernetes:
 
 | Recurso | Função |
 |---|---|
@@ -1069,10 +1081,10 @@ Mais detalhes em `docs/infra/KUBERNETES.md`.
 
 ```bash
 # Remover todos os recursos do cluster — PVC e dados do banco são preservados
-kubectl delete -k k8s/
+kubectl delete -k infra/k8s/
 
 # Remover tudo incluindo o PVC (apaga os dados do banco permanentemente)
-kubectl delete -k k8s/
+kubectl delete -k infra/k8s/
 kubectl delete pvc postgres-data -n hotel-system
 ```
 

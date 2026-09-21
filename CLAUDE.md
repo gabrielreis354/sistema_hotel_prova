@@ -73,28 +73,45 @@ CLEANING  → AVAILABLE (limpeza concluída — manual pelo admin)
 ### Estrutura de pastas
 
 ```
-app/
-  Controllers/
-    AuthApi/          → Register, Login
-    GuestApi/         → CRUD hóspedes
-    RoomApi/          → CRUD quartos + ListAvailable
-    ReservationApi/   → CRUD + CheckIn + CheckOut + Cancel
-    PaymentApi/       → Create, List
-  Models/             → Sequelize models (1 arquivo por entidade)
-  utils/              → Utilitários compartilhados (DRY)
-routes/
-  apis/               → roomRouter, reservationRouter, guestRouter...
-  router.js           → monta tudo + /health
-database/
-  connections/        → sequelize.js (singleton)
-middlewares/          → authMiddleware, roleMiddleware
-k8s/                  → manifests Kubernetes completos
+services/
+  core-service/         → o backend (saiu da raiz em 15/09 — SPEC-01)
+    app/
+      Controllers/
+        AuthApi/        → Register, Login
+        GuestApi/       → CRUD hóspedes
+        RoomApi/        → CRUD quartos + ListAvailable
+        ReservationApi/ → CRUD + CheckIn + CheckOut + Cancel
+        PaymentApi/     → Create, List
+      Models/           → Sequelize models (1 arquivo por entidade)
+      utils/            → Utilitários compartilhados (DRY)
+    routes/
+      apis/             → roomRouter, reservationRouter, guestRouter...
+      router.js         → monta tudo + /health
+    database/
+      connections/      → sequelize.js (singleton)
+    middlewares/        → authMiddleware, roleMiddleware
+    db/ · seed/         → schema.sql e carga inicial
+    tests/              → Vitest + Supertest
+    _web.js · command.js → entrypoint HTTP e CLI (migrate, seed)
+  analytics-service/    → 🔷 nasce na T-01.4
+  b2b-service/          → 🔷 nasce na T-01.6 (5º semestre)
+infra/
+  k8s/                  → manifests Kubernetes completos
+frontend/               → monorepo pnpm (apps/pms, packages/ui, api-client...)
+scripts/                → qa_checks.sh, estado.sh, setup_db.sh, infra_up.sh
 docs/
   CODING_STANDARDS.md
+  specs/                → SPEC-01 a SPEC-07
+  legado/               → material superado (docker/, modelagem/, queries/...)
   historico_sessao/gabriel/
   historico_sessao/sirlande/
   historico_sessao/weslley/
 ```
+
+> **Onde os comandos rodam.** O backend é `services/core-service/` — é lá que ficam o
+> `package.json`, o `.env` e o `node_modules`. `npm test`, `npm start` e `node command.js`
+> rodam de dentro dessa pasta. Os scripts de `scripts/` e o `start.sh` continuam sendo
+> chamados da raiz.
 
 ---
 
@@ -107,7 +124,7 @@ docs/
 Perguntas obrigatórias a responder antes de planejar:
 
 1. **O que já existe?** — Leia os controllers, models e routes relacionados
-2. **Existe código similar que posso reutilizar?** — `app/utils/`, controllers parecidos
+2. **Existe código similar que posso reutilizar?** — `services/core-service/app/utils/`, controllers parecidos
 3. **Qual o impacto nos outros módulos?** — state machine, tenant isolation, transações
 4. **Existe documentação que define o comportamento esperado?** — `docs/`, `PRODUCT_ROADMAP.md`
 5. **O que os outros devs já fizeram nessa área?** — `git log --follow -- <arquivo>`
@@ -117,7 +134,7 @@ Ferramentas de research:
 # Ver implementação similar
 grep -r "checkReservationConflict" app/
 # Ver histórico de um arquivo
-git log --oneline -- app/Controllers/ReservationApi/CheckInController.js
+git log --oneline -- services/core-service/app/Controllers/ReservationApi/CheckInController.js
 # Ver o que mudou recentemente
 git log --oneline -15
 ```
@@ -222,9 +239,9 @@ STACK:
 - tenant_id obrigatório em todas queries
 
 JÁ EXISTE (leia antes de começar):
-- Exemplo similar: app/Controllers/ReservationApi/CheckInController.js
-- Utilitário DRY: app/utils/checkReservationConflict.js
-- Router: routes/apis/reservationRouter.js
+- Exemplo similar: services/core-service/app/Controllers/ReservationApi/CheckInController.js
+- Utilitário DRY: services/core-service/app/utils/checkReservationConflict.js
+- Router: services/core-service/routes/apis/reservationRouter.js
 
 TAREFA:
 <descrição precisa>
@@ -349,7 +366,7 @@ Exemplos:
 ### Controller padrão
 
 ```js
-// app/Controllers/[Domain]Api/[Action]Controller.js
+// services/core-service/app/Controllers/[Domain]Api/[Action]Controller.js
 import ModelXxx from '../../Models/XxxModel.js';
 
 export default async function ActionController(request, response) {
@@ -438,7 +455,7 @@ indexes: [{
 | `docs/db/ARQ_DATABASE.md` | Schema do banco, relações, decisões de modelagem |
 | `docs/infra/KUBERNETES.md` | Infra K8s, como aplicar os manifests |
 | `docs/historico_sessao/` | Histórico de sessões por dev |
-| `k8s/` | Manifests completos (namespace, backend, nginx, postgres) |
+| `infra/k8s/` | Manifests completos (namespace, backend, nginx, postgres) |
 
 ---
 

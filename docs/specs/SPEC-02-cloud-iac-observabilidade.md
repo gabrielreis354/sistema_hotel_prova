@@ -1,7 +1,7 @@
 # SPEC-02 — Cloud, Infraestrutura como Código e Observabilidade
 
 **Prioridade:** 🔴 Crítica — três critérios de aprovação
-**Estado:** 🔲 Não iniciado
+**Estado:** 🟡 Em andamento — T-02.1 analisada em 16/09/2026, falta só registrar o ADR-004 no fork
 **Criado em:** 26/08/2026
 **Depende de:** SPEC-01 (para o recorte de serviços) — parcialmente
 
@@ -21,7 +21,7 @@ Três exigências do Termo de Aceite, hoje **todas não atendidas**:
 |------|-----------|
 | Nuvem | Tudo em **minikube local**. Nenhuma conta AWS/GCP/Azure em uso |
 | Terraform | `find . -iname "*.tf"` → **nenhum arquivo** no repositório |
-| Prometheus/Grafana | `grep -ril` em `k8s/` → **nenhuma ocorrência**. Só aparecem em documentos de análise |
+| Prometheus/Grafana | `grep -ril` em `infra/k8s/` → **nenhuma ocorrência**. Só aparecem em documentos de análise |
 
 **Decisão da equipe (23/08):** provedor **AWS** — a equipe está aprendendo AWS.
 
@@ -49,7 +49,7 @@ Isso não é preferência: é regra operacional que **prevalece sobre qualquer o
 
 - Módulos Terraform para: rede (VPC, subnets), cluster Kubernetes gerenciado, IAM mínimo, *registry* de imagens
 - *State* do Terraform versionado e compartilhável entre a equipe
-- Portar os manifests `k8s/` existentes para o cluster em nuvem
+- Portar os manifests `infra/k8s/` existentes para o cluster em nuvem
 - Stack Prometheus + Grafana no cluster
 - Instrumentação `/metrics` na aplicação
 - Dashboard Grafana com métricas operacionais
@@ -67,13 +67,20 @@ Isso não é preferência: é regra operacional que **prevalece sobre qualquer o
 
 ## 5. Tarefas
 
-### T-02.1 — Decidir o serviço de Kubernetes e dimensionar 🔲
+### T-02.1 — Decidir o serviço de Kubernetes e dimensionar 🟡
+
+**Análise concluída em 16/09/2026** — decisão: **k3s em EC2 single-node** (não EKS; o control plane
+gerenciado custa ~US$ 73-74/mês fixo, mesmo parado, e viola a regra absoluta de free-tier sozinho).
+Conteúdo completo, pronto para virar ADR-004, em
+`docs/historico_sessao/weslley/viacep_e_decisao_k8s_16set2026.md`. **Falta só o registro formal do
+ADR-004 no fork da UniFAAT** (`Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md`) — fora
+deste repositório.
 
 **Critérios de aceitação**
-- [ ] **CA-02.1.a** — Serviço escolhido com justificativa de custo (EKS, ou alternativa mais barata como EC2 + k3s)
-- [ ] **CA-02.1.b** — Estimativa de custo mensal documentada, confirmando aderência ao free-tier ou aos créditos disponíveis
-- [ ] **CA-02.1.c** — Estratégia de ciclo de vida definida: quando sobe, quando destrói
-- [ ] **CA-02.1.d** — Decisão registrada como **ADR-004**
+- [x] **CA-02.1.a** — Serviço escolhido com justificativa de custo (EKS, ou alternativa mais barata como EC2 + k3s)
+- [x] **CA-02.1.b** — Estimativa de custo mensal documentada, confirmando aderência ao free-tier ou aos créditos disponíveis
+- [x] **CA-02.1.c** — Estratégia de ciclo de vida definida: quando sobe, quando destrói
+- [ ] **CA-02.1.d** — Decisão registrada como **ADR-004** — insumo pronto, falta transcrever no fork
 
 > **Alerta de custo:** o EKS cobra **US$ 0,10/hora pelo control plane**, mesmo sem carga — cerca de US$ 73/mês se ficar ligado, e **não é coberto pelo free-tier**. Se não houver créditos acadêmicos, avaliar `k3s` em uma instância EC2 `t3.micro` (essa sim, dentro do free-tier). Esta decisão precisa ser tomada com o custo na mesa, antes de qualquer `terraform apply`.
 
@@ -98,7 +105,7 @@ Isso não é preferência: é regra operacional que **prevalece sobre qualquer o
 
 **DEP:** T-02.2
 
-Os manifests em `k8s/` (backend, postgres, redis, minio, nginx, networkpolicy, PDB) já existem e funcionam em minikube.
+Os manifests em `infra/k8s/` (backend, postgres, redis, minio, nginx, networkpolicy, PDB) já existem e funcionam em minikube.
 
 **Critérios de aceitação**
 - [ ] **CA-02.3.a** — Aplicação responde por endereço público
@@ -119,7 +126,7 @@ Os manifests em `k8s/` (backend, postgres, redis, minio, nginx, networkpolicy, P
 - [ ] **CA-02.4.c** — Aplicação expõe `/metrics` (Express + `prom-client`)
 - [ ] **CA-02.4.d** — Métricas de negócio além das técnicas: latência por endpoint, taxa de erro, requisições por tenant
 - [ ] **CA-02.4.e** — Dashboard com saúde do sistema, pronto para demonstração
-- [ ] **CA-02.4.f** — Manifests versionados em `k8s/`
+- [ ] **CA-02.4.f** — Manifests versionados em `infra/k8s/`
 
 > **Nota de sequência:** subir a observabilidade **antes** do split completo de microsserviços. Validar a stack sobre o backend atual é mais simples, e cada serviço novo só precisa passar a expor `/metrics`.
 
@@ -165,3 +172,4 @@ Os manifests em `k8s/` (backend, postgres, redis, minio, nginx, networkpolicy, P
 | Versão | Data | Autor | Alteração |
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação |
+| 1.1 | 16/09/2026 | Weslley (orquestrando Claude Code) | **T-02.1 analisada.** Revisão do footprint atual de `infra/k8s/` (~896Mi de requests só do core-service) e do recorte do ADR-003, para dimensionar considerando o alvo futuro (3 serviços + RabbitMQ + Prometheus/Grafana). Decisão: k3s em EC2 single-node, não EKS (control plane gerenciado quebra a regra de free-tier sozinho). `t3.micro` cobre a fase inicial dentro do free-tier; `t3.small` (~US$ 24-25/mês se ligado 24/7) entra quando RabbitMQ e observabilidade forem somados — mitigado por ciclo de vida efêmero (sobe/destrói por sessão). Falta só transcrever para o ADR-004 no fork da UniFAAT |
