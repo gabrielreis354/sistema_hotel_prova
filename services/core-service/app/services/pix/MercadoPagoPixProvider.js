@@ -112,4 +112,36 @@ export default class MercadoPagoPixProvider extends PixProvider {
 
         return { providerChargeId: String(dataId) };
     }
+
+    // A assinatura do webhook só prova quem enviou a notificação, não que o pagamento foi
+    // aprovado — o MP notifica em payment.created e também em cancelled/rejected/expired.
+    // GET /v1/payments/{id} é a fonte de verdade do status.
+    async getChargeStatus(providerChargeId) {
+        const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+        if (!accessToken) {
+            throw new PixProviderUnavailableError('MERCADOPAGO_ACCESS_TOKEN não configurado');
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+        let response;
+        try {
+            response = await fetch(`${MP_API_URL}/${providerChargeId}`, {
+                signal: controller.signal,
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+        } catch {
+            throw new PixProviderUnavailableError('Mercado Pago indisponível no momento');
+        } finally {
+            clearTimeout(timeout);
+        }
+
+        if (!response.ok) {
+            throw new PixProviderUnavailableError(`Mercado Pago respondeu ${response.status} ao consultar a cobrança`);
+        }
+
+        const data = await response.json();
+        return { status: data.status, amount: data.transaction_amount ?? null };
+    }
 }

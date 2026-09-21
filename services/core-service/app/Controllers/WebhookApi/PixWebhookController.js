@@ -2,7 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import getPixProvider from '../../services/pix/index.js';
-import { InvalidWebhookSignatureError } from '../../services/pix/errors.js';
+import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../../services/pix/errors.js';
 
 /**
  * POST /webhooks/pix
@@ -11,9 +11,15 @@ import { InvalidWebhookSignatureError } from '../../services/pix/errors.js';
  * assina a requisição (validar assinatura aqui antes de confiar). No provider
  * simulado, o "pagamento" é disparado manualmente com o provider_charge_id.
  *
- * Efeito: marca o pagamento como PAID e, se a reserva estiver PENDING, promove
- * para CONFIRMED — respeitando a máquina de estados (não mexe em CHECKED_IN etc.).
- * Idempotente: reprocessar o mesmo charge não duplica efeito.
+ * A assinatura só prova quem enviou a notificação — nunca que o pagamento foi aprovado
+ * (o MP notifica em payment.created e também em cancelled/rejected). Por isso o status é
+ * sempre confirmado na fonte (provider.getChargeStatus) antes de qualquer efeito.
+ *
+ * Efeito: com status aprovado e valor batendo, marca o pagamento como PAID e, se a reserva
+ * estiver PENDING, promove para CONFIRMED — respeitando a máquina de estados (não mexe em
+ * CHECKED_IN etc.). Cancelado/rejeitado marca o pagamento como FAILED. Qualquer outro status
+ * (pending, in_process...) não tem efeito — aguarda nova notificação. Idempotente: reprocessar
+ * um pagamento já em estado terminal não repete efeito.
  *
  * A extração/validação do id da cobrança é responsabilidade do provider ativo
  * (provider.verifyWebhook) — o fake só lê provider_charge_id do body; um PSP real valida a
@@ -21,9 +27,11 @@ import { InvalidWebhookSignatureError } from '../../services/pix/errors.js';
  */
 export default async function PixWebhookController(request, response) {
     try {
+        const provider = getPixProvider();
+
         let provider_charge_id;
         try {
-            ({ providerChargeId: provider_charge_id } = getPixProvider().verifyWebhook(request));
+            ({ providerChargeId: provider_charge_id } = provider.verifyWebhook(request));
         } catch (verifyError) {
             if (verifyError instanceof InvalidWebhookSignatureError) {
                 return response.status(401).json({ error: 'Assinatura da notificação inválida' });
@@ -40,9 +48,42 @@ export default async function PixWebhookController(request, response) {
             return response.status(404).json({ error: 'Cobrança não encontrada' });
         }
 
-        // Idempotência: se já foi processada, não faz nada de novo.
-        if (payment.status === 'PAID') {
+        // Idempotência: se já chegou a um estado terminal, não reprocessa.
+        if (['PAID', 'FAILED', 'EXPIRED'].includes(payment.status)) {
             return response.status(200).json({ status: 'already_processed', payment_id: payment.id });
+        }
+
+        let chargeStatus;
+        try {
+            chargeStatus = await provider.getChargeStatus(provider_charge_id);
+        } catch (statusError) {
+            if (statusError instanceof PixProviderUnavailableError) {
+                // Não confirmamos nada sem saber o status real — devolve não-2xx para o
+                // provedor tentar de novo depois, em vez de aceitar a notificação no escuro.
+                return response.status(503).json({ error: 'Não foi possível confirmar o status do pagamento' });
+            }
+            throw statusError;
+        }
+
+        const amountMatches = chargeStatus.amount == null
+            || Number(chargeStatus.amount).toFixed(2) === Number(payment.amount).toFixed(2);
+
+        if (chargeStatus.status !== 'approved' || !amountMatches) {
+            if (['cancelled', 'rejected'].includes(chargeStatus.status) || !amountMatches) {
+                const transaction = await sequelize.transaction();
+                try {
+                    payment.status = 'FAILED';
+                    await payment.save({ transaction });
+                    await transaction.commit();
+                } catch (txError) {
+                    await transaction.rollback();
+                    throw txError;
+                }
+                return response.status(200).json({ status: 'not_approved', payment_id: payment.id });
+            }
+
+            // pending, in_process, authorized... — sem efeito, aguarda a próxima notificação.
+            return response.status(200).json({ status: 'pending', payment_id: payment.id });
         }
 
         const transaction = await sequelize.transaction();

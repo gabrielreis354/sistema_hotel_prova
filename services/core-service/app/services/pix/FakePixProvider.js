@@ -35,4 +35,10 @@ export default class FakePixProvider extends PixProvider {
     verifyWebhook(request) {
         return { providerChargeId: request.body.provider_charge_id };
     }
+
+    // Sem PSP real para consultar — quem disparou o webhook manualmente já está simulando
+    // a aprovação. amount: null avisa o controller para não conferir valor (não há como aqui).
+    async getChargeStatus() {
+        return { status: 'approved', amount: null };
+    }
 }

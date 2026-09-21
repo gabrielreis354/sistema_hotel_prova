@@ -25,3 +25,10 @@ export default function getPixProvider() {
     instance = new Provider();
     return instance;
 }
+
+// A suíte de testes roda com isolate:false (um processo só, módulos compartilhados entre
+// arquivos — ver vitest.config.js). Sem isto, um arquivo que troca PIX_PROVIDER contamina o
+// provider ativo para todos os arquivos seguintes.
+export function resetPixProviderForTests() {
+    instance = null;
+}

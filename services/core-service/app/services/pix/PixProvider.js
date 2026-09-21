@@ -29,4 +29,17 @@ export default class PixProvider {
     verifyWebhook() {
         throw new Error('verifyWebhook() não implementado pelo provider PIX.');
     }
+
+    /**
+     * Consulta o status real da cobrança na fonte de verdade do provedor. A assinatura do
+     * webhook só prova quem enviou a notificação — nunca que o pagamento foi aprovado. Todo
+     * controller precisa chamar isto antes de marcar um Payment como PAID.
+     * @param {string} providerChargeId
+     * @returns {Promise<{ status: string, amount: number|null }>} amount null quando o
+     *   provedor não tem como confirmar o valor (ex.: provider simulado).
+     * @throws {import('./errors.js').PixProviderUnavailableError} se o provedor estiver inacessível
+     */
+    async getChargeStatus() {
+        throw new Error('getChargeStatus() não implementado pelo provider PIX.');
+    }
 }
