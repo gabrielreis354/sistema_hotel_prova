@@ -2,8 +2,9 @@ import { Router } from 'express';
 import PixWebhookController from '../../app/Controllers/WebhookApi/PixWebhookController.js';
 
 /**
- * Router de WEBHOOKS de provedores externos (sem auth — o PSP não tem JWT).
- * Em produção, cada webhook deve validar a assinatura do provedor antes de confiar.
+ * Router de WEBHOOKS de provedores externos (sem JWT — o PSP não tem usuário).
+ * Cada endpoint valida sua própria assinatura antes de confiar em qualquer
+ * dado do corpo: PixWebhookController verifica HMAC-SHA256 (T-06.9).
  */
 export default (() => {
     const router = Router();

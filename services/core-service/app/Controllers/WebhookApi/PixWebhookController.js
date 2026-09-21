@@ -1,13 +1,19 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
+import { verifyPixSignature } from '../../utils/pixWebhookSignature.js';
 
 /**
  * POST /webhooks/pix
  *
- * Callback do provedor PIX confirmando um pagamento. Em produção, um PSP real
- * assina a requisição (validar assinatura aqui antes de confiar). No provider
- * simulado, o "pagamento" é disparado manualmente com o provider_charge_id.
+ * Callback do provedor PIX confirmando um pagamento. Exige assinatura
+ * HMAC-SHA256 no cabeçalho `x-pix-signature` (formato `sha256=<hex>`),
+ * calculada pelo PSP sobre os bytes crus do corpo — ver
+ * app/utils/pixWebhookSignature.js. Sem isso, quem soubesse a URL e um
+ * provider_charge_id confirmava pagamento sem pagar nada (T-06.9).
+ *
+ * Fail-closed: sem PIX_WEBHOOK_SECRET configurado no ambiente, TODA
+ * requisição é recusada — nunca "aceita por padrão".
  *
  * Efeito: marca o pagamento como PAID e, se a reserva estiver PENDING, promove
  * para CONFIRMED — respeitando a máquina de estados (não mexe em CHECKED_IN etc.).
@@ -17,6 +23,21 @@ import ReservationModel from '../../Models/ReservationModel.js';
  */
 export default async function PixWebhookController(request, response) {
     try {
+        const secret = process.env.PIX_WEBHOOK_SECRET;
+        if (!secret) {
+            console.error('PixWebhookController: PIX_WEBHOOK_SECRET não configurado — recusando webhook (fail-closed)');
+            return response.status(401).json({ error: 'Webhook não configurado' });
+        }
+
+        // Verificação de assinatura ANTES de qualquer leitura de request.body e
+        // antes de qualquer consulta ao banco — uma requisição não assinada não
+        // deve nem ganhar a chance de descobrir se um charge_id existe (404) ou
+        // não (400), sinal que ajudaria um atacante a enumerar cobranças.
+        const signature = request.get('x-pix-signature');
+        if (!verifyPixSignature(request.rawBody, signature, secret)) {
+            return response.status(401).json({ error: 'Assinatura inválida' });
+        }
+
         const { provider_charge_id } = request.body;
         if (!provider_charge_id) {
             return response.status(400).json({ error: 'provider_charge_id obrigatório' });
