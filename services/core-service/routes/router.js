@@ -27,7 +27,16 @@ const router = Router();
 // por auth. Fica aqui, no router compartilhado por _web.js e pelos testes.
 router.use(corsMiddleware);
 
-router.use(express.json());
+// `verify` guarda o BUFFER CRU do corpo em request.rawBody antes do parse.
+// Necessário para o webhook PIX (T-06.9): o HMAC do PSP é calculado sobre os
+// bytes exatos enviados, e por aqui o corpo já está consumido quando chega ao
+// controller. JSON.stringify(request.body) não serve — pode diferir do que
+// foi de fato transmitido (ordem de chaves, espaçamento).
+router.use(express.json({
+    verify: (request, response, buf) => {
+        request.rawBody = buf;
+    }
+}));
 
 // Health Check
 router.get('/health', (request, response) => {

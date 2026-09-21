@@ -152,7 +152,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ---
 
-### T-06.9 — Webhook PIX sem validação de assinatura 🔴 🔲
+### T-06.9 — Webhook PIX sem validação de assinatura 🔴 ✅
 
 **Problema:** `services/core-service/routes/apis/webhookRouter.js` monta `POST /webhooks/pix` **sem autenticação** — correto, o PSP não tem JWT — mas o controller não verifica assinatura alguma. O próprio comentário do router admite a lacuna: *"em produção, cada webhook deve validar a assinatura do provedor antes de confiar"*.
 
@@ -161,14 +161,20 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 **Por que é uma tarefa própria:** o RNF-012 do Doc. 02 exige assinatura verificada em **100%** dos webhooks. A SPEC-03 T-03.2 só a menciona como "avaliar" ao integrar o PSP real — o que deixa a vulnerabilidade **atual** sem dono. Esta tarefa fecha o requisito independentemente da integração externa.
 
 **Critérios de aceitação**
-- [ ] **CA-06.9.a** — Assinatura HMAC-SHA256 verificada com `crypto.timingSafeEqual` antes de qualquer efeito colateral
-- [ ] **CA-06.9.b** — Segredo lido de variável de ambiente, nunca versionado (`.env.example` atualizado)
-- [ ] **CA-06.9.c** — Requisição sem assinatura ou com assinatura inválida responde `401` e **não altera estado**
-- [ ] **CA-06.9.d** — `FakePixProvider` assina a notificação, para que o fluxo de teste exercite o caminho real
-- [ ] **CA-06.9.e** — Teste cobrindo: assinatura válida promove; inválida recusa; ausente recusa; idempotência preservada (RF-027)
-- [ ] **CA-06.9.f** — `provider_charge_id` continua fora de resposta pública (ver T-06.5)
+- [x] **CA-06.9.a** — Assinatura HMAC-SHA256 verificada com `crypto.timingSafeEqual` antes de qualquer efeito colateral
+- [x] **CA-06.9.b** — Segredo lido de variável de ambiente, nunca versionado (`.env.example` atualizado)
+- [x] **CA-06.9.c** — Requisição sem assinatura ou com assinatura inválida responde `401` e **não altera estado**
+- [x] **CA-06.9.d** — `FakePixProvider` assina a notificação, para que o fluxo de teste exercite o caminho real
+- [x] **CA-06.9.e** — Teste cobrindo: assinatura válida promove; inválida recusa; ausente recusa; idempotência preservada (RF-027)
+- [x] **CA-06.9.f** — `provider_charge_id` continua fora de resposta pública (ver T-06.5)
 
-> Rastreia **RNF-012**. Achado de auditoria `qa-redteam` ainda em aberto — a maior severidade desta Spec.
+> Rastreia **RNF-012**. Corrigido e mergeado em 21/09/2026 — ver `docs/qa/redteam_pix-webhook-signature_21set2026.md`.
+> Fail-closed: sem `PIX_WEBHOOK_SECRET` configurado, o webhook recusa toda requisição (nunca "aceita por padrão").
+> Área do Weslley marcada no PR: `PIX_WEBHOOK_SECRET` em `.github/workflows/ci.yml` e `infra/k8s/` (`secret.yaml`, `backend.yaml`).
+>
+> **Pendências registradas pela auditoria, fora do escopo desta task:**
+> 1. `config/swagger.js` não reflete o novo contrato do webhook (cabeçalho `x-pix-signature`, resposta `401`, descrição desatualizada) — fica para a T-06.2, que reescreve o Swagger inteiro.
+> 2. `FakePixProvider.signNotification` não faz parte do contrato `PixProvider` (decisão deliberada — só o simulador precisa "assinar como PSP"; um `RealPixProvider` futuro não precisa desse método). Documentado, não é defeito.
 
 ---
 
