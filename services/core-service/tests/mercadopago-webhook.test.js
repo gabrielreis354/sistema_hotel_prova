@@ -175,4 +175,63 @@ describe('POST /webhooks/pix — provider Mercado Pago', () => {
         const reservation = await ReservationModel.findByPk(booking.body.reservation.id);
         expect(reservation.status).toBe('PENDING');
     });
+
+    it('notificação aprovada com valor errado marca FAILED (sinal de fraude, não trava um status não-terminal)', async () => {
+        const { chargeId, statusRef, booking } = await createMercadoPagoBooking('2027-07-20', '2027-07-21');
+        statusRef.status = 'approved';
+        statusRef.amount = Number(statusRef.amount) + 1000; // valor não bate com o payment.amount real
+
+        const res = await request(app)
+            .post('/webhooks/pix')
+            .set(signWebhook({ dataId: chargeId }))
+            .query({ 'data.id': chargeId })
+            .send({});
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('not_approved');
+
+        const payment = await PaymentModel.findOne({ where: { reservation_id: booking.body.reservation.id } });
+        expect(payment.status).toBe('FAILED');
+    });
+
+    it('regressão do achado 🟡 da reauditoria: status não-terminal com valor ainda desconhecido não trava em FAILED — uma notificação aprovada depois ainda confirma', async () => {
+        const { chargeId, statusRef, booking } = await createMercadoPagoBooking('2027-07-25', '2027-07-26');
+
+        // Primeira notificação: status ainda pending, com um valor divergente (ex.: o MP manda
+        // a notificação antes de o valor da transação estar consolidado). Antes do fix, isto
+        // marcava FAILED e travava o pagamento para sempre — mesmo o hóspede pagando certo depois.
+        statusRef.status = 'pending';
+        statusRef.amount = Number(statusRef.amount) + 1000;
+
+        const first = await request(app)
+            .post('/webhooks/pix')
+            .set(signWebhook({ dataId: chargeId, requestId: 'req-1' }))
+            .query({ 'data.id': chargeId })
+            .send({});
+
+        expect(first.status).toBe(200);
+        expect(first.body.status).toBe('pending');
+
+        let payment = await PaymentModel.findOne({ where: { reservation_id: booking.body.reservation.id } });
+        expect(payment.status).toBe('PENDING');
+
+        // Segunda notificação: agora aprovado, com o valor certo — precisa continuar
+        // conseguindo confirmar, porque o pagamento ainda não chegou a um estado terminal.
+        statusRef.status = 'approved';
+        statusRef.amount = booking.body.payment.amount;
+
+        const second = await request(app)
+            .post('/webhooks/pix')
+            .set(signWebhook({ dataId: chargeId, requestId: 'req-2' }))
+            .query({ 'data.id': chargeId })
+            .send({});
+
+        expect(second.status).toBe(200);
+        expect(second.body.status).toBe('confirmed');
+
+        payment = await PaymentModel.findOne({ where: { reservation_id: booking.body.reservation.id } });
+        expect(payment.status).toBe('PAID');
+        const reservation = await ReservationModel.findByPk(booking.body.reservation.id);
+        expect(reservation.status).toBe('CONFIRMED');
+    });
 });

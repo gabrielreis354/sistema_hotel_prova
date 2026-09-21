@@ -69,7 +69,15 @@ export default async function PixWebhookController(request, response) {
             || Number(chargeStatus.amount).toFixed(2) === Number(payment.amount).toFixed(2);
 
         if (chargeStatus.status !== 'approved' || !amountMatches) {
-            if (['cancelled', 'rejected'].includes(chargeStatus.status) || !amountMatches) {
+            // FAILED só quando o provedor encerrou a cobrança (cancelled/rejected) ou quando
+            // disse "approved" com um valor que não bate (sinal de fraude). Qualquer outro
+            // status não-terminal (pending, in_process...) — mesmo com valor ainda
+            // desconhecido — não pode travar em FAILED: uma notificação futura com o status
+            // final correto precisa continuar podendo confirmar o pagamento.
+            const isTerminalNegative = ['cancelled', 'rejected'].includes(chargeStatus.status);
+            const isApprovedWithWrongAmount = chargeStatus.status === 'approved' && !amountMatches;
+
+            if (isTerminalNegative || isApprovedWithWrongAmount) {
                 const transaction = await sequelize.transaction();
                 try {
                     payment.status = 'FAILED';
