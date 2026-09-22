@@ -29,21 +29,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["PublicHotel"];
+                    };
                 };
                 /** @description Reservas online desativadas */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Hotel não encontrado */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -87,21 +93,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["PublicAvailability"];
+                    };
                 };
                 /** @description Datas inválidas */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Hotel não encontrado */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -169,35 +181,45 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["PublicBookingResponse"];
+                    };
                 };
-                /** @description Campos obrigatórios ausentes ou datas inválidas */
+                /** @description Campos obrigatórios ausentes (formato ValidationErrors) ou datas inválidas (formato Error) */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"] | components["schemas"]["Error"];
+                    };
                 };
                 /** @description Hotel ou categoria não encontrados */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Sem disponibilidade na categoria para o período */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Categoria não comporta os hóspedes ou sem preço */
                 422: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -233,14 +255,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["PublicBookingStatus"];
+                    };
                 };
                 /** @description Reserva não encontrada */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -263,12 +289,15 @@ export interface paths {
         put?: never;
         /**
          * Confirmação de pagamento PIX (callback do PSP)
-         * @description Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. No provider simulado, dispare manualmente com o provider_charge_id retornado na criação da reserva.
+         * @description Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.
          */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex> */
+                    "x-pix-signature": string;
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -286,21 +315,36 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["WebhookConfirmResponse"];
+                    };
                 };
-                /** @description provider_charge_id ausente */
+                /** @description provider_charge_id ausente ou de tipo inválido */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Assinatura ausente, inválida, ou PIX_WEBHOOK_SECRET não configurado no servidor (fail-closed) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Cobrança não encontrada */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -347,21 +391,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RegisterResponse"];
+                    };
                 };
-                /** @description Dados inválidos */
+                /** @description Campos obrigatórios ausentes */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
                 };
-                /** @description E-mail já cadastrado */
+                /** @description E-mail ou subdomain já em uso */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -409,28 +459,40 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["LoginResponse"];
+                    };
                 };
                 /** @description Campos obrigatórios ausentes */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
                 };
                 /** @description Credenciais inválidas ou subdomain não encontrado */
                 401: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description E-mail existe em múltiplos hotéis — informe o subdomain para desambiguar */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            error?: string;
+                            /** @example subdomain */
+                            requires?: string;
+                        };
+                    };
                 };
             };
         };
@@ -475,14 +537,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["LoginResponse"];
+                    };
                 };
                 /** @description Credenciais inválidas */
                 401: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -514,14 +580,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Tenant"];
+                    };
                 };
                 /** @description Sem token */
                 401: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Hotel não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -559,21 +638,36 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Tenant"];
+                    };
                 };
                 /** @description Valor inválido */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Apenas ADMIN */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Hotel não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -601,12 +695,14 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Lista de usuários */
+                /** @description Lista de usuários (sem password_hash) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["User"][];
+                    };
                 };
             };
         };
@@ -621,16 +717,48 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["User"];
+                    "application/json": {
+                        /** @example João Silva */
+                        name: string;
+                        /** Format: email */
+                        email: string;
+                        /** @example senha123 */
+                        password: string;
+                        /**
+                         * @description Default: RECEPTIONIST
+                         * @enum {string}
+                         */
+                        role?: "ADMIN" | "RECEPTIONIST" | "WAITER";
+                    };
                 };
             };
             responses: {
-                /** @description Usuário criado */
+                /** @description Usuário criado (sem password_hash) */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Campos obrigatórios ausentes ou role inválido */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
+                };
+                /** @description E-mail já cadastrado neste tenant */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -661,19 +789,23 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Usuário encontrado */
+                /** @description Usuário encontrado (sem password_hash) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
                 };
                 /** @description Não encontrado */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -689,12 +821,32 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Atualizado */
+                /** @description Atualizado (sem password_hash) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description role inválido */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -747,7 +899,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RoomCategory"][];
+                    };
                 };
             };
         };
@@ -771,7 +925,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RoomCategory"];
+                    };
+                };
+                /** @description name ou price_per_night ausentes */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
                 };
             };
         };
@@ -807,7 +972,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RoomCategory"];
+                    };
+                };
+                /** @description Não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -828,7 +1004,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RoomCategory"];
+                    };
+                };
+                /** @description Não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -876,12 +1063,14 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description OK — cada quarto inclui a categoria resumida (id, name, price_per_night) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Room"][];
+                    };
                 };
             };
         };
@@ -896,7 +1085,18 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["Room"];
+                    "application/json": {
+                        /** Format: uuid */
+                        category_id: string;
+                        /** @example 101 */
+                        number: string;
+                        floor?: number | null;
+                        /**
+                         * @description Default: AVAILABLE
+                         * @enum {string}
+                         */
+                        status?: "AVAILABLE" | "OCCUPIED" | "MAINTENANCE" | "CLEANING";
+                    };
                 };
             };
             responses: {
@@ -905,7 +1105,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Room"];
+                    };
+                };
+                /** @description category_id ou number ausentes */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
+                };
+                /** @description Categoria não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -937,19 +1157,23 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Lista de quartos sem conflito no período */
+                /** @description Lista de quartos sem conflito no período (status AVAILABLE + sem sobreposição de reserva) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Room"][];
+                    };
                 };
                 /** @description check_in e check_out são obrigatórios ou check_in >= check_out */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -982,12 +1206,23 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description OK — inclui a categoria completa */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Room"];
+                    };
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1008,7 +1243,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Room"];
+                    };
+                };
+                /** @description status inválido */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1061,7 +1316,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Guest"][];
+                    };
                 };
             };
         };
@@ -1076,7 +1333,13 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["Guest"];
+                    "application/json": {
+                        /** @example Maria Oliveira */
+                        full_name: string;
+                        cpf?: string | null;
+                        phone?: string | null;
+                        email?: string | null;
+                    };
                 };
             };
             responses: {
@@ -1085,7 +1348,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Guest"];
+                    };
+                };
+                /** @description full_name ausente */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description CPF já cadastrado para outro hóspede */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1121,7 +1404,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Guest"];
+                    };
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1142,7 +1436,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Guest"];
+                    };
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1168,6 +1473,69 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/address/{cep}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description CEP com ou sem formatação (8 dígitos) */
+                cep: string;
+            };
+            cookie?: never;
+        };
+        /** Consulta endereço por CEP (ViaCEP) — apoio ao preenchimento de cadastro */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description CEP com ou sem formatação (8 dígitos) */
+                    cep: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Endereço encontrado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Address"];
+                    };
+                };
+                /** @description CEP inválido — não tem 8 dígitos */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description CEP não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Serviço de CEP indisponível no momento */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1199,12 +1567,23 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK — array puro sem paginação, ou { data, total, page, limit } quando page/limit presentes */
+                /** @description array puro (sem page/limit na query) ou { data, total, page, limit } (com paginação) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ReservationListItem"][] | components["schemas"]["ReservationListPage"];
+                    };
+                };
+                /** @description from/to fora do formato YYYY-MM-DD */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1219,16 +1598,65 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["Reservation"];
+                    "application/json": {
+                        /** Format: uuid */
+                        guest_id: string;
+                        /** Format: uuid */
+                        room_id: string;
+                        /** Format: date */
+                        check_in_date: string;
+                        /** Format: date */
+                        check_out_date: string;
+                        /** @description Quartos adicionais vinculados na mesma transação */
+                        extra_room_ids?: string[];
+                    };
                 };
             };
             responses: {
-                /** @description Criada */
+                /** @description Criada — status PENDING, total_amount calculado no servidor */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Reservation"];
+                    };
+                };
+                /** @description Campos obrigatórios ausentes */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
+                };
+                /** @description Hóspede, quarto ou quarto extra não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Quarto indisponível no período solicitado */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Categoria do quarto sem preço definido */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1247,7 +1675,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Busca por ID (inclui quartos N:N) */
+        /** Busca por ID (inclui hóspede, quarto principal e quartos N:N) */
         get: {
             parameters: {
                 query?: never;
@@ -1264,11 +1692,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ReservationDetail"];
+                    };
+                };
+                /** @description Não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
-        /** Atualiza reserva */
+        /** Atualiza reserva (guest_id, room_id, datas — não altera status nem total_amount) */
         put: {
             parameters: {
                 query?: never;
@@ -1285,7 +1724,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Reservation"];
+                    };
+                };
+                /** @description Não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Quarto indisponível no novo período */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1343,21 +1802,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Reservation"];
+                    };
                 };
                 /** @description Reserva não encontrada */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Reserva não pode ser cancelada no status atual (CHECKED_IN, CHECKED_OUT ou já CANCELLED) */
                 422: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1378,7 +1843,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Realiza check-in */
+        /** Realiza check-in (PENDING ou CONFIRMED → CHECKED_IN; ocupa o(s) quarto(s)) */
         put: {
             parameters: {
                 query?: never;
@@ -1395,7 +1860,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Reservation"];
+                    };
+                };
+                /** @description Reserva ou quarto não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Check-in não permitido no status atual */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1416,7 +1901,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Realiza check-out */
+        /** Realiza check-out (CHECKED_IN → CHECKED_OUT; quarto(s) vão para CLEANING) */
         put: {
             parameters: {
                 query?: never;
@@ -1433,7 +1918,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Reservation"];
+                    };
+                };
+                /** @description Reserva ou quarto não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Check-out só possível quando status for CHECKED_IN */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1470,14 +1975,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Bill"];
+                    };
                 };
                 /** @description Reserva não encontrada */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1515,7 +2024,18 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Consumption"][];
+                    };
+                };
+                /** @description Reserva não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1548,21 +2068,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Consumption"];
+                    };
                 };
-                /** @description Dados inválidos */
+                /** @description description ausente ou amount <= 0 */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
                 };
                 /** @description Reserva não encontrada */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1585,7 +2111,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove consumo extra (soft delete) */
+        /** Remove consumo extra (soft delete, ADMIN) */
         delete: {
             parameters: {
                 query?: never;
@@ -1654,14 +2180,36 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ReservationRoomPivot"];
+                    };
+                };
+                /** @description room_id ausente */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reserva ou quarto não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description Já vinculado */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1728,17 +2276,19 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description OK — nunca inclui pix_qr_code/provider/provider_charge_id (PaymentModel.defaultScope) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Payment"][];
+                    };
                 };
             };
         };
         put?: never;
-        /** Registra novo pagamento */
+        /** Registra novo pagamento (recepção — manual, não PIX online) */
         post: {
             parameters: {
                 query?: never;
@@ -1769,7 +2319,27 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Payment"];
+                    };
+                };
+                /** @description reservation_id, amount ou method ausentes */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reserva não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1805,18 +2375,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Payment"];
+                    };
                 };
                 /** @description Não encontrado */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
-        /** Atualiza pagamento */
+        /** Atualiza pagamento (amount, method, paid_at) */
         put: {
             parameters: {
                 query?: never;
@@ -1833,12 +2407,23 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Payment"];
+                    };
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
         post?: never;
-        /** Remove pagamento */
+        /** Remove pagamento (soft delete) */
         delete: {
             parameters: {
                 query?: never;
@@ -2413,6 +2998,331 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista o cardápio do hotel
+         * @description Itens de consumo (bebida, comida, serviço). Leitura liberada a todos os papéis — o garçom precisa do cardápio para lançar consumo.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Filtra por ativos ou inativos. Omitido devolve todos. */
+                    active?: "true" | "false";
+                    category?: "FOOD" | "DRINK" | "SERVICE" | "OTHER";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cardápio ordenado por categoria e nome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Product"][];
+                    };
+                };
+                /** @description category fora da allowlist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Cria um item do cardápio (ADMIN) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example Cerveja 600ml */
+                        name: string;
+                        description?: string | null;
+                        /**
+                         * Format: float
+                         * @example 12
+                         */
+                        price: number;
+                        /**
+                         * @default OTHER
+                         * @enum {string}
+                         */
+                        category?: "FOOD" | "DRINK" | "SERVICE" | "OTHER";
+                        /** @default true */
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Produto criado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Product"];
+                    };
+                };
+                /** @description Campos obrigatórios ausentes, price negativo ou category inválida */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Requer papel ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Já existe produto com esse nome no tenant */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/products/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Busca um item do cardápio */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Produto encontrado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Product"];
+                    };
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Produto não encontrado no tenant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /**
+         * Atualiza um item do cardápio (ADMIN)
+         * @description Para tirar do cardápio preservando o histórico de comandas, use `active: false` em vez de DELETE.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string | null;
+                        /** Format: float */
+                        price?: number;
+                        /** @enum {string} */
+                        category?: "FOOD" | "DRINK" | "SERVICE" | "OTHER";
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Produto atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Product"];
+                    };
+                };
+                /** @description price negativo, name vazio ou category inválida */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Requer papel ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Produto não encontrado no tenant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Nome já usado por outro produto do tenant */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Remove um item do cardápio — soft delete (ADMIN) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Produto removido */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Requer papel ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Produto não encontrado no tenant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2425,9 +3335,29 @@ export interface components {
             /** @example paraiso */
             subdomain?: string;
             /** @example 12.345.678/0001-90 */
-            legal_id?: string;
+            legal_id?: string | null;
             /** @enum {string} */
             status?: "ACTIVE" | "SUSPENDED";
+            /**
+             * @description Liga/desliga a página pública de reservas diretas
+             * @example true
+             */
+            booking_enabled?: boolean;
+            /**
+             * @description Percentual do sinal PIX cobrado na reserva online (0–100)
+             * @example 30
+             */
+            deposit_percent?: number;
+        };
+        /** @description Formato usado quando mais de um campo pode falhar validação ao mesmo tempo (contraste com Error, que traz uma única mensagem) */
+        ValidationErrors: {
+            /**
+             * @example [
+             *       "name obrigatório",
+             *       "price_per_night obrigatório"
+             *     ]
+             */
+            errors?: string[];
         };
         User: {
             /** Format: uuid */
@@ -2439,7 +3369,29 @@ export interface components {
             /** Format: email */
             email?: string;
             /** @enum {string} */
-            role?: "ADMIN" | "RECEPTIONIST";
+            role?: "ADMIN" | "RECEPTIONIST" | "WAITER";
+        };
+        Product: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            tenant_id?: string;
+            /** @example Cerveja 600ml */
+            name?: string;
+            /** @example Long neck gelada */
+            description?: string | null;
+            /**
+             * @description DECIMAL(10,2) serializado como string
+             * @example 12.00
+             */
+            price?: string;
+            /**
+             * @example DRINK
+             * @enum {string}
+             */
+            category?: "FOOD" | "DRINK" | "SERVICE" | "OTHER";
+            /** @example true */
+            active?: boolean;
         };
         RoomCategory: {
             /** Format: uuid */
@@ -2460,11 +3412,23 @@ export interface components {
             /** @example 101 */
             number?: string;
             /** @example 1 */
-            floor?: number;
+            floor?: number | null;
             /** @enum {string} */
             status?: "AVAILABLE" | "OCCUPIED" | "MAINTENANCE" | "CLEANING";
             /** Format: uuid */
             category_id?: string;
+            /** @description Presente em GET /rooms, GET /rooms/available e GET /rooms/{id} (join com RoomCategory) */
+            category?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example Standard */
+                name?: string;
+                /**
+                 * Format: float
+                 * @example 150
+                 */
+                price_per_night?: number;
+            } | null;
         };
         Guest: {
             /** Format: uuid */
@@ -2477,6 +3441,20 @@ export interface components {
             phone?: string;
             /** Format: email */
             email?: string;
+        };
+        Address: {
+            /** @example 01310100 */
+            cep?: string;
+            /** @example Avenida Paulista */
+            street?: string;
+            /** @example Bela Vista */
+            neighborhood?: string;
+            /** @example São Paulo */
+            city?: string;
+            /** @example SP */
+            state?: string;
+            /** @example até 610 - lado par */
+            complement?: string | null;
         };
         Reservation: {
             /** Format: uuid */
@@ -2507,6 +3485,296 @@ export interface components {
         };
         Error: {
             error?: string;
+        };
+        /** @description Formato de GET /reservations — Reservation com guest/room/user resumidos (mesmo include de ListReservationController) */
+        ReservationListItem: components["schemas"]["Reservation"] & {
+            guest?: {
+                /** Format: uuid */
+                id?: string;
+                full_name?: string;
+                email?: string | null;
+            } | null;
+            room?: {
+                /** Format: uuid */
+                id?: string;
+                number?: string;
+                floor?: number | null;
+            } | null;
+            user?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+            } | null;
+        };
+        /** @description Formato de GET /reservations quando ?page= ou ?limit= é informado */
+        ReservationListPage: {
+            data?: components["schemas"]["ReservationListItem"][];
+            /** @example 37 */
+            total?: number;
+            /** @example 1 */
+            page?: number;
+            /** @example 50 */
+            limit?: number;
+        };
+        /** @description Formato de GET /reservations/{id} — inclui hóspede e quarto principal completos, mais o array N:N de quartos vinculados */
+        ReservationDetail: components["schemas"]["Reservation"] & {
+            guest?: components["schemas"]["Guest"] | null;
+            room?: components["schemas"]["Room"] | null;
+            user?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+            } | null;
+            /** @description Todos os quartos vinculados via reservation_rooms (N:N), incluindo o principal */
+            rooms?: components["schemas"]["Room"][];
+        };
+        /** @description Linha da tabela pivô reservation_rooms (POST /reservations/{id}/rooms) */
+        ReservationRoomPivot: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            reservation_id?: string;
+            /** Format: uuid */
+            room_id?: string;
+        };
+        Consumption: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            tenant_id?: string;
+            /** Format: uuid */
+            reservation_id?: string;
+            /** @example Frigobar */
+            description?: string;
+            /**
+             * @description DECIMAL(10,2) serializado como string
+             * @example 50.00
+             */
+            amount?: string;
+            /** Format: date-time */
+            consumed_at?: string;
+        };
+        /** @description Fechamento de conta — GET /reservations/{id}/bill */
+        Bill: {
+            /** Format: uuid */
+            reservation_id?: string;
+            /** @enum {string} */
+            status?: "PENDING" | "CONFIRMED" | "CHECKED_IN" | "CHECKED_OUT" | "CANCELLED";
+            /** @example Maria Oliveira */
+            guest?: string | null;
+            /** Format: date */
+            check_in_date?: string;
+            /** Format: date */
+            check_out_date?: string;
+            /** @example 600 */
+            room_total?: number;
+            /** @example 90 */
+            consumptions_total?: number;
+            /** @example 690 */
+            grand_total?: number;
+            /** @example 690 */
+            total_paid?: number;
+            /** @example 0 */
+            total_pending?: number;
+            /** @example 0 */
+            balance_due?: number;
+            /** @example true */
+            fully_paid?: boolean;
+            consumptions?: {
+                /** Format: uuid */
+                id?: string;
+                description?: string;
+                amount?: number;
+                /** Format: date-time */
+                consumed_at?: string;
+            }[];
+            payments?: {
+                /** Format: uuid */
+                id?: string;
+                amount?: number;
+                method?: string;
+                /** @enum {string} */
+                kind?: "FULL" | "DEPOSIT" | "BALANCE";
+                /** @enum {string} */
+                status?: "PENDING" | "PAID" | "EXPIRED" | "FAILED";
+                /** Format: date-time */
+                paid_at?: string | null;
+            }[];
+        };
+        /** @description pix_qr_code, provider e provider_charge_id nunca aparecem aqui — PaymentModel.defaultScope os exclui sempre (T-06.2/achado de segurança fechado em 22/09). provider_charge_id é a credencial do webhook PIX (T-06.9); quem precisar dos 3 campos usa PaymentModel.unscoped() no código, não a API. */
+        Payment: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            tenant_id?: string;
+            /** Format: uuid */
+            reservation_id?: string;
+            /**
+             * @description DECIMAL(12,2) serializado como string
+             * @example 300.00
+             */
+            amount?: string;
+            /** @enum {string} */
+            method?: "PIX" | "CARTAO_CREDITO" | "CARTAO_DEBITO" | "DINHEIRO";
+            /** @enum {string} */
+            status?: "PENDING" | "PAID" | "EXPIRED" | "FAILED";
+            /** @enum {string} */
+            kind?: "FULL" | "DEPOSIT" | "BALANCE";
+            /** Format: date-time */
+            paid_at?: string | null;
+            /** @description Presente em GET /payments e GET /payments/{id} */
+            reservation?: {
+                /** Format: uuid */
+                id?: string;
+                /** Format: date */
+                check_in_date?: string;
+                /** Format: date */
+                check_out_date?: string;
+                status?: string;
+                /** @description Só em GET /payments/{id} */
+                total_amount?: string | null;
+            } | null;
+        };
+        AuthUser: {
+            /** Format: uuid */
+            id: string;
+            /** @example João Admin */
+            name: string;
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            role: "ADMIN" | "RECEPTIONIST" | "WAITER";
+        };
+        LoginResponse: {
+            /** @description JWT — payload { userId, role, tenantId }, expira em 8h */
+            token: string;
+            user: components["schemas"]["AuthUser"];
+        };
+        RegisterResponse: {
+            tenant: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                subdomain: string;
+            };
+            user: components["schemas"]["AuthUser"];
+        };
+        /** @description GET /public/{subdomain}/hotel — sem autenticação, sem dado sensível */
+        PublicHotel: {
+            /** @example Hotel Aurora */
+            name?: string;
+            /** @example aurora */
+            subdomain?: string;
+            /** @example 30 */
+            deposit_percent?: number;
+        };
+        /** @description GET /public/{subdomain}/availability */
+        PublicAvailability: {
+            /** @example Hotel Aurora */
+            hotel?: string;
+            /** Format: date */
+            check_in?: string;
+            /** Format: date */
+            check_out?: string;
+            /** @example 3 */
+            nights?: number;
+            /** @example 2 */
+            guests?: number;
+            /** @example 30 */
+            deposit_percent?: number;
+            categories?: {
+                /** Format: uuid */
+                category_id?: string;
+                /** @example Standard */
+                name?: string;
+                /** @example 2 */
+                capacity?: number;
+                /** @example 150 */
+                price_per_night?: number;
+                /** @example 3 */
+                available_rooms?: number;
+                /** @example 3 */
+                nights?: number;
+                /** @example 450 */
+                total_price?: number;
+            }[];
+        };
+        /** @description POST /public/{subdomain}/bookings — CA-06.5: pix_qr_code não aparece aqui (é o próprio pix.qr_code, necessário para o hóspede pagar); provider_charge_id CONTINUA aqui hoje (achado pré-existente, fora do escopo da T-06.2 — ver docs/qa/redteam_public-booking-leak_16set2026.md) */
+        PublicBookingResponse: {
+            reservation?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example PENDING */
+                status?: string;
+                /** Format: date */
+                check_in?: string;
+                /** Format: date */
+                check_out?: string;
+                /** @example 3 */
+                nights?: number;
+                /** @example Standard */
+                category?: string;
+                /** @example 450 */
+                total_amount?: number;
+            };
+            payment?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example DEPOSIT */
+                kind?: string;
+                /** @example PENDING */
+                status?: string;
+                /** @example 135 */
+                amount?: number;
+                /** @example 30 */
+                deposit_percent?: number;
+                /** @example 315 */
+                balance_due_on_checkin?: number;
+            };
+            pix?: {
+                /** @example fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3 */
+                provider_charge_id?: string;
+                /** @description Payload copia-e-cola em base64 (simulado) */
+                qr_code?: string;
+                /** Format: date-time */
+                expiration?: string;
+            };
+        };
+        /** @description GET /public/{subdomain}/bookings/{id}/status — attributes explícito no include de Payment (CA-06.5), nunca traz pix_qr_code/provider/provider_charge_id */
+        PublicBookingStatus: {
+            /** Format: uuid */
+            reservation_id?: string;
+            /** @example CONFIRMED */
+            status?: string;
+            /** Format: date */
+            check_in?: string;
+            /** Format: date */
+            check_out?: string;
+            /** @example 450 */
+            total_amount?: number;
+            confirmed?: boolean;
+            deposit?: {
+                /** @enum {string} */
+                status?: "PENDING" | "PAID" | "EXPIRED" | "FAILED";
+                /** @example 135 */
+                amount?: number;
+                /** Format: date-time */
+                paid_at?: string | null;
+            } | null;
+        };
+        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência) */
+        WebhookConfirmResponse: {
+            /** @enum {string} */
+            status?: "confirmed" | "already_processed";
+            /** Format: uuid */
+            payment_id?: string;
+            /**
+             * Format: uuid
+             * @description Ausente quando status é already_processed
+             */
+            reservation_id?: string | null;
+            /** @description Ausente quando status é already_processed */
+            reservation_status?: string | null;
         };
     };
     responses: never;
