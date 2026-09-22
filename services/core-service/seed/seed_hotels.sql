@@ -240,6 +240,13 @@ CROSS JOIN (VALUES
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
 WHERE t.subdomain = 'aurora'
+-- A EXCLUDE de anti-double-booking tem predicado WHERE (status <> 'CANCELLED' ...) —
+-- de propósito, reserva cancelada não deve travar o quarto. Efeito colateral: ela também
+-- não dá ao ON CONFLICT DO NOTHING nada para capturar nas linhas CANCELLED deste seed, que
+-- duplicariam a cada execução sem este guard.
+AND NOT EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
+)
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -412,6 +419,9 @@ CROSS JOIN (VALUES
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
 WHERE t.subdomain = 'sol'
+AND NOT EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
+)
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------

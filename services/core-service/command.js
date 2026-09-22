@@ -36,6 +36,17 @@ async function migrate() {
 }
 
 async function seed() {
+    // NODE_ENV=production não é garantia de "banco real" — é o valor default do próprio
+    // docker-compose de contingência (T-06.4). Sem esta trava, "kubectl exec ... node
+    // command.js seed" digitado por engano cria um ADMIN com a senha documentada
+    // (senha123) no banco de produção de verdade.
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== '1') {
+        console.error('❌ Recusado: NODE_ENV=production sem ALLOW_SEED=1.');
+        console.error('   O seed cria usuários com senha conhecida (senha123) — só rode de propósito.');
+        console.error('   Confirme com: ALLOW_SEED=1 node command.js seed');
+        process.exit(1);
+    }
+
     const { default: sequelize } = await import('./database/connections/sequelize.js');
 
     try {
