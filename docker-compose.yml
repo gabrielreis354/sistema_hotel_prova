@@ -48,6 +48,11 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   rabbitmq:
@@ -71,6 +76,11 @@ services:
   backend:
     build:
       context: ./services/core-service
+    ports:
+      - "${BACKEND_HOST_PORT:-3000}:3000" # direto no host — o frontend local (Vite, fora
+        # deste compose) aponta para localhost:3000 sem precisar mudar
+        # frontend/apps/pms/vite.config.ts. Ajustável via BACKEND_HOST_PORT no .env se a
+        # porta 3000 já estiver em uso por outra coisa na máquina.
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       NODE_WEB_PORT: ${NODE_WEB_PORT:-3000}
@@ -93,7 +103,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
         condition: service_started
     restart: unless-stopped
@@ -107,6 +117,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
 volumes:
