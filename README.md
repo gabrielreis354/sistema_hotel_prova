@@ -260,13 +260,19 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 ### Subir tudo
 
 ```bash
-cp services/core-service/.env.example .env
-# edite o .env: JWT_SECRET é obrigatório (o compose recusa subir sem ele)
+cp .env.example .env
+# edite o .env: JWT_SECRET é obrigatório (o compose recusa subir sem ele).
+# Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
+# no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
 docker compose up -d --build
-docker compose ps          # espere backend, postgres, redis, minio e nginx ficarem "healthy"
+docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
 docker compose exec backend node command.js migrate
-docker compose exec backend node command.js seed   # opcional — 165 registros de demonstração
+docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional — dados de demonstração
 ```
+
+> `seed` recusa rodar sem `ALLOW_SEED=1` quando `NODE_ENV=production` (o default deste compose) —
+> ele cria usuários com senha conhecida (`senha123`), então só roda com confirmação explícita.
+> Idempotente: rodar de novo não duplica dados.
 
 ### Verificar
 
@@ -299,8 +305,9 @@ pnpm --filter app-pms dev   # abre em http://localhost:5173
 ```
 
 O `vite.config.ts` do `app-pms` já usa `http://localhost:3000` como alvo do proxy — o mesmo
-`:3000` que o serviço `backend` do compose publica no host — então nenhuma variável de ambiente
-extra é necessária.
+`:3000` que o serviço `backend` do compose publica no host por padrão, então nenhuma configuração
+extra é necessária **se você não mudou `BACKEND_HOST_PORT`**. Se mudou (porta 3000 ocupada na
+máquina), edite o `target` em `frontend/apps/pms/vite.config.ts` para a mesma porta.
 
 ### Derrubar
 

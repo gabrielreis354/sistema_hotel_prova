@@ -5,10 +5,13 @@
 #   cp .env.example .env        # ajuste JWT_SECRET e senhas antes de usar fora do laptop
 #   docker compose up -d
 #   docker compose exec backend node command.js migrate
-#   docker compose exec backend node command.js seed   # opcional, dados de demonstração
+#   docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional, dados de demo
 #
-# Os mesmos nomes de serviço (postgres, redis, minio, rabbitmq, backend) usados aqui são os
-# nomes usados em infra/k8s/ — o nginx.conf é o mesmo conteúdo nos dois ambientes.
+# Os mesmos nomes de serviço (postgres, redis, minio, rabbitmq, backend, nginx) usados aqui são
+# os nomes usados em infra/k8s/ — o nginx.conf é o mesmo conteúdo nos dois ambientes.
+#
+# Porta 3000 do host ocupada por outra coisa? defina BACKEND_HOST_PORT no .env (ver serviço
+# backend abaixo) — e aponte o Vite do frontend (frontend/apps/pms/vite.config.ts) pra mesma porta.
 
 services:
   postgres:
@@ -105,7 +108,7 @@ services:
       minio:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
   nginx:
@@ -118,7 +121,9 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/healthz"]
+      # /health (não /healthz) — atravessa o location / até o backend_pool de verdade.
+      # /healthz é um checkpoint estático do próprio nginx, sempre 200 mesmo com o backend morto.
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 10s
       timeout: 5s
       retries: 5
