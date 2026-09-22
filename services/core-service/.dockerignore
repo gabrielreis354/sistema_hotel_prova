@@ -8,9 +8,10 @@ npm-debug.log*
 .env.*
 !.env.example
 
-# SQL de criação e carga (não pertence ao runtime)
+# SQL de criação (não pertence ao runtime — migrate usa Sequelize, não schema.sql)
 db/
-seed/
+
+# seed/ fica: "node command.js seed" precisa do .sql em runtime (contingência T-06.4)
 
 # Testes (não executam em produção)
 tests/
