@@ -3,10 +3,11 @@ import request from 'supertest';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
-import { createCategory, createRoom } from './helpers/factories.js';
+import { createCategory, createRoom, createGuest } from './helpers/factories.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
 import PaymentModel from '../app/Models/PaymentModel.js';
 import getPixProvider from '../app/services/pix/index.js';
+import sequelize from '../database/connections/sequelize.js';
 
 // Testes do MOTOR DE RESERVA DIRETA + PIX (diferencial nº1).
 // Rotas públicas (sem auth) resolvidas por subdomínio + webhook de confirmação PIX.
@@ -277,6 +278,66 @@ describe('POST /public/:subdomain/bookings — validações', () => {
                 guest: { full_name: 'João', email: 'joao@example.com' },
             });
         expect(res.status).toBe(404);
+    });
+
+    // Regressão do achado 🔴 da auditoria de 27/08: hóspede já cadastrada na recepção
+    // com um CPF reserva pelo site com e-mail diferente do que consta no cadastro. O
+    // find-or-create antigo só olhava e-mail — o CPF ia direto pro create, batia no
+    // índice único e o hóspede via "Erro interno do servidor" no ÚNICO fluxo sem
+    // autenticação do sistema, com o CPF impresso no log do servidor.
+    it('CPF já cadastrado com e-mail diferente reaproveita o hóspede, não quebra', async () => {
+        const cpf = '52998224725';
+        const cadastradaPelaRecepcao = await createGuest(app, jwt, {
+            full_name: 'Maria Antiga', cpf, email: 'maria.antiga@example.com'
+        });
+        expect(cadastradaPelaRecepcao.id).toBeTruthy();
+
+        const res = await request(app)
+            .post(`/public/${subdomain}/bookings`)
+            .send({
+                category_id: categoryId,
+                check_in: '2027-08-20',
+                check_out: '2027-08-22',
+                guest: { full_name: 'Maria Antiga', email: 'maria.nova@example.com', cpf },
+            });
+
+        expect(res.status).toBe(201);
+        expect(res.body.reservation.status).toBe('PENDING');
+    });
+
+    // Regressão do achado 🟡-4 da reauditoria: e-mail casando com um hóspede e CPF
+    // casando com OUTRO é situação normal numa base de hotel. Antes, o `Op.or` não
+    // tinha precedência nem ORDER BY — o resultado dependia do plano de execução do
+    // Postgres, apesar do comentário do código afirmar "CPF é identidade mais forte".
+    it('e-mail casa com um hóspede e CPF casa com outro: CPF ganha, sempre', async () => {
+        const guestA = await createGuest(app, jwt, {
+            full_name: 'Dono do E-mail', email: 'compartilhado@example.com', cpf: null
+        });
+        const guestB = await createGuest(app, jwt, {
+            full_name: 'Dono do CPF', cpf: '16899535009', email: 'outro@example.com'
+        });
+
+        const res = await request(app)
+            .post(`/public/${subdomain}/bookings`)
+            .send({
+                category_id: categoryId,
+                check_in: '2027-08-24',
+                check_out: '2027-08-26',
+                guest: { full_name: 'Nome Qualquer', email: guestA.email, cpf: guestB.cpf },
+            });
+
+        expect(res.status).toBe(201);
+
+        const [[reserva]] = await sequelize.query(
+            `SELECT guest_id FROM reservations WHERE id = '${res.body.reservation.id}'`
+        );
+        expect(reserva.guest_id).toBe(guestB.id);
+        expect(reserva.guest_id).not.toBe(guestA.id);
+
+        const [contagem] = await sequelize.query(
+            `SELECT count(*) FROM guests WHERE email IN ('compartilhado@example.com', 'outro@example.com')`
+        );
+        expect(Number(contagem[0].count)).toBe(2); // nenhum terceiro cadastro criado
     });
 });
 

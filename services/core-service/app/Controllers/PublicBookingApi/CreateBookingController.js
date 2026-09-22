@@ -9,6 +9,7 @@ import GuestModel from '../../Models/GuestModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 /**
  * POST /public/:subdomain/bookings
@@ -78,11 +79,27 @@ export default async function CreateBookingController(request, response) {
         // 5. Persistência atômica: hóspede + reserva + pivô + cobrança PIX
         const transaction = await sequelize.transaction();
         try {
-            // find-or-create do hóspede (por e-mail dentro do tenant)
+            // find-or-create do hóspede (por CPF, senão por e-mail, dentro do tenant).
+            // Só por e-mail deixava o CPF passar direto pro create: um hóspede já
+            // cadastrado na recepção que reserva pelo site com um e-mail novo batia
+            // no índice único de CPF sem nenhum guard antes — 500 em vez de reaproveitar
+            // o cadastro.
+            //
+            // Duas consultas em ORDEM EXPLÍCITA, não um `Op.or` das duas condições: com
+            // `Op.or`, se o e-mail casasse com o hóspede A e o CPF com o hóspede B — dois
+            // cadastros diferentes, situação normal numa base de hotel — o resultado
+            // dependia do plano de execução do Postgres, não determinístico. CPF vem
+            // primeiro porque é identidade mais forte (não muda; e-mail muda).
             let guestRecord = null;
-            if (guest.email) {
+            if (guest.cpf) {
                 guestRecord = await GuestModel.findOne({
-                    where: { email: guest.email, tenant_id: tenant.id },
+                    where: { tenant_id: tenant.id, cpf: guest.cpf },
+                    transaction
+                });
+            }
+            if (!guestRecord && guest.email) {
+                guestRecord = await GuestModel.findOne({
+                    where: { tenant_id: tenant.id, email: guest.email },
                     transaction
                 });
             }
@@ -166,7 +183,15 @@ export default async function CreateBookingController(request, response) {
             throw txError;
         }
     } catch (error) {
-        console.error('CreateBookingController:', error);
+        // Único endpoint PÚBLICO e sem autenticação que ainda faltava esse guard.
+        // Sem ele, uma colisão de CPF/e-mail que escapasse do find-or-create acima
+        // (race entre duas reservas simultâneas com o mesmo CPF, por exemplo) virava
+        // 500 e o console.error(error) abaixo imprimia error.parent.detail e o SQL do
+        // INSERT — CPF, nome e e-mail do hóspede no stdout do container.
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
+
+        console.error('CreateBookingController:', error.message);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

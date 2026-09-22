@@ -44,7 +44,12 @@ const RoomModel = sequelize.define(
             {
                 unique: true,
                 fields: ['tenant_id', 'number'],
-                name: 'rooms_number_tenant_unique'
+                name: 'rooms_number_tenant_unique',
+                // Índice PARCIAL. Sem o filtro, um quarto soft-deletado queimaria o
+                // número para sempre: a linha morta continua no índice, o guard da
+                // aplicação não a enxerga (escopo paranoid) e quem barra é o Postgres,
+                // virando 500. Só linhas vivas disputam unicidade.
+                where: { deleted_at: null }
             }
         ]
     }

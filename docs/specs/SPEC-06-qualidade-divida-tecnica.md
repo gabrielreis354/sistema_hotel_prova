@@ -56,17 +56,19 @@ Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations
 
 ---
 
-### T-06.3 — `RoomCategoryModel` com `paranoid` + unique total 🔲
+### T-06.3 — `RoomCategoryModel` com `paranoid` + unique total 🟡 (PR aberto, aguardando revisão do Sirlande)
 
 **Problema:** mesmo defeito corrigido em `ProductModel`. Verificado em 26/08: `RoomCategoryModel` tem unique `(tenant_id, name)` **sem** filtro parcial, num model `paranoid: true`.
 
 **Efeito:** excluir uma categoria **queima o nome para sempre**. A linha morta continua no índice, o guard da aplicação não a enxerga (escopo paranoid) e quem barra é o Postgres — virando **500**.
 
 **Critérios de aceitação**
-- [ ] **CA-06.3.a** — Índice parcial `WHERE deleted_at IS NULL` no model e no `services/core-service/db/schema.sql`
-- [ ] **CA-06.3.b** — `UniqueConstraintError` mapeado para **409**, não 500
-- [ ] **CA-06.3.c** — Teste do ciclo criar → deletar → recriar com o mesmo nome
-- [ ] **CA-06.3.d** — Auditar os demais models `paranoid` com unique, aplicando o mesmo padrão
+- [x] **CA-06.3.a** — Índice parcial `WHERE deleted_at IS NULL` no model e no `services/core-service/db/schema.sql`
+- [x] **CA-06.3.b** — `UniqueConstraintError` mapeado para **409**, não 500
+- [x] **CA-06.3.c** — Teste do ciclo criar → deletar → recriar com o mesmo nome
+- [x] **CA-06.3.d** — Auditar os demais models `paranoid` com unique, aplicando o mesmo padrão
+
+> Branch `fix/paranoid-unique-constraints` — implementada por um agente da trilha do Gabriel, mas **pertence à trilha do Sirlande**: quem aprova o merge é ela. Verificada e preparada para revisão em 21/09/2026 (portão de QA completo + auditoria `qa-redteam` própria) — ver `docs/qa/redteam_paranoid-unique_21set2026.md`. Os 3 achados 🔴 da auditoria de 31/08 (`docs/qa/redteam_paranoid-unique_27ago2026.md`) estão fechados e verificados por reprodução independente.
 
 ---
 
@@ -108,16 +110,18 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ---
 
-### T-06.6 — Ressalva R4: índice parcial não aplicado em banco existente 🔲
+### T-06.6 — Ressalva R4: índice parcial não aplicado em banco existente 🟡 (PR aberto, aguardando revisão do Sirlande)
 
 **Problema:** um banco que **já tem** a tabela `products` não recebe o índice parcial, e tanto `migrate` quanto `schema.sql` reportam sucesso — `sync({alter})` não substitui índice de mesmo nome e o `IF NOT EXISTS` do SQL é *no-op*.
 
 **Risco hoje é baixo** — a tabela não existe no cluster. Mas é silencioso, e o projeto não tem mecanismo de migração de índice.
 
 **Critérios de aceitação**
-- [ ] **CA-06.6.a** — `applyDbConstraints.js` detecta índice sem o predicado e o recria
-- [ ] **CA-06.6.b** — Teste validando o predicado após migrar um banco com índice antigo
-- [ ] **CA-06.6.c** — Padrão aplicável aos demais índices parciais
+- [x] **CA-06.6.a** — `applyDbConstraints.js` detecta índice sem o predicado e o recria *(inclusive `products`, achado 🟡-1 da auditoria de 21/09 — a primeira versão cobria 7 de 8 índices e deixava de fora justamente `products`, a tabela que originou esta task; corrigido com TDD antes do PR)*
+- [x] **CA-06.6.b** — Teste validando o predicado após migrar um banco com índice antigo *(`db-constraints.test.js`, bloco "applyDbConstraints cura índice único total em banco legado" — 4 cenários, incluindo `products`)*
+- [x] **CA-06.6.c** — Padrão aplicável aos demais índices parciais *(8 índices em `indicesParciais`, mesmo mecanismo para todos)*
+
+> Mesma branch da T-06.3. Verificado por reprodução real em banco legado (provisionado com o `schema.sql` antigo, `node command.js migrate` executado de verdade — inclusive num cenário em que `sync({alter})` falha por motivo alheio e a cura roda mesmo assim). Ver `docs/qa/redteam_paranoid-unique_21set2026.md`.
 
 ---
 

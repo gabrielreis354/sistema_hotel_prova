@@ -21,8 +21,12 @@ const CorporateClientModel = sequelize.define('CorporateClient', {
     paranoid: true,
     deletedAt: 'deleted_at',
     indexes: [
-        { unique: true, fields: ['cnpj', 'tenant_id'], name: 'corporate_clients_cnpj_tenant_unique' },
-        { unique: true, fields: ['cpf', 'tenant_id'], name: 'corporate_clients_cpf_tenant_unique' },
+        // Índices PARCIAIS. Sem o filtro, um cliente corporativo soft-deletado queimaria
+        // o CNPJ/CPF para sempre: a linha morta continua no índice, o guard da aplicação
+        // não a enxerga (escopo paranoid) e quem barra é o Postgres, virando 500 — um
+        // cliente que voltasse a fechar contrato não poderia ser recadastrado.
+        { unique: true, fields: ['cnpj', 'tenant_id'], name: 'corporate_clients_cnpj_tenant_unique', where: { deleted_at: null } },
+        { unique: true, fields: ['cpf', 'tenant_id'], name: 'corporate_clients_cpf_tenant_unique', where: { deleted_at: null } },
     ]
 });
 
