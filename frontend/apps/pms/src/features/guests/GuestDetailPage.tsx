@@ -8,7 +8,10 @@ import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import { useGuest, useDeleteGuest } from './queries.js';
 
-type Reservation = components['schemas']['Reservation'];
+// GET /reservations devolve ReservationListItem (Reservation + guest/room/user resumidos),
+// não o Reservation puro — usar o schema errado aqui é o mesmo erro de tipagem que os casts
+// escondiam antes.
+type Reservation = components['schemas']['ReservationListItem'];
 
 /**
  * Histórico de estadias do hóspede. O backend ainda não filtra reservas por hóspede, então
@@ -18,7 +21,10 @@ type Reservation = components['schemas']['Reservation'];
 async function fetchGuestStays(guestId: string): Promise<Reservation[]> {
   const { data, error, response } = await api.GET('/reservations');
   if (error || !response.ok) throw new ApiError('Falha ao carregar reservas.', response.status);
-  const all = (data as unknown as Reservation[]) ?? [];
+  // GET /reservations agora é tipado como array (sem page/limit) OU { data, total, page,
+  // limit } (com paginação) — ver ReservationListPage no Swagger. Esta página nunca manda
+  // page/limit, então a resposta real é sempre o array; o guard cobre o union de tipos.
+  const all = Array.isArray(data) ? data : (data?.data ?? []);
   return all.filter((r) => r.guest_id === guestId);
 }
 
