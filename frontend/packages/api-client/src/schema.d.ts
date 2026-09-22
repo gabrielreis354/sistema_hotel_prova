@@ -3401,10 +3401,10 @@ export interface components {
             /** @example 2 */
             capacity?: number;
             /**
-             * Format: float
-             * @example 150
+             * @description DECIMAL(10,2) serializado como string
+             * @example 150.00
              */
-            price_per_night?: number;
+            price_per_night?: string;
         };
         Room: {
             /** Format: uuid */
@@ -3424,10 +3424,10 @@ export interface components {
                 /** @example Standard */
                 name?: string;
                 /**
-                 * Format: float
-                 * @example 150
+                 * @description DECIMAL(10,2) serializado como string
+                 * @example 150.00
                  */
-                price_per_night?: number;
+                price_per_night?: string;
             } | null;
         };
         Guest: {
@@ -3478,10 +3478,10 @@ export interface components {
             /** @enum {string} */
             status?: "PENDING" | "CONFIRMED" | "CHECKED_IN" | "CHECKED_OUT" | "CANCELLED";
             /**
-             * Format: float
-             * @example 600
+             * @description DECIMAL(12,2) serializado como string
+             * @example 600.00
              */
-            total_amount?: number;
+            total_amount?: string;
         };
         Error: {
             error?: string;
@@ -3601,7 +3601,7 @@ export interface components {
                 paid_at?: string | null;
             }[];
         };
-        /** @description pix_qr_code, provider e provider_charge_id nunca aparecem aqui — PaymentModel.defaultScope os exclui sempre (T-06.2/achado de segurança fechado em 22/09). provider_charge_id é a credencial do webhook PIX (T-06.9); quem precisar dos 3 campos usa PaymentModel.unscoped() no código, não a API. */
+        /** @description pix_qr_code, provider e provider_charge_id não aparecem em GET /payments, GET /payments/{id} nem PUT /payments/{id} — PaymentModel.defaultScope os exclui nessas consultas (T-06.2/achado de segurança fechado em 22/09). provider_charge_id é a credencial do webhook PIX (T-06.9); quem precisar dos 3 campos usa PaymentModel.unscoped() no código, não a API. Ressalva (achado 🟡 da auditoria de 22/09): POST /payments usa .create(), que o defaultScope não filtra — os 3 campos vêm null nessa resposta (pagamento manual da recepção, nunca passa pelo provider PIX), mas tecnicamente aparecem no JSON. */
         Payment: {
             /** Format: uuid */
             id?: string;
