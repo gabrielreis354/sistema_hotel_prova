@@ -60,7 +60,8 @@ describe('Constraints de banco no ambiente de teste', () => {
         ['guests',            'guests_cpf_tenant_unique'],
         ['guests',            'guests_email_tenant_unique'],
         ['corporate_clients', 'corporate_clients_cnpj_tenant_unique'],
-        ['corporate_clients', 'corporate_clients_cpf_tenant_unique']
+        ['corporate_clients', 'corporate_clients_cpf_tenant_unique'],
+        ['products',          'products_name_tenant_unique']
     ])('o índice único de %s (%s) é parcial', async (tabela, indice) => {
         const [rows] = await sequelize.query(`
             SELECT indexdef FROM pg_indexes
@@ -164,6 +165,33 @@ describe('Constraints de banco no ambiente de teste', () => {
             `);
             expect(canonico).toHaveLength(1);
             expect(canonico[0].indexdef).toContain('deleted_at IS NULL');
+        });
+
+        // Achado 🟡-1 da auditoria de 21/09 (docs/qa/redteam_paranoid-unique_21set2026.md):
+        // `indicesParciais` em applyDbConstraints.js cobria os 7 índices auditados no
+        // PASSO 2, mas deixava `products` de fora — justamente a tabela que originou a
+        // T-06.6 ("um banco que já tem a tabela products não recebe o índice parcial").
+        // Reproduzido: índice de products ficava TOTAL depois de migrate.
+        it('products também é curado (era a tabela que originou a T-06.6, e tinha ficado de fora)', async () => {
+            await sequelize.query(`
+                ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_tenant_unique;
+                DROP INDEX IF EXISTS products_name_tenant_unique;
+                CREATE UNIQUE INDEX products_name_tenant_unique ON products (tenant_id, name);
+            `);
+
+            const [antes] = await sequelize.query(`
+                SELECT indexdef FROM pg_indexes WHERE indexname = 'products_name_tenant_unique'
+            `);
+            expect(antes[0].indexdef).not.toContain('deleted_at IS NULL');
+
+            const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+            await applyDbConstraints(sequelize);
+
+            const [depois] = await sequelize.query(`
+                SELECT indexdef FROM pg_indexes WHERE indexname = 'products_name_tenant_unique'
+            `);
+            expect(depois).toHaveLength(1);
+            expect(depois[0].indexdef).toContain('deleted_at IS NULL');
         });
 
         it('ciclo criar → deletar → recriar funciona depois da cura (prova funcional)', async () => {

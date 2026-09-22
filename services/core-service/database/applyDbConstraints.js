@@ -67,8 +67,10 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     `);
 
     // Índices únicos PARCIAIS em models paranoid — mesmo mecanismo da EXCLUDE acima,
-    // agora para os 7 índices auditados no PASSO 2 da SPEC-06 (users, room_categories,
-    // rooms, guests ×2, corporate_clients ×2).
+    // agora para os 8 índices auditados na SPEC-06 (users, room_categories, rooms,
+    // guests ×2, corporate_clients ×2, products — este último faltou na primeira
+    // versão, achado 🟡-1 da auditoria de 21/09: era a tabela que originou a T-06.6,
+    // e um banco legado com products já provisionado nunca era curado).
     //
     // Por que isto é necessário e o model/schema.sql sozinhos NÃO bastam:
     //   - `sequelize.sync({ alter: true })` (usado por `command.js migrate`) compara
@@ -94,7 +96,8 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
         { tabela: 'guests',             colunas: ['cpf', 'tenant_id'],     nome: 'guests_cpf_tenant_unique' },
         { tabela: 'guests',             colunas: ['email', 'tenant_id'],   nome: 'guests_email_tenant_unique' },
         { tabela: 'corporate_clients',  colunas: ['cnpj', 'tenant_id'],    nome: 'corporate_clients_cnpj_tenant_unique' },
-        { tabela: 'corporate_clients',  colunas: ['cpf', 'tenant_id'],     nome: 'corporate_clients_cpf_tenant_unique' }
+        { tabela: 'corporate_clients',  colunas: ['cpf', 'tenant_id'],     nome: 'corporate_clients_cpf_tenant_unique' },
+        { tabela: 'products',           colunas: ['name', 'tenant_id'],    nome: 'products_name_tenant_unique' }
     ];
 
     // Índice a índice, não tudo-ou-nada: um índice que falhe (duplicata viva legada
