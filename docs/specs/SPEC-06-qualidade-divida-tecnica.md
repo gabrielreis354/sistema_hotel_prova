@@ -37,7 +37,7 @@ thresholds: { statements: 60, lines: 60, functions: 60, branches: 55 }
 
 ---
 
-### T-06.2 — Schema de resposta no Swagger 🔲
+### T-06.2 — Schema de resposta no Swagger ✅
 
 **Problema medido em 26/08:** de 53 respostas 2xx (excluindo 204), **42 não declaram `content`** — **79% sem schema**.
 
@@ -46,13 +46,19 @@ Consequência direta: o cliente TypeScript gerado do OpenAPI devolve `never` no 
 Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations`, `/rooms`, `/users`.
 
 **Critérios de aceitação**
-- [ ] **CA-06.2.a** — Todas as respostas 2xx dos endpoints usados pelo frontend declaram `content` com `$ref` de schema
-- [ ] **CA-06.2.b** — Schemas reutilizáveis em `components.schemas`, sem duplicação literal
-- [ ] **CA-06.2.c** — Cliente regenerado (`pnpm gen:api`) sem `never` nos módulos cobertos
-- [ ] **CA-06.2.d** — Casts `as unknown as` removidos de `guestsApi.ts`
-- [ ] **CA-06.2.e** — Typecheck do frontend limpo após a remoção
+- [x] **CA-06.2.a** — Todas as respostas 2xx dos endpoints usados pelo frontend declaram `content` com `$ref` de schema *(medido: 54/54 respostas 2xx, eram 42 sem)*
+- [x] **CA-06.2.b** — Schemas reutilizáveis em `components.schemas`, sem duplicação literal *(15 schemas novos; ressalva 🟡 da auditoria: `{id,name}` de categoria/hóspede/usuário resumidos ainda aparecem inline em 2-3 lugares em vez de um schema compartilhado — registrado, não bloqueante)*
+- [x] **CA-06.2.c** — Cliente regenerado (`pnpm gen:api`) sem `never` nos módulos cobertos *(confirmado programaticamente: nenhuma resposta 200/201 com `content?: never`)*
+- [x] **CA-06.2.d** — Casts `as unknown as` removidos de `guestsApi.ts` *(6 casts no total: 4 em guestsApi.ts, 1 em GuestDetailPage.tsx, 1 em loginApi.ts — todos removidos)*
+- [x] **CA-06.2.e** — Typecheck do frontend limpo após a remoção *(`pnpm typecheck` — 4/4 pacotes, confirmado do zero sem cache pela auditoria)*
 
-> **Maior retorno por esforço de toda esta Spec.** É trabalho mecânico no backend que elimina uma classe inteira de bug no frontend e valida a decisão de stack que sustentou a escolha do cliente tipado.
+> **Maior retorno por esforço de toda esta Spec.** Corrigido e verificado em 22/09/2026 — ver `docs/qa/redteam_swagger-response-schemas_22set2026.md` (1ª rodada REPROVADA por 1 achado 🔴 — DECIMAL documentado como `number`; corrigido; reauditoria APROVADA COM RESSALVAS).
+>
+> **Decisão tomada durante esta etapa, com aprovação explícita do usuário:** antes de documentar `/payments`, corrigido o `defaultScope` do `PaymentModel` (achado 🔴 reconfirmado em 3 auditorias anteriores — `pix_qr_code`/`provider`/`provider_charge_id` vazavam em `GET /payments` e `GET /payments/{id}`). Ver commit `fix(payments)` desta branch.
+>
+> **Pendências registradas pela auditoria, fora do escopo desta task:**
+> - `PUT /room-categories/{id}` e `PUT /payments/{id}` devolvem `price_per_night`/`amount` como `number` (o valor cru do body, sem `reload()`), enquanto os `GET` correspondentes devolvem `string` — mesmo `$ref`, dois tipos. Correção: `await instance.reload()` depois do `.update()`, mesma causa raiz nos dois controllers.
+> - `POST /payments` (`.create()`) não passa pelo `defaultScope` do `PaymentModel` — os 3 campos sensíveis vêm `null` nessa resposta específica (documentado no schema, não é vazamento: pagamento manual nunca tem esses dados).
 
 ---
 
@@ -104,7 +110,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 > **Risco de LGPD e segurança.** Foi identificado pelo `qa_checks.sh`. Corrigido e mergeado em 16/09/2026 — ver `docs/qa/redteam_public-booking-leak_16set2026.md`.
 >
-> **Pendência nova, fora do escopo desta task (registrar como T-06.12 ou similar):** auditoria de 16/09 encontrou dois achados 🔴 pré-existentes, não introduzidos por esta correção — (1) `GET /payments` devolve o `Payment` inteiro (incluindo `provider_charge_id`) a qualquer usuário autenticado do tenant, sem `requireRole`; (2) o webhook PIX aceita qualquer requisição com o `provider_charge_id` certo (esta é a T-06.9, já na fila). Recomendação do auditor: `defaultScope` em `PaymentModel` excluindo `pix_qr_code`, `provider_charge_id` e `provider`, resolvendo os dois controllers atuais e todo consumidor futuro de uma vez.
+> **Pendência de 16/09 — RESOLVIDA em 22/09 (etapa T-06.2):** a auditoria de 16/09 encontrou dois achados 🔴 pré-existentes — (1) `GET /payments` devolvia o `Payment` inteiro (incluindo `provider_charge_id`) a qualquer usuário autenticado do tenant; (2) o webhook PIX aceitava qualquer requisição com o `provider_charge_id` certo. O item (2) foi fechado pela T-06.9 (21/09). O item (1) foi fechado durante a T-06.2: `defaultScope` no `PaymentModel` excluindo `pix_qr_code`, `provider_charge_id` e `provider` — exatamente a recomendação do auditor, resolvendo todos os consumidores atuais e futuros de uma vez.
 
 ---
 
