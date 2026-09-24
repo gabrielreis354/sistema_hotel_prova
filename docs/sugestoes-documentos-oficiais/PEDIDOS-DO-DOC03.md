@@ -50,7 +50,7 @@ O Doc 03 v1.2 deixou de depender dessa ordem. A nota de dependência virou uma n
 referência: o critério e os três serviços da ADR-003 estão na §1 do próprio DFD, e a
 comunicação entre eles está nos fluxos F-014 a F-017.
 
-**Pedido:** atualizar essa linha e a linha do Doc 03, que está em **v1.2** no PR #3 do fork,
+**Pedido:** atualizar essa linha e a linha do Doc 03, que está em **v1.2** no PR #5 do fork,
 com o título `[Gesway] - Entrega 3 - Diagrama de Fluxo de Dados (DFD)`.
 
 ---
