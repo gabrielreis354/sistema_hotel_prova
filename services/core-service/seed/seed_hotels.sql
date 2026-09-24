@@ -240,6 +240,13 @@ CROSS JOIN (VALUES
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
 WHERE t.subdomain = 'aurora'
+-- A EXCLUDE de anti-double-booking tem predicado WHERE (status <> 'CANCELLED' ...) —
+-- de propósito, reserva cancelada não deve travar o quarto. Efeito colateral: ela também
+-- não dá ao ON CONFLICT DO NOTHING nada para capturar nas linhas CANCELLED deste seed, que
+-- duplicariam a cada execução sem este guard.
+AND NOT EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
+)
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -412,6 +419,9 @@ CROSS JOIN (VALUES
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
 WHERE t.subdomain = 'sol'
+AND NOT EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
+)
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -521,7 +531,7 @@ INSERT INTO event_quotes (tenant_id, corporate_client_id, check_in, check_out, p
 SELECT t.id, cc.id,
   v.check_in::date, v.check_out::date, v.pessoas::int,
   v.vdc::numeric, v.vds::numeric, v.refeicao::bool, v.roupa::bool,
-  v.desconto::numeric, v.total::numeric, v.obs, v.status
+  v.desconto::numeric, v.total::numeric, v.obs, v.status::"enum_event_quotes_status"
 FROM (VALUES
   ('11111111000101','2026-08-15','2026-08-20',120, 85.00, 60.00,true, true, 0,   56500.00,
    'Programa completo: café da manhã, almoço e jantar inclusos. Pedido de sala para cultos noturno.',
@@ -550,7 +560,7 @@ INSERT INTO event_quotes (tenant_id, corporate_client_id, check_in, check_out, p
 SELECT t.id, cc.id,
   v.check_in::date, v.check_out::date, v.pessoas::int,
   v.vdc::numeric, v.vds::numeric, v.refeicao::bool, v.roupa::bool,
-  v.desconto::numeric, v.total::numeric, v.obs, v.status
+  v.desconto::numeric, v.total::numeric, v.obs, v.status::"enum_event_quotes_status"
 FROM (VALUES
   ('44444444000104','2026-09-15','2026-09-18',45, 70.00,50.00,true, true, 0, 9450.00,
    'Excursão pedagógica com atividades ao ar livre. Necessário espaço para assembléia.',
@@ -595,7 +605,7 @@ WHERE NOT EXISTS (
 INSERT INTO contracts (tenant_id, corporate_client_id, quote_id, objeto, check_in, check_out,
   pessoas, total, testemunha_1, testemunha_2, status)
 SELECT t.id, cc.id, eq.id, v.objeto, v.check_in::date, v.check_out::date,
-  v.pessoas::int, v.total::numeric, v.test1, v.test2, v.status
+  v.pessoas::int, v.total::numeric, v.test1, v.test2, v.status::"enum_contracts_status"
 FROM (VALUES
   ('aurora','11111111000101','2026-08-15',
    'Locação temporária de espaço para Retiro Espiritual com hospedagem completa e alimentação para 120 pessoas, no período de 15 a 20 de agosto de 2026.',

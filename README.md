@@ -13,6 +13,7 @@
   - [Pré-requisitos](#pré-requisitos)
   - [Configuração (ConfigMap e Secret)](#configuração-configmap-e-secret)
   - [Como Subir o Ambiente](#como-subir-o-ambiente-how-to-up)
+  - [Contingência Local (Docker Compose)](#contingência-local-docker-compose)
   - [Detalhamento Técnico da Infraestrutura](#detalhamento-técnico-da-infraestrutura)
 - [Parte 3 — API e Backend](#parte-3--api-e-backend)
   - [Documentação Swagger](#documentação-swagger)
@@ -245,6 +246,76 @@ Resposta esperada:
 ```
 
 Acesse a documentação completa da API: **http://localhost/api-docs**
+
+---
+
+## Contingência Local (Docker Compose)
+
+> O Termo de Aceite prevê: se a infraestrutura em nuvem falhar no dia da defesa, a equipe pode
+> demonstrar a aplicação localmente via Docker/Docker Compose, sem penalidade — desde que os
+> arquivos de containerização estejam **atualizados e funcionais**. É isto (T-06.4).
+>
+> Não usa Kubernetes, não depende do cluster em nuvem (SPEC-02) e não substitui o deploy em
+> produção — é a rede de segurança para o dia da apresentação.
+
+### Subir tudo
+
+```bash
+cp .env.example .env
+# edite o .env: JWT_SECRET é obrigatório (o compose recusa subir sem ele).
+# Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
+# no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
+docker compose up -d --build
+docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
+docker compose exec backend node command.js migrate
+docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional — dados de demonstração
+```
+
+> `seed` recusa rodar sem `ALLOW_SEED=1` quando `NODE_ENV=production` (o default deste compose) —
+> ele cria usuários com senha conhecida (`senha123`), então só roda com confirmação explícita.
+> Idempotente: rodar de novo não duplica dados.
+
+### Verificar
+
+```bash
+curl http://localhost/health      # atravessa o nginx até o backend
+```
+
+Resposta esperada:
+
+```json
+{ "status": "OK", "timestamp": "...", "service": "Sistema de Gestão de Hotel Backend" }
+```
+
+Documentação da API: **http://localhost/api-docs** · UI de gestão do RabbitMQ (só inspeção
+local): **http://localhost:15672**.
+
+> `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
+> não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.
+
+### Frontend
+
+O compose sobe só o backend e a infraestrutura de apoio — não há `Dockerfile` em `frontend/`.
+Para demonstrar as telas, rode o frontend localmente, fora do compose, apontando para o backend
+que o compose expõe em `localhost:3000`:
+
+```bash
+cd frontend
+pnpm install
+pnpm --filter app-pms dev   # abre em http://localhost:5173
+```
+
+O `vite.config.ts` do `app-pms` já usa `http://localhost:3000` como alvo do proxy — o mesmo
+`:3000` que o serviço `backend` do compose publica no host por padrão, então nenhuma configuração
+extra é necessária **se você não mudou `BACKEND_HOST_PORT`**. Se mudou (porta 3000 ocupada na
+máquina), edite o `target` em `frontend/apps/pms/vite.config.ts` para a mesma porta.
+
+### Derrubar
+
+```bash
+docker compose down          # mantém os volumes (dados do banco preservados)
+docker compose down -v       # remove tudo, inclusive os dados — use após a defesa
+```
 
 ---
 
