@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
+import { generateKeyPairSync } from 'crypto';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
+import { getPublicKey, getKeyId } from '../app/utils/jwtKeys.js';
 
 const app = createApp();
 
@@ -200,5 +203,68 @@ describe('Proteção por authMiddleware', () => {
             .get('/rooms')
             .set('Authorization', 'Bearer token.invalido.aqui');
         expect(res.status).toBe(401);
+    });
+});
+
+describe('JWT em RS256 (ADR-006 / T-01.3)', () => {
+    // Payload de referência — mesmo formato que LoginController.js assina.
+    const payload = { userId: 'user-fake-id', role: 'ADMIN', tenantId: 'tenant-fake-id' };
+
+    it('o token emitido pelo login é RS256, com kid no cabeçalho', async () => {
+        const reg = await request(app).post('/auth/register').send({
+            tenantName: 'Hotel RS256', name: 'Admin RS256', email: 'admin@rs256.com', password: 'senha123',
+        });
+        const login = await request(app).post('/auth/login').send({ email: 'admin@rs256.com', password: 'senha123' });
+
+        const header = JSON.parse(Buffer.from(login.body.token.split('.')[0], 'base64').toString());
+        expect(header.alg).toBe('RS256');
+        expect(header.kid).toBe(getKeyId());
+        void reg;
+    });
+
+    it('rejeita token HS256, mesmo com um payload plausível (algorithm confusion)', async () => {
+        // Se o middleware não fixasse `algorithms: ['RS256']`, um token assinado com
+        // QUALQUER string como segredo HS256 — inclusive a própria chave pública, que
+        // não é secreta — passaria pela verificação. É a vulnerabilidade que a ADR-006
+        // existe para fechar.
+        const forjado = jwt.sign(payload, 'qualquer-segredo-nem-precisa-ser-a-chave-publica', { algorithm: 'HS256' });
+
+        const res = await request(app).get('/rooms').set('Authorization', `Bearer ${forjado}`);
+        expect(res.status).toBe(401);
+    });
+
+    it('rejeita token RS256 assinado com uma chave privada diferente da do core', async () => {
+        const { privateKey: chaveErrada } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+        const forjado = jwt.sign(payload, chaveErrada, { algorithm: 'RS256' });
+
+        const res = await request(app).get('/rooms').set('Authorization', `Bearer ${forjado}`);
+        expect(res.status).toBe(401);
+    });
+
+    it('rejeita token com tenant_id adulterado depois de assinado', async () => {
+        const reg = await request(app).post('/auth/register').send({
+            tenantName: 'Hotel Adulterado', name: 'Admin', email: 'admin@adulterado.com', password: 'senha123',
+        });
+        const login = await request(app).post('/auth/login').send({ email: 'admin@adulterado.com', password: 'senha123' });
+        const [header, , signature] = login.body.token.split('.');
+
+        // Troca só o payload (tenant_id de outro tenant), mantendo header e assinatura
+        // originais — exatamente o que um atacante tentaria sem ter a chave privada.
+        const payloadAdulterado = { ...JSON.parse(Buffer.from(login.body.token.split('.')[1], 'base64').toString()), tenantId: 'tenant-de-outro-hotel' };
+        const payloadBase64 = Buffer.from(JSON.stringify(payloadAdulterado)).toString('base64url');
+        const tokenAdulterado = `${header}.${payloadBase64}.${signature}`;
+
+        const res = await request(app).get('/rooms').set('Authorization', `Bearer ${tokenAdulterado}`);
+        expect(res.status).toBe(401);
+        void reg;
+    });
+
+    it('verifica com a chave pública exposta pelo utilitário — confirma que é o mesmo par usado para assinar', async () => {
+        const login = await request(app).post('/auth/register').send({
+            tenantName: 'Hotel Par de Chaves', name: 'Admin', email: 'admin@pardechaves.com', password: 'senha123',
+        }).then(() => request(app).post('/auth/login').send({ email: 'admin@pardechaves.com', password: 'senha123' }));
+
+        const decoded = jwt.verify(login.body.token, getPublicKey(), { algorithms: ['RS256'] });
+        expect(decoded.role).toBe('ADMIN');
     });
 });
