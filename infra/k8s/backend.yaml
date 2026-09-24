@@ -30,11 +30,17 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: POSTGRES_PASSWORD
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: hotel-secret
-                  key: JWT_SECRET
+            # JWT RS256 (ADR-006/T-01.3) — a chave PRIVADA não vem do hotel-secret
+            # versionado. É montada do secret `jwt-rsa-keys`, criado manualmente uma
+            # vez por ambiente (kubectl create secret generic jwt-rsa-keys
+            # --from-file=jwt-private.pem --from-file=jwt-public.pem -n hotel-system —
+            # ver README.md). Versionar a privada anularia o motivo de sair do HS256.
+            - name: JWT_PRIVATE_KEY_PATH
+              value: /app/keys/jwt-private.pem
+            - name: JWT_PUBLIC_KEY_PATH
+              value: /app/keys/jwt-public.pem
+            - name: JWT_KEY_ID
+              value: core-v1
             - name: PIX_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
@@ -71,6 +77,14 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+          volumeMounts:
+            - name: jwt-rsa-keys
+              mountPath: /app/keys
+              readOnly: true
+      volumes:
+        - name: jwt-rsa-keys
+          secret:
+            secretName: jwt-rsa-keys
       terminationGracePeriodSeconds: 60
 ---
 apiVersion: v1

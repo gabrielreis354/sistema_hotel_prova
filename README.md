@@ -107,12 +107,25 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 | Variável | Valor padrão (acadêmico) |
 |---|---|
 | `POSTGRES_PASSWORD` | `hotel_password` |
-| `JWT_SECRET` | `pms_hotel_secreto_academico_2026` |
 | `PIX_WEBHOOK_SECRET` | `pms_hotel_pix_webhook_secreto_academico_2026` |
 
 > Em produção, substitua os valores do `secret.yaml` por credenciais reais e **nunca commite o arquivo com senhas reais**. Para este projeto acadêmico os valores estão no repositório para facilitar a avaliação.
 
-Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `infra/k8s/`.
+**JWT (RS256, ADR-006/T-01.3) é a exceção — não vai no `secret.yaml` versionado.** O
+backend assina o token com uma chave privada RSA e verifica com a pública; versionar a
+privada anularia o motivo de ter saído do HS256. Antes de aplicar `infra/k8s/backend.yaml`,
+crie o secret `jwt-rsa-keys` manualmente, uma vez por ambiente:
+
+```bash
+cd services/core-service
+node scripts/gerar_chaves_jwt.js
+kubectl create secret generic jwt-rsa-keys \
+  --from-file=jwt-private.pem=keys/jwt-private.pem \
+  --from-file=jwt-public.pem=keys/jwt-public.pem \
+  -n hotel-system
+```
+
+Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `infra/k8s/`, mais o secret `jwt-rsa-keys` acima.
 
 ---
 
@@ -308,9 +321,10 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `JWT_SECRET` e `PIX_WEBHOOK_SECRET` |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD` e `PIX_WEBHOOK_SECRET` (versionado, valor placeholder acadêmico) |
+| Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, criado manualmente por ambiente (comando na seção anterior) |
 
-Os Pods leem essas variáveis via `envFrom` (ConfigMap) e `env.valueFrom.secretKeyRef` (Secret). Nenhuma credencial está hardcoded nas imagens.
+Os Pods leem essas variáveis via `envFrom` (ConfigMap), `env.valueFrom.secretKeyRef` (Secret `hotel-secret`) e um volume montado a partir do Secret `jwt-rsa-keys`. Nenhuma credencial está hardcoded nas imagens.
 
 ### Otimização da imagem Docker (Multi-stage Build)
 
@@ -530,7 +544,7 @@ sistema_gestao_hotel/
 │       ├── kustomization.yaml      #   Ponto de entrada (kubectl apply -k infra/k8s/)
 │       ├── namespace.yaml          #   Namespace hotel-system
 │       ├── configmap.yaml          #   Variáveis de ambiente não sensíveis
-│       ├── secret.yaml             #   Credenciais (POSTGRES_PASSWORD, JWT_SECRET)
+│       ├── secret.yaml             #   Credenciais (POSTGRES_PASSWORD, PIX_WEBHOOK_SECRET)
 │       ├── postgres.yaml           #   PVC + Deployment + Service do PostgreSQL
 │       ├── backend.yaml            #   Deployment (3 réplicas) + Service do Node.js
 │       ├── nginx.yaml              #   ConfigMap nginx + Deployment + Service LoadBalancer
