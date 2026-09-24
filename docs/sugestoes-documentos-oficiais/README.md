@@ -52,7 +52,7 @@ diff --strip-trailing-cr <UniFAAT>/Projetos/gesway/02-requisitos-funcionais-nao-
 | **02** — Requisitos | **Gabriel** | **v1.3 — entregue ao professor** | Versão sugerida v1.4 + motivos — **em revisão** | Conferir a cobertura integral dos critérios de aceite; só com certeza absoluta, reunião com o professor |
 | **03** — DFD | **Sirlande** | **v1.0 no fork — ainda não entregue** (`upstream` tem o modelo em branco) | Insumos + versão sugerida v1.1 com as correções de fluxo + motivos | Sirlande aplica; sem reunião, porque nada foi entregue ainda |
 | **04** — MER | **Sirlande** | Entregue (PR #3) — cabeçalho v1.0, histórico até v1.1 | Versão sugerida v1.2 + motivos | Sirlande avalia; aplicar significa nova entrega ao professor |
-| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork** | — | Corrigir `PRODUCTS` para 🔷 na tabela da ADR-003, conforme o Doc 04 §1.3; entregar **antes** do Doc 03, que o cita como fundamento |
+| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork**. Proposta de **ADR-006** (propagação de identidade entre serviços, T-01.3) + motivos — **aguardando aprovação do Gabriel (fase 5a)** | Corrigir `PRODUCTS` para 🔷 na tabela da ADR-003, conforme o Doc 04 §1.3; entregar **antes** do Doc 03, que o cita como fundamento. ADR-006: após aprovação, Weslley formaliza no documento oficial |
 
 ---
 
