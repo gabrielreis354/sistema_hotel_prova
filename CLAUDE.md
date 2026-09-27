@@ -451,6 +451,7 @@ indexes: [{
 | Documento | Conteúdo |
 |---|---|
 | `docs/CODING_STANDARDS.md` | SOLID, DRY, KISS com exemplos de código + template de relatório |
+| `frontend/DESIGN_PMS.md` | **Leitura obrigatória antes de mexer no `frontend/`.** Contexto de domínio para as skills de design instaladas em `.claude/skills/`, qual delas manda em cada superfície, e as regras de PMS que nenhuma delas conhece |
 | `docs/PRODUCT_ROADMAP.md` | Fases do produto, o que está previsto |
 | `docs/db/ARQ_DATABASE.md` | Schema do banco, relações, decisões de modelagem |
 | `docs/infra/KUBERNETES.md` | Infra K8s, como aplicar os manifests |
