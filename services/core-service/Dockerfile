@@ -15,8 +15,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Remove o que não pertence ao runtime
-RUN rm -rf db/ seed/ tests/ vitest.config.js
+# Remove o que não pertence ao runtime. seed/ fica — é executado em produção/contingência
+# via "node command.js seed" (seed_hotels.sql lido em runtime, não em build).
+RUN rm -rf db/ tests/ vitest.config.js
 
 # Segurança: não executar como root
 USER node

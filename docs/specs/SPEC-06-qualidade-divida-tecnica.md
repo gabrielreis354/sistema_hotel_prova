@@ -1,7 +1,7 @@
 # SPEC-06 — Qualidade e Dívida Técnica
 
 **Prioridade:** 🟡 Média — mas contém item que **quebra o portão do CI**
-**Estado:** 🟡 Em andamento — T-06.8 concluída em 15/09; T-06.3, T-06.5 e T-06.6 implementadas em branch, aguardando verificação
+**Estado:** 🟡 Em andamento — T-06.4 e T-06.8 concluídas; T-06.3, T-06.5 e T-06.6 implementadas em branch, aguardando verificação
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 
@@ -76,21 +76,26 @@ Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations
 
 ---
 
-### T-06.4 — `docker-compose.yml` para contingência da defesa 🔲
+### T-06.4 — `docker-compose.yml` para contingência da defesa ✅
 
 **Problema:** o Termo prevê:
 
 > *"Em caso de falha de conectividade [...] a equipe poderá demonstrar a aplicação localmente utilizando **Docker / Docker Compose**, sem penalidade. Para isso, o grupo deve manter os arquivos de containerização **atualizados e funcionais** no repositório."*
 
-Verificado: **não existe nenhum `docker-compose*.yml`** no repositório. O projeto migrou totalmente para Kubernetes.
+**Concluída em 21/09/2026.** Branch `feature/docker-compose-rabbitmq`. Uma primeira versão (16/09)
+tinha `docker-compose.yml` mas 3 dos 6 critérios não eram cumpridos de verdade — achado da
+auditoria `qa-redteam` em `docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`. Fechado com
+evidência real de execução em `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md`
+(seed funcional — inclusive um bug real de cast de `ENUM` só aparecia rodando até o fim —,
+healthchecks corrigidos, instrução de frontend, README documentado).
 
 **Critérios de aceitação**
-- [ ] **CA-06.4.a** — `docker-compose.yml` subindo backend, Postgres, Redis e MinIO
-- [ ] **CA-06.4.b** — `docker compose up` funciona a partir de repositório limpo
-- [ ] **CA-06.4.c** — `migrate` e `seed` executáveis no compose
-- [ ] **CA-06.4.d** — Frontend incluído ou com instrução clara de como subir
-- [ ] **CA-06.4.e** — Testado de verdade, não só escrito
-- [ ] **CA-06.4.f** — README documentando o procedimento de contingência
+- [x] **CA-06.4.a** — `docker-compose.yml` subindo backend, Postgres, Redis e MinIO
+- [x] **CA-06.4.b** — `docker compose up` funciona a partir de repositório limpo
+- [x] **CA-06.4.c** — `migrate` e `seed` executáveis no compose
+- [x] **CA-06.4.d** — Frontend incluído ou com instrução clara de como subir
+- [x] **CA-06.4.e** — Testado de verdade, não só escrito
+- [x] **CA-06.4.f** — README documentando o procedimento de contingência
 
 > **Não é opcional.** É a rede de segurança da defesa. Se a internet cair e o compose não funcionar, não há demonstração — e o Termo já concedeu o direito a essa contingência.
 
@@ -255,7 +260,7 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 - [ ] Nenhum endpoint público expondo dado sensível
 - [ ] Nenhum webhook aceitando notificação sem assinatura verificada (RNF-012)
 - [ ] Todas as rotas de listagem paginadas (RNF-002)
-- [ ] `docker compose up` funcionando e testado
+- [x] `docker compose up` funcionando e testado
 - [ ] `main` refletindo o estado atual do projeto
 - [ ] `npm run qa:checks` sem erro nem aviso pendente
 
@@ -267,3 +272,5 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Consolida achados de auditorias `qa-redteam` e itens de conformidade do Termo |
 | 1.1 | 09/09/2026 | Gabriel Reis Cunha | Acrescenta **T-06.9** (assinatura do webhook PIX, RNF-012) e **T-06.10** (paginação nas listagens, RNF-002), apuradas no cruzamento do Doc. 02 v1.2 com as Specs: os dois requisitos exigiam 100% de cobertura e não tinham tarefa em nenhuma Spec. A T-06.9 vai ao topo da ordem por ser a única vulnerabilidade explorável hoje, sem dependência de integração externa |
+| 1.2 | 21/09/2026 | Weslley (orquestrando Claude Code) | **T-06.4 concluída de verdade.** A versão de 16/09 declarava o critério 20 atendido, mas auditoria `qa-redteam` (`docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`) achou 3 dos 6 CAs não cumpridos (seed não funcionava, sem instrução de frontend, README não documentava). Fechados com evidência real de execução — `docker compose up` com os 6 serviços `healthy`, `migrate` + `seed` rodando até o fim (incluindo um bug real de cast de `ENUM` no seed, só visível executando), login via API com usuário seedado. Relatório: `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md` |
+| 1.3 | 21/09/2026 | Weslley (orquestrando Claude Code) | **Ressalvas da reauditoria fechadas.** Uma segunda auditoria `qa-redteam`, desta vez rodando o `docker compose up` ela mesma em vez de confiar no relatório anterior (`docs/qa/redteam_docker-compose-rabbitmq_21set2026.md`), achou que a alegação de idempotência do seed era **falsa**: rodar 2x inseria +5 reservas `CANCELLED` a cada vez (a EXCLUDE não cobre linhas `CANCELLED`, de propósito, e por isso o `ON CONFLICT DO NOTHING` não tinha nada pra capturar ali). Corrigido com guard `NOT EXISTS`, verificado com 3 execuções seguidas dando o mesmo resultado. Também corrigidos: guard `ALLOW_SEED=1` contra rodar o seed sem querer num banco de produção real, README apontando pro `.env.example` errado, `BACKEND_HOST_PORT` não documentado, healthcheck do nginx trocado de `/healthz` (estático) para `/health` (real). Relatório: `docs/historico_sessao/weslley/fecha_t064_ressalvas_reauditoria_21set2026.md` |
