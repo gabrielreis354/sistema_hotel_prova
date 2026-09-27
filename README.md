@@ -275,14 +275,20 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 
 ```bash
 cp .env.example .env
-# edite o .env: JWT_SECRET é obrigatório (o compose recusa subir sem ele).
+# edite o .env: PIX_WEBHOOK_SECRET é obrigatório (o compose recusa subir sem ele).
 # Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
 # no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
+node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006), uma vez só
 docker compose up -d --build
 docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
 docker compose exec backend node command.js migrate
 docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional — dados de demonstração
 ```
+
+> As chaves do JWT **não entram na imagem** (`keys/` está no `.dockerignore`): o compose monta
+> `services/core-service/keys/` no container, somente leitura. Esqueceu de gerar? O backend
+> **recusa subir** e fica em `Restarting` no `docker compose ps` — o motivo aparece em
+> `docker compose logs backend`. Melhor descobrir aqui do que no primeiro login da defesa.
 
 > `seed` recusa rodar sem `ALLOW_SEED=1` quando `NODE_ENV=production` (o default deste compose) —
 > ele cria usuários com senha conhecida (`senha123`), então só roda com confirmação explícita.
@@ -302,6 +308,16 @@ Resposta esperada:
 
 Documentação da API: **http://localhost/api-docs** · UI de gestão do RabbitMQ (só inspeção
 local): **http://localhost:15672**.
+
+Para **confirmar um pagamento PIX** na demonstração (o webhook exige assinatura HMAC — T-06.9 —,
+então chamar a rota à mão dá `401`), use o script que assina como o PSP faria. Ele roda dentro
+do container, onde o compose já injetou o `PIX_WEBHOOK_SECRET`:
+
+```bash
+docker compose exec backend node scripts/simular_pagamento_pix.js <provider_charge_id>
+```
+
+O `provider_charge_id` vem na resposta de `POST /public/<subdomínio>/bookings`.
 
 > `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
 > não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.

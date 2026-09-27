@@ -2,7 +2,8 @@
 # dia da defesa se a infraestrutura em nuvem (SPEC-02) cair; não substitui o deploy em produção.
 #
 # Uso:
-#   cp .env.example .env        # ajuste JWT_SECRET e senhas antes de usar fora do laptop
+#   cp .env.example .env        # ajuste PIX_WEBHOOK_SECRET e senhas antes de usar fora do laptop
+#   node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006)
 #   docker compose up -d
 #   docker compose exec backend node command.js migrate
 #   docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional, dados de demo
@@ -92,7 +93,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
       POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
-      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env antes de subir o compose}
+      # JWT RS256 (ADR-006): as chaves NÃO estão na imagem (.dockerignore exclui keys/) —
+      # entram pelo volume abaixo. Gere antes do primeiro `up`:
+      #   node services/core-service/scripts/gerar_chaves_jwt.js
+      # Sem elas o backend recusa subir (fail-fast em _web.js), em vez de ficar "healthy"
+      # e só falhar no primeiro login.
+      JWT_PRIVATE_KEY_PATH: /app/keys/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:-core-v1}
+      # Webhook PIX assinado (T-06.9): sem o segredo, /webhooks/pix recusa TODA requisição
+      # (fail-closed) — a confirmação de pagamento da demo não funcionaria.
+      PIX_WEBHOOK_SECRET: ${PIX_WEBHOOK_SECRET:?defina PIX_WEBHOOK_SECRET no .env antes de subir o compose}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: http://minio:9000
@@ -100,6 +111,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
       MINIO_BUCKET: ${MINIO_BUCKET:-hotel-contracts}
       MINIO_USE_SSL: "false"
+    volumes:
+      - ./services/core-service/keys:/app/keys:ro
     depends_on:
       postgres:
         condition: service_healthy
