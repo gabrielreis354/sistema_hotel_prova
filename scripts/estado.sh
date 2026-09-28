@@ -131,5 +131,97 @@ fi
 titulo "DELEGAÇÕES MAIS RECENTES"
 ls -t docs/delegacoes/*.md 2>/dev/null | head -3 | sed 's|.*/|   · docs/delegacoes/|'
 
+# ------------------------------------------------------------ ferramental
+#
+# Por que existe: o projeto acumulou skills e plugins que ficaram meses sem uso.
+# O `security-review` esteve disponível durante todo o tempo em que o vazamento
+# do `provider_charge_id` e o webhook PIX sem assinatura ficaram abertos na
+# `main`. Skill não se lembra sozinha — e este script já é o lugar onde o estado
+# vence a memória.
+#
+# Isto SUGERE, não bloqueia. O que é obrigatório mora no portão (qa_checks.sh).
+# Registro completo, com o que cada recurso serve, em docs/FERRAMENTAL.md.
+titulo "FERRAMENTAL DA TAREFA"
+
+# O que esta branch mexeu: commitado em relação a develop, mais o que ainda
+# está solto na worktree (tracked e untracked).
+if [ "$ATUAL" = "develop" ] || [ "$ATUAL" = "main" ]; then
+    MUDOU="$( { git diff --name-only HEAD 2>/dev/null
+                git ls-files --others --exclude-standard 2>/dev/null; } | sort -u )"
+else
+    MUDOU="$( { git diff --name-only origin/develop...HEAD 2>/dev/null
+                git diff --name-only HEAD 2>/dev/null
+                git ls-files --others --exclude-standard 2>/dev/null; } | sort -u )"
+fi
+
+if [ -z "$MUDOU" ]; then
+    item "nada mexido nesta branch — o ferramental aparece quando houver diff"
+else
+    ACHOU_FERR=0
+    JA_SUGERIDO=" "
+    # $1 = padrão de caminho · $2 = chave do recurso · $3 = rótulo · $4 = por quê
+    #
+    # Um recurso pode ser pedido por mais de um motivo (o security-review vale
+    # tanto por tocar autenticação quanto por rota nova). Nesse caso o rótulo
+    # sai uma vez só e os motivos se acumulam abaixo dele.
+    sugere() {
+        printf '%s\n' "$MUDOU" | grep -qE "$1" || return 0
+        case "$JA_SUGERIDO" in
+            *" $2 "*) : ;;
+            *) item "$3"; JA_SUGERIDO="$JA_SUGERIDO$2 " ;;
+        esac
+        item "   └ $4"
+        ACHOU_FERR=1
+    }
+
+    sugere '(Auth|auth|jwt|Jwt|JWT|webhook|Webhook|[Ss]ecret|[Tt]oken)' \
+        seguranca '/security-review — ANTES do merge' \
+        'toca autenticação, webhook ou segredo: é a classe exata das duas falhas que chegaram à main'
+
+    sugere 'services/[^/]*/(app/Controllers|middlewares|routes)/' \
+        seguranca '/security-review — ANTES do merge' \
+        'rota ou controller no diff — tenant_id na query, papel exigido, e o que a resposta pública devolve'
+
+    sugere 'services/[^/]*/(app/Models|database|db)/' \
+        dados 'qa-redteam com foco em dados' \
+        'model ou schema no diff — multi-tenancy, soft delete e índice único parcial (o paranoid já custou uma PR)'
+
+    sugere '^frontend/' \
+        frontend 'frontend/DESIGN_PMS.md (ler antes) + design:accessibility-review' \
+        'RNF-024 a RNF-027 são requisitos avaliados, e nenhuma verificação de acessibilidade foi rodada até hoje'
+
+    sugere '^frontend/apps/pms/' \
+        pms 'emil-design-eng · animate · review-animations' \
+        'movimento funcional no PMS. NÃO use design-taste-frontend aqui — ela é do apps/booking'
+
+    sugere '^frontend/apps/booking/' \
+        booking 'design-taste-frontend' \
+        'única superfície de conversão do sistema: hierarquia e primeira impressão pagam'
+
+    sugere '([Aa]nalytics|revenue|occupancy|seasonality)' \
+        grafico 'dataviz' \
+        'indicador virando gráfico — paleta, eixo e tipo de gráfico antes de escrever o componente'
+
+    sugere '([Pp]df|generateContractPdf|generateQuotePdf)' \
+        pdf 'pdf-viewer' \
+        'olhar o PDF gerado de verdade; teste de status 200 não prova que o documento está legível'
+
+    sugere '(^infra/|^\.github/workflows/|Dockerfile|docker-compose)' \
+        infra 'qa-redteam com foco em infra' \
+        'manifesto ou pipeline no diff — segredo fora do versionamento, probe, limite de recurso'
+
+    sugere '^docs/specs/' \
+        spec '/spec' \
+        'mudança em SPEC segue o fluxo Specify → Plan → Tasks, com checkpoint humano'
+
+    sugere '(tests/|\.test\.|vitest)' \
+        testes 'superpowers: test-driven-development · verification-before-completion' \
+        'instalado desde 26/08 e nunca usado; precisa habilitar o plugin na sessão'
+
+    [ "$ACHOU_FERR" -eq 0 ] && item "o diff não casou com nenhum padrão conhecido — ver docs/FERRAMENTAL.md"
+    item ""
+    item "→ registro completo: docs/FERRAMENTAL.md"
+fi
+
 echo
 echo "-- fim do estado --"

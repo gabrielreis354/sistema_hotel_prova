@@ -22,10 +22,12 @@ services/*/keys/
 *.swo
 
 # Agentes de IA — worktrees e config local ficam de fora,
-# mas as definicoes de subagente e os comandos sao compartilhados pelo time
+# mas as definicoes de subagente, os comandos e as skills de design
+# sao compartilhados pelo time
 .claude/*
 !.claude/agents/
 !.claude/commands/
+!.claude/skills/
 
 # OS
 .DS_Store
