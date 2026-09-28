@@ -10,11 +10,11 @@ export default function authMiddleware(request, response, next) {
     }
 
     try {
-        // `algorithms: ['RS256']` fixo é o que fecha o CA-01.3.b (ADR-006): sem isso,
-        // um token forjado com `alg: HS256`, assinado usando a própria chave PÚBLICA
-        // como segredo simétrico (ela não é secreta — é distribuída de propósito),
-        // passaria na verificação. É a vulnerabilidade de "algorithm confusion" — a
-        // biblioteca aceita, por padrão, qualquer algoritmo que o token declarar.
+        // `algorithms: ['RS256']` fixo (ADR-006) — defesa em profundidade. O jsonwebtoken
+        // 9.x já recusa o "algorithm confusion" clássico (HS256 assinado com a chave
+        // pública), mas sem a trava deriva a lista do tipo da chave e aceitaria também
+        // RS384/512 e PS*: o contrato é UM algoritmo, sem depender do default da lib.
+        // Teste que prova a trava: auth.test.js, RS512/PS256 com a privada correta → 401.
         const payload = jwt.verify(token, getPublicKey(), { algorithms: ['RS256'] });
         request.user = payload; // { userId, role, tenantId }
         next();

@@ -4,8 +4,10 @@
 "Comunicação") já reserva explicitamente o número: *"A propagação de identidade entre serviços é
 tratada em decisão própria, a ser registrada como ADR-006"*.
 
-**Status desta proposta:** rascunho para aprovação do Gabriel (orquestrador) — fase 5a da T-01.3.
-Depois de aprovada, quem formaliza no documento oficial é o **Weslley**, dono do Documento 07.
+**Status desta proposta:** **aprovada pelo Gabriel** (orquestrador) em 24/09/2026 e
+**implementada no `core-service`** (fase 5b da T-01.3, branch `feat/jwt-rs256`) — CA-01.3.a e
+CA-01.3.b. CA-01.3.c e CA-01.3.d ficam decididos aqui e implementados na T-01.6 e na T-01.4. Quem
+formaliza no documento oficial é o **Weslley**, dono do Documento 07.
 
 **Rastreia:** SPEC-01 T-01.3 (CA-01.3.a a e) · RNF-011 (segredo fora do repositório) · RNF-012
 (assinatura de webhook, já fechada pela T-06.9 — precedente de padrão a seguir).
@@ -27,15 +29,21 @@ de qualquer tenant, com qualquer `role`. O CA-01.3.b da SPEC-01 ("`tenant_id` co
 obrigatório e impossível de forjar em todos os serviços") deixa de ser alcançável com o esquema
 atual — é um achado da pesquisa de 14/09, já registrado na própria SPEC-01.
 
-Um segundo problema, encontrado ao ler o código para esta proposta: `auth.middleware.js:12` chama
-`jwt.verify(token, process.env.JWT_SECRET)` **sem fixar `algorithms`**. A biblioteca
-`jsonwebtoken` aceita, por padrão, qualquer algoritmo que o próprio token declarar no cabeçalho —
-o que inclui a classe de ataque conhecida como *algorithm confusion*: se um serviço um dia aceitar
-RS256 verificando com a chave **pública**, um token forjado com `alg: HS256` e assinado usando a
-chave pública como segredo simétrico passaria a validação. Isto já é um problema **hoje**, no
-monólito, independente da divisão em serviços — e precisa ser corrigido na mesma migração, porque
-é o RS256 que introduz a chave pública que tornaria o ataque possível se `algorithms` não for
-fixado.
+Um segundo ponto, sobre o verificador: `auth.middleware.js:12` chama
+`jwt.verify(token, process.env.JWT_SECRET)` **sem fixar `algorithms`**. Na versão em uso
+(`jsonwebtoken` 9.0.3) isso **não** é explorável hoje: desde a 9.0.0 (CVE-2022-23540/23541), sem
+`algorithms` a biblioteca deriva a lista permitida do **tipo da chave** — segredo aceita só HS\*,
+chave RSA aceita RS\*/PS\* — e recusa HS\* quando a chave não é um segredo (`verify.js:132-151`). O
+ataque clássico de *algorithm confusion* (token `alg: HS256` assinado com a chave pública como
+segredo HMAC) é bloqueado pela própria biblioteca. Ainda assim, com RS256 a lista derivada da chave
+aceitaria também RS384/RS512 e PS256/384/512: o verificador passa a fixar `algorithms: ['RS256']`
+como **defesa em profundidade** — o contrato é um algoritmo só, e a segurança não fica dependente
+do *default* da biblioteca nem do formato do arquivo de chave.
+
+> *Correção de 27/09/2026:* a primeira versão desta proposta afirmava que o middleware tinha uma
+> vulnerabilidade de *algorithm confusion* ativa "hoje, no monólito". Era comportamento da 8.x,
+> corrigido na 9.0.0 — conferido no código da versão instalada pela auditoria `qa-redteam`
+> (`docs/qa/redteam_jwt-rs256_27set2026.md`, achado 🟡-3). A decisão não muda; a justificativa sim.
 
 Um terceiro ponto, fora do JWT: `infra/k8s/secret.yaml` versiona `JWT_SECRET` em texto puro,
 sob a política documentada no `README.md` ("valores no repositório para facilitar a avaliação
@@ -63,9 +71,9 @@ depender de um *gateway* de autenticação central.
   *qual* chave pública usar, e retrofitar isso depois que múltiplos serviços já verificam é bem
   mais caro do que incluir agora.
 - `auth.middleware.js` passa a fixar `jwt.verify(token, publicKey, { algorithms: ['RS256'] })` —
-  sem isso, o RS256 sozinho não fecha o CA-01.3.b (ver *algorithm confusion* no Contexto). Esta
-  correção vale mesmo antes da extração de serviços, porque é uma vulnerabilidade do middleware
-  atual.
+  defesa em profundidade (ver Contexto): sem a trava, a biblioteca aceitaria também RS384/512 e
+  PS\* assinados com a mesma privada. Não é falsificação, mas o contrato fica em um algoritmo só.
+  O teste que prova a trava assina com a privada correta em RS512/PS256 e espera `401`.
 - O Nginx (`infra/k8s/nginx.yaml`) continua como proxy simples — não teria como participar da
   validação sem virar um componente novo (WAF/gateway de autenticação), o que a SPEC-01 já
   descarta implicitamente ao listar *service mesh* como fora de escopo por desproporção ao
@@ -73,7 +81,7 @@ depender de um *gateway* de autenticação central.
 
 ### CA-01.3.b — `tenant_id` impossível de forjar
 
-Consequência direta de a) + a correção de `algorithms`: só quem tem a chave **privada**
+Consequência direta de a): só quem tem a chave **privada**
 (o `core-service`, único emissor) consegue produzir um token que os outros aceitem. Nenhum
 serviço que só verifica pode fabricar um `tenant_id` novo.
 
@@ -139,14 +147,16 @@ Alternativas → Consequências).
 
 | Ambiente | Como a chave chega |
 |---|---|
-| **Local (dev)** | Script novo `services/core-service/scripts/gerar_chaves_jwt.js` (`crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })`), grava em `services/core-service/keys/jwt-private.pem` e `jwt-public.pem`. Pasta `keys/` entra no `.gitignore` — é a única exceção à política atual de "segredo versionado por conveniência acadêmica" (ver Contexto). |
-| **Testes (`vitest`)** | Par de chaves efêmero, gerado em memória no `tests/setup/globalSetup.js` (mesmo lugar que já prepara o banco de teste) — nunca toca disco, nunca precisa de `.gitignore`. |
-| **CI** (`.github/workflows/ci.yml`) | Gera um par de chaves descartável como *step* do job, antes dos testes — mesmo raciocínio dos testes: CI não precisa de chave estável entre execuções. |
-| **Cluster (k8s)** | Quem provisiona gera o par uma vez (`gerar_chaves_jwt.js` ou equivalente) e cria um `Secret` do tipo `kubernetes.io/tls`-like via `kubectl create secret generic jwt-rsa-keys --from-file=private.pem --from-file=public.pem -n hotel-system` — **fora do `infra/k8s/secret.yaml` versionado**, aplicado manualmente uma vez, documentado no `README.md` como passo de setup (mesmo tratamento que outros clusters dão a certificado TLS). `infra/k8s/backend.yaml` monta o secret como volume ou variável de ambiente apontando para o caminho do arquivo. |
+| **Local (dev)** | `services/core-service/scripts/gerar_chaves_jwt.js` gera RSA-2048 em `services/core-service/keys/` (`jwt-private.pem` `0600`, `jwt-public.pem`). A pasta está no `.gitignore` (`services/*/keys/`) e no `.dockerignore` — é a única exceção à política de "segredo versionado por conveniência acadêmica" (ver Contexto). |
+| **Docker Compose (contingência)** | As mesmas chaves do dev, montadas em `/app/keys` como volume somente leitura — nunca dentro da imagem. O backend roda como `node` (uid 1000): a privada `0600` precisa pertencer ao uid 1000 do host. |
+| **Testes (`vitest`)** | Par efêmero gerado pelo `tests/setup/globalSetup.js` em `tests/setup/.tmp-jwt-keys/` (disco, não memória: o `globalSetup` roda em outro processo que os testes). Reaproveitado entre rodadas se `assertKeyPair` aprovar; regerado se estiver quebrado. Ignorado pelo git. |
+| **CI** (`.github/workflows/ci.yml`) | O mesmo `globalSetup` gera o par no caminho que as variáveis `JWT_*_PATH` do job indicam — sem *step* separado, sem chave estável entre execuções. |
+| **Cluster (k8s)** | Quem provisiona gera o par uma vez e cria o secret **depois do namespace** e **antes do backend**: `kubectl create secret generic jwt-rsa-keys --from-file=jwt-private.pem=keys/jwt-private.pem --from-file=jwt-public.pem=keys/jwt-public.pem -n hotel-system` (os nomes das chaves precisam ser exatamente esses — o `backend.yaml` monta `/app/keys/jwt-private.pem`). `scripts/infra_up.sh` e `./start.sh up` fazem isso sozinhos a partir de `services/core-service/keys/`, ou abortam com o comando se as chaves não existirem. Fora do `infra/k8s/secret.yaml` versionado. |
 
 **O que acontece com os tokens HS256 já emitidos:** nada de transição — a troca é um corte seco.
-Não há verificação dupla (aceitar HS256 *e* RS256 por um tempo): isso reintroduziria a superfície
-de *algorithm confusion* que a correção do CA-01.3.b elimina. Tokens HS256 emitidos antes do
+Não há verificação dupla (aceitar HS256 *e* RS256 por um tempo): o verificador precisaria manter o
+segredo simétrico vivo — justamente o que permite a qualquer detentor dele emitir token (CA-01.3.b).
+Tokens HS256 emitidos antes do
 deploy simplesmente falham na verificação (o *middleware* novo só entende RS256) — o usuário
 recebe `401` e faz login de novo. Como o token expira em 8h (`LoginController.js:51`), o efeito
 prático é: quem estava logado no momento do deploy relogicamente uma vez. Não é um caminho de
@@ -175,8 +185,11 @@ manter os dois algoritmos ativos é uma vulnerabilidade.
 - **Positivas:**
   - `tenant_id` deixa de ser forjável por qualquer serviço que só deveria verificar — fecha o
     CA-01.3.b, condição que a própria SPEC-01 já apontava como inatingível no esquema atual.
-  - A correção do `algorithms` fixo no `auth.middleware.js` remove uma vulnerabilidade de
-    *algorithm confusion* que existe **hoje**, antes mesmo de qualquer extração de serviço.
+  - O `algorithms: ['RS256']` fixo no `auth.middleware.js` restringe o contrato a um algoritmo
+    só, sem depender do *default* da biblioteca (defesa em profundidade — a 9.x já bloqueia o
+    *algorithm confusion* clássico).
+  - O servidor recusa subir sem um par de chaves válido (`assertKeyPair` no boot): chave ausente,
+    vazia, ilegível ou de outro par aparece no deploy, não no primeiro login.
   - Nenhum componente de infraestrutura novo para autenticação — nem *gateway*, nem *service
     mesh*, nem mTLS. A chamada `b2b → core` reaproveita um padrão (HMAC/segredo comparado com
     `timingSafeEqual`) já escrito, revisado e testado nesta mesma sessão para o webhook PIX.
@@ -203,24 +216,32 @@ manter os dois algoritmos ativos é uma vulnerabilidade.
   - *Rotação de chave no futuro quebrar todos os serviços de uma vez.* O `kid` no cabeçalho
     permite que o verificador mantenha as duas chaves (antiga e nova) por uma janela, escolhendo
     pela `kid` do token — não é implementado nesta proposta (não há necessidade de rotação hoje),
-    mas o campo já existe para quando precisar.
+    mas o campo já existe para quando precisar. Até lá, trocar a chave exige
+    `kubectl rollout restart deploy/backend` (a chave fica em cache na memória de cada pod) e
+    derruba todas as sessões — durante o *rollout*, pods velhos e novos convivem e o `401` é
+    intermitente até o fim.
 
 ---
 
-## O que fica para a fase 5b (implementação, só após aprovação)
+## Implementação (fase 5b) — o que foi feito e o que fica para depois
 
-1. `services/core-service/scripts/gerar_chaves_jwt.js` + `.gitignore` da pasta `keys/`.
-2. `LoginController.js` assina com a privada, `kid` no cabeçalho.
+Feito no `core-service` (branch `feat/jwt-rs256`):
+
+1. `scripts/gerar_chaves_jwt.js` — gera o par local; `services/*/keys/` no `.gitignore` e `keys/`
+   no `.dockerignore` (a privada nunca entra na imagem).
+2. `LoginController.js` assina com a privada, RS256, `kid` no cabeçalho.
 3. `auth.middleware.js` verifica com a pública, `algorithms: ['RS256']` fixo.
-4. Chaves de teste efêmeras no `globalSetup`.
-5. Testes: RS256 válido aceito; HS256 recusado; token assinado com outra chave recusado;
-   `tenant_id` adulterado recusado (os quatro casos que a delegação já pede).
-6. `B2B_SERVICE_TOKEN` — não implementável de verdade nesta fase: as rotas internas do
-   `core-service` só existem a partir da T-01.6 (extração do `b2b-service`). Fica documentado
-   aqui como decisão, implementado lá.
-7. RabbitMQ com credenciais separadas — implementável junto da T-01.4 (extração do
-   `analytics-service`), que é quando o publicador/consumidor passam a existir de verdade.
+4. `_web.js` recusa subir sem um par válido (`assertKeyPair`: legível, RSA e par de verdade).
+5. Chaves de teste efêmeras no `globalSetup`; testes: RS256 aceito; HS256 forjado com a chave
+   pública recusado; RS512/PS256 com a privada correta recusados (prova a trava); outra chave
+   recusada; `tenant_id` adulterado recusado.
+6. `docker-compose.yml`, `infra/k8s/` e `scripts/infra_up.sh`/`start.sh` ajustados para entregar o
+   par a cada ambiente (tabela acima).
 
-Itens 6 e 7 não têm código para escrever **agora** porque as rotas/filas que eles protegem ainda
-não existem — a decisão fica registrada para quando existirem, e o Documento 07 oficial (que
-`Weslley` mantém) já pode citar a ADR-006 como fechada mesmo com a implementação faseada.
+Fica para depois, porque o que protegem ainda não existe:
+
+- `B2B_SERVICE_TOKEN` (CA-01.3.c) — as rotas internas do `core-service` nascem na T-01.6.
+- RabbitMQ com credenciais separadas (CA-01.3.d) — o publicador/consumidor nascem na T-01.4.
+
+O Documento 07 oficial (do Weslley) já pode registrar a ADR-006 como **Aceita**, com a
+implementação faseada descrita acima.
