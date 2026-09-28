@@ -9,6 +9,12 @@ yarn.lock
 .env.*.local
 .env.test
 
+# Chaves JWT RS256 (ADR-006) — geradas por scripts/gerar_chaves_jwt.js,
+# nunca versionadas (é a única exceção à política de segredo versionado
+# por conveniência acadêmica — ver ADR-006-proposta.md)
+services/*/keys/
+.tmp-jwt-keys/
+
 # IDE
 .vscode/
 .idea/

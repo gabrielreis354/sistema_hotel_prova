@@ -54,7 +54,7 @@ diff --strip-trailing-cr <UniFAAT>/Projetos/gesway/02-requisitos-funcionais-nao-
 | **04** — MER | **Sirlande** | Entregue (PR #3) — cabeçalho v1.0, histórico até v1.1. **Marca `PRODUCTS` como 🔷, mas ele está implementado** | Versão sugerida v1.2 + motivos — corrige o `PRODUCTS` para ✅ | Sirlande avalia; aplicar significa nova entrega ao professor |
 | **05** — Arquitetura em nuvem | **Weslley** | Template em branco | Insumos (28/09) — partem da decisão dele de 16/09: AWS, k3s em EC2 | **Resolver antes de escrever** o conflito da fase `t3.small` com a regra absoluta de free-tier (`05-arquitetura-nuvem/INSUMOS.md` §1) |
 | **06** — C4 Model | **Weslley** | Template em branco | Insumos (28/09) | Weslley produz. Os nomes precisam bater com o Doc 03 |
-| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork** | ADR-006 em proposta, no PR #84 do repositório do hotel | Entrega em **ordem numérica**, no encontro do Doc 07. A tabela da ADR-003 está **correta** quanto ao `PRODUCTS` — não alterar |
+| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork** | Proposta de **ADR-006** (propagação de identidade entre serviços, T-01.3) + motivos — **aprovada pelo Gabriel em 24/09 e implementada no core** (PR #84 do repositório do hotel) | Weslley formaliza a ADR-006 no documento oficial. Entrega em **ordem numérica**, no encontro do Doc 07. A tabela da ADR-003 está **correta** quanto ao `PRODUCTS` — não alterar |
 
 ---
 

@@ -198,18 +198,20 @@ Protocolos decididos no ADR-003. Faltam os contratos e os números de falha.
 
 ---
 
-### T-01.3 — Definir autenticação entre serviços 🔲
+### T-01.3 — Definir autenticação entre serviços 🟡 (a e b implementados no core; c e d decididos, implementação na T-01.6/T-01.4; e aguarda formalização)
 
 **DEP:** T-01.1 ✅
 
 Hoje o JWT é validado por *middleware* local (`services/core-service/middlewares/auth.middleware.js`), com `tenant_id` extraído do *payload*. Com serviços separados, é preciso decidir como a identidade e o tenant se propagam.
 
 **Critérios de aceitação**
-- [ ] **CA-01.3.a** — Estratégia definida: cada serviço valida o JWT, ou existe *gateway* que valida e propaga
-- [ ] **CA-01.3.b** — `tenant_id` continua sendo obrigatório e impossível de forjar em todos os serviços
-- [ ] **CA-01.3.c** — Chamada serviço-a-serviço (sem usuário) tem mecanismo próprio de autenticação
-- [ ] **CA-01.3.d** — Credenciais do RabbitMQ separadas por serviço: o core só publica, o analytics só consome
-- [ ] **CA-01.3.e** — Decisão registrada como **ADR-006**
+- [x] **CA-01.3.a** — Estratégia definida: cada serviço valida o JWT, ou existe *gateway* que valida e propaga *(validação local, RS256 — implementado no `core-service`, branch `feat/jwt-rs256`)*
+- [x] **CA-01.3.b** — `tenant_id` continua sendo obrigatório e impossível de forjar em todos os serviços *(só o `core-service` tem a chave privada; os demais só verificam com a pública. `algorithms: ['RS256']` fixo como defesa em profundidade — o `jsonwebtoken` 9.x já bloqueia o* algorithm confusion *clássico; testes provam a trava e a recusa de `tenant_id` adulterado)*
+- [ ] **CA-01.3.c** — Chamada serviço-a-serviço (sem usuário) tem mecanismo próprio de autenticação *(decidido: credencial estática por cabeçalho, mesmo padrão do webhook PIX/T-06.9 — implementação na T-01.6, quando as rotas internas existirem)*
+- [ ] **CA-01.3.d** — Credenciais do RabbitMQ separadas por serviço: o core só publica, o analytics só consome *(decidido: dois usuários com `set_permissions` write-only/read-only — implementação na T-01.4, quando publicador e consumidor existirem)*
+- [ ] **CA-01.3.e** — Decisão registrada como **ADR-006** *(proposta aprovada pelo Gabriel em 24/09 — `docs/sugestoes-documentos-oficiais/07-adr/ADR-006-proposta.md`; falta o Weslley formalizar no Documento 07 oficial)*
+
+> Auditoria da implementação: `docs/qa/redteam_jwt-rs256_27set2026.md` — APROVADO COM RESSALVAS, 0 🔴; ressalvas tratadas na própria branch. *Correção de 27/09:* a versão anterior deste item dizia que o middleware tinha uma vulnerabilidade de* algorithm confusion *ativa — não procede para o `jsonwebtoken` 9.x instalado (achado 🟡-3 da auditoria).
 
 > **Achado da pesquisa de 14/09 — o CA-01.3.b não é atingível com o esquema atual.** O token usa HS256 com um único `JWT_SECRET`. Distribuído a três serviços, qualquer um deles passa a poder **emitir** token válido de qualquer tenant. A candidata natural é **RS256**: o core assina com chave privada, os demais só verificam com a pública.
 >

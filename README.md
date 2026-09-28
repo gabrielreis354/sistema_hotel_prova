@@ -108,12 +108,38 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 | Variável | Valor padrão (acadêmico) |
 |---|---|
 | `POSTGRES_PASSWORD` | `hotel_password` |
-| `JWT_SECRET` | `pms_hotel_secreto_academico_2026` |
 | `PIX_WEBHOOK_SECRET` | `pms_hotel_pix_webhook_secreto_academico_2026` |
 
 > Em produção, substitua os valores do `secret.yaml` por credenciais reais e **nunca commite o arquivo com senhas reais**. Para este projeto acadêmico os valores estão no repositório para facilitar a avaliação.
 
-Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `infra/k8s/`.
+**JWT (RS256, ADR-006/T-01.3) é a exceção — não vai no `secret.yaml` versionado.** O
+backend assina o token com uma chave privada RSA e verifica com a pública; versionar a
+privada anularia o motivo de ter saído do HS256. O secret `jwt-rsa-keys` precisa existir
+**antes** do backend subir (sem ele, os pods ficam em `ContainerCreating`):
+
+```bash
+node services/core-service/scripts/gerar_chaves_jwt.js   # uma vez por ambiente
+```
+
+`scripts/infra_up.sh` e `./start.sh up` criam o secret sozinhos a partir de
+`services/core-service/keys/` (via `scripts/k8s_garantir_secret_jwt.sh`) — ou abortam com o
+comando acima, se as chaves não existirem. Aplicando os manifests à mão, crie o namespace
+**primeiro** (num cluster novo ele ainda não existe) e o secret depois:
+
+```bash
+kubectl apply -f infra/k8s/namespace.yaml
+kubectl create secret generic jwt-rsa-keys \
+  --from-file=jwt-private.pem=services/core-service/keys/jwt-private.pem \
+  --from-file=jwt-public.pem=services/core-service/keys/jwt-public.pem \
+  -n hotel-system
+kubectl apply -k infra/k8s/
+```
+
+> **Trocar a chave** exige recriar o secret e `kubectl rollout restart deploy/backend` — cada pod
+> guarda a chave em memória. Todas as sessões caem (os tokens antigos deixam de valer), e durante o
+> *rollout* pods velhos e novos convivem: `401` intermitente até ele terminar.
+
+Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `infra/k8s/`, mais o secret `jwt-rsa-keys` acima.
 
 ---
 
@@ -262,14 +288,29 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 
 ```bash
 cp .env.example .env
-# edite o .env: JWT_SECRET é obrigatório (o compose recusa subir sem ele).
+# edite o .env: PIX_WEBHOOK_SECRET é obrigatório (o compose recusa subir sem ele).
 # Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
 # no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
+node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006), uma vez só
 docker compose up -d --build
 docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
 docker compose exec backend node command.js migrate
 docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional — dados de demonstração
 ```
+
+> As chaves do JWT **não entram na imagem** (`keys/` está no `.dockerignore`): o compose monta
+> `services/core-service/keys/` no container, somente leitura. Esqueceu de gerar? O backend
+> **recusa subir** e fica em `Restarting` no `docker compose ps` — o motivo aparece em
+> `docker compose logs backend`. Melhor descobrir aqui do que no primeiro login da defesa.
+>
+> Duas armadilhas de permissão, as duas com mensagem clara:
+> - **Gere as chaves antes do primeiro `up`.** Se o compose subir antes, o Docker cria
+>   `services/core-service/keys/` como `root`, e o script de geração não consegue mais gravar — ele
+>   mesmo mostra o `sudo rm -rf` para resolver.
+> - O backend roda como o usuário `node` (**uid 1000**) e a chave privada é `0600`. No Linux, ela
+>   precisa pertencer ao uid 1000 do host — o primeiro usuário no WSL e na maioria das distros. Com
+>   outro uid, o backend recusa subir (`EACCES` no log): rode `sudo chown 1000
+>   services/core-service/keys/*.pem`.
 
 > `seed` recusa rodar sem `ALLOW_SEED=1` quando `NODE_ENV=production` (o default deste compose) —
 > ele cria usuários com senha conhecida (`senha123`), então só roda com confirmação explícita.
@@ -289,6 +330,16 @@ Resposta esperada:
 
 Documentação da API: **http://localhost/api-docs** · UI de gestão do RabbitMQ (só inspeção
 local): **http://localhost:15672**.
+
+Para **confirmar um pagamento PIX** na demonstração (o webhook exige assinatura HMAC — T-06.9 —,
+então chamar a rota à mão dá `401`), use o script que assina como o PSP faria. Ele roda dentro
+do container, onde o compose já injetou o `PIX_WEBHOOK_SECRET`:
+
+```bash
+docker compose exec backend node scripts/simular_pagamento_pix.js <provider_charge_id>
+```
+
+O `provider_charge_id` vem na resposta de `POST /public/<subdomínio>/bookings`.
 
 > `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
 > não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.
@@ -379,9 +430,10 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `JWT_SECRET` e `PIX_WEBHOOK_SECRET` |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD` e `PIX_WEBHOOK_SECRET` (versionado, valor placeholder acadêmico) |
+| Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, criado manualmente por ambiente (comando na seção anterior) |
 
-Os Pods leem essas variáveis via `envFrom` (ConfigMap) e `env.valueFrom.secretKeyRef` (Secret). Nenhuma credencial está hardcoded nas imagens.
+Os Pods leem essas variáveis via `envFrom` (ConfigMap), `env.valueFrom.secretKeyRef` (Secret `hotel-secret`) e um volume montado a partir do Secret `jwt-rsa-keys`. Nenhuma credencial está hardcoded nas imagens.
 
 ### Otimização da imagem Docker (Multi-stage Build)
 
@@ -601,7 +653,7 @@ sistema_gestao_hotel/
 │       ├── kustomization.yaml      #   Ponto de entrada (kubectl apply -k infra/k8s/)
 │       ├── namespace.yaml          #   Namespace hotel-system
 │       ├── configmap.yaml          #   Variáveis de ambiente não sensíveis
-│       ├── secret.yaml             #   Credenciais (POSTGRES_PASSWORD, JWT_SECRET)
+│       ├── secret.yaml             #   Credenciais (POSTGRES_PASSWORD, PIX_WEBHOOK_SECRET)
 │       ├── postgres.yaml           #   PVC + Deployment + Service do PostgreSQL
 │       ├── backend.yaml            #   Deployment (3 réplicas) + Service do Node.js
 │       ├── nginx.yaml              #   ConfigMap nginx + Deployment + Service LoadBalancer
