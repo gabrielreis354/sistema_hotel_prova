@@ -185,16 +185,41 @@ fundamento declarado não está no repositório dele.
 
 ---
 
-## Um acerto do Sirlande que virou tarefa nossa
+## `PRODUCTS` — corrigido em 28/09: está implementado, e a ADR-003 estava certa
 
-Ele marcou **PRODUCTS como 🔷**, com a justificativa "conforme o Doc. 04" — e está certo.
+> ⚠️ **A versão desta seção publicada em 21/09 estava errada.** Ela concluía que o Doc 03 acertou
+> ao marcar `PRODUCTS` como 🔷 e que a ADR-003 precisava ser corrigida. É o contrário. A conclusão
+> foi tirada comparando documentos entre si, sem conferir o código — exatamente o que este
+> arquivo recomenda não fazer.
 
-A inconsistência é no **Documento 07**: a tabela de decisão da ADR-003 lista
-`PRODUCTS` sem marcador, enquanto `ACCOUNTS 🔷` e `ACCOUNT_ITEMS 🔷` têm. O índice do Doc 04
-(§1.3, linha 4.10) é claro: **PRODUCTS é 🔷 Planejado**.
+**O que o código mostra** (`develop`, conferido em 28/09/2026):
 
-**Ação:** corrigir a tabela da ADR-003 no Doc 07 antes de entregar. O Doc 07 é do Weslley; a
-ADR-003 foi redigida pelo Gabriel, então o ajuste é nosso, não dele.
+| Evidência | Onde |
+|---|---|
+| Model | `services/core-service/app/Models/ProductModel.js` |
+| Controllers | `services/core-service/app/Controllers/ProductApi/` |
+| Rota montada | `services/core-service/routes/router.js:76` → `/products` |
+| Tabela | `services/core-service/db/schema.sql:201` |
+| Testes | `services/core-service/tests/products.test.js` |
+
+`PRODUCTS` está **implementado**. `ACCOUNTS` e `ACCOUNT_ITEMS`, não.
+
+**Quem está desatualizado é o Documento 04 v1.1**, entregue ao professor, que rebaixou
+`PRODUCTS` para 🔷 Planejado. A própria nota de versão dele registra o motivo: a checagem foi
+feita *"contra o repositório de implementação"* numa cópia que ainda não tinha a tabela. A
+versão sugerida `04-mer/versao-sugerida_v1.2.md` desta pasta **já corrige** isso para ✅, desde
+14/09.
+
+**Consequências:**
+
+- **Documento 07 — nada a fazer.** A tabela da ADR-003 lista `PRODUCTS` sem marcador e
+  `ACCOUNTS 🔷`, `ACCOUNT_ITEMS 🔷`. Está correta.
+- **Documento 03** — herdou o 🔷 do Doc 04 nas §4 e §7, e a versão sugerida v1.1 que eu
+  escrevi também o carregou. A v1.2 está no PR #15 do repositório do professor, **ainda aberto**.
+  Decisão do Sirlande: retirar o 🔷 do `PRODUCTS` agora, enquanto o PR está aberto, ou manter a
+  coerência com o Doc 04 entregue até a reentrega do MER.
+- **Documento 04** — a raiz. A correção existe como sugestão e depende de reunião com o
+  professor, por ser documento entregue.
 
 ---
 

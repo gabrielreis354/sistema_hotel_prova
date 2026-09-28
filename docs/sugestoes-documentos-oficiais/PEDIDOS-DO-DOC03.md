@@ -57,3 +57,23 @@ com o título `[Gesway] - Entrega 3 - Diagrama de Fluxo de Dados (DFD)`.
 
 Continua valendo o pedido que já estava registrado: `PRODUCTS` como 🔷 na tabela da ADR-003
 (Doc 07), conforme o Doc 04 §1.3.
+
+---
+
+## Decisões do Gabriel — 28/09/2026
+
+| # | Pedido | Decisão | Onde foi aplicado |
+|---|---|---|---|
+| 1 | RNF-023 — PDF de orçamento | **O código muda; o requisito fica.** O orçamento passa a ser persistido, igual ao contrato, e só orçamento `SENT` pode ser editado | Etapa D de `docs/delegacoes/rodada2_gabriel_28set2026.md` |
+| 2 | RF-045 → `b2b-service` | **Aceito** | `02-requisitos/versao-sugerida_v1.4.md` |
+| 3 | Ordem numérica de entrega | **Aceito** — a nota de referência da v1.2 é melhor que a nota de dependência que eu havia proposto | `README.md` desta pasta, linhas do 02, 03, 04 e 07 |
+| — | `PRODUCTS` como 🔷 na ADR-003 | **Recusado.** `PRODUCTS` está implementado (`ProductModel.js`, `ProductApi/`, `/products`, `schema.sql:201`, `products.test.js`). A ADR-003 está correta; quem está desatualizado é o Doc 04 v1.1 entregue | `03-dfd/MOTIVOS.md`, seção "`PRODUCTS` — corrigido em 28/09" |
+
+**Sobre o `PRODUCTS`:** a revisão de 21/09 havia endossado este pedido sem conferir o código. O
+erro foi da revisão, não do Doc 03 — que seguiu corretamente o Doc 04 entregue.
+
+**Pendente com o Sirlande:** retirar ou não o 🔷 do `PRODUCTS` no Doc 03 enquanto o PR #15 do
+repositório do professor está aberto. E, depois da etapa D, atualizar a §7 (D-005) e o F-013
+quanto ao PDF de orçamento.
+
+Resposta completa no comentário do PR #85.
