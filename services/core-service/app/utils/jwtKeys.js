@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { createPrivateKey, createPublicKey, sign, verify } from 'crypto';
 
 /**
  * Carrega o par de chaves RS256 do JWT (ADR-006).
@@ -30,7 +31,11 @@ function readKey(envVar, defaultRelativePath, label) {
         );
     }
 
-    return fs.readFileSync(keyPath, 'utf8');
+    const conteudo = fs.readFileSync(keyPath, 'utf8');
+    if (conteudo.trim() === '') {
+        throw new Error(`${label} em ${keyPath} está vazia. Gere o par de novo com "node scripts/gerar_chaves_jwt.js --force".`);
+    }
+    return conteudo;
 }
 
 export function getPrivateKey() {
@@ -56,9 +61,36 @@ export function getKeyId() {
     return process.env.JWT_KEY_ID || 'core-v1';
 }
 
-// Só para teste: permite forçar um novo carregamento depois de trocar os arquivos
-// de chave em disco (globalSetup gera chaves efêmeras antes da suíte rodar).
-export function resetKeyCache() {
-    cachedPrivateKey = null;
-    cachedPublicKey = null;
+/**
+ * Confere que as duas chaves são PEM legíveis E formam um par — assina uma prova com a
+ * privada e verifica com a pública. Chamado no boot (_web.js): sem isto, o fail-fast só
+ * conferia se o ARQUIVO existia, e chave vazia, lixo ou par trocado (secret recriado pela
+ * metade) subiam "healthy" — login dava 500 e toda rota protegida 401, sem log nenhum
+ * (achado 🟡-5 da auditoria de 27/09). Função pura: recebe o conteúdo, não lê arquivo.
+ */
+export function assertKeyPair(privatePem, publicPem) {
+    let privateKey;
+    let publicKey;
+    try {
+        privateKey = createPrivateKey(privatePem);
+    } catch {
+        throw new Error('Chave privada do JWT inválida — não é uma chave PEM legível.');
+    }
+    try {
+        publicKey = createPublicKey(publicPem);
+    } catch {
+        throw new Error('Chave pública do JWT inválida — não é uma chave PEM legível.');
+    }
+    if (privateKey.asymmetricKeyType !== 'rsa') {
+        throw new Error(`Chave privada do JWT é ${privateKey.asymmetricKeyType}, mas RS256 exige RSA.`);
+    }
+
+    const prova = Buffer.from('gesway-jwt-keypair-check');
+    const assinatura = sign('sha256', prova, privateKey);
+    if (!verify('sha256', prova, publicKey, assinatura)) {
+        throw new Error(
+            'Chave privada e pública do JWT não formam um par — provavelmente uma delas foi ' +
+            'regerada sem a outra. Gere o par de novo e atualize os dois arquivos juntos.'
+        );
+    }
 }
