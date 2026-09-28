@@ -49,10 +49,10 @@ diff --strip-trailing-cr <UniFAAT>/Projetos/gesway/02-requisitos-funcionais-nao-
 | Documento | Dono | Versão oficial | O que há aqui | Próximo passo |
 |---|---|---|---|---|
 | **01** — Solicitação do sistema | **Gabriel** | Entregue (PR #3) | — | — |
-| **02** — Requisitos | **Gabriel** | **v1.3 — entregue ao professor** | Versão sugerida v1.4 + motivos — **em revisão** | Conferir a cobertura integral dos critérios de aceite; só com certeza absoluta, reunião com o professor |
-| **03** — DFD | **Sirlande** | **v1.0 no fork — ainda não entregue** (`upstream` tem o modelo em branco) | Insumos + versão sugerida v1.1 com as correções de fluxo + motivos | Sirlande aplica; sem reunião, porque nada foi entregue ainda |
-| **04** — MER | **Sirlande** | Entregue (PR #3) — cabeçalho v1.0, histórico até v1.1 | Versão sugerida v1.2 + motivos | Sirlande avalia; aplicar significa nova entrega ao professor |
-| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork** | — | Corrigir `PRODUCTS` para 🔷 na tabela da ADR-003, conforme o Doc 04 §1.3; entregar **antes** do Doc 03, que o cita como fundamento |
+| **02** — Requisitos | **Gabriel** | **v1.3 — entregue ao professor** | Versão sugerida v1.4 + motivos — **em revisão**. Em 28/09: RF-045 realinhado para `b2b-service`; RNF-023 mantido, e o código passa a cumpri-lo | Conferir a cobertura integral dos critérios de aceite; só com certeza absoluta, reunião com o professor |
+| **03** — DFD | **Sirlande** | **v1.2 — em entrega**: PR #15 no repositório do professor, `[Gesway] - Entrega 4`, aberto | Insumos + versão sugerida v1.1 (aplicada e superada pela v1.2) + motivos | Sirlande decide o `PRODUCTS` 🔷 enquanto o PR está aberto (ver `03-dfd/MOTIVOS.md`). Depois do RNF-023 no código, a §7 (D-005) fica desatualizada quanto ao PDF de orçamento |
+| **04** — MER | **Sirlande** | Entregue (PR #3) — cabeçalho v1.0, histórico até v1.1. **Marca `PRODUCTS` como 🔷, mas ele está implementado** | Versão sugerida v1.2 + motivos — corrige o `PRODUCTS` para ✅ | Sirlande avalia; aplicar significa nova entrega ao professor |
+| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork** | ADR-006 em proposta, no PR #84 do repositório do hotel | Entrega em **ordem numérica**, no encontro do Doc 07. A tabela da ADR-003 está **correta** quanto ao `PRODUCTS` — não alterar |
 
 ---
 
