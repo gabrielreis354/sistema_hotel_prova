@@ -11,7 +11,7 @@
 // Nunca versionar a saída: services/core-service/keys/ está no .gitignore.
 
 import { generateKeyPairSync } from 'crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -28,16 +28,31 @@ if (!force && (existsSync(privatePath) || existsSync(publicPath))) {
     process.exit(1);
 }
 
-mkdirSync(keysDir, { recursive: true });
-
 const { publicKey, privateKey } = generateKeyPairSync('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: { type: 'spki', format: 'pem' },
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
 });
 
-writeFileSync(privatePath, privateKey, { mode: 0o600 });
-writeFileSync(publicPath, publicKey, { mode: 0o644 });
+try {
+    mkdirSync(keysDir, { recursive: true });
+    writeFileSync(privatePath, privateKey, { mode: 0o600 });
+    writeFileSync(publicPath, publicKey, { mode: 0o644 });
+    // O `mode` do writeFileSync só vale na CRIAÇÃO — com --force sobre um arquivo que já
+    // existia, a permissão antiga ficava. chmod explícito garante 0600 na privada sempre.
+    chmodSync(privatePath, 0o600);
+    chmodSync(publicPath, 0o644);
+} catch (error) {
+    if (error.code === 'EACCES' || error.code === 'EPERM') {
+        // Caso típico: `docker compose up` rodou ANTES deste script — o Docker cria a pasta
+        // do volume (keys/) como root, e o usuário comum não consegue mais gravar nela.
+        console.error(`❌ Sem permissão para gravar em ${keysDir}.`);
+        console.error('   Se o docker compose subiu antes de gerar as chaves, o Docker criou a pasta como root.');
+        console.error(`   Remova e gere de novo:  sudo rm -rf "${keysDir}" && node "${fileURLToPath(import.meta.url)}"`);
+        process.exit(1);
+    }
+    throw error;
+}
 
 console.log(`✅ Par de chaves RS256 gerado em ${keysDir}`);
 console.log('   jwt-private.pem — NUNCA versionar, NUNCA compartilhar fora do core-service');
