@@ -114,17 +114,30 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 
 **JWT (RS256, ADR-006/T-01.3) é a exceção — não vai no `secret.yaml` versionado.** O
 backend assina o token com uma chave privada RSA e verifica com a pública; versionar a
-privada anularia o motivo de ter saído do HS256. Antes de aplicar `infra/k8s/backend.yaml`,
-crie o secret `jwt-rsa-keys` manualmente, uma vez por ambiente:
+privada anularia o motivo de ter saído do HS256. O secret `jwt-rsa-keys` precisa existir
+**antes** do backend subir (sem ele, os pods ficam em `ContainerCreating`):
 
 ```bash
-cd services/core-service
-node scripts/gerar_chaves_jwt.js
-kubectl create secret generic jwt-rsa-keys \
-  --from-file=jwt-private.pem=keys/jwt-private.pem \
-  --from-file=jwt-public.pem=keys/jwt-public.pem \
-  -n hotel-system
+node services/core-service/scripts/gerar_chaves_jwt.js   # uma vez por ambiente
 ```
+
+`scripts/infra_up.sh` e `./start.sh up` criam o secret sozinhos a partir de
+`services/core-service/keys/` (via `scripts/k8s_garantir_secret_jwt.sh`) — ou abortam com o
+comando acima, se as chaves não existirem. Aplicando os manifests à mão, crie o namespace
+**primeiro** (num cluster novo ele ainda não existe) e o secret depois:
+
+```bash
+kubectl apply -f infra/k8s/namespace.yaml
+kubectl create secret generic jwt-rsa-keys \
+  --from-file=jwt-private.pem=services/core-service/keys/jwt-private.pem \
+  --from-file=jwt-public.pem=services/core-service/keys/jwt-public.pem \
+  -n hotel-system
+kubectl apply -k infra/k8s/
+```
+
+> **Trocar a chave** exige recriar o secret e `kubectl rollout restart deploy/backend` — cada pod
+> guarda a chave em memória. Todas as sessões caem (os tokens antigos deixam de valer), e durante o
+> *rollout* pods velhos e novos convivem: `401` intermitente até ele terminar.
 
 Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `infra/k8s/`, mais o secret `jwt-rsa-keys` acima.
 
@@ -289,6 +302,15 @@ docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional �
 > `services/core-service/keys/` no container, somente leitura. Esqueceu de gerar? O backend
 > **recusa subir** e fica em `Restarting` no `docker compose ps` — o motivo aparece em
 > `docker compose logs backend`. Melhor descobrir aqui do que no primeiro login da defesa.
+>
+> Duas armadilhas de permissão, as duas com mensagem clara:
+> - **Gere as chaves antes do primeiro `up`.** Se o compose subir antes, o Docker cria
+>   `services/core-service/keys/` como `root`, e o script de geração não consegue mais gravar — ele
+>   mesmo mostra o `sudo rm -rf` para resolver.
+> - O backend roda como o usuário `node` (**uid 1000**) e a chave privada é `0600`. No Linux, ela
+>   precisa pertencer ao uid 1000 do host — o primeiro usuário no WSL e na maioria das distros. Com
+>   outro uid, o backend recusa subir (`EACCES` no log): rode `sudo chown 1000
+>   services/core-service/keys/*.pem`.
 
 > `seed` recusa rodar sem `ALLOW_SEED=1` quando `NODE_ENV=production` (o default deste compose) —
 > ele cria usuários com senha conhecida (`senha123`), então só roda com confirmação explícita.
