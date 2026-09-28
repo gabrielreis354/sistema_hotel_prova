@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { generateKeyPairSync } from 'crypto';
+import { generateKeyPairSync, createHmac } from 'crypto';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
-import { getPublicKey, getKeyId } from '../app/utils/jwtKeys.js';
+import { getPrivateKey, getPublicKey, getKeyId } from '../app/utils/jwtKeys.js';
 
 const app = createApp();
 
@@ -210,6 +210,24 @@ describe('JWT em RS256 (ADR-006 / T-01.3)', () => {
     // Payload de referência — mesmo formato que LoginController.js assina.
     const payload = { userId: 'user-fake-id', role: 'ADMIN', tenantId: 'tenant-fake-id' };
 
+    // Mensagem que SÓ o auth.middleware emite. Checar só o status 401 não basta: o
+    // tenant.middleware também devolve 401 ("Tenant não encontrado") para um tenantId que
+    // não existe — um teste de recusa poderia passar pela camada errada (achado ao testar
+    // por mutação em 27/09: removendo a trava de algoritmo, os testes continuavam verdes).
+    const RECUSA_DO_AUTH = 'Token inválido ou expirado';
+
+    // Payload de um usuário REAL (tenant existe e está ativo): com ele, só a verificação do
+    // token decide o resultado — sem a trava de algoritmo, a requisição chegaria em 200.
+    let payloadReal;
+    beforeAll(async () => {
+        await request(app).post('/auth/register').send({
+            tenantName: 'Hotel Payload Real', name: 'Admin', email: 'admin@payloadreal.com', password: 'senha123',
+        });
+        const login = await request(app).post('/auth/login').send({ email: 'admin@payloadreal.com', password: 'senha123' });
+        const { userId, role, tenantId } = jwt.decode(login.body.token);
+        payloadReal = { userId, role, tenantId };
+    });
+
     it('o token emitido pelo login é RS256, com kid no cabeçalho', async () => {
         const reg = await request(app).post('/auth/register').send({
             tenantName: 'Hotel RS256', name: 'Admin RS256', email: 'admin@rs256.com', password: 'senha123',
@@ -222,15 +240,40 @@ describe('JWT em RS256 (ADR-006 / T-01.3)', () => {
         void reg;
     });
 
-    it('rejeita token HS256, mesmo com um payload plausível (algorithm confusion)', async () => {
-        // Se o middleware não fixasse `algorithms: ['RS256']`, um token assinado com
-        // QUALQUER string como segredo HS256 — inclusive a própria chave pública, que
-        // não é secreta — passaria pela verificação. É a vulnerabilidade que a ADR-006
-        // existe para fechar.
-        const forjado = jwt.sign(payload, 'qualquer-segredo-nem-precisa-ser-a-chave-publica', { algorithm: 'HS256' });
+    it('rejeita token HS256 assinado com a chave PÚBLICA como segredo HMAC (algorithm confusion)', async () => {
+        // O ataque clássico contra RS256: a chave pública não é secreta, então o atacante
+        // a usa como segredo HMAC e declara `alg: HS256`. Montado à mão (sem jwt.sign),
+        // para não depender de o jsonwebtoken aceitar ou não esse uso na assinatura.
+        const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+        const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(payload)}`;
+        const signature = createHmac('sha256', getPublicKey()).update(unsigned).digest('base64url');
 
-        const res = await request(app).get('/rooms').set('Authorization', `Bearer ${forjado}`);
+        const res = await request(app).get('/rooms').set('Authorization', `Bearer ${unsigned}.${signature}`);
         expect(res.status).toBe(401);
+        expect(res.body.error).toBe(RECUSA_DO_AUTH);
+    });
+
+    it.each(['RS512', 'PS256'])(
+        'rejeita token %s assinado com a chave privada CORRETA — só RS256 é aceito',
+        async (algorithm) => {
+            // Este é o teste que prova o `algorithms: ['RS256']` do middleware. Sem a trava,
+            // o jsonwebtoken 9.x deriva a lista do tipo da chave (RSA → RS256/384/512 e
+            // PS256/384/512) e aceitaria este token: a assinatura é válida. Não é
+            // falsificação (exige a privada), mas o contrato é um algoritmo só — e o
+            // verificador não pode depender do default da biblioteca.
+            const token = jwt.sign(payloadReal, getPrivateKey(), { algorithm });
+
+            const res = await request(app).get('/rooms').set('Authorization', `Bearer ${token}`);
+            expect(res.status).toBe(401);
+            expect(res.body.error).toBe(RECUSA_DO_AUTH);
+        }
+    );
+
+    it('controle positivo: o MESMO payload real, em RS256, passa — a recusa acima é pelo algoritmo', async () => {
+        const token = jwt.sign(payloadReal, getPrivateKey(), { algorithm: 'RS256', keyid: getKeyId() });
+
+        const res = await request(app).get('/rooms').set('Authorization', `Bearer ${token}`);
+        expect(res.status).toBe(200);
     });
 
     it('rejeita token RS256 assinado com uma chave privada diferente da do core', async () => {
@@ -239,6 +282,7 @@ describe('JWT em RS256 (ADR-006 / T-01.3)', () => {
 
         const res = await request(app).get('/rooms').set('Authorization', `Bearer ${forjado}`);
         expect(res.status).toBe(401);
+        expect(res.body.error).toBe(RECUSA_DO_AUTH);
     });
 
     it('rejeita token com tenant_id adulterado depois de assinado', async () => {
@@ -256,6 +300,7 @@ describe('JWT em RS256 (ADR-006 / T-01.3)', () => {
 
         const res = await request(app).get('/rooms').set('Authorization', `Bearer ${tokenAdulterado}`);
         expect(res.status).toBe(401);
+        expect(res.body.error).toBe(RECUSA_DO_AUTH);
         void reg;
     });
 
