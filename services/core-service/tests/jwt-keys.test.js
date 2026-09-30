@@ -43,6 +43,14 @@ describe('assertKeyPair', () => {
         expect(() => assertKeyPair(ec, publicKey)).toThrow(/privada/i);
     });
 
+    it('recusa a chave PRIVADA no lugar da pública — o verificador ganharia poder de assinar', () => {
+        // O jsonwebtoken aceita verificar com a privada (deriva a pública dela). Num serviço que só
+        // verifica (T-01.4/T-01.6), receber o arquivo errado daria a ele a capacidade de emitir
+        // token — o CA-01.3.b cairia sem sinal nenhum. Achado 🟢-4 da auditoria de 30/09.
+        const { privateKey } = par();
+        expect(() => assertKeyPair(privateKey, privateKey)).toThrow(/pública.*privada/i);
+    });
+
     it('recusa par trocado (pública de outro par) — secret recriado pela metade', () => {
         const a = par();
         const b = par();

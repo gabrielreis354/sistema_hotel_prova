@@ -70,6 +70,13 @@ export function getKeyId() {
  * Função pura: recebe o conteúdo, não lê arquivo.
  */
 export function assertKeyPair(privatePem, publicPem) {
+    // O jsonwebtoken verifica até com a privada (deriva a pública dela) — a assinatura abaixo
+    // passaria. Mas quem recebe a privada no lugar da pública ganha poder de EMITIR token: num
+    // serviço que só verifica, o CA-01.3.b cairia sem sinal nenhum.
+    if (/PRIVATE KEY/.test(publicPem)) {
+        throw new Error('O arquivo da chave pública do JWT contém uma chave PRIVADA — monte só a jwt-public.pem.');
+    }
+
     let token;
     try {
         token = jwt.sign({ prova: 'boot' }, privatePem, { algorithm: 'RS256', expiresIn: 60 });
