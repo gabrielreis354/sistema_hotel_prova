@@ -91,8 +91,9 @@ spec:
         - name: jwt-rsa-keys
           secret:
             secretName: jwt-rsa-keys
-            # Só leitura, só dono e grupo (com o fsGroup acima: r--r----- root:1000).
-            # O padrão 0644 deixaria a privada legível por qualquer processo do container.
+            # Efetivo com o fsGroup acima: r--r----- root:1000. Tira a leitura de "outros"
+            # (o padrão é 0644). Não isola a chave de outros processos do próprio container:
+            # todos rodam como uid/gid 1000 — o isolamento real é a imagem ter um processo só.
             defaultMode: 0400
       terminationGracePeriodSeconds: 60
 ---

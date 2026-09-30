@@ -161,9 +161,11 @@ Alternativas → Consequências).
 ## Como as chaves chegam a cada ambiente, sem versionar a privada
 
 A chave **privada** é o único artefato sensível. A **pública** é pública por definição: para
-os serviços que só verificam (`b2b-service`, `analytics-service`), pode ir num ConfigMap
-versionado, como qualquer outra configuração. O `core-service` recebe as duas pelo mesmo secret
-porque assina e verifica.
+os serviços que só verificam (`b2b-service`, `analytics-service`), pode ir num **ConfigMap**, sem
+tratamento de segredo. Como o par é gerado **por ambiente**, esse ConfigMap também é criado por
+ambiente, a partir da `jwt-public.pem` daquele ambiente — **não versionado**: uma pública no
+repositório só bateria com a privada de um ambiente, e nos outros os verificadores recusariam
+todo token com `401`. O `core-service` recebe as duas pelo mesmo secret porque assina e verifica.
 
 | Ambiente | Como a chave chega |
 |---|---|
@@ -171,8 +173,8 @@ porque assina e verifica.
 | **Docker Compose (contingência)** | As mesmas chaves do dev, montadas em `/app/keys` como volume somente leitura — nunca dentro da imagem. O backend roda como `node` (uid 1000): a privada `0600` precisa pertencer ao uid 1000 do host. |
 | **Testes (`vitest`)** | Par efêmero gerado pelo `tests/setup/globalSetup.js` em `tests/setup/.tmp-jwt-keys/` (disco, não memória: o `globalSetup` roda em outro processo que os testes). Reaproveitado entre rodadas se `assertKeyPair` aprovar; regerado se estiver quebrado. Ignorado pelo git. |
 | **CI** (`.github/workflows/ci.yml`) | O mesmo `globalSetup` gera o par no caminho que as variáveis `JWT_*_PATH` do job indicam — sem *step* separado, sem chave estável entre execuções. |
-| **Cluster (k8s)** | Quem provisiona gera o par uma vez e cria o secret **depois do namespace** e **antes do backend**: `kubectl create secret generic jwt-rsa-keys --from-file=jwt-private.pem=keys/jwt-private.pem --from-file=jwt-public.pem=keys/jwt-public.pem -n hotel-system` (os nomes das chaves precisam ser exatamente esses — o `backend.yaml` monta `/app/keys/jwt-private.pem`). `scripts/infra_up.sh` e `./start.sh up` fazem isso sozinhos a partir de `services/core-service/keys/`, ou abortam com o comando se as chaves não existirem. Fora do `infra/k8s/secret.yaml` versionado; montado com `defaultMode: 0400` — só o dono do arquivo lê a privada. |
-| **Serviços que só verificam** (T-01.4, T-01.6) | Só a chave pública, por ConfigMap versionado — sem passo manual. |
+| **Cluster (k8s)** | Quem provisiona gera o par uma vez e cria o secret **depois do namespace** e **antes do backend**: `kubectl create secret generic jwt-rsa-keys --from-file=jwt-private.pem=keys/jwt-private.pem --from-file=jwt-public.pem=keys/jwt-public.pem -n hotel-system` (os nomes das chaves precisam ser exatamente esses — o `backend.yaml` monta `/app/keys/jwt-private.pem`). `scripts/infra_up.sh` e `./start.sh up` fazem isso sozinhos a partir de `services/core-service/keys/`, ou abortam com o comando se as chaves não existirem. Fora do `infra/k8s/secret.yaml` versionado; montado com `defaultMode: 0400` e `fsGroup: 1000` no pod — efetivo `r--r----- root:1000`: só o root e o usuário da aplicação (`node`) leem a privada. |
+| **Serviços que só verificam** (T-01.4, T-01.6) | Só a chave pública, por ConfigMap criado por ambiente a partir da `jwt-public.pem` — sem tratamento de segredo, mas não versionado (ver acima). |
 
 **O que acontece com os tokens HS256 já emitidos:** nada de transição — a troca é um corte seco.
 Não há verificação dupla (aceitar HS256 *e* RS256 por um tempo): o verificador precisaria manter o
@@ -220,8 +222,8 @@ manter os dois algoritmos ativos é uma vulnerabilidade.
 - **Negativas:**
   - A chave privada exige um processo de distribuição que os outros segredos do projeto não têm
     (não pode seguir a política de "versionar por conveniência acadêmica") — mais uma peça de
-    processo para a equipe lembrar ao provisionar um ambiente novo. Vale só para a **privada**: a
-    pública vai por ConfigMap, e o passo manual é um arquivo, não dois.
+    processo para a equipe lembrar ao provisionar um ambiente novo. O cuidado de segredo vale só
+    para a **privada**: a pública vai por ConfigMap, criado por ambiente, sem sigilo.
   - O corte seco de HS256 para RS256 derruba todas as sessões ativas no momento do deploy — efeito
     aceito, não mitigado, por ser de baixo custo (relogin) frente à alternativa (rodar dois
     algoritmos).

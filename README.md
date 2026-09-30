@@ -383,7 +383,7 @@ docker compose down -v       # remove tudo, inclusive os dados — use após a d
 | Namespace | `hotel-system` | — | Isolamento lógico de todos os recursos do projeto |
 | ConfigMap | `hotel-config` | — | Variáveis de ambiente não sensíveis |
 | Secret | `hotel-secret` | — | Senha do banco, segredo do webhook PIX, credenciais do MinIO e do RabbitMQ (versionado — valores acadêmicos) |
-| Secret | `jwt-rsa-keys` | — | Par de chaves RS256 do JWT — **não versionado**, criado por `scripts/k8s_garantir_secret_jwt.sh`; montado em `/app/keys` com `0400` |
+| Secret | `jwt-rsa-keys` | — | Par de chaves RS256 do JWT — **não versionado**, criado por `scripts/k8s_garantir_secret_jwt.sh`; montado em `/app/keys` com `defaultMode: 0400` + `fsGroup: 1000` (efetivo `r--r----- root:1000`) |
 | PVC | `postgres-data` | — | Volume persistente de 1 Gi para o PostgreSQL |
 | StatefulSet + Service | `postgres` | 1 | Banco de dados (ClusterIP:5432) |
 | Deployment + Service | `backend` | **3** | API REST Node.js (ClusterIP:3000) |
@@ -435,8 +435,8 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD` e `PIX_WEBHOOK_SECRET` (versionado, valor placeholder acadêmico) |
-| Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, criado manualmente por ambiente (comando na seção anterior) |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` e `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
+| Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, gerado por ambiente e criado por `scripts/k8s_garantir_secret_jwt.sh` (chamado por `infra_up.sh` e `start.sh up`) |
 
 Os Pods leem essas variáveis via `envFrom` (ConfigMap), `env.valueFrom.secretKeyRef` (Secret `hotel-secret`) e um volume montado a partir do Secret `jwt-rsa-keys`. Nenhuma credencial está hardcoded nas imagens.
 

@@ -25,9 +25,9 @@ Request
 
 ### Sobre o `tenantMiddleware`
 
-O `tenantMiddleware` faz uma verificação adicional de segurança: confirma no banco que o tenant do JWT existe e está com status `ACTIVE`. Porém, **ele não está aplicado nas rotas**. Os controllers extraem o `tenantId` diretamente de `request.user.tenantId` (payload do JWT, injetado pelo `authMiddleware`).
+O `tenantMiddleware` faz uma verificação adicional de segurança: confirma no banco que o tenant do JWT existe (`401` se não) e está com status `ACTIVE` (`403 Conta suspensa` se não). Ele é **aplicado em todos os routers autenticados**, logo depois do `authMiddleware` (ex.: `routes/apis/roomRouter.js`, `guestRouter.js`, `reservationRouter.js`). Os controllers continuam lendo o `tenantId` de `request.user.tenantId` (payload do JWT).
 
-Consequência: um token JWT emitido para um tenant que foi posteriormente suspenso continuará válido até expirar (8 horas). Aplicar `tenantMiddleware` nas rotas resolveria isso — é uma melhoria identificada para versão futura.
+Consequência: um tenant suspenso perde o acesso na próxima requisição, sem esperar o token de 8 horas expirar.
 
 ---
 
@@ -223,7 +223,7 @@ export default (() => {
 | `requireRole` como HOF | Um middleware por papel (`adminMiddleware.js`) | DRY: evita arquivos duplicados para cada role |
 | Middlewares aplicados por rota | `router.use(authMiddleware)` global | Permite rotas públicas sem exceção manual |
 | Ordem: auth → requireRole | Qualquer outra ordem | `requireRole` depende de `request.user` (injetado por `auth`) |
-| `tenantId` extraído de `request.user` | Aplicar `tenantMiddleware` em cada rota | Simplicidade: JWT já carrega o `tenantId` verificado na emissão |
+| `tenantId` extraído de `request.user` + `tenantMiddleware` em cada router autenticado | Confiar só no JWT | O JWT prova quem emitiu; só o banco sabe se o tenant foi suspenso depois |
 | `RECEPTIONIST` lê quartos/reservas/hóspedes | Restringir leitura a ADMIN | Recepcionista precisa operar o PMS diariamente |
 | `ADMIN` exclusivo para deleções e criação de usuários | Permitir por qualquer role | Operações destrutivas e estruturais exigem autorização mais alta |
 
