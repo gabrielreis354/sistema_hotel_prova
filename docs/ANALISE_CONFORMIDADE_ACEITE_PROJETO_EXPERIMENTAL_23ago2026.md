@@ -30,9 +30,9 @@
 | 17 | C4 Model (Contexto/Contêineres/Componentes) | ❌ Não atende | Alta |
 | 18 | ADR (Registro de Decisões Arquiteturais) | ❌ Não atende como artefato formal | Alta |
 | 19 | Planejamento de Sprints (tarefas + responsáveis + sprint) | ❌ Não atende | Alta |
-| 20 | Docker/Docker Compose como contingência da defesa | ❌ Não atende (não existe `docker-compose.yml`) | Média |
+| 20 | Docker/Docker Compose como contingência da defesa | ✅ **Atende** *(concluído 16/09 — T-06.4)* | — |
 
-**7 critérios atendidos, 4 parciais, 9 não atendidos.** Os quatro 🔴 críticos (microsserviços, nuvem, Terraform, monitoramento) são interdependentes — resolver um sem os outros três não fecha o aceite, e são também os que mais tempo consomem.
+**8 critérios atendidos, 4 parciais, 8 não atendidos.** Os quatro 🔴 críticos (microsserviços, nuvem, Terraform, monitoramento) são interdependentes — resolver um sem os outros três não fecha o aceite, e são também os que mais tempo consomem.
 
 ---
 
@@ -48,6 +48,14 @@
 > - Um único `package.json` de backend, um `Dockerfile`, um deployment → **ainda monolítico**
 >
 > **Plano de execução:** as lacunas viraram Specs formais em `docs/specs/`, com tarefas e critérios de aceitação verificáveis. Ver `docs/specs/README.md` para o índice e o grafo de dependências.
+
+---
+
+> ### 🔄 Revalidação em 16/09/2026
+>
+> **O que mudou:** o critério 20 (contingência via Docker Compose) fechou. `docker-compose.yml` foi criado espelhando os nomes de serviço de `infra/k8s/` (postgres, redis, minio, rabbitmq, backend, nginx) e validado nesta sessão de ponta a ponta: build da imagem do backend, healthcheck de todos os serviços, proxy `/healthz` via nginx respondendo e `node command.js migrate` rodando contra o Postgres do compose. De quebra, a validação encontrou um bug real — `minio/minio:latest` saiu do Docker Hub em set/2026 (pulls anônimos com 401) — corrigido para `quay.io/minio/minio:latest` tanto no compose quanto em `infra/k8s/minio.yaml`. Placar: **7 → 8 atendidos**, **9 → 8 não atendidos**.
+>
+> **O que NÃO mudou:** o RabbitMQ foi provisionado no cluster k8s (`57c0ec3`), mas **sem outbox, publish ou consume** — nenhum código publica ou consome mensagens ainda. Isso é progresso parcial de **T-01.4** (SPEC-01), não uma conclusão: não altera o critério 3 (arquitetura de microsserviços, ainda monolítico) nem exige mudar o DFD — `docs/sugestoes-documentos-oficiais/03-dfd/INSUMOS.md` já trata a fila de eventos como **🟡 planejado**, condicionado a outbox/publish/consume existirem no código, exatamente o critério que ainda falta. Por isso nenhuma entrada nova foi criada em `docs/sugestoes-documentos-oficiais/` — nenhum dos 8 documentos oficiais muda de texto com o trabalho desta sessão.
 
 ---
 
@@ -226,7 +234,7 @@ O termo divide entregas em dois semestres:
 
 ## 11. Formato da Defesa (Seção 8)
 
-**Contingência via Docker/Docker Compose:** ❌ Não atende hoje. `find . -iname "docker-compose*.yml"` não retornou nenhum arquivo — apesar do `CLAUDE.md` (linha 54) ainda citar "Docker Compose (dev)" como parte da estratégia de infra, isso está desatualizado: o projeto migrou totalmente para Kubernetes e nunca voltou a ter um compose file. Isso precisa existir e funcionar, porque é a rede de segurança exigida pelo termo caso a internet falhe no dia da banca.
+**Contingência via Docker/Docker Compose:** ✅ Atende *(concluído 16/09 — T-06.4)*. `docker-compose.yml` sobe o sistema inteiro localmente com os mesmos nomes de serviço de `infra/k8s/` (postgres, redis, minio, rabbitmq, backend, nginx). Validado nesta sessão: build da imagem do backend, healthcheck de todos os serviços, `/healthz` respondendo via proxy nginx, e `node command.js migrate` executado com sucesso contra o Postgres do compose. É a rede de segurança exigida pelo termo caso a internet falhe no dia da banca.
 
 ---
 
