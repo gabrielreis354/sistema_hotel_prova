@@ -131,13 +131,13 @@ Controller           → "Aqui está o que você pediu"
 ```
 
 ```js
-// auth.middleware.js
-const payload = jwt.verify(token, process.env.JWT_SECRET);
+// auth.middleware.js — RS256 (ADR-006): verifica com a chave pública, um algoritmo só
+const payload = jwt.verify(token, getPublicKey(), { algorithms: ['RS256'] });
 request.user = payload; // { userId, role, tenantId }
 next();
 ```
 
-O JWT é decodificado **uma vez** e o `tenantId` vai direto no `request.user`. Todo controller depois disso pega `request.user.tenantId` — o usuário **jamais** pode enviar seu próprio `tenantId` no body da requisição. O servidor decide de qual hotel aquele token pertence. Isso é segurança por design.
+O token é assinado pelo `LoginController` com a chave **privada** RSA e verificado aqui com a **pública**: quem só verifica não consegue emitir token. O JWT é decodificado **uma vez** e o `tenantId` vai direto no `request.user`. Todo controller depois disso pega `request.user.tenantId` — o usuário **jamais** pode enviar seu próprio `tenantId` no body da requisição. O servidor decide de qual hotel aquele token pertence. Isso é segurança por design.
 
 ---
 
