@@ -38,6 +38,7 @@ Consequência: um token JWT emitido para um tenant que foi posteriormente suspen
 ```javascript
 // middlewares/auth.middleware.js
 import jwt from 'jsonwebtoken';
+import { getPublicKey } from '../app/utils/jwtKeys.js';
 
 export default function authMiddleware(request, response, next) {
     const authHeader = request.headers['authorization'];
@@ -48,7 +49,10 @@ export default function authMiddleware(request, response, next) {
     }
 
     try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        // RS256 (ADR-006): verifica com a chave PÚBLICA; só o core tem a privada e emite.
+        // `algorithms` fixo estreita o contrato a um algoritmo (sem ele, RS512/PS256
+        // assinados pela mesma chave também passariam) — defesa em profundidade.
+        const payload = jwt.verify(token, getPublicKey(), { algorithms: ['RS256'] });
         request.user = payload; // { userId, role, tenantId }
         next();
     } catch {

@@ -10,7 +10,7 @@ Este projeto tambem pode ser executado em Kubernetes como uma alternativa ao Doc
 | Backend Express | Deployment + Service | 3 | API REST do sistema |
 | Nginx | Deployment + Service LoadBalancer | 1 | Entrada HTTP e proxy reverso |
 | Configuracoes | ConfigMap | - | Variaveis nao sensiveis |
-| Segredos | Secret | - | Senha do banco e JWT secret |
+| Segredos | Secret | - | `hotel-secret`: senha do banco, webhook PIX, MinIO e RabbitMQ · `jwt-rsa-keys`: par RS256 do JWT, não versionado (ADR-006) |
 | Namespace | Namespace | - | Isolamento logico do projeto |
 
 ## Fluxo de rede
