@@ -34,6 +34,15 @@ describe('assertKeyPair', () => {
         expect(() => assertKeyPair(privateKey, 'lixo-que-nao-e-chave')).toThrow(/pública/i);
     });
 
+    it('recusa chave privada que não é RSA (RS256 exige RSA)', () => {
+        const { publicKey } = par();
+        const { privateKey: ec } = generateKeyPairSync('ec', {
+            namedCurve: 'P-256',
+            privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+        });
+        expect(() => assertKeyPair(ec, publicKey)).toThrow(/privada/i);
+    });
+
     it('recusa par trocado (pública de outro par) — secret recriado pela metade', () => {
         const a = par();
         const b = par();
