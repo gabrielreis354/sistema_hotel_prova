@@ -30,7 +30,12 @@ export default async function storeDocumentPdf(record, key, generatePdf, label) 
         return pdfUrl;
     } catch (error) {
         console.warn(`${label}: dado salvo, mas PDF/MinIO falhou — pdf_url fica nulo:`, error.message);
-        if (record.pdf_url) await record.update({ pdf_url: null });
+        // O dado já foi confirmado: uma falha aqui não pode virar 500. Se nem o nulo gravar, o
+        // registro fica com o pdf_url antigo — o log diz qual.
+        if (record.pdf_url) {
+            await record.update({ pdf_url: null }).catch((dbError) =>
+                console.error(`${label}: não consegui zerar pdf_url de ${record.id} — o PDF antigo segue apontado:`, dbError.message));
+        }
         return null;
     }
 }
