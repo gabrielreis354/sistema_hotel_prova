@@ -1,12 +1,31 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import QuoteServiceModel from '../../Models/QuoteServiceModel.js';
+import CorporateClientModel from '../../Models/CorporateClientModel.js';
+import generateQuotePdf from '../../utils/generateQuotePdf.js';
+import storeDocumentPdf, { documentPdfKey } from '../../utils/storeDocumentPdf.js';
+
+// Allowlist explícita: só orçamento enviado e ainda não respondido pode ser editado — fail-safe.
+// Confirmado ou cancelado, o orçamento é registro do que o cliente aceitou ou recusou; editá-lo
+// sobrescreveria o PDF persistido (RNF-023).
+const EDITABLE_STATUSES = ['SENT'];
+
+const EDIT_BLOCKED_MESSAGES = {
+    CONFIRMED: 'Orçamento confirmado não pode ser editado — ele é o registro do que o cliente aceitou',
+    CANCELLED: 'Orçamento cancelado não pode ser editado',
+};
 
 export default async function UpdateEventQuoteController(request, response) {
     try {
         const tenantId = request.user.tenantId;
         const quote = await EventQuoteModel.findOne({ where: { id: request.params.id, tenant_id: tenantId } });
         if (!quote) return response.status(404).json({ error: 'Orçamento não encontrado' });
+
+        if (!EDITABLE_STATUSES.includes(quote.status)) {
+            const message = EDIT_BLOCKED_MESSAGES[quote.status]
+                ?? `Edição não permitida no status '${quote.status}'`;
+            return response.status(409).json({ error: message });
+        }
 
         // status é transição de estado — só via /:id/confirm e /:id/cancel (dedicados).
         const { check_in, check_out, pessoas, valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama, desconto_pct, observacoes, services } = request.body;
@@ -45,7 +64,18 @@ export default async function UpdateEventQuoteController(request, response) {
             throw err;
         }
 
-        const result = await EventQuoteModel.findOne({ where: { id: quote.id }, include: [{ model: QuoteServiceModel, as: 'services' }] });
+        // Regera na mesma chave (CA-D.4): o PDF persistido acompanha a versão enviada ao cliente.
+        const result = await EventQuoteModel.findOne({
+            where: { id: quote.id, tenant_id: tenantId },
+            include: [{ model: QuoteServiceModel, as: 'services' }]
+        });
+        const client = await CorporateClientModel.findOne({ where: { id: result.corporate_client_id, tenant_id: tenantId } });
+        await storeDocumentPdf(
+            result,
+            documentPdfKey(tenantId, 'quotes', result.id),
+            () => generateQuotePdf({ ...result.toJSON(), client: client.toJSON() }),
+            'UpdateEventQuoteController'
+        );
         return response.json(result);
     } catch (error) {
         console.error('UpdateEventQuoteController:', error);

@@ -2,6 +2,8 @@ import sequelize from '../../../database/connections/sequelize.js';
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import QuoteServiceModel from '../../Models/QuoteServiceModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
+import generateQuotePdf from '../../utils/generateQuotePdf.js';
+import storeDocumentPdf, { documentPdfKey } from '../../utils/storeDocumentPdf.js';
 
 export default async function CreateEventQuoteController(request, response) {
     try {
@@ -25,8 +27,9 @@ export default async function CreateEventQuoteController(request, response) {
         const total = (subtotalHospedagem + subtotalServicos) * (1 - desconto / 100);
 
         const t = await sequelize.transaction();
+        let quote;
         try {
-            const quote = await EventQuoteModel.create({
+            quote = await EventQuoteModel.create({
                 tenant_id: tenantId, corporate_client_id, check_in, check_out, pessoas,
                 valor_diaria_com_refeicao, valor_diaria_sem_refeicao,
                 inclui_refeicao: !!inclui_refeicao, inclui_roupa_cama: !!inclui_roupa_cama,
@@ -47,12 +50,24 @@ export default async function CreateEventQuoteController(request, response) {
             }
 
             await t.commit();
-            const result = await EventQuoteModel.findOne({ where: { id: quote.id }, include: [{ model: QuoteServiceModel, as: 'services' }] });
-            return response.status(201).json(result);
         } catch (err) {
             await t.rollback();
             throw err;
         }
+
+        // RNF-023: o PDF é o registro do que foi oferecido — persistido no MinIO, em
+        // best-effort. MinIO fora do ar não impede o orçamento (fica com pdf_url nulo).
+        const result = await EventQuoteModel.findOne({
+            where: { id: quote.id, tenant_id: tenantId },
+            include: [{ model: QuoteServiceModel, as: 'services' }]
+        });
+        await storeDocumentPdf(
+            result,
+            documentPdfKey(tenantId, 'quotes', result.id),
+            () => generateQuotePdf({ ...result.toJSON(), client: client.toJSON() }),
+            'CreateEventQuoteController'
+        );
+        return response.status(201).json(result);
     } catch (error) {
         console.error('CreateEventQuoteController:', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
