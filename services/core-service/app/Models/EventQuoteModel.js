@@ -16,6 +16,9 @@ const EventQuoteModel = sequelize.define('EventQuote', {
     total: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     observacoes: { type: DataTypes.TEXT, allowNull: true },
     status: { type: DataTypes.ENUM('SENT', 'CONFIRMED', 'CANCELLED'), defaultValue: 'SENT' },
+    // RNF-023: PDF persistido no MinIO — o registro do que foi oferecido. Nulo se o MinIO
+    // falhou na geração; o download então gera sob demanda, como no contrato.
+    pdf_url: { type: DataTypes.TEXT, allowNull: true },
 }, {
     tableName: 'event_quotes',
     timestamps: true,
