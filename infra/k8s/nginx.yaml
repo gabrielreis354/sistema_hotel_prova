@@ -48,6 +48,19 @@ data:
         proxy_set_header   X-Forwarded-Proto $scheme;
       }
 
+      # RNF-023: download de PDF por URL assinada. O backend assina a URL com o endereço PÚBLICO
+      # (MINIO_PUBLIC_ENDPOINT); o Host faz parte da assinatura, por isso vai intacto ao MinIO.
+      # Só leitura — o bucket continua privado: sem assinatura válida, o MinIO responde 403.
+      # O prefixo é o MINIO_BUCKET (hotel-contracts); mudar um exige mudar o outro.
+      location ^~ /hotel-contracts/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass         http://minio:9000;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection "";
+        proxy_set_header   Host       $http_host;
+        proxy_buffering    off;
+      }
+
       location / {
         proxy_pass         http://backend_pool;
         proxy_http_version 1.1;

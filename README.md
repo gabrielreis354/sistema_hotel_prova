@@ -291,6 +291,8 @@ cp .env.example .env
 # edite o .env: PIX_WEBHOOK_SECRET é obrigatório (o compose recusa subir sem ele).
 # Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
 # no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
+# Porta 80 já em uso? defina NGINX_PORT=<porta> E MINIO_PUBLIC_ENDPOINT=http://localhost:<porta>
+# no .env — os dois juntos, senão o download de PDF (URL assinada) aponta para a porta errada.
 node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006), uma vez só
 docker compose up -d --build
 docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
@@ -340,6 +342,12 @@ docker compose exec backend node scripts/simular_pagamento_pix.js <provider_char
 ```
 
 O `provider_charge_id` vem na resposta de `POST /public/<subdomínio>/bookings`.
+
+**PDFs de orçamento e contrato** (RNF-023) são baixados por URL assinada de 5 minutos: `GET
+/event-quotes/<id>/pdf` responde `302` para `http://localhost/hotel-contracts/...`, que o nginx
+repassa ao MinIO. O MinIO não é exposto de outra forma — sem assinatura válida, `403`. A URL é
+assinada com o `MINIO_PUBLIC_ENDPOINT`; se o navegador acessa o sistema por outro endereço (outra
+porta, outra máquina na rede), ajuste a variável.
 
 > `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
 > não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.

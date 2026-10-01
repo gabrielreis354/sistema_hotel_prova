@@ -66,6 +66,10 @@ const falhaNoMinio = () => send.mockRejectedValue(new Error('connect ECONNREFUSE
 function expectRedirecionaAssinada(res, key) {
     expect(res.status).toBe(302);
     const url = new URL(res.headers.location);
+    // O host da assinatura é o público (nginx), não o interno (minio:9000) — achado 🔴-1 da
+    // auditoria de 30/09: assinada com o interno, a URL era inalcançável pelo navegador.
+    expect(url.origin).toBe(process.env.MINIO_PUBLIC_ENDPOINT);
+    expect(url.origin).not.toBe(new URL(process.env.MINIO_ENDPOINT).origin);
     expect(url.pathname).toBe(`/${BUCKET}/${key}`);
     expect(url.searchParams.get('X-Amz-Expires')).toBe('300'); // RNF-023: expiração ≤ 5 min
     expect(url.searchParams.get('X-Amz-Signature')).toBeTruthy();
