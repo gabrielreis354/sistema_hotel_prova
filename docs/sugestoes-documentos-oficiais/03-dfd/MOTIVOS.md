@@ -74,8 +74,8 @@ Evidência no código: `services/core-service/app/utils/uploadToMinIO.js` e
 `DownloadContractPdfController.js`. E a distinção que estava perdida: **o PDF de orçamento é
 gerado sob demanda e não é armazenado** (`generateQuotePdf.js`); só o de contrato é.
 
-> *Superado pelo código em 30/09/2026:* o PDF de orçamento passou a ser persistido — ver a seção
-> "Após o RNF-023 no código", no fim deste arquivo.
+> *Superado pelo código a partir do PR da branch `fix/rnf023-pdf-orcamento` (30/09/2026):* o PDF
+> de orçamento passa a ser persistido — ver a seção "Após o RNF-023 no código", no fim deste arquivo.
 
 Detalhe de método: o *download* acontece direto do armazenamento, com a URL assinada — o
 arquivo não volta a passar pelo `b2b-service`. Como o DFD clássico não admite seta de
@@ -270,13 +270,15 @@ editado lá.
 |---|---|---|
 | §1, nota de rastreabilidade — última frase | *"Pelo mesmo motivo, o RNF-023 do Doc. 02 ainda exige a persistência também do PDF de orçamento, que este documento não armazena (Seção 7, D-005)."* | **Remover a frase.** A divergência deixa de existir: o documento e o RNF-023 passam a dizer a mesma coisa |
 | Nível 1, seta `P2 → OPERADOR` | `"PDF do orçamento,\nURL assinada do contrato"` | `"URLs assinadas do\norçamento e do contrato"` |
+| Nível 1, seta `P2 → D5` (l. 117) | `"PDF do contrato"` | `"PDFs do orçamento\ne do contrato"` |
 | §6, F-013 | *"Orçamento gerado sob demanda (RF-032); contrato entregue por URL assinada com expiração ≤ 5 min (RF-035, RNF-023)"* | *"Orçamento e contrato entregues por URL assinada com expiração ≤ 5 min (RF-032, RF-035, RNF-023)"* · formato: `URL assinada` |
 | §6, F-020 | *"PDF do contrato"* — *"Arquivo persistido na geração do contrato. (…)"* | *"PDF do orçamento e do contrato"* — *"Arquivo persistido na geração do orçamento e do contrato, e regerado na edição do orçamento enquanto ele não foi respondido pelo cliente. (…)"* (o resto igual) |
 | §7, D-005 | *"PDF de contrato, que contém dado pessoal (…) O PDF de orçamento é gerado sob demanda e não é armazenado"* | *"PDFs de orçamento e de contrato. O de contrato contém dado pessoal; os dois só são acessíveis por URL assinada com expiração ≤ 5 minutos (RNF-023)"* |
 
-Os diagramas de Nível 1 e Nível 2 já têm a seta `2.0 → D-005` / `2.1 → D-005`. No Nível 2, a
-seta sai de **2.1 — Gerar contrato**; a persistência do orçamento acontece antes, no próprio
-`2.0`, então o Nível 1 já a representa e o Nível 2 não precisa de seta nova.
+O Nível 1 já tem a seta `P2 → D5`, só com o rótulo restrito ao contrato — por isso a linha
+acima. No Nível 2, a seta `2.1 → D-005` sai de **2.1 — Gerar contrato** e continua certa: a
+persistência do orçamento acontece no próprio `2.0`, que o Nível 1 representa, e o Nível 2 não
+precisa de seta nova.
 
 ### O que **não** muda, e por quê
 
