@@ -74,6 +74,9 @@ Evidência no código: `services/core-service/app/utils/uploadToMinIO.js` e
 `DownloadContractPdfController.js`. E a distinção que estava perdida: **o PDF de orçamento é
 gerado sob demanda e não é armazenado** (`generateQuotePdf.js`); só o de contrato é.
 
+> *Superado pelo código em 30/09/2026:* o PDF de orçamento passou a ser persistido — ver a seção
+> "Após o RNF-023 no código", no fim deste arquivo.
+
 Detalhe de método: o *download* acontece direto do armazenamento, com a URL assinada — o
 arquivo não volta a passar pelo `b2b-service`. Como o DFD clássico não admite seta de
 armazenamento para entidade externa, o diagrama mostra `2.0 → Operador: "URL assinada"` e o
@@ -231,6 +234,64 @@ versão sugerida `04-mer/versao-sugerida_v1.2.md` desta pasta **já corrige** is
 | A afirmação de que o *webhook* valida assinatura (F-006 e §5.1) | É norma (RNF-012), não relato. Fica reforçada, com o `401`. E, desde 21/09, também é fato: a **T-06.9** foi implementada e integrada na `develop` (PR #81) |
 | Nota de rastreabilidade sobre Doc 02 e Doc 04 §7 | Está correta e continua pendente: os dois ainda refletem o recorte de 23/08 e estão **entregues** ao professor |
 | RF-045 no `b2b-service` | Correto pela ADR-003: `CORPORATE_CLIENTS` é entidade do b2b. A divergência com o Doc 02 já está apontada no próprio documento |
+
+---
+
+## Após o RNF-023 no código — o PDF de orçamento passa a ser armazenado
+
+**Data:** 30/09/2026 · **Origem:** delegação `rodada2_gabriel_28set2026.md`, etapa D ·
+**Decisão:** do Gabriel, em 28/09 — resolver o RNF-023 **no código**, não no requisito.
+
+### O que mudou no sistema
+
+O RNF-023 exige que *"contratos e orçamentos em PDF"* sejam *"persistidos em armazenamento de
+objeto"*. Até 29/09 só o contrato era; o orçamento era gerado a cada download. A v1.2 registrou
+essa divergência com honestidade, na nota de rastreabilidade da §1.
+
+A partir da branch `fix/rnf023-pdf-orcamento` (PR para a `develop`), o orçamento segue o mesmo
+caminho do contrato:
+
+| | Antes | Depois |
+|---|---|---|
+| Criar orçamento | só grava o dado | grava o dado **e** persiste o PDF no armazenamento de objetos (`<tenant>/quotes/<id>.pdf`) |
+| Editar orçamento | qualquer status | só `SENT`, e o PDF é regerado na mesma chave. `CONFIRMED` e `CANCELLED` não se editam (`409`) — são o registro do que o cliente aceitou ou recusou |
+| Baixar orçamento | gerado sob demanda | **URL assinada** de 5 minutos para o PDF persistido |
+
+O **porquê** de produto, que vale a pena o DFD carregar: o PDF de orçamento é o registro do que
+foi **oferecido** ao cliente corporativo. Regenerado sob demanda, ele mudaria quando os dados
+mudassem, e deixaria de ser o documento que o cliente recebeu.
+
+### O que fica desatualizado na v1.2 — e o texto sugerido
+
+Conferido contra a v1.2 da branch `entrega-4-dfd` do fork (`f36daa0`), em leitura — nada foi
+editado lá.
+
+| Onde, na v1.2 | Texto atual | Texto sugerido |
+|---|---|---|
+| §1, nota de rastreabilidade — última frase | *"Pelo mesmo motivo, o RNF-023 do Doc. 02 ainda exige a persistência também do PDF de orçamento, que este documento não armazena (Seção 7, D-005)."* | **Remover a frase.** A divergência deixa de existir: o documento e o RNF-023 passam a dizer a mesma coisa |
+| Nível 1, seta `P2 → OPERADOR` | `"PDF do orçamento,\nURL assinada do contrato"` | `"URLs assinadas do\norçamento e do contrato"` |
+| §6, F-013 | *"Orçamento gerado sob demanda (RF-032); contrato entregue por URL assinada com expiração ≤ 5 min (RF-035, RNF-023)"* | *"Orçamento e contrato entregues por URL assinada com expiração ≤ 5 min (RF-032, RF-035, RNF-023)"* · formato: `URL assinada` |
+| §6, F-020 | *"PDF do contrato"* — *"Arquivo persistido na geração do contrato. (…)"* | *"PDF do orçamento e do contrato"* — *"Arquivo persistido na geração do orçamento e do contrato, e regerado na edição do orçamento enquanto ele não foi respondido pelo cliente. (…)"* (o resto igual) |
+| §7, D-005 | *"PDF de contrato, que contém dado pessoal (…) O PDF de orçamento é gerado sob demanda e não é armazenado"* | *"PDFs de orçamento e de contrato. O de contrato contém dado pessoal; os dois só são acessíveis por URL assinada com expiração ≤ 5 minutos (RNF-023)"* |
+
+Os diagramas de Nível 1 e Nível 2 já têm a seta `2.0 → D-005` / `2.1 → D-005`. No Nível 2, a
+seta sai de **2.1 — Gerar contrato**; a persistência do orçamento acontece antes, no próprio
+`2.0`, então o Nível 1 já a representa e o Nível 2 não precisa de seta nova.
+
+### O que **não** muda, e por quê
+
+**O RNF-023 diz "download *apenas* por URL assinada".** O código — de contrato **e** de
+orçamento — ainda gera o PDF sob demanda quando o envio ao armazenamento falhou na criação (o
+documento fica com `pdf_url` nulo, em *best-effort*, para que o MinIO fora do ar não trave a
+operação do hotel). É comportamento anterior desta mudança, vale para os dois documentos, e a
+decisão está com o Gabriel (registrada no PR). O DFD descreve a norma e não precisa mudar por
+isso: o caminho de contingência não é fluxo de dados novo.
+
+### Quem decide
+
+**Sirlande.** O PR #15 do repositório do professor (*"[Gesway] - Entrega 4"*) ainda está
+aberto, então aplicar agora não exige nova reunião — basta um commit na mesma branch. Depois do
+merge daquele PR, passa a exigir.
 
 ---
 
