@@ -240,10 +240,13 @@ describe('JWT em RS256 (ADR-006 / T-01.3)', () => {
         void reg;
     });
 
-    it('rejeita token HS256 assinado com a chave PÚBLICA como segredo HMAC (algorithm confusion)', async () => {
-        // O ataque clássico contra RS256: a chave pública não é secreta, então o atacante
-        // a usa como segredo HMAC e declara `alg: HS256`. Montado à mão (sem jwt.sign),
-        // para não depender de o jsonwebtoken aceitar ou não esse uso na assinatura.
+    it('guarda de regressão do vetor clássico: HS256 assinado com a chave PÚBLICA como segredo é recusado', async () => {
+        // O ataque clássico contra RS256 (algorithm confusion): a chave pública não é secreta,
+        // então o atacante a usa como segredo HMAC e declara `alg: HS256`. Montado à mão (sem
+        // jwt.sign), para não depender de o jsonwebtoken aceitar esse uso na assinatura.
+        // NÃO é o teste do pino `algorithms: ['RS256']`: o jsonwebtoken 9.x já recusa este
+        // token sozinho (chave RSA só admite RS/PS). Ele fica como guarda caso a biblioteca
+        // mude ou regrida. Quem prova o pino é o teste RS512/PS256 logo abaixo.
         const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
         const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(payload)}`;
         const signature = createHmac('sha256', getPublicKey()).update(unsigned).digest('base64url');
