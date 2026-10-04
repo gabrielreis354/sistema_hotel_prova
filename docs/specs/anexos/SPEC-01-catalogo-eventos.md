@@ -1,6 +1,6 @@
 # SPEC-01 — Anexo: catálogo de eventos e política de falhas (T-01.2)
 
-**Status:** proposta — **aguarda aprovação do Gabriel** antes do merge. Este documento é o
+**Status:** **aprovado pelo Gabriel em 04/10/2026**, com as decisões da §9. Este documento é o
 contrato da T-01.4 (extrair o `analytics-service`) e das rotas internas da T-01.6.
 **Rastreia:** CA-01.2.b, CA-01.2.c, CA-01.2.d · CA-01.3.c e CA-01.3.d (ADR-006) · CA-06.11.d (LGPD).
 **Base:** ADR-003 (recorte e protocolos) e ADR-006 (autenticação entre serviços). Tudo o que
@@ -257,6 +257,12 @@ tabela de domínio ganha coluna de versão. A ordem é garantida por agregado: d
 alteram o mesmo registro disputam o *lock* da linha, e a segunda só grava no *outbox* depois
 que a primeira confirma.
 
+> **Regra de implementação que sustenta essa garantia:** dentro da transação, a linha do
+> *outbox* é gravada **depois** da escrita no registro de domínio — nunca antes. O número da
+> sequência é atribuído no `INSERT`, não no `COMMIT`. Se o *outbox* fosse gravado antes do
+> `UPDATE`, a segunda transação poderia pegar o número da sequência antes de disputar o *lock*
+> do registro, e a ordem por agregado deixaria de valer. A T-01.4 deve ter teste para isso.
+
 **Carga inicial (CA-01.4.j):** um *script* do core percorre os seis agregados e grava no
 *outbox*, para cada registro existente, um evento `*.updated` com o retrato atual. O
 publicador e o consumidor são os mesmos do fluxo normal — não existe caminho paralelo para
@@ -301,6 +307,23 @@ O catálogo mudaria comportamento visível do analytics. Cada item tem a recomen
 | **D-2** | Pagamento excluído (`DELETE /payments/:id`, *soft delete*) **continua contando como receita** hoje: `GetRevenueController` e `GetPaymentMixController` não filtram `payments.deleted_at` | **Corrigir na projeção**: `payment.deleted` tira o pagamento da receita | É defeito atual, não escolha. A projeção corrige sem esforço extra; o teste de CA-01.4.p precisa refletir o comportamento correto |
 | **D-3** | "Reserva sem pagamento" (`revenue.unpaid`, `alerts.no_show_risk`) considera **qualquer** linha de pagamento — uma cobrança PIX `PENDING` ou `EXPIRED` tira a reserva da lista de não pagas | **Considerar só pagamento `PAID`** | Uma cobrança PIX que venceu não pagou nada. Hoje o alerta de *no-show* some justamente no caso de maior risco |
 | **D-4** | `revenue-by-category` atribui a receita toda ao quarto principal (`reservations.room_id`); reservas com vários quartos de categorias diferentes distorcem o indicador | **Manter como está nesta extração** (evento sem os quartos extras) | Mudar o cálculo é decisão de produto separada; se for mudar, o `reservation.*` ganha `room_ids` numa versão nova (§7) |
+
+### 9.1 Decisões do Gabriel — 04/10/2026
+
+Critério usado: **o que um PMS SaaS de mercado faria** (prática geral de produtos como OPERA
+Cloud, Mews, Apaleo e Cloudbeds — não citação de documentação).
+
+| # | Decisão | Como o mercado trata | Efeito neste catálogo |
+|---|---|---|---|
+| **D-1** | **Aceita, com complemento.** E-mail e telefone saem do analytics | Dado de operação (contato) fica no núcleo, com permissão por papel; a camada analítica trabalha com o mínimo | O card de alerta no frontend abre a ficha do hóspede pelo `guest_id` com um clique — o telefone vem do `core-service`. Nada muda no *payload* |
+| **D-2** | **Aceita.** `payment.deleted` tira o pagamento da receita na projeção | **Lançamento financeiro não se apaga — se estorna**, com motivo, usuário e horário, e o original fica no histórico | A correção de fundo é trocar `DELETE /payments/:id` por estorno. Registrado como tarefa nova da SPEC-06; quando existir, a receita fica certa sem filtro |
+| **D-3** | **Aceita, refinada em dois indicadores** | O mercado separa **garantia recebida** de **saldo devedor** | **Risco de *no-show***: reserva sem nenhum pagamento `PAID` — a garantia não chegou. **Valores em aberto** (`revenue.unpaid`): reserva com **saldo > 0**, isto é, `total_amount` − soma dos `PAID`. Uma reserva com sinal de 30% pago continua devendo 70%. Os campos necessários já estão nos eventos de §4.5 e §4.6 — o *payload* não muda; muda a consulta sobre a projeção |
+| **D-4** | **Aceita: manter nesta extração** | **Cada quarto é uma reserva própria**, dentro de um agrupador (*booking* ou grupo), com tarifa e status próprios | O modelo atual — `room_id` principal mais o pivô `reservation_rooms` — é a causa comum de D-4 e das pendências **P-1** e **P-4** (§11). Registrado como ADR candidata; combina com a SPEC-07 |
+
+**Dinheiro nas consultas sobre a projeção.** As consultas atuais do analytics convertem valor
+para ponto flutuante (`total_amount::float`), contra a regra do projeto. As consultas da T-01.4
+sobre as projeções mantêm `NUMERIC` do banco até a resposta, e devolvem string decimal, como o
+§2 já define para o transporte.
 
 ---
 
@@ -454,3 +477,4 @@ os da projeção.
 | Data | Versão | O quê |
 |---|---|---|
 | 30/09/2026 | 0.1 | Proposta inicial — agente executor, trilha do Gabriel (delegação `rodada2_gabriel_28set2026.md`, etapa C) |
+| 04/10/2026 | 1.0 | **Aprovado pelo Gabriel.** Decisões D-1 a D-4 registradas na §9.1, com o critério de mercado. D-3 refinada em garantia × saldo. Regra de gravação do *outbox* depois da escrita de domínio (§6). Dinheiro sem `float` nas consultas sobre a projeção |
