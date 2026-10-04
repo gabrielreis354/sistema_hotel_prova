@@ -16,6 +16,8 @@ process.env.MINIO_ENDPOINT = 'http://127.0.0.1:9';
 process.env.MINIO_PUBLIC_ENDPOINT = 'http://gesway.test:8088';
 process.env.MINIO_ROOT_USER = 'teste';
 process.env.MINIO_ROOT_PASSWORD = 'teste-segredo';
+process.env.MINIO_PRESIGN_USER = 'leitor-teste';
+process.env.MINIO_PRESIGN_PASSWORD = 'leitor-teste-segredo';
 
 const { default: initRelations } = await import('../../database/relations.js');
 

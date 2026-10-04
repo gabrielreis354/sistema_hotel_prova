@@ -15,6 +15,28 @@ spec:
       labels:
         app: backend
     spec:
+      # Bucket + usuário MinIO de leitura que assina as URLs de download (RNF-023). Idempotente:
+      # roda a cada pod novo, leva segundos. initContainer em vez de Job porque Job é imutável
+      # no `kubectl apply` — mudar o script quebraria o apply seguinte.
+      initContainers:
+        - name: minio-setup
+          image: quay.io/minio/minio:latest
+          command: ["/bin/sh", "/setup/minio-setup.sh"]
+          env:
+            - name: MINIO_URL
+              value: http://minio:9000
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: hotel-config
+                  key: MINIO_BUCKET
+          envFrom:
+            - secretRef:
+                name: hotel-secret
+          volumeMounts:
+            - name: minio-setup
+              mountPath: /setup
+              readOnly: true
       containers:
         - name: backend
           image: sistema-gestao-hotel-backend:latest
@@ -56,6 +78,16 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: MINIO_ROOT_PASSWORD
+            - name: MINIO_PRESIGN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_USER
+            - name: MINIO_PRESIGN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_PASSWORD
           readinessProbe:
             httpGet:
               path: /health
@@ -82,6 +114,9 @@ spec:
               mountPath: /app/keys
               readOnly: true
       volumes:
+        - name: minio-setup
+          configMap:
+            name: minio-setup
         - name: jwt-rsa-keys
           secret:
             secretName: jwt-rsa-keys

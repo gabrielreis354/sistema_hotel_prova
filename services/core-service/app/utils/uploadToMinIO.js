@@ -27,6 +27,10 @@ export default async function uploadToMinIO(buffer, key) {
 // o download precisa de uma URL assinada e temporária em vez de um link direto. Assinada com o
 // endereço público (presignClient) — ver database/connections/minio.js.
 export async function getPresignedDownloadUrl(key, expiresInSeconds = 300) {
+    // Fail-closed: sem o usuário de leitura, não assina — nunca cai para o root.
+    if (!presignClient) {
+        throw new Error('MINIO_PRESIGN_USER/MINIO_PRESIGN_PASSWORD não configurados — URL de download não assinada.');
+    }
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
     return getSignedUrl(presignClient, command, { expiresIn: expiresInSeconds });
 }

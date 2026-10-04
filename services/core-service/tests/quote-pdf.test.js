@@ -73,6 +73,11 @@ function expectRedirecionaAssinada(res, key) {
     expect(url.pathname).toBe(`/${BUCKET}/${key}`);
     expect(url.searchParams.get('X-Amz-Expires')).toBe('300'); // RNF-023: expiração ≤ 5 min
     expect(url.searchParams.get('X-Amz-Signature')).toBeTruthy();
+    // Assinada pelo usuário só de leitura, nunca pelo root — achado 🔴-11 da reauditoria de 04/10:
+    // a URL expõe o access key de quem assinou, e o caminho até o MinIO passa pelo nginx.
+    const [accessKey] = url.searchParams.get('X-Amz-Credential').split('/');
+    expect(accessKey).toBe(process.env.MINIO_PRESIGN_USER);
+    expect(accessKey).not.toBe(process.env.MINIO_ROOT_USER);
 }
 
 describe('POST /event-quotes — PDF persistido (CA-D.2)', () => {
