@@ -21,9 +21,11 @@ export default async function UpdateEventQuoteController(request, response) {
         // status é transição de estado — só via /:id/confirm e /:id/cancel (dedicados).
         const { check_in, check_out, pessoas, valor_diaria_com_refeicao, valor_diaria_sem_refeicao, inclui_refeicao, inclui_roupa_cama, desconto_pct, observacoes, services } = request.body;
 
-        // Leitura com lock DENTRO da transação: um /confirm simultâneo espera esta edição
-        // terminar, ou, se confirmou antes, esta edição lê CONFIRMED e recusa. Sem o lock, a
-        // edição gravaria por cima de um orçamento já aceito (e regeraria o PDF dele).
+        // Leitura com lock DENTRO da transação: se um /confirm ou /cancel confirmou antes, esta
+        // edição lê o status novo e recusa. Se esta edição pegou o lock primeiro, o UPDATE do
+        // /confirm espera — e ele confirma a versão editada, que ainda era SENT quando foi aceita.
+        // Sem o lock, a edição gravaria por cima de um orçamento já aceito (e regeraria o PDF dele).
+        // O /confirm e o /cancel em si ainda leem sem lock (pendência registrada no PR).
         const t = await sequelize.transaction();
         let quote;
         try {
@@ -81,6 +83,8 @@ export default async function UpdateEventQuoteController(request, response) {
             where: { id: quote.id, tenant_id: tenantId },
             include: [{ model: QuoteServiceModel, as: 'services' }]
         });
+        // Excluído entre o commit e esta releitura (DELETE concorrente): não há o que regerar.
+        if (!result) return response.status(404).json({ error: 'Orçamento não encontrado' });
         const client = await CorporateClientModel.findOne({ where: { id: result.corporate_client_id, tenant_id: tenantId } });
         await storeDocumentPdf(
             result,
