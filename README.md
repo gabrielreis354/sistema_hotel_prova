@@ -345,9 +345,11 @@ O `provider_charge_id` vem na resposta de `POST /public/<subdomínio>/bookings`.
 
 **PDFs de orçamento e contrato** (RNF-023) são baixados por URL assinada de 5 minutos: `GET
 /event-quotes/<id>/pdf` responde `302` para `http://localhost/hotel-contracts/...`, que o nginx
-repassa ao MinIO. O MinIO não é exposto de outra forma — sem assinatura válida, `403`. A URL é
-assinada com o `MINIO_PUBLIC_ENDPOINT`; se o navegador acessa o sistema por outro endereço (outra
-porta, outra máquina na rede), ajuste a variável.
+repassa ao MinIO. O nginx só deixa passar `GET` de um PDF de orçamento ou contrato com assinatura
+na URL — listar o bucket, qualquer outro caminho ou credencial no cabeçalho dão `403`. Quem assina
+é um usuário MinIO **só de leitura** (`MINIO_PRESIGN_USER`), criado pelo serviço `minio-setup` a
+cada `up`; o root nunca assina URL. A URL usa o `MINIO_PUBLIC_ENDPOINT`: se o navegador acessa o
+sistema por outro endereço (outra porta, outra máquina na rede), ajuste a variável.
 
 > `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
 > não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.
