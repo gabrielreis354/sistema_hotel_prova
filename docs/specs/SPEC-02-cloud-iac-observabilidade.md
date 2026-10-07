@@ -116,17 +116,25 @@ Os manifests em `infra/k8s/` (backend, postgres, redis, minio, nginx, networkpol
 
 ---
 
-### T-02.4 — Stack de observabilidade 🔲
+### T-02.4 — Stack de observabilidade 🟡
 
 **DEP:** T-02.3
+
+**Parte local pronta em 07/10/2026** (`feature/metrics`): `/metrics` com `prom-client`,
+protegido por `METRICS_TOKEN` e barrado no nginx; Prometheus + Grafana no compose
+(`--profile observability`) e em `infra/k8s/observability.yaml`; dashboard em
+`infra/k8s/observability/gesway-dashboard.json`. Prometheus validado raspando o backend real e
+todas as queries do dashboard executadas contra ele. **Falta:** subir o Grafana de fato (não
+validado na sessão por falha de DNS do Docker Hub), métricas **do cluster** (node-exporter /
+kube-state-metrics — CA-02.4.a) e rodar no cluster em nuvem (depende da T-02.3).
 
 **Critérios de aceitação**
 - [ ] **CA-02.4.a** — Prometheus coletando métricas do cluster e da aplicação
 - [ ] **CA-02.4.b** — Grafana acessível, com autenticação
-- [ ] **CA-02.4.c** — Aplicação expõe `/metrics` (Express + `prom-client`)
-- [ ] **CA-02.4.d** — Métricas de negócio além das técnicas: latência por endpoint, taxa de erro, requisições por tenant
+- [x] **CA-02.4.c** — Aplicação expõe `/metrics` (Express + `prom-client`)
+- [x] **CA-02.4.d** — Métricas de negócio além das técnicas: latência por endpoint, taxa de erro, requisições por tenant
 - [ ] **CA-02.4.e** — Dashboard com saúde do sistema, pronto para demonstração
-- [ ] **CA-02.4.f** — Manifests versionados em `infra/k8s/`
+- [x] **CA-02.4.f** — Manifests versionados em `infra/k8s/`
 
 > **Nota de sequência:** subir a observabilidade **antes** do split completo de microsserviços. Validar a stack sobre o backend atual é mais simples, e cada serviço novo só precisa passar a expor `/metrics`.
 
