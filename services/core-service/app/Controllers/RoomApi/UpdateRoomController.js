@@ -1,4 +1,5 @@
 import RoomModel from '../../Models/RoomModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 const VALID_ROOM_STATUSES = ['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'];
 
@@ -25,6 +26,10 @@ export default async function UpdateRoomController(request, response) {
         await room.save();
         return response.json(room);
     } catch (error) {
+        // Race no check-then-act acima: o índice único barra a segunda gravação.
+        // Sem isto o conflito do cliente viraria 500.
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

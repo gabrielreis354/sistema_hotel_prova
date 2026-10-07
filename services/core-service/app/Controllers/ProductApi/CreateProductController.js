@@ -1,5 +1,5 @@
-import { UniqueConstraintError } from 'sequelize';
 import ProductModel from '../../Models/ProductModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import { validateProductFields, parsePrice } from '../../utils/productValidation.js';
 
 /**
@@ -37,9 +37,8 @@ export default async function CreateProductController(request, response) {
     } catch (error) {
         // O SELECT acima é check-then-act: duas requisições simultâneas (duplo clique)
         // passam as duas e o índice único barra a segunda. Sem este catch viraria 500.
-        if (error instanceof UniqueConstraintError) {
-            return response.status(409).json({ error: 'Já existe um produto com esse nome' });
-        }
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
         console.error('CreateProductController:', error.message);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

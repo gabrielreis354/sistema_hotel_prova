@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import UserModel from '../../Models/UserModel.js';
 import { VALID_ROLES } from '../../utils/roles.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 export default async function CreateUserController(request, response) {
     try {
@@ -31,6 +32,10 @@ export default async function CreateUserController(request, response) {
         const { password_hash: _, ...data } = user.toJSON();
         return response.status(201).json(data);
     } catch (error) {
+        // Race no check-then-act acima: o índice único barra a segunda gravação.
+        // Sem isto o conflito do cliente viraria 500.
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

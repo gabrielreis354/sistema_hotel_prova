@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
-import { UniqueConstraintError } from 'sequelize';
 import TenantModel from '../../Models/TenantModel.js';
 import UserModel from '../../Models/UserModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 // Gera slug a partir do nome: "Hotel Aurora" → "hotel-aurora"
 function generateSubdomain(name) {
@@ -47,9 +47,15 @@ export default async function RegisterController(request, response) {
             user: { id: user.id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
-        if (error instanceof UniqueConstraintError) {
-            return response.status(409).json({ error: 'E-mail ou subdomain já em uso' });
-        }
+        // Mensagem deliberadamente vaga só quanto ao E-MAIL: se este catch for
+        // alcançado (race entre dois cadastros simultâneos — o pré-check de subdomain
+        // acima já resolveu o caso comum), não dá pra saber se colidiu email ou
+        // subdomain sem revelar qual e-mail já existe. O subdomain em si NÃO é segredo:
+        // o pré-check já devolve 409 específico pra ele, e GET /public/:subdomain/hotel
+        // confirma a existência de qualquer subdomain sem autenticação.
+        const conflito = uniqueConstraintConflict(error, response, 'E-mail ou subdomain já em uso');
+        if (conflito) return conflito;
+
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

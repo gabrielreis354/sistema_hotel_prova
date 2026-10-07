@@ -203,7 +203,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Sem disponibilidade na categoria para o período */
+                /** @description Sem disponibilidade na categoria para o período, ou CPF/e-mail do hóspede criado por outra requisição simultânea (corrida no find-or-create — reenviar resolve) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -848,6 +848,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description E-mail já cadastrado neste hotel */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         post?: never;
@@ -938,6 +947,15 @@ export interface paths {
                         "application/json": components["schemas"]["ValidationErrors"];
                     };
                 };
+                /** @description Já existe uma categoria com esse nome */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -1010,6 +1028,15 @@ export interface paths {
                 };
                 /** @description Não encontrada */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Já existe uma categoria com esse nome */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1120,6 +1147,15 @@ export interface paths {
                 };
                 /** @description Categoria não encontrada */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Já existe um quarto com esse número */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1265,6 +1301,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description Já existe um quarto com esse número */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         post?: never;
@@ -1361,7 +1406,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description CPF já cadastrado para outro hóspede */
+                /** @description CPF ou e-mail já cadastrado para outro hóspede */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1442,6 +1487,15 @@ export interface paths {
                 };
                 /** @description Não encontrado */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description CPF ou e-mail já cadastrado para outro hóspede */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
