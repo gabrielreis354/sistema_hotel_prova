@@ -1299,7 +1299,7 @@
             }
           },
           "409": {
-            "description": "Sem disponibilidade na categoria para o período",
+            "description": "Sem disponibilidade na categoria para o período, ou CPF/e-mail do hóspede criado por outra requisição simultânea (corrida no find-or-create — reenviar resolve)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1970,6 +1970,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "E-mail já cadastrado neste hotel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -2042,6 +2052,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Já existe uma categoria com esse nome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2104,6 +2124,16 @@
           },
           "404": {
             "description": "Não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe uma categoria com esse nome",
             "content": {
               "application/json": {
                 "schema": {
@@ -2214,6 +2244,16 @@
           },
           "404": {
             "description": "Categoria não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um quarto com esse número",
             "content": {
               "application/json": {
                 "schema": {
@@ -2357,6 +2397,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Já existe um quarto com esse número",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -2452,7 +2502,7 @@
             }
           },
           "409": {
-            "description": "CPF já cadastrado para outro hóspede",
+            "description": "CPF ou e-mail já cadastrado para outro hóspede",
             "content": {
               "application/json": {
                 "schema": {
@@ -2522,6 +2572,16 @@
           },
           "404": {
             "description": "Não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CPF ou e-mail já cadastrado para outro hóspede",
             "content": {
               "application/json": {
                 "schema": {
