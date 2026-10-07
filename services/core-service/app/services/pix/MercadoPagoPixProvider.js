@@ -53,13 +53,16 @@ export default class MercadoPagoPixProvider extends PixProvider {
                     payer
                 })
             });
-        } catch {
+        } catch (error) {
+            console.error('MercadoPagoPixProvider.createCharge: falha de rede', error.message);
             throw new PixProviderUnavailableError('Mercado Pago indisponível no momento');
         } finally {
             clearTimeout(timeout);
         }
 
         if (!response.ok) {
+            // Só status e id — o corpo da resposta carrega dados do pagador (PII).
+            console.error('MercadoPagoPixProvider.createCharge: resposta', response.status, externalId);
             throw new PixProviderUnavailableError(`Mercado Pago respondeu ${response.status}`);
         }
 
@@ -131,17 +134,27 @@ export default class MercadoPagoPixProvider extends PixProvider {
                 signal: controller.signal,
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-        } catch {
+        } catch (error) {
+            console.error('MercadoPagoPixProvider.getChargeStatus: falha de rede', providerChargeId, error.message);
             throw new PixProviderUnavailableError('Mercado Pago indisponível no momento');
         } finally {
             clearTimeout(timeout);
         }
 
         if (!response.ok) {
+            // 401 (token rotacionado) e 404 não melhoram com retry — o log é o que permite
+            // diagnosticar "as reservas pararam de confirmar". Sem corpo: carrega PII.
+            console.error('MercadoPagoPixProvider.getChargeStatus: resposta', response.status, providerChargeId);
             throw new PixProviderUnavailableError(`Mercado Pago respondeu ${response.status} ao consultar a cobrança`);
         }
 
         const data = await response.json();
-        return { status: data.status, amount: data.transaction_amount ?? null };
+        // "approved" sem valor não tem como ser conferido: vira indisponibilidade (503, o PSP
+        // reenvia), nunca confirmação no escuro. Status não-aprovado não depende do valor.
+        if (data.status === 'approved' && data.transaction_amount == null) {
+            console.error('MercadoPagoPixProvider.getChargeStatus: approved sem transaction_amount', providerChargeId);
+            throw new PixProviderUnavailableError('Mercado Pago não informou o valor da cobrança');
+        }
+        return { status: data.status, amount: data.transaction_amount ?? null, amountVerifiable: true };
     }
 }

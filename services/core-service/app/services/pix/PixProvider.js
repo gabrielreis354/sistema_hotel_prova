@@ -35,8 +35,10 @@ export default class PixProvider {
      * webhook só prova quem enviou a notificação — nunca que o pagamento foi aprovado. Todo
      * controller precisa chamar isto antes de marcar um Payment como PAID.
      * @param {string} providerChargeId
-     * @returns {Promise<{ status: string, amount: number|null }>} amount null quando o
-     *   provedor não tem como confirmar o valor (ex.: provider simulado).
+     * @returns {Promise<{ status: string, amount: number|null, amountVerifiable: boolean }>}
+     *   amountVerifiable: false SÓ quando o provedor não tem como confirmar o valor (o
+     *   simulado). Provider real devolve true e amount preenchido — ou lança
+     *   PixProviderUnavailableError; valor ausente nunca pode virar confirmação.
      * @throws {import('./errors.js').PixProviderUnavailableError} se o provedor estiver inacessível
      */
     async getChargeStatus() {

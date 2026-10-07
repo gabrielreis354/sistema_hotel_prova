@@ -234,4 +234,30 @@ describe('POST /webhooks/pix — provider Mercado Pago', () => {
         const reservation = await ReservationModel.findByPk(booking.body.reservation.id);
         expect(reservation.status).toBe('CONFIRMED');
     });
+
+    it('regressão do 🟡 nº 2 da reauditoria: "approved" sem transaction_amount devolve 503 e não confirma (fail-safe)', async () => {
+        const { chargeId, statusRef, booking } = await createMercadoPagoBooking('2027-07-28', '2027-07-29');
+        statusRef.status = 'approved';
+        statusRef.amount = undefined;
+
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            const res = await request(app)
+                .post('/webhooks/pix')
+                .set(signWebhook({ dataId: chargeId }))
+                .query({ 'data.id': chargeId })
+                .send({});
+
+            expect(res.status).toBe(503);
+            // O caminho 503 era mudo (🟡 nº 3): agora deixa rastro no log.
+            expect(errorSpy).toHaveBeenCalled();
+        } finally {
+            errorSpy.mockRestore();
+        }
+
+        const payment = await PaymentModel.findOne({ where: { reservation_id: booking.body.reservation.id } });
+        expect(payment.status).toBe('PENDING');
+        const reservation = await ReservationModel.findByPk(booking.body.reservation.id);
+        expect(reservation.status).toBe('PENDING');
+    });
 });
