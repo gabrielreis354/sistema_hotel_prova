@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { getPublicKey } from '../app/utils/jwtKeys.js';
+import { isRouteAllowedForRole } from '../app/utils/roles.js';
 
 export default function authMiddleware(request, response, next) {
     const authHeader = request.headers['authorization'];
@@ -17,8 +18,18 @@ export default function authMiddleware(request, response, next) {
         // Teste que prova a trava: auth.test.js, RS512/PS256 com a privada correta → 401.
         const payload = jwt.verify(token, getPublicKey(), { algorithms: ['RS256'] });
         request.user = payload; // { userId, role, tenantId }
-        next();
     } catch {
         return response.status(401).json({ error: 'Token inválido ou expirado' });
     }
+
+    // Escopo por papel ANTES de qualquer router: este middleware é o único ponto
+    // que toda rota autenticada atravessa, então a allowlist do WAITER vale para
+    // routers que ainda nem existem. O `requireRole` de cada rota continua por cima.
+    // originalUrl (não `path`): dentro de um sub-router o `path` perde o prefixo.
+    const path = request.originalUrl.split('?')[0];
+    if (!isRouteAllowedForRole(request.user.role, request.method, path)) {
+        return response.status(403).json({ error: 'Acesso não autorizado' });
+    }
+
+    next();
 }
