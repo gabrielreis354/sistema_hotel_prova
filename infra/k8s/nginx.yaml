@@ -33,6 +33,13 @@ data:
         add_header Content-Type text/plain;
       }
 
+      # /metrics nunca sai pela porta publica: o contador por tenant revela o volume
+      # de cada hotel. O Prometheus fala direto com o backend (T-02.4); o backend ainda
+      # exige METRICS_TOKEN — esta regra e a segunda camada, nao a unica.
+      location = /metrics {
+        return 404;
+      }
+
       # Rate limiting no login — protege contra brute force
       # (Gabriel corrigiu vuln de login multi-tenant; rate limit reforça a defesa)
       location /auth/login {

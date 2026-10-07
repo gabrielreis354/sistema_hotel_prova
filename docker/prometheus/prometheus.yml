@@ -1,0 +1,16 @@
+# Prometheus do docker-compose (T-02.4). No k8s a configuração é outra
+# (infra/k8s/observability.yaml): lá há réplicas e a descoberta é por pod.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: core-service
+    metrics_path: /metrics
+    # /metrics exige Bearer METRICS_TOKEN. O Prometheus não expande variável de
+    # ambiente no arquivo de config: o entrypoint do compose grava o token neste arquivo.
+    authorization:
+      type: Bearer
+      credentials_file: /prometheus/metrics_token
+    static_configs:
+      - targets: ['backend:3000']

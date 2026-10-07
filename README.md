@@ -348,6 +348,21 @@ O `provider_charge_id` vem na resposta de `POST /public/<subdomínio>/bookings`.
 > `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
 > não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.
 
+### Observabilidade (opcional — T-02.4)
+
+Prometheus e Grafana ficam fora do `up` padrão. Para a demonstração do monitoramento:
+
+```bash
+# no .env: METRICS_TOKEN (openssl rand -hex 32) e GRAFANA_ADMIN_PASSWORD
+docker compose --profile observability up -d
+```
+
+Grafana em http://localhost:3002 (login `admin` + `GRAFANA_ADMIN_PASSWORD`), pasta **Gesway** →
+*Saúde do core-service*. O `/metrics` do backend exige `Authorization: Bearer $METRICS_TOKEN` e
+não sai pelo nginx (404) — o contador por tenant revela o volume de cada hotel. No k8s, o mesmo
+conjunto está em `infra/k8s/observability.yaml`; acesso com
+`kubectl -n hotel-system port-forward svc/grafana 3002:3000`.
+
 ### Frontend
 
 O compose sobe só o backend e a infraestrutura de apoio — não há `Dockerfile` em `frontend/`.

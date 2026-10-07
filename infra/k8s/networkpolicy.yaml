@@ -54,6 +54,10 @@ spec:
         - podSelector:
             matchLabels:
               app: nginx
+        # Prometheus raspa /metrics direto no pod (T-02.4) — o nginx barra /metrics de fora.
+        - podSelector:
+            matchLabels:
+              app: prometheus
       ports:
         - protocol: TCP
           port: 3000
@@ -99,3 +103,39 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+---
+# Só o Grafana consulta o Prometheus (T-02.4).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-ingress
+  namespace: hotel-system
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: grafana
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+# Grafana: nenhum pod do cluster precisa falar com ele. Acesso só por
+# kubectl port-forward, que não passa pela rede de pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana-ingress
+  namespace: hotel-system
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes:
+    - Ingress
+  ingress: []

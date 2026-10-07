@@ -13,3 +13,15 @@ resources:
   - pdb.yaml
   - minio.yaml
   - networkpolicy.yaml
+  - observability.yaml
+# Provisionamento do Grafana (T-02.4) — mesmos arquivos que o docker-compose monta.
+configMapGenerator:
+  - name: grafana-datasource
+    files:
+      - prometheus.yml=observability/grafana-datasource.yml
+  - name: grafana-dashboard-provider
+    files:
+      - gesway.yml=observability/grafana-dashboards.yml
+  - name: grafana-dashboards
+    files:
+      - gesway-dashboard.json=observability/gesway-dashboard.json
