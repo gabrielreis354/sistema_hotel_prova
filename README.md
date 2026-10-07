@@ -111,6 +111,8 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 | `PIX_WEBHOOK_SECRET` | `pms_hotel_pix_webhook_secreto_academico_2026` |
 | `MINIO_ROOT_USER` | `minioadmin` |
 | `MINIO_ROOT_PASSWORD` | `minioadmin123` |
+| `MINIO_PRESIGN_USER` | `gesway-pdf-leitor` — só `s3:GetObject`; assina as URLs de download de PDF (RNF-023) |
+| `MINIO_PRESIGN_PASSWORD` | `leitura_pdf_academico_2026` |
 | `RABBITMQ_DEFAULT_USER` | `hotel_broker` |
 | `RABBITMQ_DEFAULT_PASS` | `rabbitmq_secreto_academico_2026` |
 
@@ -446,7 +448,7 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` e `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, `MINIO_PRESIGN_USER`/`MINIO_PRESIGN_PASSWORD` e `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
 | Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, gerado por ambiente e criado por `scripts/k8s_garantir_secret_jwt.sh` (chamado por `infra_up.sh` e `start.sh up`) |
 
 Os Pods leem essas variáveis via `envFrom` (ConfigMap), `env.valueFrom.secretKeyRef` (Secret `hotel-secret`) e um volume montado a partir do Secret `jwt-rsa-keys`. Nenhuma credencial está hardcoded nas imagens.

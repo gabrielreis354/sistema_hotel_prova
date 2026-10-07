@@ -28,7 +28,7 @@ infra/k8s/
   kustomization.yaml     — ponto de entrada (kubectl apply -k infra/k8s/)
   namespace.yaml         — namespace hotel-system
   configmap.yaml         — variaveis nao sensiveis
-  secret.yaml            — POSTGRES_PASSWORD, PIX_WEBHOOK_SECRET, MINIO_ROOT_* e RABBITMQ_DEFAULT_* (JWT vira o secret jwt-rsa-keys, não versionado — ver README.md, ADR-006)
+  secret.yaml            — POSTGRES_PASSWORD, PIX_WEBHOOK_SECRET, MINIO_ROOT_*, MINIO_PRESIGN_* e RABBITMQ_DEFAULT_* (JWT vira o secret jwt-rsa-keys, não versionado — ver README.md, ADR-006)
   postgres.yaml          — PVC + Deployment + Service do PostgreSQL
   backend.yaml           — Deployment (3 replicas) + Service do backend
   nginx.yaml             — ConfigMap nginx + Deployment + Service LoadBalancer
