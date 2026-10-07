@@ -14,25 +14,25 @@
 | 1 | Equipe entre 2 e 5 integrantes | ✅ Atende | — |
 | 2 | Papéis distribuídos e documentados | ⚠️ Parcial | Baixa |
 | 3 | **Arquitetura de microsserviços** | ❌ Não atende | 🔴 Crítica |
-| 4 | Integração com API externa real | ❌ Não atende | 🔴 Crítica |
+| 4 | Integração com API externa real | ✅ **Atende** *(concluído 16/09 — ViaCEP, T-03.1)* | — |
 | 5 | Escolha de banco justificada | ✅ Atende | — |
 | 6 | **Deploy em nuvem pública (AWS/GCP/Azure)** | ❌ Não atende | 🔴 Crítica |
 | 7 | Não usar BaaS/PaaS como backend principal | ✅ Atende (por padrão, ainda sem nuvem) | — |
 | 8 | **Infraestrutura como Código via Terraform** | ❌ Não atende | 🔴 Crítica |
 | 9 | CI/CD com build **e deploy** automatizados | ⚠️ Parcial (só CI) | Alta |
-| 10 | Testes automatizados, cobertura ≥ 60% | ⚠️ Parcial (ver nota) | Média |
+| 10 | Testes automatizados, cobertura ≥ 60% | ✅ **Atende** *(gate de 60% no CI)* | — |
 | 11 | **Monitoramento com Prometheus + Grafana** | ❌ Não atende | 🔴 Crítica |
 | 12 | Documento de Solicitação do Sistema | ✅ **Atende** *(concluído 23/08)* | — |
-| 13 | Documento de Requisitos (RF/RNF) | ❌ Não atende | Alta |
-| 14 | Diagrama de Fluxo de Dados (DFD) | ❌ Não atende | Alta |
+| 13 | Documento de Requisitos (RF/RNF) | ✅ **Atende** *(v1.3 entregue 09/09)* | — |
+| 14 | Diagrama de Fluxo de Dados (DFD) | ⚠️ Parcial (v1.0 escrito, não entregue) | Alta |
 | 15 | Modelo Entidade-Relacionamento (MER) | ✅ **Atende** *(v1.0 entregue 23/08 — 17 entidades)* | — |
 | 16 | Desenho de Arquitetura em Nuvem | ❌ Não atende | Alta |
 | 17 | C4 Model (Contexto/Contêineres/Componentes) | ❌ Não atende | Alta |
-| 18 | ADR (Registro de Decisões Arquiteturais) | ❌ Não atende como artefato formal | Alta |
+| 18 | ADR (Registro de Decisões Arquiteturais) | ⚠️ Parcial (ADR-003 escrita, não entregue) | Alta |
 | 19 | Planejamento de Sprints (tarefas + responsáveis + sprint) | ❌ Não atende | Alta |
-| 20 | Docker/Docker Compose como contingência da defesa | ❌ Não atende (não existe `docker-compose.yml`) | Média |
+| 20 | Docker/Docker Compose como contingência da defesa | ✅ **Atende** *(concluído 16/09 — T-06.4)* | — |
 
-**7 critérios atendidos, 4 parciais, 9 não atendidos.** Os quatro 🔴 críticos (microsserviços, nuvem, Terraform, monitoramento) são interdependentes — resolver um sem os outros três não fecha o aceite, e são também os que mais tempo consomem.
+**9 critérios atendidos, 4 parciais, 7 não atendidos.** Dos cinco 🔴 críticos originais, a integração com API externa real fechou em 16/09. Os quatro restantes (microsserviços, nuvem, Terraform, monitoramento) são interdependentes — resolver um sem os outros três não fecha o aceite, e são também os que mais tempo consomem. Destes, só **microsserviços** é devido no 4º semestre; nuvem, Terraform e monitoramento são entrega formal do 5º (ver Seção 10).
 
 ---
 
@@ -48,6 +48,26 @@
 > - Um único `package.json` de backend, um `Dockerfile`, um deployment → **ainda monolítico**
 >
 > **Plano de execução:** as lacunas viraram Specs formais em `docs/specs/`, com tarefas e critérios de aceitação verificáveis. Ver `docs/specs/README.md` para o índice e o grafo de dependências.
+
+---
+
+> ### 🔄 Revalidação em 24/09/2026
+>
+> **O que mudou:** quatro critérios fecharam e dois viraram parciais.
+>
+> - **Critério 20 — contingência via Docker Compose (T-06.4, PR #79).** `docker-compose.yml` sobe o sistema inteiro localmente espelhando os nomes de serviço de `infra/k8s/` (postgres, redis, minio, rabbitmq, backend, nginx). Validado de ponta a ponta: build da imagem do backend, healthcheck de todos os serviços, `/health` atravessando o proxy nginx até o backend, e `node command.js migrate` rodando contra o Postgres do compose. De quebra, a validação encontrou um bug real — `minio/minio:latest` saiu do Docker Hub em set/2026, com pulls anônimos devolvendo 401 — corrigido para `quay.io/minio/minio:latest` no compose e em `infra/k8s/minio.yaml`.
+> - **Critério 4 — integração com API externa real (🔴 crítico).** O provider ViaCEP entrou em 16/09 (`00c2fee`) e está ligado de ponta a ponta: `GET /address/:cep` montado em `routes/router.js`, controller em `app/Controllers/AddressApi/`, provider real em `app/services/address/ViaCepAddressProvider.js` com factory por `ADDRESS_PROVIDER`, erros tipados, testes em `tests/address.test.js` e entrada no Swagger. **Primeiro dos cinco críticos a fechar.**
+> - **Critério 13 — Documento de Requisitos (RF/RNF).** O Doc 02 v1.3 está no repositório do professor desde 09/09, com 56 RF e 27 RNF.
+> - **Critério 10 — cobertura ≥ 60%.** `services/core-service/vitest.config.js` declara `thresholds: { lines: 60 }` e o CI falha abaixo disso. Não é só meta atingida: é gate.
+> - **Critérios 14 (DFD) e 18 (ADR) → parciais.** Os dois artefatos existem escritos, nenhum entregue: o Doc 03 v1.0 foi preenchido em 17/09 e a ADR-003 está no Doc 07, ambos apenas no nosso fork.
+>
+> Placar: **6 → 9 atendidos**, **3 → 4 parciais**, **11 → 7 não atendidos**. Os números anteriores na prosa (`8/4/8`) não correspondiam à contagem da tabela, e a frase "os quatro críticos" omitia o critério 4 — ambos corrigidos aqui.
+>
+> **O que NÃO mudou:** o RabbitMQ foi provisionado no cluster k8s (`57c0ec3`) e no compose, mas **sem outbox, publish ou consume** — não há `amqplib` nem tabela de outbox em nenhum ponto do `core-service`. Isso é progresso parcial de **T-01.4** (SPEC-01), não uma conclusão: não altera o critério 3 (arquitetura de microsserviços, ainda um processo único) nem exige mudar o DFD, porque `docs/sugestoes-documentos-oficiais/03-dfd/INSUMOS.md` já trata a fila de eventos como 🟡 planejada, condicionada a outbox/publish/consume existirem no código — exatamente o que ainda falta. Nenhuma entrada nova em `docs/sugestoes-documentos-oficiais/` foi necessária.
+>
+> Os documentos que sustentam os critérios 16 (arquitetura em nuvem), 17 (C4) e 19 (sprints) seguem **idênticos ao template em branco** no repositório do professor — conferido por `diff` contra `templates/`, zero linhas divergentes.
+>
+> **Onde está o risco.** Dos quatro críticos restantes, três — nuvem, Terraform e monitoramento — são entrega formal do 5º semestre (Seção 10). O único devido **neste** semestre é o critério 3, e o termo é específico: pelo menos dois serviços rodando separados, se comunicando. É a T-01.4.
 
 ---
 
@@ -188,19 +208,19 @@ thresholds: { statements: 60, lines: 60, functions: 60, branches: 55 }
 
 ---
 
-## 9. Documentação Obrigatória (Seção 6) — 6 de 8 itens não atendidos
+## 9. Documentação Obrigatória (Seção 6) — 3 de 8 itens não atendidos
 
 Este projeto tem uma quantidade enorme de documentação técnica interna — mais de 50 arquivos `.md` em `docs/`. O problema não é falta de conteúdo, é que **quase nada está no formato/nome que a banca vai procurar**, e alguns dos artefatos certos genuinamente não existem ainda.
 
 | # | Item exigido | Situação | Evidência |
 |---|---|---|---|
-| 1 | Documento de Solicitação do Sistema | ❌ Não existe como documento único | Existe material espalhado (`ANALISE_PRODUTO_DIFERENCIAIS.md`, `SAAS_TRANSFORMATION_ANALYSIS.md`) que serve de matéria-prima, mas não está consolidado no formato "visão geral, problema, justificativa, valor agregado" |
-| 2 | Documento de Requisitos (RF/RNF) | ❌ Não existe | O único arquivo chamado "requisitos" (`docs/requisitos/requisitos_web_atualizados.md`) é de **uma prova de bimestre não relacionada** ("Prova do 2º Bimestre — Desenvolvimento Web"), não do projeto experimental. RF/RNF de verdade precisam ser extraídos do que já foi implementado (o código é a fonte da verdade hoje) e formalizados |
-| 3 | Diagrama de Fluxo de Dados (DFD) | ❌ Não existe | Nenhuma ocorrência em nenhum lugar do repositório |
-| 4 | MER | ✅ Existe e é sólido | `modelagem/DER.mmd`, `der.png`, `diagrama_logico.md`, `dicionario_dados.md` (13KB, dicionário de dados completo) — só precisa incluir a tabela `products` (Fatia 1, ainda não commitada no remoto) |
+| 1 | Documento de Solicitação do Sistema | ✅ Atende *(entregue 23/08)* | Doc 01 no repositório do professor — ver critério 12 da Seção 0 |
+| 2 | Documento de Requisitos (RF/RNF) | ✅ Atende *(v1.3 entregue 09/09)* | Doc 02 v1.3 no repositório do professor, com 56 RF e 27 RNF |
+| 3 | Diagrama de Fluxo de Dados (DFD) | ⚠️ Parcial (escrito, não entregue) | Doc 03 v1.0 preenchido em 17/09, só no fork; insumos em `docs/sugestoes-documentos-oficiais/03-dfd/INSUMOS.md` |
+| 4 | MER | ✅ Existe e é sólido | `docs/legado/modelagem/DER.mmd`, `der.png`, `diagrama_logico.md`, `dicionario_dados.md` (13KB, dicionário de dados completo) — só precisa incluir a tabela `products` (Fatia 1, ainda não commitada no remoto) |
 | 5 | Desenho de Arquitetura em Nuvem | ❌ Não existe | Depende do item crítico #6 (nuvem) estar resolvido primeiro — não dá para desenhar arquitetura de um provedor que ainda não foi escolhido |
 | 6 | C4 Model | ❌ Não existe | `docs/back/arquitetura_backend.md` tem diagramas de fluxo em ASCII, que servem de base para o nível de Componentes, mas não há Contexto nem Contêineres em notação C4 |
-| 7 | ADR | ❌ Não existe como artefato formal | Há **muitas** decisões arquiteturais bem documentadas espalhadas (`ARQ_DATABASE.md`, relatórios de sessão, `qa-redteam` reports) — é conteúdo rico, só falta empacotar no formato ADR padrão (Contexto/Decisão/Alternativas/Consequências, numerado, um arquivo por decisão) |
+| 7 | ADR | ⚠️ Parcial (ADR-003 escrita, não entregue) | A ADR-003 está no Doc 07, só no fork. Há **muitas** decisões arquiteturais bem documentadas espalhadas (`ARQ_DATABASE.md`, relatórios de sessão, `qa-redteam` reports) — é conteúdo rico, só falta empacotar no formato ADR padrão (Contexto/Decisão/Alternativas/Consequências, numerado, um arquivo por decisão) |
 | 8 | Planejamento de Sprints e Tarefas | ❌ Não existe no formato exigido | `PRODUCT_ROADMAP.md` é um roadmap de features por fase (Demo/TCC/Mercado), não um cronograma de sprints com tarefa → responsável → sprint de entrega |
 
 **Isto é trabalho grande mas de baixo risco técnico** — é sobretudo síntese e formatação do que já existe (exceto DFD, C4 e arquitetura em nuvem, que são artefatos genuinamente novos).
@@ -226,7 +246,7 @@ O termo divide entregas em dois semestres:
 
 ## 11. Formato da Defesa (Seção 8)
 
-**Contingência via Docker/Docker Compose:** ❌ Não atende hoje. `find . -iname "docker-compose*.yml"` não retornou nenhum arquivo — apesar do `CLAUDE.md` (linha 54) ainda citar "Docker Compose (dev)" como parte da estratégia de infra, isso está desatualizado: o projeto migrou totalmente para Kubernetes e nunca voltou a ter um compose file. Isso precisa existir e funcionar, porque é a rede de segurança exigida pelo termo caso a internet falhe no dia da banca.
+**Contingência via Docker/Docker Compose:** ✅ Atende *(concluído 16/09 — T-06.4)*. `docker-compose.yml` sobe o sistema inteiro localmente com os mesmos nomes de serviço de `infra/k8s/` (postgres, redis, minio, rabbitmq, backend, nginx). Validado nesta sessão: build da imagem do backend, healthcheck de todos os serviços, `/health` atravessando o proxy nginx até o backend, e `node command.js migrate` executado com sucesso contra o Postgres do compose. É a rede de segurança exigida pelo termo caso a internet falhe no dia da banca.
 
 ---
 
