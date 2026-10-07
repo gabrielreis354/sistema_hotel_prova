@@ -215,8 +215,8 @@ A Fatia 0 criou a role `WAITER` mas só a bloqueou em `/rooms`, `/users` e `/ana
 Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e precisa ser fechado na T-04.1.
 
 - [ ] **CA-04.1.n.1** — `WAITER` lê `/products` e lança em `/accounts`
-- [ ] **CA-04.1.n.2** — `WAITER` **não** alcança `/reservations`, `/guests`, `/payments`, check-in/out nem `/bill`
-- [ ] **CA-04.1.n.3** — Teste cobrindo cada 403
+- [x] **CA-04.1.n.2** — `WAITER` **não** alcança `/reservations`, `/guests`, `/payments`, check-in/out nem `/bill` *(07/10, branch `fix/waiter-least-privilege`: allowlist no `authMiddleware` — o garçom é negado em todo router autenticado, não só nestes)*
+- [x] **CA-04.1.n.3** — Teste cobrindo cada 403 *(`tests/waiter-least-privilege.test.js`)*
 
 ---
 
