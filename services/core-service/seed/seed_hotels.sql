@@ -65,7 +65,7 @@ CROSS JOIN (VALUES
   ('Presidencial', 6, 800.00)
 ) AS v(name, capacity, price)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, name) DO NOTHING;
+ON CONFLICT (tenant_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Standard do Hotel Aurora (8: 101-108, andar 1)
@@ -85,7 +85,7 @@ CROSS JOIN (VALUES
   ('108', 1, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Suite do Hotel Aurora (5: 201-205, andar 2)
@@ -102,7 +102,7 @@ CROSS JOIN (VALUES
   ('205', 2, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Presidencial do Hotel Aurora (2: 301-302, andar 3)
@@ -116,7 +116,7 @@ CROSS JOIN (VALUES
   ('302', 3, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Usuários do Hotel Aurora (3: 1 ADMIN + 2 RECEPTIONIST)
@@ -131,7 +131,7 @@ CROSS JOIN (VALUES
   ('Recepcao Aurora 2',  'recep2@aurora.example', 'RECEPTIONIST')
 ) AS v(name, email, role)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, email) DO NOTHING;
+ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Hóspedes do Hotel Aurora — lote 1 (20: CPFs 30000000001..20)
@@ -162,7 +162,7 @@ CROSS JOIN (VALUES
   ('Thiago Araujo',     '30000000020', '+55-11-91000-0020', 'hospede20@aurora.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, cpf) DO NOTHING;
+ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Hóspedes do Hotel Aurora — lote 2 (20: CPFs 30000000021..40)
@@ -193,7 +193,7 @@ CROSS JOIN (VALUES
   ('Natalia Siqueira',    '30000000040', '+55-11-91000-0040', 'hospede40@aurora.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, cpf) DO NOTHING;
+ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Reservas do Hotel Aurora (25)
@@ -305,7 +305,7 @@ CROSS JOIN (VALUES
   ('Conforto', 3, 220.00)
 ) AS v(name, capacity, price)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, name) DO NOTHING;
+ON CONFLICT (tenant_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Básico da Pousada Sol (7: 1-7, andar 1)
@@ -324,7 +324,7 @@ CROSS JOIN (VALUES
   ('7', 1, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Conforto da Pousada Sol (3: 8-10, andar 2)
@@ -339,7 +339,7 @@ CROSS JOIN (VALUES
   ('10', 2, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Usuários da Pousada Sol (2: 1 ADMIN + 1 RECEPTIONIST)
@@ -353,7 +353,7 @@ CROSS JOIN (VALUES
   ('Recepcao Sol 1', 'recep1@sol.example', 'RECEPTIONIST')
 ) AS v(name, email, role)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, email) DO NOTHING;
+ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Hóspedes da Pousada Sol (20: CPFs 40000000001..20)
@@ -384,7 +384,7 @@ CROSS JOIN (VALUES
   ('Junia Valente',         '40000000020', '+55-21-92000-0020', 'hospede20@sol.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, cpf) DO NOTHING;
+ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Reservas da Pousada Sol (15)
