@@ -53,6 +53,9 @@ echo ""
 
 # ── FASE 2: Aplicar manifests ───────────────────────────────────────────────
 info "=== FASE 2: APPLY ==="
+# Secret jwt-rsa-keys (ADR-006) antes do backend: sem ele os pods ficam em ContainerCreating
+# e a FASE 3 estoura por timeout, sem dizer o motivo.
+bash scripts/k8s_garantir_secret_jwt.sh
 kubectl apply -k infra/k8s/
 success "Manifests aplicados no namespace '$NS'."
 echo ""

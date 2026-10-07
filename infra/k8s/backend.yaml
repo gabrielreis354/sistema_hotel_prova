@@ -15,6 +15,12 @@ spec:
       labels:
         app: backend
     spec:
+      # O container roda como `node` (uid/gid 1000, USER do Dockerfile). O volume de
+      # secret monta os arquivos como root; com `defaultMode: 0400` o `node` não leria a
+      # chave privada e o fail-fast derrubaria o pod. O fsGroup passa o grupo dos arquivos
+      # para 1000 e o kubelet acrescenta leitura de grupo: fica r--r----- root:1000.
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: backend
           image: sistema-gestao-hotel-backend:latest
@@ -30,11 +36,17 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: POSTGRES_PASSWORD
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: hotel-secret
-                  key: JWT_SECRET
+            # JWT RS256 (ADR-006/T-01.3) — a chave PRIVADA não vem do hotel-secret
+            # versionado. É montada do secret `jwt-rsa-keys`, criado por
+            # scripts/k8s_garantir_secret_jwt.sh (chamado por infra_up.sh e start.sh up)
+            # com as chaves jwt-private.pem/jwt-public.pem — ver README.md. Versionar a
+            # privada anularia o motivo de sair do HS256.
+            - name: JWT_PRIVATE_KEY_PATH
+              value: /app/keys/jwt-private.pem
+            - name: JWT_PUBLIC_KEY_PATH
+              value: /app/keys/jwt-public.pem
+            - name: JWT_KEY_ID
+              value: core-v1
             - name: PIX_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
@@ -71,6 +83,18 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+          volumeMounts:
+            - name: jwt-rsa-keys
+              mountPath: /app/keys
+              readOnly: true
+      volumes:
+        - name: jwt-rsa-keys
+          secret:
+            secretName: jwt-rsa-keys
+            # Efetivo com o fsGroup acima: r--r----- root:1000. Tira a leitura de "outros"
+            # (o padrão é 0644). Não isola a chave de outros processos do próprio container:
+            # todos rodam como uid/gid 1000 — o isolamento real é a imagem ter um processo só.
+            defaultMode: 0400
       terminationGracePeriodSeconds: 60
 ---
 apiVersion: v1
