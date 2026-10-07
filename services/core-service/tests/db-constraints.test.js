@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import sequelize from '../database/connections/sequelize.js';
+import { truncateAll } from './helpers/db.js';
 
 // O banco de teste é criado por sync({ force: true }), que NÃO gera extensão,
 // EXCLUDE, CHECK nem índice composto. Sem aplicar os mesmos objetos que o
@@ -103,6 +104,12 @@ describe('Constraints de banco no ambiente de teste', () => {
     // applyDbConstraints() de novo — a mesma função que roda em migrate e em
     // globalSetup — e confirma que ela CURA os dois, não só documenta a intenção.
     describe('applyDbConstraints cura índice único total em banco legado', () => {
+        // Os testes abaixo recriam índice TOTAL, o que exige tabela sem duplicata — e
+        // um arquivo anterior (ex.: paranoid-unique-recreate) deixa de propósito pares
+        // "soft-deletado + recriado" com o mesmo valor. Sem limpar, o bloco só passa
+        // se rodar primeiro na suíte: dependência de ordem, não prova do CA-06.6.b.
+        beforeAll(truncateAll);
+
         // Best-effort: restaura o estado canônico depois de CADA teste deste bloco,
         // mesmo que o teste falhe no meio. Sem isto, uma mutação que sobra (ex.: o
         // 🟡-2 da reauditoria — um índice com duplicata viva que não cura) vazaria
