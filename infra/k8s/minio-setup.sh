@@ -1,6 +1,6 @@
 #!/bin/sh
 # Provisiona o MinIO para o download de PDF por URL assinada (RNF-023). Idempotente: roda a
-# cada subida — no compose, pelo serviço `minio-setup`; no k8s, como initContainer do backend.
+# cada subida — no compose, pelo serviço `minio-setup`; no k8s, pelo contêiner `setup` do pod do MinIO.
 #
 # Cria o bucket e um usuário que só tem s3:GetObject nele. É esse usuário — não o root — que o
 # backend usa para ASSINAR as URLs de download: a URL que chega ao navegador carrega o access

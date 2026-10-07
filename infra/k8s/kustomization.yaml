@@ -15,7 +15,7 @@ resources:
   - networkpolicy.yaml
 
 # Script de setup do MinIO (bucket + usuário de leitura que assina URLs — RNF-023), usado pelo
-# initContainer do backend. O mesmo arquivo é montado pelo serviço minio-setup do compose.
+# contêiner `setup` do pod do MinIO. O mesmo arquivo é montado pelo serviço minio-setup do compose.
 configMapGenerator:
   - name: minio-setup
     files:

@@ -75,10 +75,63 @@ spec:
           volumeMounts:
             - name: minio-data
               mountPath: /data
+        # Bucket + usuário só de leitura que assina as URLs de download (RNF-023) —
+        # infra/k8s/minio-setup.sh, o mesmo do serviço minio-setup do compose. Fica no pod do
+        # MinIO, não no do backend: se a imagem não baixa ou o MinIO está fora, só o PDF fica
+        # indisponível (best-effort, CA-D.2) — o PMS não depende disto para subir. Tenta até
+        # dar certo e fica parado (o script é idempotente). Recebe só as credenciais do MinIO.
+        - name: setup
+          image: quay.io/minio/minio:latest
+          command:
+            - /bin/sh
+            - -c
+            - until /bin/sh /setup/minio-setup.sh; do sleep 10; done; exec sleep infinity
+          env:
+            - name: MINIO_URL
+              value: http://localhost:9000
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: hotel-config
+                  key: MINIO_BUCKET
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_ROOT_PASSWORD
+            - name: MINIO_PRESIGN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_USER
+            - name: MINIO_PRESIGN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_PASSWORD
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          volumeMounts:
+            - name: minio-setup
+              mountPath: /setup
+              readOnly: true
       volumes:
         - name: minio-data
           persistentVolumeClaim:
             claimName: minio-data
+        - name: minio-setup
+          configMap:
+            name: minio-setup
 ---
 apiVersion: v1
 kind: Service
