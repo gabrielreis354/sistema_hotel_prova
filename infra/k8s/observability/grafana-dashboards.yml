@@ -1,0 +1,11 @@
+# Provider de dashboards do Grafana (T-02.4) — compartilhado pelo docker-compose e pelo k8s.
+# Carrega todo JSON montado em /var/lib/grafana/dashboards.
+apiVersion: 1
+providers:
+  - name: gesway
+    folder: Gesway
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

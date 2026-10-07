@@ -52,6 +52,12 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: PIX_WEBHOOK_SECRET
+            # Token do scrape de /metrics (T-02.4) — o Prometheus lê o mesmo valor do secret.
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: METRICS_TOKEN
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
