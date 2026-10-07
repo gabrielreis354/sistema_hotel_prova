@@ -418,7 +418,7 @@ const options = {
                         201: { description: 'Reserva PENDING criada + QR PIX do sinal', content: { 'application/json': { schema: { $ref: '#/components/schemas/PublicBookingResponse' } } } },
                         400: { description: 'Campos obrigatórios ausentes (formato ValidationErrors) ou datas inválidas (formato Error)', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/ValidationErrors' }, { $ref: '#/components/schemas/Error' }] } } } },
                         404: { description: 'Hotel ou categoria não encontrados', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Sem disponibilidade na categoria para o período', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Sem disponibilidade na categoria para o período, ou CPF/e-mail do hóspede criado por outra requisição simultânea (corrida no find-or-create — reenviar resolve)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         422: { description: 'Categoria não comporta os hóspedes ou sem preço', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
