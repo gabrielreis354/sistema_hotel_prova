@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { createPrivateKey, createPublicKey, sign, verify } from 'crypto';
+import jwt from 'jsonwebtoken';
 
 /**
  * Carrega o par de chaves RS256 do JWT (ADR-006).
@@ -62,35 +62,35 @@ export function getKeyId() {
 }
 
 /**
- * Confere que as duas chaves são PEM legíveis E formam um par — assina uma prova com a
- * privada e verifica com a pública. Chamado no boot (_web.js): sem isto, o fail-fast só
- * conferia se o ARQUIVO existia, e chave vazia, lixo ou par trocado (secret recriado pela
- * metade) subiam "healthy" — login dava 500 e toda rota protegida 401, sem log nenhum
- * (achado 🟡-5 da auditoria de 27/09). Função pura: recebe o conteúdo, não lê arquivo.
+ * Confere que o par funciona de verdade: assina um JWT RS256 com a privada e o verifica com a
+ * pública — o mesmo caminho do LoginController e do auth.middleware. Uma operação pega arquivo
+ * vazio, PEM inválido, chave que não é RSA e chaves de pares diferentes, sem validação ad hoc.
+ * Chamado no boot (_web.js): sem isto, par trocado (secret recriado pela metade) subia
+ * "healthy" — login 500 e toda rota protegida 401, sem log (achado 🟡-5 da auditoria de 27/09).
+ * Função pura: recebe o conteúdo, não lê arquivo.
  */
 export function assertKeyPair(privatePem, publicPem) {
-    let privateKey;
-    let publicKey;
-    try {
-        privateKey = createPrivateKey(privatePem);
-    } catch {
-        throw new Error('Chave privada do JWT inválida — não é uma chave PEM legível.');
-    }
-    try {
-        publicKey = createPublicKey(publicPem);
-    } catch {
-        throw new Error('Chave pública do JWT inválida — não é uma chave PEM legível.');
-    }
-    if (privateKey.asymmetricKeyType !== 'rsa') {
-        throw new Error(`Chave privada do JWT é ${privateKey.asymmetricKeyType}, mas RS256 exige RSA.`);
+    // O jsonwebtoken verifica até com a privada (deriva a pública dela) — a assinatura abaixo
+    // passaria. Mas quem recebe a privada no lugar da pública ganha poder de EMITIR token: num
+    // serviço que só verifica, o CA-01.3.b cairia sem sinal nenhum.
+    if (/PRIVATE KEY/.test(publicPem)) {
+        throw new Error('O arquivo da chave pública do JWT contém uma chave PRIVADA — monte só a jwt-public.pem.');
     }
 
-    const prova = Buffer.from('gesway-jwt-keypair-check');
-    const assinatura = sign('sha256', prova, privateKey);
-    if (!verify('sha256', prova, publicKey, assinatura)) {
+    let token;
+    try {
+        token = jwt.sign({ prova: 'boot' }, privatePem, { algorithm: 'RS256', expiresIn: 60 });
+    } catch (error) {
+        throw new Error(`Chave privada do JWT não assina RS256 — ${error.message}.`);
+    }
+
+    try {
+        jwt.verify(token, publicPem, { algorithms: ['RS256'] });
+    } catch (error) {
         throw new Error(
-            'Chave privada e pública do JWT não formam um par — provavelmente uma delas foi ' +
-            'regerada sem a outra. Gere o par de novo e atualize os dois arquivos juntos.'
+            `Chave pública do JWT não verifica o token da privada (${error.message}): ou ela é ` +
+            'inválida, ou as duas não formam um par — uma foi regerada sem a outra. Gere o par ' +
+            'de novo e atualize os dois arquivos juntos.'
         );
     }
 }

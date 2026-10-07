@@ -196,6 +196,12 @@ Protocolos decididos no ADR-003. Faltam os contratos e os números de falha.
 - [ ] **CA-01.2.d** — *Timeout* e tentativas da chamada síncrona; política de nova tentativa e envio à fila de mensagens mortas no consumidor
 - [x] **CA-01.2.e** — Broker escolhido e justificado — **RabbitMQ**, ADR-003
 
+> **Proposta em revisão (30/09):** `docs/specs/anexos/SPEC-01-catalogo-eventos.md` cobre b, c e d
+> — envelope, 20 eventos com o campo que cada consulta usa, política do consumidor, contrato
+> OpenAPI das rotas internas e números da chamada síncrona. Os CAs são marcados quando o
+> Gabriel aprovar. O anexo pede quatro decisões (§9) e registra cinco achados do código atual
+> (§11), um deles 🔴: quartos extras de uma reserva não são protegidos contra *double-booking*.
+
 ---
 
 ### T-01.3 — Definir autenticação entre serviços 🟡 (a e b implementados no core; c e d decididos, implementação na T-01.6/T-01.4; e aguarda formalização)
