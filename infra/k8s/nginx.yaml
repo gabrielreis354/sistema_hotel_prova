@@ -62,19 +62,28 @@ data:
       # backend com MINIO_PUBLIC_ENDPOINT (o Host faz parte da assinatura e vai intacto) e por um
       # usuário MinIO que só tem s3:GetObject (infra/k8s/minio-setup.sh). O prefixo é o
       # MINIO_BUCKET (hotel-contracts); mudar um exige mudar o outro.
-      location ~ "^/hotel-contracts/[0-9a-f-]{36}/(quotes|contracts)/[0-9a-f-]{36}\.pdf$" {
+      # \z (fim absoluto), não $: o $ do PCRE também casa antes de uma quebra de linha final.
+      location ~ "^/hotel-contracts/[0-9a-f-]{36}/(quotes|contracts)/[0-9a-f-]{36}\.pdf\z" {
         limit_except GET HEAD { deny all; }
         if ($args !~* "^(x-amz-[a-z0-9-]+|x-id)=[^&]*(&(x-amz-[a-z0-9-]+|x-id)=[^&]*)*$") { return 403; }
         if ($args !~ "(^|&)X-Amz-Signature=[0-9a-f]{64}(&|$)") { return 403; }
-        # $uri (normalizado, só [0-9a-f-/.] pela regex acima) em vez do URI cru do cliente.
+        # Só URL assinada pelo usuário de leitura e com validade de até 5 min (RNF-023). Sem isto,
+        # quem tem as credenciais do repositório reassinava uma chave antiga por até 7 dias, ou com
+        # o root. O nome é o MINIO_PRESIGN_USER (gesway-pdf-leitor); mudar um exige mudar o outro.
+        if ($args !~* "(^|&)X-Amz-Credential=gesway-pdf-leitor%2F") { return 403; }
+        if ($args !~ "(^|&)X-Amz-Expires=([1-9]|[1-9][0-9]|[12][0-9][0-9]|300)(&|$)") { return 403; }
+        # $uri normalizado — pela regex acima (ancorada em \z), só [0-9a-f-/.] — em vez do URI cru.
         proxy_pass         http://minio_s3$uri$is_args$args;
         proxy_http_version 1.1;
         proxy_set_header   Connection        "";
         proxy_set_header   Host              $http_host;
         proxy_set_header   Authorization     "";
         proxy_set_header   Cookie            "";
-        proxy_set_header   X-Forwarded-For   "";
-        proxy_set_header   X-Real-IP         "";
+        # IP real do cliente para o log de acesso do MinIO (quem baixou qual PDF — LGPD art. 37),
+        # sobrescrevendo o que o cliente mandar; Forwarded é descartado (seria forjável).
+        proxy_set_header   X-Forwarded-For   $remote_addr;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   Forwarded         "";
         proxy_set_header   X-Forwarded-Host  "";
         proxy_set_header   X-Forwarded-Proto "";
         proxy_buffering    off;
