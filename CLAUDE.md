@@ -28,15 +28,18 @@ Na ordem:
 2. docs/CODING_STANDARDS.md                             → padrões de código e Git
 3. Este arquivo (CLAUDE.md)                             → regras de orquestração
 4. docs/PRODUCT_ROADMAP.md                              → fase atual do produto
+5. docs/FERRAMENTAL.md                                  → que skill/plugin entra em cada tarefa
 ```
 
 Se não houver relatório anterior, rode:
 
 ```bash
-git log --oneline -10          # últimos commits
-git status                     # estado do working tree
-git branch -a                  # branches existentes
+bash scripts/estado.sh         # estado real + o ferramental que o diff desta branch pede
 ```
+
+O `estado.sh` fecha com o bloco **FERRAMENTAL DA TAREFA**: ele olha o diff e diz o que se
+aplica. Existe porque recurso instalado não se lembra sozinho — o `/security-review` esteve
+disponível durante todo o tempo em que duas falhas de segurança ficaram abertas na `main`.
 
 ---
 
@@ -451,6 +454,8 @@ indexes: [{
 | Documento | Conteúdo |
 |---|---|
 | `docs/CODING_STANDARDS.md` | SOLID, DRY, KISS com exemplos de código + template de relatório |
+| `docs/FERRAMENTAL.md` | Registro do ferramental — skill, plugin e subagente, com "quando **não** usar". O `estado.sh` diz qual entra na tarefa; este arquivo diz o que cada um faz |
+| `frontend/DESIGN_PMS.md` | **Leitura obrigatória antes de mexer no `frontend/`.** Contexto de domínio para as skills de design instaladas em `.claude/skills/`, qual delas manda em cada superfície, e as regras de PMS que nenhuma delas conhece |
 | `docs/PRODUCT_ROADMAP.md` | Fases do produto, o que está previsto |
 | `docs/db/ARQ_DATABASE.md` | Schema do banco, relações, decisões de modelagem |
 | `docs/infra/KUBERNETES.md` | Infra K8s, como aplicar os manifests |

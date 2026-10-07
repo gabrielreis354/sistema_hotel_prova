@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import PixProvider from './PixProvider.js';
+import { computePixSignature } from '../../utils/pixWebhookSignature.js';
 
 /**
  * FakePixProvider — provedor PIX simulado.
@@ -28,5 +29,23 @@ export default class FakePixProvider extends PixProvider {
         const qrCode = Buffer.from(payload).toString('base64');
 
         return { providerChargeId, qrCode, expiration };
+    }
+
+    /**
+     * Assina uma notificação de webhook como um PSP real assinaria — mesmo
+     * HMAC-SHA256 que PixWebhookController verifica. Existe só para os testes
+     * e a demonstração exercitarem o mesmo caminho de assinatura que um PSP
+     * verdadeiro usaria; não faz parte do contrato PixProvider (cobrar não é
+     * assinar callback) porque só o simulador precisa "fingir" ser o PSP.
+     *
+     * @param {string|Buffer} rawBody — os bytes exatos que serão enviados ao webhook
+     * @param {string} [secret] — default: process.env.PIX_WEBHOOK_SECRET
+     * @returns {string} `sha256=<hex>`, pronto para o cabeçalho x-pix-signature
+     */
+    signNotification(rawBody, secret = process.env.PIX_WEBHOOK_SECRET) {
+        if (!secret) {
+            throw new Error('PIX_WEBHOOK_SECRET não configurado — não é possível assinar a notificação');
+        }
+        return computePixSignature(rawBody, secret);
     }
 }

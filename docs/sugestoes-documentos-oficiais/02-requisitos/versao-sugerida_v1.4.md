@@ -123,7 +123,7 @@ A **prioridade** comunica a ordem de construção: requisitos de prioridade Alta
 | ID | Descrição | Critério de Aceite | Prioridade | Módulo |
 |----|-----------|---------------------|------------|--------|
 | RF-044 | O sistema deve documentar interativamente todos os endpoints | Especificação OpenAPI 3.0 publicada em `/api-docs` (Swagger UI), com autenticação via botão **Authorize** | Alta | cross-cutting |
-| RF-045 | O sistema deve preencher endereço automaticamente a partir do CEP no cadastro de cliente corporativo | Integração com ViaCEP: informado o CEP, logradouro, bairro, cidade e UF são preenchidos sem digitação; CEP inexistente retorna erro tratado, sem interromper o cadastro | Baixa | core-service (integração externa) |
+| RF-045 | O sistema deve preencher endereço automaticamente a partir do CEP no cadastro de cliente corporativo | Integração com ViaCEP: informado o CEP, logradouro, bairro, cidade e UF são preenchidos sem digitação; CEP inexistente retorna erro tratado, sem interromper o cadastro | Baixa | b2b-service (integração externa) |
 
 ### 2.9 Interface do Operador (app-pms)
 

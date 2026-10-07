@@ -1,7 +1,7 @@
 # SPEC-06 — Qualidade e Dívida Técnica
 
 **Prioridade:** 🟡 Média — mas contém item que **quebra o portão do CI**
-**Estado:** 🟡 Em andamento — T-06.8 concluída em 15/09; T-06.3, T-06.5 e T-06.6 implementadas em branch, aguardando verificação
+**Estado:** 🟡 Em andamento — T-06.4 e T-06.8 concluídas; T-06.3, T-06.5 e T-06.6 implementadas em branch, aguardando verificação
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 
@@ -37,7 +37,7 @@ thresholds: { statements: 60, lines: 60, functions: 60, branches: 55 }
 
 ---
 
-### T-06.2 — Schema de resposta no Swagger 🔲
+### T-06.2 — Schema de resposta no Swagger ✅
 
 **Problema medido em 26/08:** de 53 respostas 2xx (excluindo 204), **42 não declaram `content`** — **79% sem schema**.
 
@@ -46,13 +46,19 @@ Consequência direta: o cliente TypeScript gerado do OpenAPI devolve `never` no 
 Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations`, `/rooms`, `/users`.
 
 **Critérios de aceitação**
-- [ ] **CA-06.2.a** — Todas as respostas 2xx dos endpoints usados pelo frontend declaram `content` com `$ref` de schema
-- [ ] **CA-06.2.b** — Schemas reutilizáveis em `components.schemas`, sem duplicação literal
-- [ ] **CA-06.2.c** — Cliente regenerado (`pnpm gen:api`) sem `never` nos módulos cobertos
-- [ ] **CA-06.2.d** — Casts `as unknown as` removidos de `guestsApi.ts`
-- [ ] **CA-06.2.e** — Typecheck do frontend limpo após a remoção
+- [x] **CA-06.2.a** — Todas as respostas 2xx dos endpoints usados pelo frontend declaram `content` com `$ref` de schema *(medido: 54/54 respostas 2xx, eram 42 sem)*
+- [x] **CA-06.2.b** — Schemas reutilizáveis em `components.schemas`, sem duplicação literal *(15 schemas novos; ressalva 🟡 da auditoria: `{id,name}` de categoria/hóspede/usuário resumidos ainda aparecem inline em 2-3 lugares em vez de um schema compartilhado — registrado, não bloqueante)*
+- [x] **CA-06.2.c** — Cliente regenerado (`pnpm gen:api`) sem `never` nos módulos cobertos *(confirmado programaticamente: nenhuma resposta 200/201 com `content?: never`)*
+- [x] **CA-06.2.d** — Casts `as unknown as` removidos de `guestsApi.ts` *(6 casts no total: 4 em guestsApi.ts, 1 em GuestDetailPage.tsx, 1 em loginApi.ts — todos removidos)*
+- [x] **CA-06.2.e** — Typecheck do frontend limpo após a remoção *(`pnpm typecheck` — 4/4 pacotes, confirmado do zero sem cache pela auditoria)*
 
-> **Maior retorno por esforço de toda esta Spec.** É trabalho mecânico no backend que elimina uma classe inteira de bug no frontend e valida a decisão de stack que sustentou a escolha do cliente tipado.
+> **Maior retorno por esforço de toda esta Spec.** Corrigido e verificado em 22/09/2026 — ver `docs/qa/redteam_swagger-response-schemas_22set2026.md` (1ª rodada REPROVADA por 1 achado 🔴 — DECIMAL documentado como `number`; corrigido; reauditoria APROVADA COM RESSALVAS).
+>
+> **Decisão tomada durante esta etapa, com aprovação explícita do usuário:** antes de documentar `/payments`, corrigido o `defaultScope` do `PaymentModel` (achado 🔴 reconfirmado em 3 auditorias anteriores — `pix_qr_code`/`provider`/`provider_charge_id` vazavam em `GET /payments` e `GET /payments/{id}`). Ver commit `fix(payments)` desta branch.
+>
+> **Pendências registradas pela auditoria, fora do escopo desta task:**
+> - `PUT /room-categories/{id}` e `PUT /payments/{id}` devolvem `price_per_night`/`amount` como `number` (o valor cru do body, sem `reload()`), enquanto os `GET` correspondentes devolvem `string` — mesmo `$ref`, dois tipos. Correção: `await instance.reload()` depois do `.update()`, mesma causa raiz nos dois controllers.
+> - `POST /payments` (`.create()`) não passa pelo `defaultScope` do `PaymentModel` — os 3 campos sensíveis vêm `null` nessa resposta específica (documentado no schema, não é vazamento: pagamento manual nunca tem esses dados).
 
 ---
 
@@ -70,21 +76,26 @@ Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations
 
 ---
 
-### T-06.4 — `docker-compose.yml` para contingência da defesa 🔲
+### T-06.4 — `docker-compose.yml` para contingência da defesa ✅
 
 **Problema:** o Termo prevê:
 
 > *"Em caso de falha de conectividade [...] a equipe poderá demonstrar a aplicação localmente utilizando **Docker / Docker Compose**, sem penalidade. Para isso, o grupo deve manter os arquivos de containerização **atualizados e funcionais** no repositório."*
 
-Verificado: **não existe nenhum `docker-compose*.yml`** no repositório. O projeto migrou totalmente para Kubernetes.
+**Concluída em 21/09/2026.** Branch `feature/docker-compose-rabbitmq`. Uma primeira versão (16/09)
+tinha `docker-compose.yml` mas 3 dos 6 critérios não eram cumpridos de verdade — achado da
+auditoria `qa-redteam` em `docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`. Fechado com
+evidência real de execução em `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md`
+(seed funcional — inclusive um bug real de cast de `ENUM` só aparecia rodando até o fim —,
+healthchecks corrigidos, instrução de frontend, README documentado).
 
 **Critérios de aceitação**
-- [ ] **CA-06.4.a** — `docker-compose.yml` subindo backend, Postgres, Redis e MinIO
-- [ ] **CA-06.4.b** — `docker compose up` funciona a partir de repositório limpo
-- [ ] **CA-06.4.c** — `migrate` e `seed` executáveis no compose
-- [ ] **CA-06.4.d** — Frontend incluído ou com instrução clara de como subir
-- [ ] **CA-06.4.e** — Testado de verdade, não só escrito
-- [ ] **CA-06.4.f** — README documentando o procedimento de contingência
+- [x] **CA-06.4.a** — `docker-compose.yml` subindo backend, Postgres, Redis e MinIO
+- [x] **CA-06.4.b** — `docker compose up` funciona a partir de repositório limpo
+- [x] **CA-06.4.c** — `migrate` e `seed` executáveis no compose
+- [x] **CA-06.4.d** — Frontend incluído ou com instrução clara de como subir
+- [x] **CA-06.4.e** — Testado de verdade, não só escrito
+- [x] **CA-06.4.f** — README documentando o procedimento de contingência
 
 > **Não é opcional.** É a rede de segurança da defesa. Se a internet cair e o compose não funcionar, não há demonstração — e o Termo já concedeu o direito a essa contingência.
 
@@ -104,7 +115,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 > **Risco de LGPD e segurança.** Foi identificado pelo `qa_checks.sh`. Corrigido e mergeado em 16/09/2026 — ver `docs/qa/redteam_public-booking-leak_16set2026.md`.
 >
-> **Pendência nova, fora do escopo desta task (registrar como T-06.12 ou similar):** auditoria de 16/09 encontrou dois achados 🔴 pré-existentes, não introduzidos por esta correção — (1) `GET /payments` devolve o `Payment` inteiro (incluindo `provider_charge_id`) a qualquer usuário autenticado do tenant, sem `requireRole`; (2) o webhook PIX aceita qualquer requisição com o `provider_charge_id` certo (esta é a T-06.9, já na fila). Recomendação do auditor: `defaultScope` em `PaymentModel` excluindo `pix_qr_code`, `provider_charge_id` e `provider`, resolvendo os dois controllers atuais e todo consumidor futuro de uma vez.
+> **Pendência de 16/09 — RESOLVIDA em 22/09 (etapa T-06.2):** a auditoria de 16/09 encontrou dois achados 🔴 pré-existentes — (1) `GET /payments` devolvia o `Payment` inteiro (incluindo `provider_charge_id`) a qualquer usuário autenticado do tenant; (2) o webhook PIX aceitava qualquer requisição com o `provider_charge_id` certo. O item (2) foi fechado pela T-06.9 (21/09). O item (1) foi fechado durante a T-06.2: `defaultScope` no `PaymentModel` excluindo `pix_qr_code`, `provider_charge_id` e `provider` — exatamente a recomendação do auditor, resolvendo todos os consumidores atuais e futuros de uma vez.
 
 ---
 
@@ -152,7 +163,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ---
 
-### T-06.9 — Webhook PIX sem validação de assinatura 🔴 🔲
+### T-06.9 — Webhook PIX sem validação de assinatura 🔴 ✅
 
 **Problema:** `services/core-service/routes/apis/webhookRouter.js` monta `POST /webhooks/pix` **sem autenticação** — correto, o PSP não tem JWT — mas o controller não verifica assinatura alguma. O próprio comentário do router admite a lacuna: *"em produção, cada webhook deve validar a assinatura do provedor antes de confiar"*.
 
@@ -161,14 +172,20 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 **Por que é uma tarefa própria:** o RNF-012 do Doc. 02 exige assinatura verificada em **100%** dos webhooks. A SPEC-03 T-03.2 só a menciona como "avaliar" ao integrar o PSP real — o que deixa a vulnerabilidade **atual** sem dono. Esta tarefa fecha o requisito independentemente da integração externa.
 
 **Critérios de aceitação**
-- [ ] **CA-06.9.a** — Assinatura HMAC-SHA256 verificada com `crypto.timingSafeEqual` antes de qualquer efeito colateral
-- [ ] **CA-06.9.b** — Segredo lido de variável de ambiente, nunca versionado (`.env.example` atualizado)
-- [ ] **CA-06.9.c** — Requisição sem assinatura ou com assinatura inválida responde `401` e **não altera estado**
-- [ ] **CA-06.9.d** — `FakePixProvider` assina a notificação, para que o fluxo de teste exercite o caminho real
-- [ ] **CA-06.9.e** — Teste cobrindo: assinatura válida promove; inválida recusa; ausente recusa; idempotência preservada (RF-027)
-- [ ] **CA-06.9.f** — `provider_charge_id` continua fora de resposta pública (ver T-06.5)
+- [x] **CA-06.9.a** — Assinatura HMAC-SHA256 verificada com `crypto.timingSafeEqual` antes de qualquer efeito colateral
+- [x] **CA-06.9.b** — Segredo lido de variável de ambiente, nunca versionado (`.env.example` atualizado)
+- [x] **CA-06.9.c** — Requisição sem assinatura ou com assinatura inválida responde `401` e **não altera estado**
+- [x] **CA-06.9.d** — `FakePixProvider` assina a notificação, para que o fluxo de teste exercite o caminho real
+- [x] **CA-06.9.e** — Teste cobrindo: assinatura válida promove; inválida recusa; ausente recusa; idempotência preservada (RF-027)
+- [x] **CA-06.9.f** — `provider_charge_id` continua fora de resposta pública (ver T-06.5)
 
-> Rastreia **RNF-012**. Achado de auditoria `qa-redteam` ainda em aberto — a maior severidade desta Spec.
+> Rastreia **RNF-012**. Corrigido e mergeado em 21/09/2026 — ver `docs/qa/redteam_pix-webhook-signature_21set2026.md`.
+> Fail-closed: sem `PIX_WEBHOOK_SECRET` configurado, o webhook recusa toda requisição (nunca "aceita por padrão").
+> Área do Weslley marcada no PR: `PIX_WEBHOOK_SECRET` em `.github/workflows/ci.yml` e `infra/k8s/` (`secret.yaml`, `backend.yaml`).
+>
+> **Pendências registradas pela auditoria, fora do escopo desta task:**
+> 1. `config/swagger.js` não reflete o novo contrato do webhook (cabeçalho `x-pix-signature`, resposta `401`, descrição desatualizada) — fica para a T-06.2, que reescreve o Swagger inteiro.
+> 2. `FakePixProvider.signNotification` não faz parte do contrato `PixProvider` (decisão deliberada — só o simulador precisa "assinar como PSP"; um `RealPixProvider` futuro não precisa desse método). Documentado, não é defeito.
 
 ---
 
@@ -243,7 +260,7 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 - [ ] Nenhum endpoint público expondo dado sensível
 - [ ] Nenhum webhook aceitando notificação sem assinatura verificada (RNF-012)
 - [ ] Todas as rotas de listagem paginadas (RNF-002)
-- [ ] `docker compose up` funcionando e testado
+- [x] `docker compose up` funcionando e testado
 - [ ] `main` refletindo o estado atual do projeto
 - [ ] `npm run qa:checks` sem erro nem aviso pendente
 
@@ -255,3 +272,5 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Consolida achados de auditorias `qa-redteam` e itens de conformidade do Termo |
 | 1.1 | 09/09/2026 | Gabriel Reis Cunha | Acrescenta **T-06.9** (assinatura do webhook PIX, RNF-012) e **T-06.10** (paginação nas listagens, RNF-002), apuradas no cruzamento do Doc. 02 v1.2 com as Specs: os dois requisitos exigiam 100% de cobertura e não tinham tarefa em nenhuma Spec. A T-06.9 vai ao topo da ordem por ser a única vulnerabilidade explorável hoje, sem dependência de integração externa |
+| 1.2 | 21/09/2026 | Weslley (orquestrando Claude Code) | **T-06.4 concluída de verdade.** A versão de 16/09 declarava o critério 20 atendido, mas auditoria `qa-redteam` (`docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`) achou 3 dos 6 CAs não cumpridos (seed não funcionava, sem instrução de frontend, README não documentava). Fechados com evidência real de execução — `docker compose up` com os 6 serviços `healthy`, `migrate` + `seed` rodando até o fim (incluindo um bug real de cast de `ENUM` no seed, só visível executando), login via API com usuário seedado. Relatório: `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md` |
+| 1.3 | 21/09/2026 | Weslley (orquestrando Claude Code) | **Ressalvas da reauditoria fechadas.** Uma segunda auditoria `qa-redteam`, desta vez rodando o `docker compose up` ela mesma em vez de confiar no relatório anterior (`docs/qa/redteam_docker-compose-rabbitmq_21set2026.md`), achou que a alegação de idempotência do seed era **falsa**: rodar 2x inseria +5 reservas `CANCELLED` a cada vez (a EXCLUDE não cobre linhas `CANCELLED`, de propósito, e por isso o `ON CONFLICT DO NOTHING` não tinha nada pra capturar ali). Corrigido com guard `NOT EXISTS`, verificado com 3 execuções seguidas dando o mesmo resultado. Também corrigidos: guard `ALLOW_SEED=1` contra rodar o seed sem querer num banco de produção real, README apontando pro `.env.example` errado, `BACKEND_HOST_PORT` não documentado, healthcheck do nginx trocado de `/healthz` (estático) para `/health` (real). Relatório: `docs/historico_sessao/weslley/fecha_t064_ressalvas_reauditoria_21set2026.md` |
