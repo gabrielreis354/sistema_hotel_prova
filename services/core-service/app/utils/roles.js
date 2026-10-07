@@ -4,19 +4,29 @@
 // (quartos, usuários, analytics).
 export const VALID_ROLES = ['ADMIN', 'RECEPTIONIST', 'WAITER'];
 
-// Least privilege do WAITER (SPEC-04 §6, CA-04.1.n) — ALLOWLIST, não blocklist.
-// O garçom lê o cardápio e lança nas comandas; qualquer outra rota autenticada é
-// negada. Fail-safe: um router novo nasce fechado para o garçom sem precisar
-// lembrar de se proteger. Liberar algo para ele é decisão explícita, aqui.
+// Escopo de rota por papel (SPEC-04 §6, CA-04.1.n) — ALLOWLIST, não blocklist.
 //
-// `path` é o caminho sem query string. A âncora `(\/|$)` impede que um prefixo
-// parecido (`/productsX`) entre pela regra de `/products`.
+// ADMIN e RECEPTIONIST passam aqui e seguem para o `requireRole` de cada rota.
+// O WAITER só alcança o que está listado abaixo. Qualquer outro papel — inclusive
+// um que venha a ser criado, ou um token sem `role` — é negado: o próximo papel
+// nasce sem acesso, e liberar é decisão explícita, aqui.
+const FULL_ACCESS_ROLES = ['ADMIN', 'RECEPTIONIST'];
+
+// Uma regra por rota, não por prefixo: `/accounts` vai ganhar `/bill` e `/close`
+// (T-04.3), que mostram saldo e pagamentos do hóspede — o garçom não pode herdá-las
+// por acidente. Ficam de fora também excluir conta e excluir item (só ADMIN, D-8).
+// `path` é o caminho sem query string; `[^/]+` é um único segmento (o :id).
 const WAITER_ALLOWLIST = [
-    { methods: ['GET'], path: /^\/products(\/|$)/ },
-    { methods: ['GET', 'POST', 'DELETE'], path: /^\/accounts(\/|$)/ }
+    { method: 'GET',  path: /^\/products\/?$/ },               // cardápio
+    { method: 'GET',  path: /^\/products\/[^/]+\/?$/ },       // item do cardápio
+    { method: 'GET',  path: /^\/accounts\/?$/ },               // listar comandas
+    { method: 'GET',  path: /^\/accounts\/[^/]+\/?$/ },       // ver comanda
+    { method: 'POST', path: /^\/accounts\/?$/ },               // abrir mesa/balcão (D-8)
+    { method: 'POST', path: /^\/accounts\/[^/]+\/items\/?$/ } // lançar item
 ];
 
 export function isRouteAllowedForRole(role, method, path) {
-    if (role !== 'WAITER') return true;
-    return WAITER_ALLOWLIST.some(rule => rule.methods.includes(method) && rule.path.test(path));
+    if (FULL_ACCESS_ROLES.includes(role)) return true;
+    if (role !== 'WAITER') return false;
+    return WAITER_ALLOWLIST.some(rule => rule.method === method && rule.path.test(path));
 }

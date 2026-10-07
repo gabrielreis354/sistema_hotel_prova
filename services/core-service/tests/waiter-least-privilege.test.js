@@ -4,6 +4,7 @@ import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
+import { isRouteAllowedForRole } from '../app/utils/roles.js';
 
 const app = createApp();
 
@@ -133,11 +134,6 @@ describe('WAITER — least privilege (CA-04.1.n)', () => {
         expect(res.status).toBe(403);
     });
 
-    it('prefixo parecido não entra pela allowlist (/productsX)', async () => {
-        const res = await request(app).get('/productsX').set('Authorization', `Bearer ${waiterJwt}`);
-        expect(res.status).not.toBe(200);
-    });
-
     // ─── Regressão: os outros papéis não perdem acesso ─────────────────────────
     it('RECEPTIONIST continua lendo reservas, hóspedes e pagamentos', async () => {
         for (const url of ['/reservations', `/reservations/${reservationId}/bill`, '/guests', '/payments']) {
@@ -151,5 +147,46 @@ describe('WAITER — least privilege (CA-04.1.n)', () => {
             const res = await request(app).get(url).set('Authorization', `Bearer ${adminJwt}`);
             expect(res.status, url).toBe(200);
         }
+    });
+});
+
+// Regra pura, sem banco: pega o que o teste HTTP não alcança — rotas que ainda não
+// existem (o 404 mascararia um "liberado") e a âncora das regex.
+describe('isRouteAllowedForRole — allowlist do WAITER', () => {
+    it.each([
+        ['GET',  '/products'],
+        ['GET',  '/products/'],
+        ['GET',  '/products/abc'],
+        ['GET',  '/accounts'],
+        ['GET',  '/accounts/abc'],
+        ['POST', '/accounts'],
+        ['POST', '/accounts/abc/items']
+    ])('WAITER pode %s %s', (method, path) => {
+        expect(isRouteAllowedForRole('WAITER', method, path)).toBe(true);
+    });
+
+    it.each([
+        ['GET',    '/productsX'],              // prefixo parecido — âncora da regex
+        ['GET',    '/products/abc/extra'],
+        ['POST',   '/products'],
+        ['GET',    '/accountsX'],
+        ['GET',    '/accounts/abc/bill'],      // saldo e pagamentos (T-04.3) — CA-04.1.n.2
+        ['PUT',    '/accounts/abc/close'],
+        ['DELETE', '/accounts/abc'],           // só ADMIN (D-8)
+        ['DELETE', '/accounts/abc/items/xyz'], // só ADMIN (D-8)
+        ['GET',    '/reservations'],
+        ['GET',    '/guests']
+    ])('WAITER NÃO pode %s %s', (method, path) => {
+        expect(isRouteAllowedForRole('WAITER', method, path)).toBe(false);
+    });
+
+    it('ADMIN e RECEPTIONIST seguem para o requireRole de cada rota', () => {
+        expect(isRouteAllowedForRole('ADMIN', 'GET', '/guests')).toBe(true);
+        expect(isRouteAllowedForRole('RECEPTIONIST', 'DELETE', '/accounts/abc')).toBe(true);
+    });
+
+    it('papel desconhecido ou ausente é negado (o próximo papel nasce sem acesso)', () => {
+        expect(isRouteAllowedForRole('HOUSEKEEPER', 'GET', '/products')).toBe(false);
+        expect(isRouteAllowedForRole(undefined, 'GET', '/products')).toBe(false);
     });
 });
