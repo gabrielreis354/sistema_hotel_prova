@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import UserModel from '../../Models/UserModel.js';
 import TenantModel from '../../Models/TenantModel.js';
+import { getPrivateKey, getKeyId } from '../../utils/jwtKeys.js';
 
 export default async function LoginController(request, response) {
     try {
@@ -45,10 +46,14 @@ export default async function LoginController(request, response) {
         const valid = await bcrypt.compare(password, user.password_hash);
         if (!valid) return response.status(401).json({ error: 'Credenciais inválidas' });
 
+        // RS256 (ADR-006/T-01.3): assinado com a chave PRIVADA, que só o core-service
+        // tem. Os demais serviços verificam com a pública — nenhum deles consegue
+        // emitir token válido de tenant nenhum. `kid` no cabeçalho prepara rotação de
+        // chave sem exigir mudança de formato quando uma segunda chave entrar em uso.
         const token = jwt.sign(
             { userId: user.id, role: user.role, tenantId: user.tenant_id },
-            process.env.JWT_SECRET,
-            { expiresIn: '8h' }
+            getPrivateKey(),
+            { algorithm: 'RS256', keyid: getKeyId(), expiresIn: '8h' }
         );
 
         return response.json({

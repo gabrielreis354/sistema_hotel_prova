@@ -7,9 +7,11 @@ import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../..
 /**
  * POST /webhooks/pix
  *
- * Callback do provedor PIX confirmando um pagamento. Em produção, um PSP real
- * assina a requisição (validar assinatura aqui antes de confiar). No provider
- * simulado, o "pagamento" é disparado manualmente com o provider_charge_id.
+ * Callback do provedor PIX confirmando um pagamento. Exige notificação
+ * assinada pelo provider ativo — sem isso, quem soubesse a URL e um
+ * provider_charge_id confirmava pagamento sem pagar nada (T-06.9).
+ * Fail-closed: sem o secret do provider configurado, TODA requisição é
+ * recusada — nunca "aceita por padrão".
  *
  * A assinatura só prova quem enviou a notificação — nunca que o pagamento foi aprovado
  * (o MP notifica em payment.created e também em cancelled/rejected). Por isso o status é
@@ -21,24 +23,30 @@ import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../..
  * (pending, in_process...) não tem efeito — aguarda nova notificação. Idempotente: reprocessar
  * um pagamento já em estado terminal não repete efeito.
  *
- * A extração/validação do id da cobrança é responsabilidade do provider ativo
- * (provider.verifyWebhook) — o fake só lê provider_charge_id do body; um PSP real valida a
- * assinatura da notificação antes de confiar em qualquer id (nunca confia em POST anônimo).
+ * A validação da assinatura e a extração do id da cobrança são responsabilidade do provider
+ * ativo (provider.verifyWebhook): o fake confere o HMAC de `x-pix-signature` com
+ * PIX_WEBHOOK_SECRET; o Mercado Pago confere o `x-signature` com MERCADOPAGO_WEBHOOK_SECRET.
  */
 export default async function PixWebhookController(request, response) {
     try {
         const provider = getPixProvider();
 
+        // A assinatura é validada ANTES de qualquer consulta ao banco — uma requisição não
+        // assinada não deve nem ganhar a chance de descobrir se um charge_id existe (404) ou
+        // não (400), sinal que ajudaria um atacante a enumerar cobranças.
         let provider_charge_id;
         try {
             ({ providerChargeId: provider_charge_id } = provider.verifyWebhook(request));
         } catch (verifyError) {
             if (verifyError instanceof InvalidWebhookSignatureError) {
-                return response.status(401).json({ error: 'Assinatura da notificação inválida' });
+                // Logado: um secret divergente do PSP vira 401 em todo callback — sem log,
+                // ninguém descobre por que as reservas pararam de confirmar.
+                console.error('PixWebhookController:', verifyError.message);
+                return response.status(401).json({ error: 'Assinatura inválida' });
             }
             throw verifyError;
         }
-        if (!provider_charge_id) {
+        if (!provider_charge_id || typeof provider_charge_id !== 'string') {
             return response.status(400).json({ error: 'provider_charge_id obrigatório' });
         }
 
@@ -58,6 +66,7 @@ export default async function PixWebhookController(request, response) {
             chargeStatus = await provider.getChargeStatus(provider_charge_id);
         } catch (statusError) {
             if (statusError instanceof PixProviderUnavailableError) {
+                console.error('PixWebhookController: status da cobrança indisponível', provider_charge_id, statusError.message);
                 // Não confirmamos nada sem saber o status real — devolve não-2xx para o
                 // provedor tentar de novo depois, em vez de aceitar a notificação no escuro.
                 return response.status(503).json({ error: 'Não foi possível confirmar o status do pagamento' });
@@ -65,8 +74,11 @@ export default async function PixWebhookController(request, response) {
             throw statusError;
         }
 
-        const amountMatches = chargeStatus.amount == null
-            || Number(chargeStatus.amount).toFixed(2) === Number(payment.amount).toFixed(2);
+        // Só pula a conferência de valor quando o provider DECLARA que não tem como fazê-la
+        // (o simulado). Valor ausente num provider real nunca vira confirmação (fail-safe).
+        const amountMatches = chargeStatus.amountVerifiable === false
+            || (chargeStatus.amount != null
+                && Number(chargeStatus.amount).toFixed(2) === Number(payment.amount).toFixed(2));
 
         if (chargeStatus.status !== 'approved' || !amountMatches) {
             // FAILED só quando o provedor encerrou a cobrança (cancelled/rejected) ou quando

@@ -26,12 +26,19 @@ const options = {
                 Tenant: {
                     type: 'object',
                     properties: {
-                        id:         { type: 'string', format: 'uuid' },
-                        name:       { type: 'string', example: 'Hotel Paraíso' },
-                        subdomain:  { type: 'string', example: 'paraiso' },
-                        legal_id:   { type: 'string', example: '12.345.678/0001-90' },
-                        status:     { type: 'string', enum: ['ACTIVE', 'SUSPENDED'] }
+                        id:               { type: 'string', format: 'uuid' },
+                        name:             { type: 'string', example: 'Hotel Paraíso' },
+                        subdomain:        { type: 'string', example: 'paraiso' },
+                        legal_id:         { type: 'string', nullable: true, example: '12.345.678/0001-90' },
+                        status:           { type: 'string', enum: ['ACTIVE', 'SUSPENDED'] },
+                        booking_enabled:  { type: 'boolean', example: true, description: 'Liga/desliga a página pública de reservas diretas' },
+                        deposit_percent:  { type: 'integer', example: 30, description: 'Percentual do sinal PIX cobrado na reserva online (0–100)' }
                     }
+                },
+                ValidationErrors: {
+                    type: 'object',
+                    description: 'Formato usado quando mais de um campo pode falhar validação ao mesmo tempo (contraste com Error, que traz uma única mensagem)',
+                    properties: { errors: { type: 'array', items: { type: 'string' }, example: ['name obrigatório', 'price_per_night obrigatório'] } }
                 },
                 User: {
                     type: 'object',
@@ -63,7 +70,7 @@ const options = {
                         id:              { type: 'string', format: 'uuid' },
                         name:            { type: 'string', example: 'Standard' },
                         capacity:        { type: 'integer', example: 2 },
-                        price_per_night: { type: 'number', format: 'float', example: 150.00 }
+                        price_per_night: { type: 'string', example: '150.00', description: 'DECIMAL(10,2) serializado como string' }
                     }
                 },
                 Room: {
@@ -71,9 +78,19 @@ const options = {
                     properties: {
                         id:          { type: 'string', format: 'uuid' },
                         number:      { type: 'string', example: '101' },
-                        floor:       { type: 'integer', example: 1 },
+                        floor:       { type: 'integer', nullable: true, example: 1 },
                         status:      { type: 'string', enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'] },
-                        category_id: { type: 'string', format: 'uuid' }
+                        category_id: { type: 'string', format: 'uuid' },
+                        category: {
+                            type: 'object',
+                            nullable: true,
+                            description: 'Presente em GET /rooms, GET /rooms/available e GET /rooms/{id} (join com RoomCategory)',
+                            properties: {
+                                id:              { type: 'string', format: 'uuid' },
+                                name:            { type: 'string', example: 'Standard' },
+                                price_per_night: { type: 'string', example: '150.00', description: 'DECIMAL(10,2) serializado como string' }
+                            }
+                        }
                     }
                 },
                 Guest: {
@@ -107,12 +124,239 @@ const options = {
                         check_in_date:  { type: 'string', format: 'date', example: '2026-07-01' },
                         check_out_date: { type: 'string', format: 'date', example: '2026-07-05' },
                         status:         { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED'] },
-                        total_amount:   { type: 'number', format: 'float', example: 600.00 }
+                        total_amount:   { type: 'string', example: '600.00', description: 'DECIMAL(12,2) serializado como string' }
                     }
                 },
                 Error: {
                     type: 'object',
                     properties: { error: { type: 'string' } }
+                },
+                ReservationListItem: {
+                    description: 'Formato de GET /reservations — Reservation com guest/room/user resumidos (mesmo include de ListReservationController)',
+                    allOf: [
+                        { $ref: '#/components/schemas/Reservation' },
+                        { type: 'object', properties: {
+                            guest: { type: 'object', nullable: true, properties: {
+                                id: { type: 'string', format: 'uuid' }, full_name: { type: 'string' }, email: { type: 'string', nullable: true }
+                            }},
+                            room: { type: 'object', nullable: true, properties: {
+                                id: { type: 'string', format: 'uuid' }, number: { type: 'string' }, floor: { type: 'integer', nullable: true }
+                            }},
+                            user: { type: 'object', nullable: true, properties: {
+                                id: { type: 'string', format: 'uuid' }, name: { type: 'string' }
+                            }}
+                        }}
+                    ]
+                },
+                ReservationListPage: {
+                    description: 'Formato de GET /reservations quando ?page= ou ?limit= é informado',
+                    type: 'object',
+                    properties: {
+                        data:  { type: 'array', items: { $ref: '#/components/schemas/ReservationListItem' } },
+                        total: { type: 'integer', example: 37 },
+                        page:  { type: 'integer', example: 1 },
+                        limit: { type: 'integer', example: 50 }
+                    }
+                },
+                ReservationDetail: {
+                    description: 'Formato de GET /reservations/{id} — inclui hóspede e quarto principal completos, mais o array N:N de quartos vinculados',
+                    allOf: [
+                        { $ref: '#/components/schemas/Reservation' },
+                        { type: 'object', properties: {
+                            guest: { allOf: [{ $ref: '#/components/schemas/Guest' }], nullable: true },
+                            room:  { allOf: [{ $ref: '#/components/schemas/Room' }],  nullable: true },
+                            user:  { type: 'object', nullable: true, properties: {
+                                id: { type: 'string', format: 'uuid' }, name: { type: 'string' }
+                            }},
+                            rooms: { type: 'array', description: 'Todos os quartos vinculados via reservation_rooms (N:N), incluindo o principal', items: { $ref: '#/components/schemas/Room' } }
+                        }}
+                    ]
+                },
+                ReservationRoomPivot: {
+                    type: 'object',
+                    description: 'Linha da tabela pivô reservation_rooms (POST /reservations/{id}/rooms)',
+                    properties: {
+                        id:             { type: 'string', format: 'uuid' },
+                        reservation_id: { type: 'string', format: 'uuid' },
+                        room_id:        { type: 'string', format: 'uuid' }
+                    }
+                },
+                Consumption: {
+                    type: 'object',
+                    properties: {
+                        id:             { type: 'string', format: 'uuid' },
+                        tenant_id:      { type: 'string', format: 'uuid' },
+                        reservation_id: { type: 'string', format: 'uuid' },
+                        description:    { type: 'string', example: 'Frigobar' },
+                        amount:         { type: 'string', example: '50.00', description: 'DECIMAL(10,2) serializado como string' },
+                        consumed_at:    { type: 'string', format: 'date-time' }
+                    }
+                },
+                Bill: {
+                    type: 'object',
+                    description: 'Fechamento de conta — GET /reservations/{id}/bill',
+                    properties: {
+                        reservation_id:      { type: 'string', format: 'uuid' },
+                        status:              { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED'] },
+                        guest:               { type: 'string', nullable: true, example: 'Maria Oliveira' },
+                        check_in_date:       { type: 'string', format: 'date' },
+                        check_out_date:      { type: 'string', format: 'date' },
+                        room_total:          { type: 'number', example: 600.00 },
+                        consumptions_total:  { type: 'number', example: 90.00 },
+                        grand_total:         { type: 'number', example: 690.00 },
+                        total_paid:          { type: 'number', example: 690.00 },
+                        total_pending:       { type: 'number', example: 0 },
+                        balance_due:         { type: 'number', example: 0 },
+                        fully_paid:          { type: 'boolean', example: true },
+                        consumptions: { type: 'array', items: { type: 'object', properties: {
+                            id: { type: 'string', format: 'uuid' }, description: { type: 'string' },
+                            amount: { type: 'number' }, consumed_at: { type: 'string', format: 'date-time' }
+                        }}},
+                        payments: { type: 'array', items: { type: 'object', properties: {
+                            id: { type: 'string', format: 'uuid' }, amount: { type: 'number' }, method: { type: 'string' },
+                            kind: { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
+                            status: { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
+                            paid_at: { type: 'string', format: 'date-time', nullable: true }
+                        }}}
+                    }
+                },
+                Payment: {
+                    type: 'object',
+                    description: 'pix_qr_code, provider e provider_charge_id não aparecem em GET /payments, GET /payments/{id} nem PUT /payments/{id} — PaymentModel.defaultScope os exclui nessas consultas (T-06.2/achado de segurança fechado em 22/09). provider_charge_id é a credencial do webhook PIX (T-06.9); quem precisar dos 3 campos usa PaymentModel.unscoped() no código, não a API. Ressalva (achado 🟡 da auditoria de 22/09): POST /payments usa .create(), que o defaultScope não filtra — os 3 campos vêm null nessa resposta (pagamento manual da recepção, nunca passa pelo provider PIX), mas tecnicamente aparecem no JSON.',
+                    properties: {
+                        id:             { type: 'string', format: 'uuid' },
+                        tenant_id:      { type: 'string', format: 'uuid' },
+                        reservation_id: { type: 'string', format: 'uuid' },
+                        amount:         { type: 'string', example: '300.00', description: 'DECIMAL(12,2) serializado como string' },
+                        method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] },
+                        status:         { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
+                        kind:           { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
+                        paid_at:        { type: 'string', format: 'date-time', nullable: true },
+                        reservation: {
+                            type: 'object', nullable: true,
+                            description: 'Presente em GET /payments e GET /payments/{id}',
+                            properties: {
+                                id: { type: 'string', format: 'uuid' },
+                                check_in_date: { type: 'string', format: 'date' },
+                                check_out_date: { type: 'string', format: 'date' },
+                                status: { type: 'string' },
+                                total_amount: { type: 'string', nullable: true, description: 'Só em GET /payments/{id}' }
+                            }
+                        }
+                    }
+                },
+                AuthUser: {
+                    type: 'object',
+                    required: ['id', 'name', 'email', 'role'],
+                    properties: {
+                        id:    { type: 'string', format: 'uuid' },
+                        name:  { type: 'string', example: 'João Admin' },
+                        email: { type: 'string', format: 'email' },
+                        role:  { type: 'string', enum: VALID_ROLES }
+                    }
+                },
+                LoginResponse: {
+                    type: 'object',
+                    required: ['token', 'user'],
+                    properties: {
+                        token: { type: 'string', description: 'JWT — payload { userId, role, tenantId }, expira em 8h' },
+                        user:  { $ref: '#/components/schemas/AuthUser' }
+                    }
+                },
+                RegisterResponse: {
+                    type: 'object',
+                    required: ['tenant', 'user'],
+                    properties: {
+                        tenant: { type: 'object', required: ['id', 'name', 'subdomain'], properties: {
+                            id: { type: 'string', format: 'uuid' }, name: { type: 'string' }, subdomain: { type: 'string' }
+                        }},
+                        user: { $ref: '#/components/schemas/AuthUser' }
+                    }
+                },
+                PublicHotel: {
+                    type: 'object',
+                    description: 'GET /public/{subdomain}/hotel — sem autenticação, sem dado sensível',
+                    properties: {
+                        name:            { type: 'string', example: 'Hotel Aurora' },
+                        subdomain:       { type: 'string', example: 'aurora' },
+                        deposit_percent: { type: 'integer', example: 30 }
+                    }
+                },
+                PublicAvailability: {
+                    type: 'object',
+                    description: 'GET /public/{subdomain}/availability',
+                    properties: {
+                        hotel:           { type: 'string', example: 'Hotel Aurora' },
+                        check_in:        { type: 'string', format: 'date' },
+                        check_out:       { type: 'string', format: 'date' },
+                        nights:          { type: 'integer', example: 3 },
+                        guests:          { type: 'integer', example: 2 },
+                        deposit_percent: { type: 'integer', example: 30 },
+                        categories: { type: 'array', items: { type: 'object', properties: {
+                            category_id:     { type: 'string', format: 'uuid' },
+                            name:            { type: 'string', example: 'Standard' },
+                            capacity:        { type: 'integer', example: 2 },
+                            price_per_night: { type: 'number', example: 150.00 },
+                            available_rooms: { type: 'integer', example: 3 },
+                            nights:          { type: 'integer', example: 3 },
+                            total_price:     { type: 'number', example: 450.00 }
+                        }}}
+                    }
+                },
+                PublicBookingResponse: {
+                    type: 'object',
+                    description: 'POST /public/{subdomain}/bookings — CA-06.5: pix_qr_code não aparece aqui (é o próprio pix.qr_code, necessário para o hóspede pagar); provider_charge_id CONTINUA aqui hoje (achado pré-existente, fora do escopo da T-06.2 — ver docs/qa/redteam_public-booking-leak_16set2026.md)',
+                    properties: {
+                        reservation: { type: 'object', properties: {
+                            id: { type: 'string', format: 'uuid' },
+                            status: { type: 'string', example: 'PENDING' },
+                            check_in: { type: 'string', format: 'date' },
+                            check_out: { type: 'string', format: 'date' },
+                            nights: { type: 'integer', example: 3 },
+                            category: { type: 'string', example: 'Standard' },
+                            total_amount: { type: 'number', example: 450.00 }
+                        }},
+                        payment: { type: 'object', properties: {
+                            id: { type: 'string', format: 'uuid' },
+                            kind: { type: 'string', example: 'DEPOSIT' },
+                            status: { type: 'string', example: 'PENDING' },
+                            amount: { type: 'number', example: 135.00 },
+                            deposit_percent: { type: 'integer', example: 30 },
+                            balance_due_on_checkin: { type: 'number', example: 315.00 }
+                        }},
+                        pix: { type: 'object', properties: {
+                            provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' },
+                            qr_code: { type: 'string', description: 'Payload copia-e-cola em base64 (simulado)' },
+                            expiration: { type: 'string', format: 'date-time' }
+                        }}
+                    }
+                },
+                PublicBookingStatus: {
+                    type: 'object',
+                    description: 'GET /public/{subdomain}/bookings/{id}/status — attributes explícito no include de Payment (CA-06.5), nunca traz pix_qr_code/provider/provider_charge_id',
+                    properties: {
+                        reservation_id: { type: 'string', format: 'uuid' },
+                        status:         { type: 'string', example: 'CONFIRMED' },
+                        check_in:       { type: 'string', format: 'date' },
+                        check_out:      { type: 'string', format: 'date' },
+                        total_amount:   { type: 'number', example: 450.00 },
+                        confirmed:      { type: 'boolean' },
+                        deposit: { type: 'object', nullable: true, properties: {
+                            status:  { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
+                            amount:  { type: 'number', example: 135.00 },
+                            paid_at: { type: 'string', format: 'date-time', nullable: true }
+                        }}
+                    }
+                },
+                WebhookConfirmResponse: {
+                    type: 'object',
+                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência)',
+                    properties: {
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed'] },
+                        payment_id:         { type: 'string', format: 'uuid' },
+                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Ausente quando status é already_processed' },
+                        reservation_status: { type: 'string', nullable: true, description: 'Ausente quando status é already_processed' }
+                    }
                 }
             }
         },
@@ -124,7 +368,11 @@ const options = {
                     summary: 'Dados públicos do hotel (cabeçalho da página de reservas)',
                     security: [],
                     parameters: [{ in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' }],
-                    responses: { 200: { description: 'Nome, subdomínio e % de sinal' }, 404: { description: 'Hotel não encontrado' }, 403: { description: 'Reservas online desativadas' } }
+                    responses: {
+                        200: { description: 'Nome, subdomínio e % de sinal', content: { 'application/json': { schema: { $ref: '#/components/schemas/PublicHotel' } } } },
+                        404: { description: 'Hotel não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Reservas online desativadas', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/public/{subdomain}/availability': {
@@ -138,7 +386,11 @@ const options = {
                         { in: 'query', name: 'check_out', required: true, schema: { type: 'string', format: 'date' }, example: '2026-10-13' },
                         { in: 'query', name: 'guests',    required: false, schema: { type: 'integer' }, example: 2 }
                     ],
-                    responses: { 200: { description: 'Lista de categorias disponíveis + preço' }, 400: { description: 'Datas inválidas' }, 404: { description: 'Hotel não encontrado' } }
+                    responses: {
+                        200: { description: 'Lista de categorias disponíveis + preço', content: { 'application/json': { schema: { $ref: '#/components/schemas/PublicAvailability' } } } },
+                        400: { description: 'Datas inválidas', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Hotel não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/public/{subdomain}/bookings': {
@@ -163,11 +415,11 @@ const options = {
                         }}}}
                     },
                     responses: {
-                        201: { description: 'Reserva PENDING criada + QR PIX do sinal' },
-                        400: { description: 'Campos obrigatórios ausentes ou datas inválidas' },
-                        404: { description: 'Hotel ou categoria não encontrados' },
-                        409: { description: 'Sem disponibilidade na categoria para o período' },
-                        422: { description: 'Categoria não comporta os hóspedes ou sem preço' }
+                        201: { description: 'Reserva PENDING criada + QR PIX do sinal', content: { 'application/json': { schema: { $ref: '#/components/schemas/PublicBookingResponse' } } } },
+                        400: { description: 'Campos obrigatórios ausentes (formato ValidationErrors) ou datas inválidas (formato Error)', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/ValidationErrors' }, { $ref: '#/components/schemas/Error' }] } } } },
+                        404: { description: 'Hotel ou categoria não encontrados', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Sem disponibilidade na categoria para o período', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Categoria não comporta os hóspedes ou sem preço', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -180,22 +432,33 @@ const options = {
                         { in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' },
                         { in: 'path', name: 'id',        required: true, schema: { type: 'string', format: 'uuid' } }
                     ],
-                    responses: { 200: { description: 'Status da reserva e do sinal' }, 404: { description: 'Reserva não encontrada' } }
+                    responses: {
+                        200: { description: 'Status da reserva e do sinal', content: { 'application/json': { schema: { $ref: '#/components/schemas/PublicBookingStatus' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/webhooks/pix': {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. No provider simulado, dispare manualmente com o provider_charge_id retornado na criação da reserva.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
                     security: [],
+                    parameters: [
+                        { in: 'header', name: 'x-pix-signature', required: true, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>' }
+                    ],
                     requestBody: {
                         required: true,
                         content: { 'application/json': { schema: { type: 'object', required: ['provider_charge_id'], properties: {
                             provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
                         }}}}
                     },
-                    responses: { 200: { description: 'Pagamento confirmado (ou já processado)' }, 400: { description: 'provider_charge_id ausente' }, 404: { description: 'Cobrança não encontrada' } }
+                    responses: {
+                        200: { description: 'Pagamento confirmado (ou já processado)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
+                        400: { description: 'provider_charge_id ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        401: { description: 'Assinatura ausente, inválida, ou PIX_WEBHOOK_SECRET não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/auth/register': {
@@ -212,7 +475,11 @@ const options = {
                             password:   { type: 'string', example: 'senha123' }
                         }}}}
                     },
-                    responses: { 201: { description: 'Tenant e usuário criados' }, 400: { description: 'Dados inválidos' }, 409: { description: 'E-mail já cadastrado' } }
+                    responses: {
+                        201: { description: 'Tenant e usuário criados', content: { 'application/json': { schema: { $ref: '#/components/schemas/RegisterResponse' } } } },
+                        400: { description: 'Campos obrigatórios ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        409: { description: 'E-mail ou subdomain já em uso', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/auth/login': {
@@ -228,7 +495,17 @@ const options = {
                             subdomain: { type: 'string', example: 'hotel-paraiso', description: 'Subdomain do hotel (opcional). Recomendado em ambientes multi-tenant para evitar colisão de e-mails entre hotéis.' }
                         }}}}
                     },
-                    responses: { 200: { description: 'JWT gerado com sucesso' }, 400: { description: 'Campos obrigatórios ausentes' }, 401: { description: 'Credenciais inválidas ou subdomain não encontrado' }, 409: { description: 'E-mail existe em múltiplos hotéis — informe o subdomain para desambiguar' } }
+                    responses: {
+                        200: { description: 'JWT gerado com sucesso', content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginResponse' } } } },
+                        400: { description: 'Campos obrigatórios ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        401: { description: 'Credenciais inválidas ou subdomain não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: {
+                            description: 'E-mail existe em múltiplos hotéis — informe o subdomain para desambiguar',
+                            content: { 'application/json': { schema: { type: 'object', properties: {
+                                error: { type: 'string' }, requires: { type: 'string', example: 'subdomain' }
+                            }}}}
+                        }
+                    }
                 }
             },
             '/login': {
@@ -244,14 +521,21 @@ const options = {
                             subdomain: { type: 'string', example: 'hotel-paraiso' }
                         }}}}
                     },
-                    responses: { 200: { description: 'JWT gerado com sucesso' }, 401: { description: 'Credenciais inválidas' } }
+                    responses: {
+                        200: { description: 'JWT gerado com sucesso', content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginResponse' } } } },
+                        401: { description: 'Credenciais inválidas', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/tenants/me': {
                 get: {
                     tags: ['Hotel (Configuração)'],
                     summary: 'Retorna a configuração do próprio hotel',
-                    responses: { 200: { description: 'Dados e config do hotel (booking_enabled, deposit_percent)' }, 401: { description: 'Sem token' } }
+                    responses: {
+                        200: { description: 'Dados e config do hotel (booking_enabled, deposit_percent)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Tenant' } } } },
+                        401: { description: 'Sem token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Hotel não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 },
                 put: {
                     tags: ['Hotel (Configuração)'],
@@ -265,32 +549,100 @@ const options = {
                             deposit_percent: { type: 'integer', example: 30, description: 'Percentual do sinal PIX cobrado na reserva online (0–100)' }
                         }}}}
                     },
-                    responses: { 200: { description: 'Config atualizada' }, 400: { description: 'Valor inválido' }, 403: { description: 'Apenas ADMIN' } }
+                    responses: {
+                        200: { description: 'Config atualizada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Tenant' } } } },
+                        400: { description: 'Valor inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Apenas ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Hotel não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/users': {
-                get:  { tags: ['Usuários'], summary: 'Lista usuários do tenant', responses: { 200: { description: 'Lista de usuários' } } },
-                post: { tags: ['Usuários'], summary: 'Cria novo usuário', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } }, responses: { 201: { description: 'Usuário criado' } } }
+                get: {
+                    tags: ['Usuários'], summary: 'Lista usuários do tenant',
+                    responses: { 200: { description: 'Lista de usuários (sem password_hash)', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/User' } } } } } }
+                },
+                post: {
+                    tags: ['Usuários'], summary: 'Cria novo usuário',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name', 'email', 'password'], properties: {
+                        name: { type: 'string', example: 'João Silva' }, email: { type: 'string', format: 'email' },
+                        password: { type: 'string', example: 'senha123' }, role: { type: 'string', enum: VALID_ROLES, description: 'Default: RECEPTIONIST' }
+                    }}}}},
+                    responses: {
+                        201: { description: 'Usuário criado (sem password_hash)', content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } },
+                        400: { description: 'Campos obrigatórios ausentes ou role inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        409: { description: 'E-mail já cadastrado neste tenant', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/users/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                get:    { tags: ['Usuários'], summary: 'Busca usuário por ID',  responses: { 200: { description: 'Usuário encontrado' }, 404: { description: 'Não encontrado' } } },
-                put:    { tags: ['Usuários'], summary: 'Atualiza usuário',       responses: { 200: { description: 'Atualizado' } } },
-                delete: { tags: ['Usuários'], summary: 'Remove usuário',         responses: { 204: { description: 'Removido' } } }
+                get: {
+                    tags: ['Usuários'], summary: 'Busca usuário por ID',
+                    responses: {
+                        200: { description: 'Usuário encontrado (sem password_hash)', content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                put: {
+                    tags: ['Usuários'], summary: 'Atualiza usuário',
+                    responses: {
+                        200: { description: 'Atualizado (sem password_hash)', content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } },
+                        400: { description: 'role inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                delete: { tags: ['Usuários'], summary: 'Remove usuário', responses: { 204: { description: 'Removido' } } }
             },
             '/room-categories': {
-                get:  { tags: ['Categorias de Quarto'], summary: 'Lista categorias', responses: { 200: { description: 'OK' } } },
-                post: { tags: ['Categorias de Quarto'], summary: 'Cria categoria', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } }, responses: { 201: { description: 'Criada' } } }
+                get: {
+                    tags: ['Categorias de Quarto'], summary: 'Lista categorias',
+                    responses: { 200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/RoomCategory' } } } } } }
+                },
+                post: {
+                    tags: ['Categorias de Quarto'], summary: 'Cria categoria',
+                    requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
+                    responses: {
+                        201: { description: 'Criada', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
+                        400: { description: 'name ou price_per_night ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } }
+                    }
+                }
             },
             '/room-categories/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                get:    { tags: ['Categorias de Quarto'], summary: 'Busca por ID', responses: { 200: { description: 'OK' } } },
-                put:    { tags: ['Categorias de Quarto'], summary: 'Atualiza',     responses: { 200: { description: 'OK' } } },
-                delete: { tags: ['Categorias de Quarto'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
+                get: {
+                    tags: ['Categorias de Quarto'], summary: 'Busca por ID',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
+                        404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                put: {
+                    tags: ['Categorias de Quarto'], summary: 'Atualiza',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
+                        404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                delete: { tags: ['Categorias de Quarto'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
             },
             '/rooms': {
-                get:  { tags: ['Quartos'], summary: 'Lista quartos', responses: { 200: { description: 'OK' } } },
-                post: { tags: ['Quartos'], summary: 'Cria quarto', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } }, responses: { 201: { description: 'Criado' } } }
+                get: {
+                    tags: ['Quartos'], summary: 'Lista quartos',
+                    responses: { 200: { description: 'OK — cada quarto inclui a categoria resumida (id, name, price_per_night)', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Room' } } } } } }
+                },
+                post: {
+                    tags: ['Quartos'], summary: 'Cria quarto',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['category_id', 'number'], properties: {
+                        category_id: { type: 'string', format: 'uuid' }, number: { type: 'string', example: '101' },
+                        floor: { type: 'integer', nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'], description: 'Default: AVAILABLE' }
+                    }}}}},
+                    responses: {
+                        201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
+                        400: { description: 'category_id ou number ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        404: { description: 'Categoria não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/rooms/available': {
                 get: {
@@ -301,26 +653,65 @@ const options = {
                         { in: 'query', name: 'check_out', required: true, schema: { type: 'string', format: 'date', example: '2026-07-05' }, description: 'Data de saída (YYYY-MM-DD)' }
                     ],
                     responses: {
-                        200: { description: 'Lista de quartos sem conflito no período' },
-                        400: { description: 'check_in e check_out são obrigatórios ou check_in >= check_out' }
+                        200: { description: 'Lista de quartos sem conflito no período (status AVAILABLE + sem sobreposição de reserva)', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Room' } } } } },
+                        400: { description: 'check_in e check_out são obrigatórios ou check_in >= check_out', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
             '/rooms/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                get:    { tags: ['Quartos'], summary: 'Busca por ID', responses: { 200: { description: 'OK' } } },
-                put:    { tags: ['Quartos'], summary: 'Atualiza',     responses: { 200: { description: 'OK' } } },
-                delete: { tags: ['Quartos'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
+                get: {
+                    tags: ['Quartos'], summary: 'Busca por ID',
+                    responses: {
+                        200: { description: 'OK — inclui a categoria completa', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                put: {
+                    tags: ['Quartos'], summary: 'Atualiza',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
+                        400: { description: 'status inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                delete: { tags: ['Quartos'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
             },
             '/guests': {
-                get:  { tags: ['Hóspedes'], summary: 'Lista hóspedes', responses: { 200: { description: 'OK' } } },
-                post: { tags: ['Hóspedes'], summary: 'Cria hóspede', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } }, responses: { 201: { description: 'Criado' } } }
+                get: {
+                    tags: ['Hóspedes'], summary: 'Lista hóspedes',
+                    responses: { 200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Guest' } } } } } }
+                },
+                post: {
+                    tags: ['Hóspedes'], summary: 'Cria hóspede',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['full_name'], properties: {
+                        full_name: { type: 'string', example: 'Maria Oliveira' }, cpf: { type: 'string', nullable: true },
+                        phone: { type: 'string', nullable: true }, email: { type: 'string', nullable: true }
+                    }}}}},
+                    responses: {
+                        201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
+                        400: { description: 'full_name ausente', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'CPF já cadastrado para outro hóspede', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/guests/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                get:    { tags: ['Hóspedes'], summary: 'Busca por ID', responses: { 200: { description: 'OK' } } },
-                put:    { tags: ['Hóspedes'], summary: 'Atualiza',     responses: { 200: { description: 'OK' } } },
-                delete: { tags: ['Hóspedes'], summary: 'Remove',       responses: { 204: { description: 'OK' } } }
+                get: {
+                    tags: ['Hóspedes'], summary: 'Busca por ID',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                put: {
+                    tags: ['Hóspedes'], summary: 'Atualiza',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                delete: { tags: ['Hóspedes'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
             },
             '/address/{cep}': {
                 parameters: [{ in: 'path', name: 'cep', required: true, schema: { type: 'string', example: '01310100' }, description: 'CEP com ou sem formatação (8 dígitos)' }],
@@ -336,18 +727,58 @@ const options = {
                 }
             },
             '/reservations': {
-                get:  { tags: ['Reservas'], summary: 'Lista reservas (filtro por período e paginação opcionais)', parameters: [
-                    { in: 'query', name: 'from',  required: false, schema: { type: 'string', format: 'date' }, description: 'Início do intervalo (YYYY-MM-DD). Devolve reservas que se sobrepõem ao período.' },
-                    { in: 'query', name: 'to',    required: false, schema: { type: 'string', format: 'date' }, description: 'Fim do intervalo (YYYY-MM-DD).' },
-                    { in: 'query', name: 'page',  required: false, schema: { type: 'integer', minimum: 1 }, description: 'Página (1+). Presente page ou limit, a resposta vira { data, total, page, limit }.' },
-                    { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' }
-                ], responses: { 200: { description: 'OK — array puro sem paginação, ou { data, total, page, limit } quando page/limit presentes' } } },
-                post: { tags: ['Reservas'], summary: 'Cria reserva (vincula quarto principal na tabela pivô reservation_rooms)', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } }, responses: { 201: { description: 'Criada' } } }
+                get: {
+                    tags: ['Reservas'], summary: 'Lista reservas (filtro por período e paginação opcionais)',
+                    parameters: [
+                        { in: 'query', name: 'from',  required: false, schema: { type: 'string', format: 'date' }, description: 'Início do intervalo (YYYY-MM-DD). Devolve reservas que se sobrepõem ao período.' },
+                        { in: 'query', name: 'to',    required: false, schema: { type: 'string', format: 'date' }, description: 'Fim do intervalo (YYYY-MM-DD).' },
+                        { in: 'query', name: 'page',  required: false, schema: { type: 'integer', minimum: 1 }, description: 'Página (1+). Presente page ou limit, a resposta vira { data, total, page, limit }.' },
+                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' }
+                    ],
+                    responses: {
+                        200: {
+                            description: 'array puro (sem page/limit na query) ou { data, total, page, limit } (com paginação)',
+                            content: { 'application/json': { schema: { oneOf: [
+                                { type: 'array', items: { $ref: '#/components/schemas/ReservationListItem' } },
+                                { $ref: '#/components/schemas/ReservationListPage' }
+                            ]}}}
+                        },
+                        400: { description: 'from/to fora do formato YYYY-MM-DD', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                post: {
+                    tags: ['Reservas'], summary: 'Cria reserva (vincula quarto principal na tabela pivô reservation_rooms)',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['guest_id', 'room_id', 'check_in_date', 'check_out_date'], properties: {
+                        guest_id: { type: 'string', format: 'uuid' }, room_id: { type: 'string', format: 'uuid' },
+                        check_in_date: { type: 'string', format: 'date' }, check_out_date: { type: 'string', format: 'date' },
+                        extra_room_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Quartos adicionais vinculados na mesma transação' }
+                    }}}}},
+                    responses: {
+                        201: { description: 'Criada — status PENDING, total_amount calculado no servidor', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
+                        400: { description: 'Campos obrigatórios ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        404: { description: 'Hóspede, quarto ou quarto extra não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Quarto indisponível no período solicitado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Categoria do quarto sem preço definido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/reservations/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                get:    { tags: ['Reservas'], summary: 'Busca por ID (inclui quartos N:N)', responses: { 200: { description: 'OK' } } },
-                put:    { tags: ['Reservas'], summary: 'Atualiza reserva', responses: { 200: { description: 'OK' } } },
+                get: {
+                    tags: ['Reservas'], summary: 'Busca por ID (inclui hóspede, quarto principal e quartos N:N)',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/ReservationDetail' } } } },
+                        404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                put: {
+                    tags: ['Reservas'], summary: 'Atualiza reserva (guest_id, room_id, datas — não altera status nem total_amount)',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
+                        404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Quarto indisponível no novo período', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
                 delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', responses: { 204: { description: 'OK' } } }
             },
             '/reservations/{id}/cancel': {
@@ -356,31 +787,54 @@ const options = {
                     tags: ['Reservas'],
                     summary: 'Cancela reserva (apenas PENDING ou CONFIRMED)',
                     responses: {
-                        200: { description: 'Reserva cancelada — status alterado para CANCELLED' },
-                        422: { description: 'Reserva não pode ser cancelada no status atual (CHECKED_IN, CHECKED_OUT ou já CANCELLED)' },
-                        404: { description: 'Reserva não encontrada' }
+                        200: { description: 'Reserva cancelada — status alterado para CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
+                        422: { description: 'Reserva não pode ser cancelada no status atual (CHECKED_IN, CHECKED_OUT ou já CANCELLED)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
             '/reservations/{id}/check-in': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                put: { tags: ['Reservas'], summary: 'Realiza check-in', responses: { 200: { description: 'Status alterado para CHECKED_IN' } } }
+                put: {
+                    tags: ['Reservas'], summary: 'Realiza check-in (PENDING ou CONFIRMED → CHECKED_IN; ocupa o(s) quarto(s))',
+                    responses: {
+                        200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
+                        404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Check-in não permitido no status atual', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/reservations/{id}/check-out': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                put: { tags: ['Reservas'], summary: 'Realiza check-out', responses: { 200: { description: 'Status alterado para CHECKED_OUT' } } }
+                put: {
+                    tags: ['Reservas'], summary: 'Realiza check-out (CHECKED_IN → CHECKED_OUT; quarto(s) vão para CLEANING)',
+                    responses: {
+                        200: { description: 'Status alterado para CHECKED_OUT', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
+                        404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Check-out só possível quando status for CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/reservations/{id}/bill': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 get: {
                     tags: ['Financeiro'],
                     summary: 'Fechamento de conta: (diária + consumos) − pagamentos confirmados',
-                    responses: { 200: { description: 'Conta com room_total, consumptions_total, grand_total, total_paid, balance_due' }, 404: { description: 'Reserva não encontrada' } }
+                    responses: {
+                        200: { description: 'Conta com room_total, consumptions_total, grand_total, total_paid, balance_due', content: { 'application/json': { schema: { $ref: '#/components/schemas/Bill' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/reservations/{id}/consumptions': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                get: { tags: ['Financeiro'], summary: 'Lista consumos extras da reserva', responses: { 200: { description: 'Lista de consumos' } } },
+                get: {
+                    tags: ['Financeiro'], summary: 'Lista consumos extras da reserva',
+                    responses: {
+                        200: { description: 'Lista de consumos', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Consumption' } } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
                 post: {
                     tags: ['Financeiro'],
                     summary: 'Lança consumo extra (frigobar, restaurante, spa)',
@@ -392,7 +846,11 @@ const options = {
                             consumed_at: { type: 'string', format: 'date-time' }
                         }}}}
                     },
-                    responses: { 201: { description: 'Consumo lançado' }, 400: { description: 'Dados inválidos' }, 404: { description: 'Reserva não encontrada' } }
+                    responses: {
+                        201: { description: 'Consumo lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Consumption' } } } },
+                        400: { description: 'description ausente ou amount <= 0', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 }
             },
             '/reservations/{id}/consumptions/{consumptionId}': {
@@ -400,11 +858,20 @@ const options = {
                     { in: 'path', name: 'id',            required: true, schema: { type: 'string', format: 'uuid' } },
                     { in: 'path', name: 'consumptionId', required: true, schema: { type: 'string', format: 'uuid' } }
                 ],
-                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete)', responses: { 204: { description: 'Removido' }, 404: { description: 'Não encontrado' } } }
+                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete, ADMIN)', responses: { 204: { description: 'Removido' }, 404: { description: 'Não encontrado' } } }
             },
             '/reservations/{id}/rooms': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                post: { tags: ['Reservas — N:N (Pivô)'], summary: 'Adiciona quarto à reserva (tabela pivô reservation_rooms)', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { room_id: { type: 'string', format: 'uuid' } } } } } }, responses: { 201: { description: 'Quarto vinculado' }, 409: { description: 'Já vinculado' } } }
+                post: {
+                    tags: ['Reservas — N:N (Pivô)'], summary: 'Adiciona quarto à reserva (tabela pivô reservation_rooms)',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { room_id: { type: 'string', format: 'uuid' } } } } } },
+                    responses: {
+                        201: { description: 'Quarto vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/ReservationRoomPivot' } } } },
+                        400: { description: 'room_id ausente', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Já vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/reservations/{id}/rooms/{roomId}': {
                 parameters: [
@@ -414,22 +881,45 @@ const options = {
                 delete: { tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto da reserva (tabela pivô)', responses: { 204: { description: 'Desvinculado' } } }
             },
             '/payments': {
-                get:  { tags: ['Pagamentos'], summary: 'Lista pagamentos do tenant', responses: { 200: { description: 'OK' } } },
-                post: { tags: ['Pagamentos'], summary: 'Registra novo pagamento', requestBody: { required: true, content: { 'application/json': { schema: {
-                    type: 'object', required: ['reservation_id', 'amount', 'method'],
-                    properties: {
-                        reservation_id: { type: 'string', format: 'uuid' },
-                        amount:         { type: 'number', example: 300.00 },
-                        method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'], example: 'PIX' },
-                        paid_at:        { type: 'string', format: 'date-time' }
+                get: {
+                    tags: ['Pagamentos'], summary: 'Lista pagamentos do tenant',
+                    responses: { 200: { description: 'OK — nunca inclui pix_qr_code/provider/provider_charge_id (PaymentModel.defaultScope)', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Payment' } } } } } }
+                },
+                post: {
+                    tags: ['Pagamentos'], summary: 'Registra novo pagamento (recepção — manual, não PIX online)',
+                    requestBody: { required: true, content: { 'application/json': { schema: {
+                        type: 'object', required: ['reservation_id', 'amount', 'method'],
+                        properties: {
+                            reservation_id: { type: 'string', format: 'uuid' },
+                            amount:         { type: 'number', example: 300.00 },
+                            method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'], example: 'PIX' },
+                            paid_at:        { type: 'string', format: 'date-time' }
+                        }
+                    }}}},
+                    responses: {
+                        201: { description: 'Pagamento registrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
+                        400: { description: 'reservation_id, amount ou method ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
-                }}}} , responses: { 201: { description: 'Pagamento registrado' } } }
+                }
             },
             '/payments/{id}': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
-                get:    { tags: ['Pagamentos'], summary: 'Busca pagamento por ID', responses: { 200: { description: 'OK' }, 404: { description: 'Não encontrado' } } },
-                put:    { tags: ['Pagamentos'], summary: 'Atualiza pagamento',      responses: { 200: { description: 'OK' } } },
-                delete: { tags: ['Pagamentos'], summary: 'Remove pagamento',        responses: { 204: { description: 'OK' } } }
+                get: {
+                    tags: ['Pagamentos'], summary: 'Busca pagamento por ID',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                put: {
+                    tags: ['Pagamentos'], summary: 'Atualiza pagamento (amount, method, paid_at)',
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                },
+                delete: { tags: ['Pagamentos'], summary: 'Remove pagamento (soft delete)', responses: { 204: { description: 'OK' } } }
             },
             '/analytics/revenue': {
                 get: {
