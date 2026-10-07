@@ -288,7 +288,8 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 
 ```bash
 cp .env.example .env
-# edite o .env: PIX_WEBHOOK_SECRET é obrigatório (o compose recusa subir sem ele).
+# edite o .env: PIX_WEBHOOK_SECRET, MINIO_ROOT_PASSWORD e MINIO_PRESIGN_PASSWORD são obrigatórios
+# (o compose recusa subir sem eles; senhas do MinIO com 8+ caracteres).
 # Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
 # no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
 # Porta 80 já em uso? defina NGINX_PORT=<porta> E MINIO_PUBLIC_ENDPOINT=http://localhost:<porta>

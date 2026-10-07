@@ -127,6 +127,7 @@ cmd_tunnel() {
     info "Acesse: http://localhost:8080/health  |  http://localhost:8080/api-docs"
     warn "Download de PDF (URL assinada, RNF-023) só abre pelo tunnel com MINIO_PUBLIC_ENDPOINT=http://localhost:8080"
     warn "no infra/k8s/configmap.yaml (o padrão http://localhost é o do Docker Desktop, porta 80)."
+    warn "Depois de editar: kubectl apply -k infra/k8s/ && kubectl rollout restart deploy/backend -n $NS"
     kubectl port-forward -n "$NS" svc/nginx 8080:80
 }
 

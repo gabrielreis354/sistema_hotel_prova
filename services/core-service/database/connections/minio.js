@@ -23,13 +23,17 @@ export default client(process.env.MINIO_ENDPOINT, process.env.MINIO_ROOT_USER, p
 const publicEndpoint = process.env.MINIO_PUBLIC_ENDPOINT || process.env.MINIO_ENDPOINT;
 const { MINIO_PRESIGN_USER, MINIO_PRESIGN_PASSWORD } = process.env;
 
-export const presignClient = MINIO_PRESIGN_USER && MINIO_PRESIGN_PASSWORD
+// O "usuário de leitura" configurado como o próprio root anularia a separação — tratado como ausente.
+const presignConfigurado = MINIO_PRESIGN_USER && MINIO_PRESIGN_PASSWORD
+    && MINIO_PRESIGN_USER !== process.env.MINIO_ROOT_USER;
+
+export const presignClient = presignConfigurado
     ? client(publicEndpoint, MINIO_PRESIGN_USER, MINIO_PRESIGN_PASSWORD)
     : null;
 
 if (process.env.NODE_ENV === 'production') {
     if (!presignClient) {
-        console.warn('⚠️  MINIO_PRESIGN_USER/MINIO_PRESIGN_PASSWORD ausentes — download de PDF persistido vai responder 500.');
+        console.warn('⚠️  MINIO_PRESIGN_USER/MINIO_PRESIGN_PASSWORD ausentes (ou iguais ao root) — download de PDF persistido vai responder 500.');
     }
     if (!process.env.MINIO_PUBLIC_ENDPOINT) {
         console.warn('⚠️  MINIO_PUBLIC_ENDPOINT ausente — URLs de download serão assinadas com o endereço interno, que o navegador não alcança.');
