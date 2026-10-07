@@ -1,7 +1,7 @@
 # SPEC-06 — Qualidade e Dívida Técnica
 
 **Prioridade:** 🟡 Média — mas contém item que **quebra o portão do CI**
-**Estado:** 🟡 Em andamento — T-06.4 e T-06.8 concluídas; T-06.3, T-06.5 e T-06.6 implementadas em branch, aguardando verificação
+**Estado:** 🟡 Em andamento — T-06.2, T-06.3, T-06.4, T-06.5, T-06.6, T-06.8 e T-06.9 concluídas; abertas T-06.1, T-06.7, T-06.10, T-06.11 e T-06.12
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 
@@ -62,7 +62,7 @@ Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations
 
 ---
 
-### T-06.3 — `RoomCategoryModel` com `paranoid` + unique total 🟡 (PR aberto, aguardando revisão do Sirlande)
+### T-06.3 — `RoomCategoryModel` com `paranoid` + unique total ✅
 
 **Problema:** mesmo defeito corrigido em `ProductModel`. Verificado em 26/08: `RoomCategoryModel` tem unique `(tenant_id, name)` **sem** filtro parcial, num model `paranoid: true`.
 
@@ -75,6 +75,8 @@ Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations
 - [x] **CA-06.3.d** — Auditar os demais models `paranoid` com unique, aplicando o mesmo padrão
 
 > Branch `fix/paranoid-unique-constraints` — implementada por um agente da trilha do Gabriel, mas **pertence à trilha do Sirlande**: quem aprova o merge é ela. Verificada e preparada para revisão em 21/09/2026 (portão de QA completo + auditoria `qa-redteam` própria) — ver `docs/qa/redteam_paranoid-unique_21set2026.md`. Os 3 achados 🔴 da auditoria de 31/08 (`docs/qa/redteam_paranoid-unique_27ago2026.md`) estão fechados e verificados por reprodução independente.
+>
+> **Concluída em 07/10/2026** — revisada pelo Sirlande e mergeada no PR #82. A revisão atualizou a branch com o `develop` (70 commits) e uma nova auditoria (`docs/qa/redteam_paranoid-unique-merge_07out2026.md`) achou um 🔴 que a de 21/09 não pegou: o `ON CONFLICT (tenant_id, X)` do `seed/seed_hotels.sql` deixou de casar com os índices, agora parciais, e `command.js seed` falhava num banco novo. Corrigido repetindo o `WHERE deleted_at IS NULL` no `ON CONFLICT`. Também corrigidos: teste do CA-06.6.b que dependia da ordem dos arquivos, cliente tipado regenerado, 409 do booking público documentado.
 
 ---
 
@@ -121,7 +123,7 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ---
 
-### T-06.6 — Ressalva R4: índice parcial não aplicado em banco existente 🟡 (PR aberto, aguardando revisão do Sirlande)
+### T-06.6 — Ressalva R4: índice parcial não aplicado em banco existente ✅
 
 **Problema:** um banco que **já tem** a tabela `products` não recebe o índice parcial, e tanto `migrate` quanto `schema.sql` reportam sucesso — `sync({alter})` não substitui índice de mesmo nome e o `IF NOT EXISTS` do SQL é *no-op*.
 
@@ -234,6 +236,22 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 
 ---
 
+### T-06.12 — Dado pessoal de hóspede impresso no log via `console.error(error)` 🔲
+
+**Problema:** um erro do Sequelize carrega o `sql` e os `parameters` do INSERT/UPDATE que falhou. Os controllers que fazem `console.error(error)` com o objeto inteiro imprimem nome, CPF e e-mail do hóspede no stdout do container, que vai parar no agregador de logs. Reproduzido na auditoria de 21/09 (`docs/qa/redteam_paranoid-unique_21set2026.md`, pendência 1): o dado sai 3× por erro. A T-06.3 reduziu a frequência (conflito de unicidade virou 409, sem log) e corrigiu o único endpoint público (`CreateBookingController` loga só `error.message`), mas o padrão segue nos demais controllers.
+
+**Regra violada:** LGPD art. 46 (segurança do tratamento) e art. 6º, III (necessidade): log não precisa de CPF para diagnosticar um 500.
+
+**Critérios de aceitação**
+- [ ] **CA-06.12.a** — Nenhum controller loga o objeto de erro do Sequelize inteiro; o log leva mensagem, nome do erro e código, sem `sql`, `parameters` nem `parent.detail`
+- [ ] **CA-06.12.b** — Um utilitário único em `app/utils/` faz essa redução, reaproveitado por todos os controllers (DRY)
+- [ ] **CA-06.12.c** — Teste que provoca um erro com dado pessoal no INSERT e confirma que o CPF não aparece no que foi logado
+- [ ] **CA-06.12.d** — Regra no `qa_checks.sh` barrando `console.error(error)` com o objeto cru em `app/Controllers/`
+
+> Decisão D-3 da revisão do PR #82 (07/10/2026): o achado é anterior à branch e fica fora do diff dela, por isso virou tarefa própria em vez de ampliar o PR.
+
+---
+
 ## 3. Ordem sugerida
 
 ```
@@ -278,3 +296,4 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 | 1.1 | 09/09/2026 | Gabriel Reis Cunha | Acrescenta **T-06.9** (assinatura do webhook PIX, RNF-012) e **T-06.10** (paginação nas listagens, RNF-002), apuradas no cruzamento do Doc. 02 v1.2 com as Specs: os dois requisitos exigiam 100% de cobertura e não tinham tarefa em nenhuma Spec. A T-06.9 vai ao topo da ordem por ser a única vulnerabilidade explorável hoje, sem dependência de integração externa |
 | 1.2 | 21/09/2026 | Weslley (orquestrando Claude Code) | **T-06.4 concluída de verdade.** A versão de 16/09 declarava o critério 20 atendido, mas auditoria `qa-redteam` (`docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`) achou 3 dos 6 CAs não cumpridos (seed não funcionava, sem instrução de frontend, README não documentava). Fechados com evidência real de execução — `docker compose up` com os 6 serviços `healthy`, `migrate` + `seed` rodando até o fim (incluindo um bug real de cast de `ENUM` no seed, só visível executando), login via API com usuário seedado. Relatório: `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md` |
 | 1.3 | 21/09/2026 | Weslley (orquestrando Claude Code) | **Ressalvas da reauditoria fechadas.** Uma segunda auditoria `qa-redteam`, desta vez rodando o `docker compose up` ela mesma em vez de confiar no relatório anterior (`docs/qa/redteam_docker-compose-rabbitmq_21set2026.md`), achou que a alegação de idempotência do seed era **falsa**: rodar 2x inseria +5 reservas `CANCELLED` a cada vez (a EXCLUDE não cobre linhas `CANCELLED`, de propósito, e por isso o `ON CONFLICT DO NOTHING` não tinha nada pra capturar ali). Corrigido com guard `NOT EXISTS`, verificado com 3 execuções seguidas dando o mesmo resultado. Também corrigidos: guard `ALLOW_SEED=1` contra rodar o seed sem querer num banco de produção real, README apontando pro `.env.example` errado, `BACKEND_HOST_PORT` não documentado, healthcheck do nginx trocado de `/healthz` (estático) para `/health` (real). Relatório: `docs/historico_sessao/weslley/fecha_t064_ressalvas_reauditoria_21set2026.md` |
+| 1.4 | 07/10/2026 | Sirlande (orquestrando Claude Code) | **T-06.3 e T-06.6 concluídas** — revisão do dono e merge do PR #82, com um 🔴 novo corrigido antes (seed quebrado pelos índices parciais). Acrescenta **T-06.12** (dado pessoal em `console.error`), decisão D-3 da revisão. Estado do cabeçalho atualizado: estava parado em 16/09 |
