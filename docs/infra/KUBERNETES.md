@@ -102,3 +102,19 @@ kubectl scale deployment/backend --replicas=5 -n hotel-system
 2. Para comunicacao interna, outros Pods devem usar o Service, pois ele fornece um endereco estavel.
 3. O trafego externo chega no NodePort `30080`, passa pelo Service e vai para a porta `80` do container.
 4. A label que conecta o Deployment ao Service e `app: web-app`.
+
+## Download de PDF por URL assinada (RNF-023) — operação
+
+O backend assina as URLs com um usuário MinIO **só de leitura** (`MINIO_PRESIGN_USER`), criado pelo
+contêiner `setup` do pod `minio-0` (`infra/k8s/minio-setup.sh`). O navegador baixa pelo nginx, que
+só repassa ao MinIO `GET` de PDF de orçamento/contrato assinado por esse usuário, com validade de
+até 5 minutos.
+
+| Situação | O que fazer |
+|---|---|
+| Download de PDF responde `403` | `kubectl -n hotel-system logs minio-0 -c setup` — o setup loga cada falha (senha do leitor com menos de 8 caracteres, root errado). O pod fica `Ready` mesmo com o setup falhando, de propósito: o upload não depende dele |
+| Trocar `MINIO_PRESIGN_PASSWORD` (ou o root) | `kubectl apply -k infra/k8s/` e **`kubectl -n hotel-system rollout restart statefulset/minio deploy/backend`** — o setup só roda quando o pod do MinIO reinicia; reiniciar só o backend deixa o MinIO com a senha antiga e todo download dá `403` |
+| Mudar `MINIO_PUBLIC_ENDPOINT` ou o `nginx.yaml` | `kubectl apply -k infra/k8s/` e `kubectl -n hotel-system rollout restart deploy/backend deploy/nginx` — nenhum dos dois recarrega o ConfigMap sozinho |
+| Renomear `MINIO_PRESIGN_USER` | Mude também o nome em `X-Amz-Credential=gesway-pdf-leitor%2F` no `nginx.yaml` **e** no `docker/nginx/default.conf` (o `qa_checks.sh` confere que as duas cópias batem) |
+
+Para provar o comportamento contra um ambiente local: `scripts/verificar_download_pdf.sh`.

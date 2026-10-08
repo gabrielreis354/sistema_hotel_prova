@@ -82,10 +82,22 @@ spec:
         # dar certo e fica parado (o script é idempotente). Recebe só as credenciais do MinIO.
         - name: setup
           image: quay.io/minio/minio:latest
+          # Falha (senha do leitor com menos de 8 caracteres, root errado, MinIO fora) é logada a
+          # cada tentativa: `kubectl -n hotel-system logs minio-0 -c setup`. O pod fica Ready mesmo
+          # assim — o upload não depende do setup —, mas os downloads de PDF dão 403 até resolver.
+          # `trap` + `sleep & wait`: responde ao SIGTERM na hora, sem segurar o pod em Terminating.
           command:
             - /bin/sh
             - -c
-            - until /bin/sh /setup/minio-setup.sh; do sleep 10; done; exec sleep infinity
+            - |
+              trap 'exit 0' TERM INT
+              tentativa=0
+              until /bin/sh /setup/minio-setup.sh; do
+                tentativa=$((tentativa + 1))
+                echo "minio-setup: FALHOU (tentativa $tentativa) — downloads de PDF darão 403 até resolver; causa nas linhas acima. Nova tentativa em 10 s." >&2
+                sleep 10 & wait $!
+              done
+              while true; do sleep 3600 & wait $!; done
           env:
             - name: MINIO_URL
               value: http://localhost:9000
