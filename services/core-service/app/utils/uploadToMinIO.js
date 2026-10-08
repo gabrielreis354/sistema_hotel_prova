@@ -1,6 +1,6 @@
 import { PutObjectCommand, GetObjectCommand, CreateBucketCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import s3Client from '../../database/connections/minio.js';
+import s3Client, { presignClient } from '../../database/connections/minio.js';
 
 const BUCKET = process.env.MINIO_BUCKET || 'hotel-contracts';
 
@@ -24,8 +24,13 @@ export default async function uploadToMinIO(buffer, key) {
 }
 
 // Bucket é privado (padrão do MinIO — ensureBucket() não define policy pública), então
-// o download precisa de uma URL assinada e temporária em vez de um link direto.
+// o download precisa de uma URL assinada e temporária em vez de um link direto. Assinada com o
+// endereço público (presignClient) — ver database/connections/minio.js.
 export async function getPresignedDownloadUrl(key, expiresInSeconds = 300) {
+    // Fail-closed: sem o usuário de leitura, não assina — nunca cai para o root.
+    if (!presignClient) {
+        throw new Error('MINIO_PRESIGN_USER/MINIO_PRESIGN_PASSWORD não configurados — URL de download não assinada.');
+    }
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
-    return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+    return getSignedUrl(presignClient, command, { expiresIn: expiresInSeconds });
 }

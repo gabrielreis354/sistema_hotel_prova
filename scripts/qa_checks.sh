@@ -317,6 +317,24 @@ if [ -n "$FEATURES_DIRS" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Regra 10 — as duas cópias da configuração do nginx são a mesma
+# docker/nginx/default.conf (compose) e o ConfigMap de infra/k8s/nginx.yaml são a única
+# barreira entre a internet e o MinIO (RNF-023: só GET de PDF por URL pré-assinada pelo
+# usuário de leitura). Uma cópia afrouxada sem a outra reabriria o acesso em um dos ambientes.
+# Compara as diretivas, ignorando comentários, linhas vazias e indentação.
+# ─────────────────────────────────────────────────────────────────────────────
+nginx_diretivas() { sed -E 's/^[[:space:]]+//; /^#/d; /^$/d'; }
+if [ -f docker/nginx/default.conf ] && [ -f infra/k8s/nginx.yaml ]; then
+    k8s_conf=$(awk '/^  default\.conf: \|/{on=1; next} on && /^---/{exit} on' infra/k8s/nginx.yaml | nginx_diretivas)
+    compose_conf=$(nginx_diretivas < docker/nginx/default.conf)
+    hits=$(diff <(printf '%s\n' "$compose_conf") <(printf '%s\n' "$k8s_conf") \
+            | sed 's/^</compose:/; s/^>/k8s:    /' | grep -E '^(compose|k8s)' || true)
+    report_error "Configuração do nginx diverge entre compose e k8s" \
+        "docker/nginx/default.conf e o ConfigMap de infra/k8s/nginx.yaml precisam ter as mesmas diretivas" \
+        "$hits"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Resultado
 # ─────────────────────────────────────────────────────────────────────────────
 bold "── Resultado ──"

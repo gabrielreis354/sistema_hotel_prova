@@ -75,10 +75,77 @@ spec:
           volumeMounts:
             - name: minio-data
               mountPath: /data
+        # Bucket + usuário só de leitura que assina as URLs de download (RNF-023) —
+        # infra/k8s/minio-setup.sh, o mesmo do serviço minio-setup do compose. Fica no pod do
+        # MinIO, não no do backend: se a imagem não baixa ou o MinIO está fora, só o PDF fica
+        # indisponível (best-effort, CA-D.2) — o PMS não depende disto para subir. Tenta até
+        # dar certo e fica parado (o script é idempotente). Recebe só as credenciais do MinIO.
+        - name: setup
+          image: quay.io/minio/minio:latest
+          # Falha (senha do leitor com menos de 8 caracteres, root errado, MinIO fora) é logada a
+          # cada tentativa: `kubectl -n hotel-system logs minio-0 -c setup`. O pod fica Ready mesmo
+          # assim — o upload não depende do setup —, mas os downloads de PDF dão 403 até resolver.
+          # `trap` + `sleep & wait`: responde ao SIGTERM na hora, sem segurar o pod em Terminating.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              trap 'exit 0' TERM INT
+              tentativa=0
+              until /bin/sh /setup/minio-setup.sh; do
+                tentativa=$((tentativa + 1))
+                echo "minio-setup: FALHOU (tentativa $tentativa) — downloads de PDF darão 403 até resolver; causa nas linhas acima. Nova tentativa em 10 s." >&2
+                sleep 10 & wait $!
+              done
+              while true; do sleep 3600 & wait $!; done
+          env:
+            - name: MINIO_URL
+              value: http://localhost:9000
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: hotel-config
+                  key: MINIO_BUCKET
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_ROOT_PASSWORD
+            - name: MINIO_PRESIGN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_USER
+            - name: MINIO_PRESIGN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_PASSWORD
+          # O `mc admin` passa de 64 Mi no pico (OOMKilled visto no minikube em 07/10); em repouso
+          # o contêiner só dorme.
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: minio-setup
+              mountPath: /setup
+              readOnly: true
       volumes:
         - name: minio-data
           persistentVolumeClaim:
             claimName: minio-data
+        - name: minio-setup
+          configMap:
+            name: minio-setup
 ---
 apiVersion: v1
 kind: Service

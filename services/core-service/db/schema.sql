@@ -293,6 +293,7 @@ CREATE TABLE IF NOT EXISTS event_quotes (
   total                       NUMERIC(10, 2) NOT NULL,
   observacoes                 TEXT,
   status                      TEXT NOT NULL DEFAULT 'SENT',
+  pdf_url                     TEXT,
   deleted_at                  TIMESTAMPTZ,
   created_at                  TIMESTAMPTZ DEFAULT now(),
   updated_at                  TIMESTAMPTZ DEFAULT now(),

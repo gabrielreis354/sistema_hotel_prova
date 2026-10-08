@@ -62,6 +62,16 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: MINIO_ROOT_PASSWORD
+            - name: MINIO_PRESIGN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_USER
+            - name: MINIO_PRESIGN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_PASSWORD
           readinessProbe:
             httpGet:
               path: /health

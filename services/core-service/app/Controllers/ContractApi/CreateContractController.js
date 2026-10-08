@@ -4,7 +4,7 @@ import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
-import uploadToMinIO from '../../utils/uploadToMinIO.js';
+import storeDocumentPdf, { documentPdfKey } from '../../utils/storeDocumentPdf.js';
 import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
 
 export default async function CreateContractController(request, response) {
@@ -58,17 +58,13 @@ export default async function CreateContractController(request, response) {
 
         // Geração do PDF em best-effort (fora da transação). Se o MinIO falhar, o contrato
         // permanece criado com pdf_url null — o PDF pode ser gerado depois via GET /:id/pdf.
-        let pdfUrl = null;
         const allInstallments = await ContractInstallmentModel.findAll({ where: { contract_id: contract.id } });
-        try {
-            const pdfData = { ...contract.toJSON(), client: client.toJSON(), installments: allInstallments.map(i => i.toJSON()) };
-            const pdfBuffer = await generateContractPdf(pdfData);
-            const key = `${tenantId}/contracts/${contract.id}.pdf`;
-            pdfUrl = await uploadToMinIO(pdfBuffer, key);
-            await contract.update({ pdf_url: pdfUrl });
-        } catch (pdfError) {
-            console.warn('CreateContractController: contrato criado, mas PDF/MinIO falhou:', pdfError.message);
-        }
+        const pdfUrl = await storeDocumentPdf(
+            contract,
+            documentPdfKey(tenantId, 'contracts', contract.id),
+            () => generateContractPdf({ ...contract.toJSON(), client: client.toJSON(), installments: allInstallments.map(i => i.toJSON()) }),
+            'CreateContractController'
+        );
 
         return response.status(201).json({
             ...contract.toJSON(),
