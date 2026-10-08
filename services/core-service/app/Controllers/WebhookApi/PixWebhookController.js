@@ -1,45 +1,51 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
-import { verifyPixSignature } from '../../utils/pixWebhookSignature.js';
+import getPixProvider from '../../services/pix/index.js';
+import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../../services/pix/errors.js';
 
 /**
  * POST /webhooks/pix
  *
- * Callback do provedor PIX confirmando um pagamento. Exige assinatura
- * HMAC-SHA256 no cabeçalho `x-pix-signature` (formato `sha256=<hex>`),
- * calculada pelo PSP sobre os bytes crus do corpo — ver
- * app/utils/pixWebhookSignature.js. Sem isso, quem soubesse a URL e um
+ * Callback do provedor PIX confirmando um pagamento. Exige notificação
+ * assinada pelo provider ativo — sem isso, quem soubesse a URL e um
  * provider_charge_id confirmava pagamento sem pagar nada (T-06.9).
+ * Fail-closed: sem o secret do provider configurado, TODA requisição é
+ * recusada — nunca "aceita por padrão".
  *
- * Fail-closed: sem PIX_WEBHOOK_SECRET configurado no ambiente, TODA
- * requisição é recusada — nunca "aceita por padrão".
+ * A assinatura só prova quem enviou a notificação — nunca que o pagamento foi aprovado
+ * (o MP notifica em payment.created e também em cancelled/rejected). Por isso o status é
+ * sempre confirmado na fonte (provider.getChargeStatus) antes de qualquer efeito.
  *
- * Efeito: marca o pagamento como PAID e, se a reserva estiver PENDING, promove
- * para CONFIRMED — respeitando a máquina de estados (não mexe em CHECKED_IN etc.).
- * Idempotente: reprocessar o mesmo charge não duplica efeito.
+ * Efeito: com status aprovado e valor batendo, marca o pagamento como PAID e, se a reserva
+ * estiver PENDING, promove para CONFIRMED — respeitando a máquina de estados (não mexe em
+ * CHECKED_IN etc.). Cancelado/rejeitado marca o pagamento como FAILED. Qualquer outro status
+ * (pending, in_process...) não tem efeito — aguarda nova notificação. Idempotente: reprocessar
+ * um pagamento já em estado terminal não repete efeito.
  *
- * Body: { provider_charge_id: string }
+ * A validação da assinatura e a extração do id da cobrança são responsabilidade do provider
+ * ativo (provider.verifyWebhook): o fake confere o HMAC de `x-pix-signature` com
+ * PIX_WEBHOOK_SECRET; o Mercado Pago confere o `x-signature` com MERCADOPAGO_WEBHOOK_SECRET.
  */
 export default async function PixWebhookController(request, response) {
     try {
-        const secret = process.env.PIX_WEBHOOK_SECRET;
-        if (!secret) {
-            console.error('PixWebhookController: PIX_WEBHOOK_SECRET não configurado — recusando webhook (fail-closed)');
-            return response.status(401).json({ error: 'Webhook não configurado' });
-        }
+        const provider = getPixProvider();
 
-        // Verificação de assinatura ANTES de qualquer leitura de request.body e
-        // antes de qualquer consulta ao banco — uma requisição não assinada não
-        // deve nem ganhar a chance de descobrir se um charge_id existe (404) ou
+        // A assinatura é validada ANTES de qualquer consulta ao banco — uma requisição não
+        // assinada não deve nem ganhar a chance de descobrir se um charge_id existe (404) ou
         // não (400), sinal que ajudaria um atacante a enumerar cobranças.
-        const signature = request.get('x-pix-signature');
-        if (!verifyPixSignature(request.rawBody, signature, secret)) {
-            console.error('PixWebhookController: assinatura inválida — requisição recusada');
-            return response.status(401).json({ error: 'Assinatura inválida' });
+        let provider_charge_id;
+        try {
+            ({ providerChargeId: provider_charge_id } = provider.verifyWebhook(request));
+        } catch (verifyError) {
+            if (verifyError instanceof InvalidWebhookSignatureError) {
+                // Logado: um secret divergente do PSP vira 401 em todo callback — sem log,
+                // ninguém descobre por que as reservas pararam de confirmar.
+                console.error('PixWebhookController:', verifyError.message);
+                return response.status(401).json({ error: 'Assinatura inválida' });
+            }
+            throw verifyError;
         }
-
-        const { provider_charge_id } = request.body;
         if (!provider_charge_id || typeof provider_charge_id !== 'string') {
             return response.status(400).json({ error: 'provider_charge_id obrigatório' });
         }
@@ -50,9 +56,54 @@ export default async function PixWebhookController(request, response) {
             return response.status(404).json({ error: 'Cobrança não encontrada' });
         }
 
-        // Idempotência: se já foi processada, não faz nada de novo.
-        if (payment.status === 'PAID') {
+        // Idempotência: se já chegou a um estado terminal, não reprocessa.
+        if (['PAID', 'FAILED', 'EXPIRED'].includes(payment.status)) {
             return response.status(200).json({ status: 'already_processed', payment_id: payment.id });
+        }
+
+        let chargeStatus;
+        try {
+            chargeStatus = await provider.getChargeStatus(provider_charge_id);
+        } catch (statusError) {
+            if (statusError instanceof PixProviderUnavailableError) {
+                console.error('PixWebhookController: status da cobrança indisponível', provider_charge_id, statusError.message);
+                // Não confirmamos nada sem saber o status real — devolve não-2xx para o
+                // provedor tentar de novo depois, em vez de aceitar a notificação no escuro.
+                return response.status(503).json({ error: 'Não foi possível confirmar o status do pagamento' });
+            }
+            throw statusError;
+        }
+
+        // Só pula a conferência de valor quando o provider DECLARA que não tem como fazê-la
+        // (o simulado). Valor ausente num provider real nunca vira confirmação (fail-safe).
+        const amountMatches = chargeStatus.amountVerifiable === false
+            || (chargeStatus.amount != null
+                && Number(chargeStatus.amount).toFixed(2) === Number(payment.amount).toFixed(2));
+
+        if (chargeStatus.status !== 'approved' || !amountMatches) {
+            // FAILED só quando o provedor encerrou a cobrança (cancelled/rejected) ou quando
+            // disse "approved" com um valor que não bate (sinal de fraude). Qualquer outro
+            // status não-terminal (pending, in_process...) — mesmo com valor ainda
+            // desconhecido — não pode travar em FAILED: uma notificação futura com o status
+            // final correto precisa continuar podendo confirmar o pagamento.
+            const isTerminalNegative = ['cancelled', 'rejected'].includes(chargeStatus.status);
+            const isApprovedWithWrongAmount = chargeStatus.status === 'approved' && !amountMatches;
+
+            if (isTerminalNegative || isApprovedWithWrongAmount) {
+                const transaction = await sequelize.transaction();
+                try {
+                    payment.status = 'FAILED';
+                    await payment.save({ transaction });
+                    await transaction.commit();
+                } catch (txError) {
+                    await transaction.rollback();
+                    throw txError;
+                }
+                return response.status(200).json({ status: 'not_approved', payment_id: payment.id });
+            }
+
+            // pending, in_process, authorized... — sem efeito, aguarda a próxima notificação.
+            return response.status(200).json({ status: 'pending', payment_id: payment.id });
         }
 
         const transaction = await sequelize.transaction();
