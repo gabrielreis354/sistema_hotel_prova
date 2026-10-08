@@ -21,19 +21,30 @@ export default client(process.env.MINIO_ENDPOINT, process.env.MINIO_ROOT_USER, p
 // Assinar é cálculo local: este cliente nunca abre conexão. Sem MINIO_PUBLIC_ENDPOINT (backend
 // fora do compose, com o MinIO publicado em localhost), o endereço interno já é o alcançável.
 const publicEndpoint = process.env.MINIO_PUBLIC_ENDPOINT || process.env.MINIO_ENDPOINT;
-const { MINIO_PRESIGN_USER, MINIO_PRESIGN_PASSWORD } = process.env;
 
-// O "usuário de leitura" configurado como o próprio root anularia a separação — tratado como ausente.
-const presignConfigurado = MINIO_PRESIGN_USER && MINIO_PRESIGN_PASSWORD
-    && MINIO_PRESIGN_USER !== process.env.MINIO_ROOT_USER;
+// Nome do leitor que o nginx aceita em X-Amz-Credential (docker/nginx/default.conf e
+// infra/k8s/nginx.yaml). Outro nome assina URLs que o nginx recusa com 403.
+export const LEITOR_ESPERADO_PELO_NGINX = 'gesway-pdf-leitor';
 
-export const presignClient = presignConfigurado
-    ? client(publicEndpoint, MINIO_PRESIGN_USER, MINIO_PRESIGN_PASSWORD)
-    : null;
+/**
+ * Credencial que pode assinar URL de download, ou null. Recusa o "leitor" configurado como o
+ * próprio root — anularia a separação (o root lista e escreve no bucket). Pura, para teste.
+ */
+export function credencialDeAssinatura(env) {
+    const { MINIO_PRESIGN_USER: user, MINIO_PRESIGN_PASSWORD: password, MINIO_ROOT_USER: root } = env;
+    if (!user || !password || user === root) return null;
+    return { user, password };
+}
+
+const leitor = credencialDeAssinatura(process.env);
+
+export const presignClient = leitor ? client(publicEndpoint, leitor.user, leitor.password) : null;
 
 if (process.env.NODE_ENV === 'production') {
     if (!presignClient) {
         console.warn('⚠️  MINIO_PRESIGN_USER/MINIO_PRESIGN_PASSWORD ausentes (ou iguais ao root) — download de PDF persistido vai responder 500.');
+    } else if (leitor.user !== LEITOR_ESPERADO_PELO_NGINX) {
+        console.warn(`⚠️  MINIO_PRESIGN_USER=${leitor.user}, mas o nginx só aceita URLs de ${LEITOR_ESPERADO_PELO_NGINX} — todo download de PDF vai dar 403.`);
     }
     if (!process.env.MINIO_PUBLIC_ENDPOINT) {
         console.warn('⚠️  MINIO_PUBLIC_ENDPOINT ausente — URLs de download serão assinadas com o endereço interno, que o navegador não alcança.');

@@ -8,18 +8,18 @@
 # as credenciais do .env/secret.yaml), listar o bucket, ler subrecursos, escrever, reassinar
 # com o root ou com validade longa. Sai com código ≠ 0 se algum caso divergir do esperado.
 #
-# Uso (na raiz do repositório, com o compose no ar e o mesmo .env dele):
-#   set -a; . ./.env; set +a
-#   bash scripts/verificar_download_pdf.sh                 # BASE padrão: $MINIO_PUBLIC_ENDPOINT
-#   BASE=http://localhost:8088 bash scripts/verificar_download_pdf.sh
+# Uso (na raiz do repositório, com o compose LOCAL no ar). O subshell carrega o .env só para o
+# script — os segredos não ficam exportados no seu terminal:
+#   ( set -a; . ./.env; set +a; BASE=http://localhost bash scripts/verificar_download_pdf.sh )
 #
+# BASE é obrigatório e explícito: o script cria um hotel e um ADMIN de teste e deixa PDFs no
+# bucket — rode só contra o compose local, nunca contra um ambiente compartilhado.
 # Requer: curl, python3 e o node_modules do core-service (npm ci em services/core-service).
-# Deixa dados de teste no banco (um hotel "Verificação PDF <timestamp>").
 # =============================================================================
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
-BASE="${BASE:-${MINIO_PUBLIC_ENDPOINT:-http://localhost}}"
+: "${BASE:?defina BASE explicitamente (ex.: BASE=http://localhost) — só contra o compose local}"
 : "${MINIO_ROOT_USER:=minioadmin}"
 : "${MINIO_ROOT_PASSWORD:?carregue o .env do compose: set -a; . ./.env; set +a}"
 : "${MINIO_PRESIGN_USER:=gesway-pdf-leitor}"
@@ -34,11 +34,12 @@ confere() {  # confere <descrição> <esperado> <obtido>
 json() { python3 -c "import json,sys; print(json.load(sys.stdin)$1)"; }
 
 N=$(date +%s)
+SENHA=$(python3 -c 'import secrets; print(secrets.token_urlsafe(18))')   # descartável, nunca publicada
 curl -sf -o /dev/null -X POST "$BASE/auth/register" -H 'Content-Type: application/json' \
-    -d "{\"tenantName\":\"Verificação PDF $N\",\"name\":\"Adm\",\"email\":\"verif$N@gesway.test\",\"password\":\"senha12345\"}" \
+    -d "{\"tenantName\":\"Verificação PDF $N\",\"name\":\"Adm\",\"email\":\"verif$N@gesway.test\",\"password\":\"$SENHA\"}" \
     || { echo "Não consegui registrar um hotel em $BASE — o compose está no ar?"; exit 1; }
 TOKEN=$(curl -s -X POST "$BASE/auth/login" -H 'Content-Type: application/json' \
-    -d "{\"email\":\"verif$N@gesway.test\",\"password\":\"senha12345\"}" | json '["token"]')
+    -d "{\"email\":\"verif$N@gesway.test\",\"password\":\"$SENHA\"}" | json '["token"]')
 H="Authorization: Bearer $TOKEN"
 CLIENTE=$(curl -s -X POST "$BASE/corporate-clients" -H "$H" -H 'Content-Type: application/json' \
     -d '{"razao_social":"Verificação PDF LTDA","representante_nome":"Fulana"}' | json '["id"]')
@@ -57,6 +58,14 @@ confere "contrato pela URL do backend"             "200 application/pdf" "$(curl
 confere "URL legítima com Authorization do cliente" "200" "$(curl -s -o /dev/null -w '%{http_code}' -H "$H" "$URL_ORC")"
 confere "assinatura adulterada"                    "403" "$(curl -s -o /dev/null -w '%{http_code}' "${URL_ORC/X-Amz-Signature=/X-Amz-Signature=0}")"
 confere "sem assinatura"                           "403" "$(curl -s -o /dev/null -w '%{http_code}' "${URL_ORC%%\?*}")"
+# O método faz parte da assinatura SigV4: a URL é de GET, então HEAD passa pelo nginx e o MinIO
+# recusa (SignatureDoesNotMatch). Confirma que o nginx não reescreve o método.
+confere "HEAD com URL assinada para GET"           "403" "$(curl -s -o /dev/null -w '%{http_code}' -I "$URL_ORC")"
+confere "GET parcial (Range) na URL legítima"      "206" "$(curl -s -o /dev/null -w '%{http_code}' -r 0-0 "$URL_ORC")"
+confere "quebra de linha codificada no caminho"    "403" "$(curl -s -o /dev/null -w '%{http_code}' "${URL_ORC/.pdf\?/.pdf%0A?}")"
+for exp in 0 301 0300; do
+    confere "X-Amz-Expires=$exp na URL legítima"      "403" "$(curl -s -o /dev/null -w '%{http_code}' "$(sed -E "s/X-Amz-Expires=[0-9]+/X-Amz-Expires=$exp/" <<< "$URL_ORC")")"
+done
 
 echo "Atacante com as credenciais do repositório"
 CHAVE=$(python3 -c "import sys,urllib.parse as u; print(u.urlparse(sys.argv[1]).path.split('/',2)[2])" "$URL_ORC")
@@ -74,6 +83,9 @@ const casos = [
   ["leitor pré-assina a listagem", "403", () => getSignedUrl(leitor, new ListObjectsV2Command({ Bucket: B }))],
   ["leitor pré-assina chave fora do formato", "403", () => getSignedUrl(leitor, new GetObjectCommand({ Bucket: B, Key: "x/qualquer.txt" }))],
   ["leitor reassina a chave com validade de 7 dias", "403", () => getSignedUrl(leitor, new GetObjectCommand({ Bucket: B, Key: K }), { expiresIn: 604800 })],
+  // Achado 🟡-23: o nginx aceitava se QUALQUER ocorrência casasse; o MinIO valida a primeira.
+  ["root 7 dias + credencial/expiração do leitor repetidas", "403", async () => (await getSignedUrl(root, new GetObjectCommand({ Bucket: B, Key: K }), { expiresIn: 604800 })) + `&X-Amz-Credential=${e.MINIO_PRESIGN_USER}%2Fx&X-Amz-Expires=300`],
+  ["idem, repetidas em minúsculas", "403", async () => (await getSignedUrl(root, new GetObjectCommand({ Bucket: B, Key: K }), { expiresIn: 604800 })) + `&x-amz-credential=${e.MINIO_PRESIGN_USER}%2Fx&x-amz-expires=300`],
 ];
 for (const [n, esperado, f] of casos) console.log(`${n}\t${esperado}\t${await st(await f())}`);
 console.log(`PUT pré-assinado sobre o PDF\t403\t${await st(await getSignedUrl(leitor, new PutObjectCommand({ Bucket: B, Key: K })), { method: "PUT", body: "x" })}`);
