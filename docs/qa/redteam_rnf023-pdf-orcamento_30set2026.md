@@ -286,3 +286,113 @@ Corrigido o 🔴-16, o restante fica em **APROVADO COM RESSALVAS**. O 🟡-17 (r
 - O deploy em k8s (🔴-16): a conclusão vem do manifesto renderizado, da semântica de `imagePullPolicy` para `:latest` e do 401 conferido no registro. Não executei o cluster.
 - Se o `mc admin user add` recusa o nome do root (🟢-22, cenário 2).
 - A matriz de 403/200 e a idempotência do setup: aceitas com base na evidência do executor.
+
+---
+
+## Quarta auditoria (07/10)
+
+**Escopo:** `git diff b9b5a96..HEAD`, com foco nos commits `bf02258`, `e0e7182`, `a8c11da`, `b120794`, `0b73db7` e `36e0b35`. O merge `9f1a7b4` (PRs #86 e #87 da `develop`) foi conferido só onde toca a feature: `backend.yaml` e `secret.yaml`. Contexto lido inteiro: `docker/nginx/default.conf`, `infra/k8s/{nginx,backend,minio,secret,kustomization,networkpolicy}.yaml`, `infra/k8s/minio-setup.sh`, `docker-compose.yml` (MinIO), os dois `.env.example`, `README.md` (segredos e compose), `start.sh` (`up`, `tunnel`), `scripts/qa_checks.sh` (regra 10), `scripts/verificar_download_pdf.sh`, `database/connections/minio.js` e `uploadToMinIO.js`.
+**Execução:** `tests/quote-pdf.test.js` rodou isolado (nenhum vitest rodando, Postgres em `localhost:5432` aceitando conexão): **12/12 passam** em 7,4 s. `kubectl kustomize infra/k8s/` rodou offline e só renderiza. As condições de `$args` do nginx foram avaliadas com Perl (PCRE, mesma semântica) contra 14 query strings montadas à mão. Não subi containers.
+**Achados novos:** 5 (🔴 0 · 🟡 2 · 🟢 3)
+
+### Veredito
+
+**APROVADO COM RESSALVAS.** O 🔴-16 está corrigido: o setup saiu do pod do backend e um MinIO fora do ar volta a afetar só o PDF, o que o executor viu no minikube. Não achei 🔴 novo. A ressalva principal é o 🟡-23. A checagem de `X-Amz-Credential` e `X-Amz-Expires` acrescentada para o 🟡-17 **pode ser contornada repetindo o parâmetro na query**. O nginx aceita se *alguma* ocorrência casar, e o MinIO usa a *primeira*. Do lado do nginx isso está confirmado; do lado do MinIO é SUSPEITA forte, não executada. Com isso, a bateria "16/16" passa a dar uma garantia que a configuração não dá. Antes do merge, o Gabriel precisa decidir entre corrigir (duas linhas no nginx e um caso no script) ou aceitar por escrito. O resíduo prático é o mesmo do 🟡-17, já aceito para o k8s, e por isso o achado não passa de 🟡.
+
+### Estado de todos os achados
+
+| Achado | Estado | Observação |
+|---|---|---|
+| 🔴-1 URL assinada com host interno | **Corrigido** | Compose validado nas rodadas anteriores. Nesta rodada, a bateria passou 16/16 também no minikube, segundo o executor (não reexecutado) |
+| 🟡-2 trava de status fora da transação | **Corrigido** (A) · B: pendência aceita | — |
+| 🟡-3 total com serviços antigos | Pendência aceita | Inalterado |
+| 🟡-4 LGPD: PDF fica no bucket | Pendência aceita | O script de verificação acrescenta PDFs de teste ao bucket que nunca são apagados (ver 🟢-26) |
+| 🟡-5 citação do Doc 03 | **Corrigido** | — |
+| 🟢-6 update para nulo fora de try | **Corrigido** | — |
+| 🟢-7 `??=` não hermético | **Corrigido** | — |
+| 🟢-8 `pdf_url` com URL interna | Pendência aceita | — |
+| 🟢-9 B2B fora do Swagger | Pendência aceita | — |
+| 🟢-10 "superado pelo código" | **Corrigido** | — |
+| 🔴-11 API S3 exposta pelo nginx | **Corrigido** no vetor do achado | Listagem, subrecursos, escrita e autenticação por cabeçalho continuam fechados (`default.conf:58-61`). O resíduo está no 🟡-17 e no 🟡-23 |
+| 🟢-12 fallback silencioso / endpoint com caminho | **Corrigido** | Cenário 2: "só a ORIGEM" está documentado em `.env.example:48`, `services/core-service/.env.example:46` e `configmap.yaml:19`. Só documentação, sem validação em tempo de execução, o que basta para 🟢 |
+| 🟢-13 default do configmap × tunnel | **Corrigido** | `start.sh:130` (`apply -k` + `rollout restart deploy/backend`) |
+| 🟢-14 cabeçalhos repassados | **Corrigido** | (b) fechado junto com o 🟢-20 |
+| 🟢-15 lock e concorrência | Cenário 3 **corrigido** · cenário 1 **aberto** · cenário 2 pendência | `quote-pdf.test.js` não mudou nesta rodada. Remover o `lock` continua deixando a suíte verde |
+| 🔴-16 setup no caminho crítico do backend | **Corrigido** | `backend.yaml` não tem mais `initContainers`, e o setup é o contêiner `setup` em `minio.yaml:83-129`. A imagem do MinIO em `:latest` no quay continua como pendência do Weslley e derruba só o MinIO. Restam pontos operacionais no 🟡-24 e no 🟢-25 |
+| 🟡-17 credencial versionada + borda sem checar assinante/prazo | **Parcial** | (2) compose **corrigido**: `.env.example:40,45` vazios, e o `:?` agora dispara de fato. O k8s continua com `secret.yaml:18,23` versionados, como **pendência aceita** pelo Gabriel. Mas essa pendência para o Weslley **não está registrada em nenhum arquivo versionado** (o grep em `docs/` só acha este relatório). (1) nginx: implementado (`default.conf:65-66`), mas **contornável**, ver 🟡-23 |
+| 🟡-18 init com o `hotel-secret` inteiro | **Corrigido** | `minio.yaml:89-116`: 4 `secretKeyRef` `MINIO_*` + `MINIO_BUCKET` do configmap. O pod do MinIO já tinha o root |
+| 🟢-19 `$` × LF final | **Corrigido** | `\z` em `default.conf:58` e `nginx.yaml:66`. O PDF legítimo devolve 200, então a regex compila e casa (evidência do executor) |
+| 🟢-20 `Forwarded` / IP real | **Corrigido** | `default.conf:76-78`. Ressalva sem achado: no k8s, com `LoadBalancer` e `externalTrafficPolicy: Cluster`, o `$remote_addr` é o IP do nó (SNAT) e não o do cliente. Isso é pré-existente e vale para a stack inteira |
+| 🟢-21 sem verificação versionada | **Parcial** | Paridade das duas cópias do nginx em `qa_checks.sh:219-235`, que roda no CI (`ci.yml:30`) e falha fechada se a extração do YAML quebrar. A bateria virou `scripts/verificar_download_pdf.sh`, mas não roda no CI (precisa do compose). **Continua faltando** o relatório de sessão com as pendências (Confirm/Cancel sem lock, 🟡-3, 🟡-4, 🟡-17/Weslley): `git diff origin/develop...HEAD` não tem nada em `docs/historico_sessao/` |
+| 🟢-22 menor privilégio do leitor | Cenário 2 **corrigido** · 3 **resolvido** · 1 **aberto** | (2) `minio.js:27-28` trata leitor == root como ausente, mas sem teste (ver 🟢-27). (3) `MINIO_URL=http://localhost:9000` está no mesmo pod e não depende mais do configmap. (1) `minio-setup.sh:42-44` continua só *acrescentando* política. Se o leitor tiver `readwrite` anexado, ela persiste |
+
+### Achados novos
+
+#### 🟡-23 [RNF-023 / borda] Basta repetir `X-Amz-Credential` e `X-Amz-Expires` para passar pela checagem nova do nginx: URL do root, ou de 7 dias, volta a ser aceita
+**Onde:** `docker/nginx/default.conf:65-66` e `infra/k8s/nginx.yaml:73-74`. O `(^|&)...` casa com **qualquer** ocorrência do parâmetro. A allowlist de `:60` aceita nomes repetidos.
+**Cenário:** quem tem a senha root do `secret.yaml:18` (versionada) gera com o SDK `getSignedUrl(root, GetObject{Key: <tenant>/contracts/<id>.pdf}, {expiresIn: 604800})` e acrescenta ao fim da query `&X-Amz-Credential=gesway-pdf-leitor%2Fx&X-Amz-Expires=300`.
+- **nginx (confirmado com PCRE):** passa nas quatro condições. Resultado das 14 strings testadas: "root 7d puro" → 403 (cred, exp); "root 7d + dup leitor/300" → **passa**; "root 300 + `x-amz-credential=` minúsculo do leitor" → **passa**, porque `!~*` ignora maiúsculas e minúsculas.
+- **MinIO (SUSPEITA forte, lida de memória em `cmd/signature-v4.go`, `doesPresignedSignatureMatch`/`parsePreSignV4`, sem execução):** o servidor lê `X-Amz-Credential`/`X-Amz-Expires` com `url.Values.Get`, que devolve a **primeira** ocorrência (root, 604800). Ele remonta a query canônica com `query.Set` para os parâmetros de assinatura e descarta as duplicatas desses nomes. A assinatura calculada pelo SDK sem as duplicatas continua válida, e a resposta é **200 com o PDF por 7 dias, assinado pelo root**. A variante em minúsculas (`x-amz-credential`) entra na query canônica como parâmetro extra, então exige que o atacante a inclua na assinatura. Dá para fazer, mas não é necessária.
+**Dano:** é o mesmo resíduo do 🟡-17 que a rodada pretendia fechar. Quem tem uma credencial lê, sem prazo, chaves já conhecidas. Não há listagem nem cross-tenant (a regex de caminho e a allowlist de parâmetros continuam valendo), por isso o achado é 🟡. O efeito colateral é de processo. `verificar_download_pdf.sh:72,76` ("root pré-assina GetObject" e "leitor reassina 7 dias" → 403) passa e serve de prova de um controle que não fecha.
+**Regra violada:** RNF-023 (expiração ≤ 5 min), fail-safe (CLAUDE.md §7).
+**Correção sugerida:** (1) trocar `!~*` por `!~` em `:65`, porque access key do MinIO diferencia maiúsculas de minúsculas. (2) Recusar nome de parâmetro repetido antes das outras checagens: `if ($args ~* "(^|&)(x-amz-[a-z0-9-]+|x-id)=[^&]*&(.*&)?\2=") { return 403; }`. Com `~*`, a retrorreferência cobre também a duplicata que difere só na caixa. (3) Acrescentar ao script o caso "URL do root de 7 dias + `&X-Amz-Credential=gesway-pdf-leitor%2Fx&X-Amz-Expires=300`" com esperado 403. Rodar esse caso antes do (2) confirma ou derruba a SUSPEITA do lado do MinIO.
+
+#### 🟡-24 [Operação k8s] Falha permanente do contêiner `setup` não aparece em lugar nenhum, e trocar a senha do leitor não reexecuta o setup
+**Onde:** `infra/k8s/minio.yaml:88` (`until …; do sleep 10; done; exec sleep infinity`, sem probe); `docs/infra/KUBERNETES.md` e `README.md` (nenhuma menção ao contêiner `setup`, a `kubectl logs … -c setup` ou a como rotacionar a senha); `start.sh:130`.
+**Cenário A (falha invisível):** `MINIO_PRESIGN_PASSWORD` com menos de 8 caracteres, root errado no secret, ou o OOM que o executor viu com 64 Mi (o commit `36e0b35` diz que "o script repetia para sempre"). O `setup` fica em laço, `kubectl get pods` mostra `minio-0 2/2 Running` com 0 restarts, o `kubectl wait` do `start.sh:51` passa, e todo download de PDF dá 403 (`InvalidAccessKeyId`) no navegador da recepção, sem nenhuma pista. O único sinal é o log do contêiner `setup`, que a documentação não cita. Fazer o pod ficar NotReady não resolve, porque derrubaria o Service e, com ele, o upload. Então o mínimo é tornar a falha encontrável.
+**Cenário B (regressão operacional do `bf02258`):** alguém troca `MINIO_PRESIGN_PASSWORD` no `secret.yaml` e faz `kubectl apply -k` mais `rollout restart deploy/backend`, que é o reflexo ensinado em `start.sh:130`. O backend passa a assinar com a senha nova, mas o `setup` está em `sleep infinity` e nunca reaplica, e o MinIO continua com a antiga. Todo download dá 403 (`SignatureDoesNotMatch`). Com o `initContainer`, reiniciar o backend reexecutava o setup, e a rotação funcionava. Agora é preciso também `kubectl rollout restart statefulset/minio`. Isso não está escrito em lugar nenhum. Mudar o `minio-setup.sh` dispara rollout sozinho (o hash do `configMapGenerator` muda o template, conferido no render); mudar o secret, não.
+**Regra violada:** CA-D.2 continua ok (fail-closed só no PDF), mas o RNF-023 fica indisponível sem diagnóstico. Dívida operacional que vai doer na apresentação.
+**Correção sugerida:** a cada falha do laço, logar uma linha clara com contador ("minio-setup: falhou (tentativa N) — download de PDF indisponível; veja acima"). Documentar no `KUBERNETES.md` duas linhas: `kubectl logs -n hotel-system minio-0 -c setup` e "trocou `MINIO_PRESIGN_*` ou `MINIO_ROOT_*`? `rollout restart statefulset/minio` **e** `deploy/backend`".
+
+#### 🟢-25 [k8s] `sleep infinity` como PID 1 ignora SIGTERM: todo restart do pod do MinIO fica ~30 s a mais em `Terminating`
+**Onde:** `infra/k8s/minio.yaml:85-88`; o StatefulSet não define `terminationGracePeriodSeconds`, então o padrão é 30 s.
+**Cenário:** `rollout restart statefulset/minio`, mudança no `minio-setup.sh`, ou drain do nó. O kubelet manda SIGTERM a cada contêiner. O `minio` encerra na hora. O `setup` é PID 1 (o `sh` durante o laço, ou o `sleep` depois do `exec`), não instala handler, e o kernel descarta o sinal. O pod só morre no SIGKILL, 30 s depois. Com `replicas: 1` e PVC `ReadWriteOnce`, o `minio-0` novo só nasce depois disso, e o upload e o download de PDF ficam ~30 s a mais fora a cada restart. A conclusão vem da semântica de sinais para PID 1; o tempo não foi medido.
+**Correção sugerida:** `trap 'exit 0' TERM; until /bin/sh /setup/minio-setup.sh; do sleep 10 & wait $!; done; sleep infinity & wait $!`.
+
+#### 🟢-26 [Script de verificação] Cria um ADMIN com senha fixa do repositório, e o alvo padrão vem do `.env`
+**Onde:** `scripts/verificar_download_pdf.sh:22` (`BASE` padrão = `MINIO_PUBLIC_ENDPOINT`), `:37-41` (`password: senha12345`), `:12` (`set -a; . ./.env` no shell do usuário).
+**Cenário:** alguém carrega o `.env` de um ambiente compartilhado ou de staging (`MINIO_PUBLIC_ENDPOINT=https://<domínio>`) e roda o script como manda o cabeçalho. Sem perguntar nada, o script cria lá um hotel com um **ADMIN** `verif<timestamp>@gesway.test` / `senha12345`, publicado no repositório, mais um orçamento e um contrato cujos PDFs ficam no bucket para sempre (🟡-4). Não há vazamento entre tenants, porque o tenant é novo. Mas fica uma conta ativa com credencial pública, que é ponto de partida para qualquer falha autenticada (ex.: o `WAITER` com acesso a `/event-quotes`, já registrado). A cada execução nasce mais uma. Deixar dados no banco é aceitável **no compose local**; o problema é o padrão aceitar qualquer origem. O `set -a` também deixa `PIX_WEBHOOK_SECRET` e as senhas do MinIO exportadas no shell interativo depois do script.
+**Lacunas da bateria:** faltam os casos `X-Amz-Expires=0`, `=301` e `=0300`, o caso `%0A` do 🟢-19, `HEAD`, e o de parâmetro duplicado do 🟡-23. As condições de expiração conferem por PCRE (0, 0300, 301 e 3000 → 403; 1 e 299 → passa), mas a bateria não as cobre.
+**Correção sugerida:** senha aleatória (`openssl rand -hex 12`) em vez de `senha12345`. Recusar `BASE` que não seja `localhost`/`127.0.0.1` sem `CONFIRMO_ALVO=1`. Mostrar no cabeçalho o uso em subshell: `(set -a; . ./.env; set +a; bash scripts/verificar_download_pdf.sh)`. Acrescentar os casos acima.
+
+#### 🟢-27 [Testes / configuração] A guarda "leitor ≠ root" não tem teste, e o nome do leitor está repetido no nginx sem checagem
+**Onde:** `services/core-service/database/connections/minio.js:27-28`; `tests/quote-pdf.test.js:76-80` (testa só a URL do caminho feliz); `default.conf:65` e `nginx.yaml:73` (`gesway-pdf-leitor` literal) × `docker-compose.yml:74,136` e `.env.example:44` (`MINIO_PRESIGN_USER` configurável).
+**Cenário 1:** apagar `&& MINIO_PRESIGN_USER !== process.env.MINIO_ROOT_USER` mantém a suíte verde. O `env.js` fixa usuários diferentes, e o `presignClient` é calculado no import. A regra nova (🟢-22, cenário 2) fica sem guarda de regressão.
+**Cenário 2:** o operador troca `MINIO_PRESIGN_USER` no `.env` (o comentário de `.env.example:42-43` convida a trocar as senhas, e o nome parece trocável também). O setup cria o usuário novo, o backend assina com ele, e o nginx recusa todo download com 403. O aviso existe só como comentário no nginx.
+**Correção sugerida:** um teste que reimporta `minio.js` (`vi.resetModules` + `vi.stubEnv`) com leitor == root e espera `presignClient === null`. No `qa_checks.sh`, conferir que o valor de `MINIO_PRESIGN_USER` em `.env.example` e `secret.yaml` é o mesmo literal do nginx.
+
+### O que foi verificado e está correto (quarta auditoria)
+
+- **Merge com a `develop` (#86/#87):** `backend.yaml` está coerente. Tem `securityContext.fsGroup: 1000` no nível do pod, `defaultMode: 0400` (renderizado como `256`) só no volume `jwt-rsa-keys`, e nenhum resto do `initContainer`: o volume `minio-setup` e o `envFrom` do secret saíram juntos. Como o pod tem um contêiner só, o `fsGroup` não afeta mais nada. O `secret.yaml` também está coerente: o comentário do #86 foi atualizado, `MINIO_PRESIGN_*` está presente, e só a ordem das chaves do RabbitMQ ficou intercalada, o que é cosmético. O render do kustomize põe o `minio-setup-<hash>` no StatefulSet do MinIO e não o põe mais no Deployment do backend.
+- **Contêiner `setup`:** `MINIO_URL=localhost:9000` no mesmo pod, então a NetworkPolicy não interfere (é loopback). Recebe só os 4 `secretKeyRef` `MINIO_*` mais o bucket. O laço com `mc alias` (30×2 s) e o `sleep 10` não dão hot loop. Sem probe, o pod do MinIO fica Ready assim que o `minio` responde, e o upload não depende do setup, que é o comportamento desejado (o custo dessa escolha está no 🟡-24). O limite de 256 Mi foi justificado com OOM observado.
+- **Condições novas do nginx (PCRE):** `X-Amz-Expires` aceita exatamente 1 a 300. `0`, zero à esquerda (`0300`), `301`, `3000` e parâmetro ausente → 403. O nome do parâmetro é conferido com `!~`, que diferencia caixa e combina com o SDK. `X-Amz-Credential` com `/` cru → 403, com `%2f` minúsculo → passa e o MinIO decodifica igual. `GESWAY-PDF-LEITOR` passa no nginx, mas o MinIO recusa, porque esse usuário não existe (o problema real da caixa está no 🟡-23). O backend sempre assina com 300 s (`uploadToMinIO.js:29`), então não há download legítimo recusado. `\z` está nas duas cópias.
+- **Cabeçalhos:** `X-Forwarded-For` e `X-Real-IP` sobrescritos com `$remote_addr`, e `Forwarded`, `Authorization` e `Cookie` zerados.
+- **`.env.example` (raiz):** as duas senhas do MinIO vazias, e os quatro `:?` do compose (`docker-compose.yml:54,73,135,137`) disparam de fato no fluxo `cp .env.example .env`. O README (`:297-298`) manda preencher as duas e diz "8+ caracteres". O `services/core-service/.env.example:42` mantém `minioadmin123`, mas esse arquivo é do backend fora do compose, sem nginx na frente, então não é regressão.
+- **`qa_checks.sh` regra 10:** usa bash (process substitution ok) e só reporta com `hits` não vazio. Se a extração do YAML falhar, aparece divergência total, ou seja, falha fechada. Roda no CI.
+- **`start.sh:130`** traz o comando completo para o tunnel.
+- **Suíte:** `tests/quote-pdf.test.js` passou 12/12 isolado.
+
+### Não foi possível verificar (quarta auditoria)
+
+- O lado MinIO do 🟡-23 (primeira ocorrência e query canônica sem duplicatas): conclusão por leitura de memória do código do MinIO. Não subi containers. O caso de reprodução está na correção sugerida.
+- Os ~30 s extras de `Terminating` do 🟢-25: não medido.
+- A NetworkPolicy no minikube (a CNI padrão não aplica), o minikube e a bateria 16/16: aceitos com base na evidência do executor.
+- O registro da pendência do Weslley (senha do leitor versionada) fora deste repositório: não achei nada versionado.
+
+---
+
+## Tratamento da quarta auditoria (agente executor, 08/10)
+
+Veredito da quarta rodada: **APROVADO COM RESSALVAS, 0 🔴**. Ressalvas tratadas na branch antes do PR:
+
+| Achado | Tratamento | Evidência |
+|---|---|---|
+| 🟡-23 parâmetro repetido contorna a checagem do nginx | **Suspeita confirmada antes da correção:** URL do root com 7 dias + `&X-Amz-Credential=gesway-pdf-leitor%2Fx&X-Amz-Expires=300` → **200** no compose. Corrigido: nome de parâmetro repetido (qualquer caixa) → 403; checagem da credencial com `!~` | Mesmo ataque → 403, também em minúsculas; casos novos na bateria |
+| 🟡-24 falha do setup invisível; trocar a senha do leitor não reexecuta o setup | Cada falha logada com contador e o efeito ("downloads darão 403"); `docs/infra/KUBERNETES.md` ganhou a tabela de operação: `kubectl logs minio-0 -c setup`, e `rollout restart statefulset/minio deploy/backend` ao trocar senha | Comando do contêiner testado isolado: falha → log "FALHOU (tentativa 1)" → sucesso na 2ª |
+| 🟢-25 `sleep infinity` ignora SIGTERM | `trap 'exit 0' TERM INT` + `sleep & wait` | `docker stop` em 540 ms, exit 0 |
+| 🟢-26 script de verificação | Senha aleatória por execução; `BASE` obrigatório e explícito (sem default do `.env`); uso documentado em subshell; casos novos: expiração 0/301/0300, `%0A`, `HEAD` (o MinIO recusa — o método faz parte da assinatura SigV4; confirmado por `X-Minio-Error-Code: SignatureDoesNotMatch`), `Range` (206), parâmetro duplicado nas duas caixas | **24/24** no compose |
+| 🟢-27 guarda "leitor ≠ root" sem teste; nome do leitor solto no nginx | Guarda extraída para `credencialDeAssinatura(env)` com teste unitário (mutação: sem a guarda, 1 teste falha); aviso no boot se `MINIO_PRESIGN_USER` diferir do nome que o nginx aceita | `tests/minio-presign.test.js` |
+
+Continuam como pendência registrada no PR: 🟡-17 resíduo (senha do leitor versionada no `secret.yaml` — Weslley), 🟢-15 (lock sem teste; confirm/cancel sem lock), 🟢-22 cenário 1 (setup só acrescenta política), 🟡-2B, 🟡-3, 🟡-4, 🟢-8, 🟢-9.
+
+Portão final: suíte 20 arquivos, 268 passam, 1 skip, cobertura 79,09 / 74,26 / 88,02 / 81,51; `qa_checks.sh` 0 erros (regra 10 verde).
