@@ -1,13 +1,12 @@
 import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
-import { checkReservationConflict } from '../../utils/checkReservationConflict.js';
+import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import getPixProvider from '../../services/pix/index.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import GuestModel from '../../Models/GuestModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
-import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
@@ -125,10 +124,8 @@ export default async function CreateBookingController(request, response) {
                 total_amount: totalAmount
             }, { transaction });
 
-            await ReservationRoomModel.create(
-                { reservation_id: reservation.id, room_id: availableRoom.id },
-                { transaction }
-            );
+            // O quarto entra em reservation_rooms pelo próprio banco (trigger
+            // reservations_sincroniza_quartos) — é lá que o EXCLUDE recusa a venda dupla.
 
             // Cobrança PIX do sinal via provider (simulado por padrão)
             const pix = getPixProvider();
@@ -190,6 +187,9 @@ export default async function CreateBookingController(request, response) {
         // INSERT — CPF, nome e e-mail do hóspede no stdout do container.
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
+        // Duas reservas públicas simultâneas escolheram o mesmo último quarto livre: o banco
+        // recusou a segunda (EXCLUDE). O hóspede tenta de novo — não é erro do servidor.
+        if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
 
         console.error('CreateBookingController:', error.message);
         return response.status(500).json({ error: 'Erro interno do servidor' });
