@@ -292,3 +292,119 @@ describe('Contratos — P-2 e P-3', () => {
         expect((await request(app).get(`/contracts/${c.body.id}`).set(auth())).body.status).toBe('GENERATED');
     });
 });
+
+// ── Correções das revisões de 10/10 (qa-redteam e /security-review) ────────────────────────
+describe('Revisões de 10/10 — integridade da reserva', () => {
+    it('🔴-2: PUT não aceita hóspede de OUTRO hotel (404), e o GET não vaza o hóspede alheio', async () => {
+        const { jwt: outroJwt } = await registerAndLogin(app, { tenantName: 'Outro Hotel MQ' });
+        const alheio = await createGuest(app, outroJwt, { full_name: 'Hóspede Alheio' });
+        const r = (await reservar(await novoQuarto(), [], { in: '2029-01-01', out: '2029-01-03' })).body;
+
+        const res = await request(app).put(`/reservations/${r.id}`).set(auth()).send({ guest_id: alheio.id });
+
+        expect(res.status).toBe(404);
+        expect((await request(app).get(`/reservations/${r.id}`).set(auth())).body.guest_id).toBe(guestId);
+    });
+
+    it('🟡-3: trocar o principal por um quarto que já é extra da reserva → 409, nada muda', async () => {
+        const principal = await novoQuarto();
+        const extra = await novoQuarto();
+        const r = (await reservar(principal, [extra], { in: '2029-01-10', out: '2029-01-12' })).body;
+
+        const res = await request(app).put(`/reservations/${r.id}`).set(auth()).send({ room_id: extra });
+
+        expect(res.status).toBe(409);
+        expect((await reservar(principal, [], { in: '2029-01-10', out: '2029-01-12' })).status).toBe(409);
+        expect((await request(app).get(`/reservations/${r.id}`).set(auth())).body.total_amount).toBe('400.00');
+    });
+
+    it('/security-review: o UUID do principal em MAIÚSCULAS não passa pela proteção de remoção', async () => {
+        const principal = await novoQuarto();
+        const r = (await reservar(principal, [await novoQuarto()], { in: '2029-01-20', out: '2029-01-22' })).body;
+
+        const res = await request(app).delete(`/reservations/${r.id}/rooms/${principal.toUpperCase()}`).set(auth());
+
+        expect(res.status).toBe(409);
+        expect((await request(app).get(`/reservations/${r.id}`).set(auth())).body.total_amount).toBe('400.00');
+        expect((await reservar(principal, [], { in: '2029-01-20', out: '2029-01-22' })).status).toBe(409);
+    });
+
+    it('/security-review: dois quartos adicionados ao mesmo tempo — o total cobra os três', async () => {
+        const r = (await reservar(await novoQuarto(), [], { in: '2029-02-01', out: '2029-02-03' })).body;
+        const [a, b] = await Promise.all([
+            request(app).post(`/reservations/${r.id}/rooms`).set(auth()).send({ room_id: await novoQuarto() }),
+            request(app).post(`/reservations/${r.id}/rooms`).set(auth()).send({ room_id: await novoQuarto() }),
+        ]);
+        expect([a.status, b.status]).toEqual([201, 201]);
+
+        expect((await request(app).get(`/reservations/${r.id}`).set(auth())).body.total_amount).toBe('600.00');
+    });
+
+    it('🟡-11: datas invertidas ou iguais → 400 na criação e na alteração', async () => {
+        expect((await reservar(await novoQuarto(), [], { in: '2029-03-05', out: '2029-03-05' })).status).toBe(400);
+        const r = (await reservar(await novoQuarto(), [], { in: '2029-03-10', out: '2029-03-12' })).body;
+        expect((await request(app).put(`/reservations/${r.id}`).set(auth()).send({ check_out_date: '2029-03-09' })).status).toBe(400);
+    });
+
+    it('🟡-5: PUT reenviando as MESMAS datas não reprecifica a reserva', async () => {
+        const cat = await createCategory(app, jwt, { name: 'Reajuste MQ', price_per_night: 100 });
+        const r = (await reservar(await novoQuarto(cat), [], { in: '2029-04-01', out: '2029-04-03' })).body;
+        await request(app).put(`/room-categories/${cat.id}`).set(auth()).send({ price_per_night: 999 });
+
+        const res = await request(app).put(`/reservations/${r.id}`).set(auth()).send({ check_in_date: '2029-04-01', check_out_date: '2029-04-03' });
+
+        expect(res.status).toBe(200);
+        expect((await request(app).get(`/reservations/${r.id}`).set(auth())).body.total_amount).toBe('200.00');
+    });
+
+    it('estadia encerrada (CHECKED_OUT) não recebe quarto novo (409)', async () => {
+        const r = (await reservar(await novoQuarto(), [], { in: '2029-05-01', out: '2029-05-03' })).body;
+        await request(app).put(`/reservations/${r.id}/check-in`).set(auth());
+        await request(app).put(`/reservations/${r.id}/check-out`).set(auth());
+
+        const res = await request(app).post(`/reservations/${r.id}/rooms`).set(auth()).send({ room_id: await novoQuarto() });
+        expect(res.status).toBe(409);
+    });
+
+    it('divergência registrada: quarto de reserva CHECKED_OUT nas datas originais → 409 (banco), nunca 500', async () => {
+        const quarto = await novoQuarto();
+        const r = (await reservar(quarto, [], { in: '2029-06-01', out: '2029-06-05' })).body;
+        await request(app).put(`/reservations/${r.id}/check-in`).set(auth());
+        await request(app).put(`/reservations/${r.id}/check-out`).set(auth());
+
+        // A aplicação considera o quarto livre (ignora CHECKED_OUT); o EXCLUDE do banco ainda o
+        // bloqueia até a data de saída original. Check-out antecipado não encurta a reserva —
+        // decisão pendente do Gabriel (afeta cobrança).
+        expect((await reservar(quarto, [], { in: '2029-06-03', out: '2029-06-04' })).status).toBe(409);
+    });
+});
+
+describe('Revisões de 10/10 — reserva-bloco B2B só se altera pelo contrato (P-3 completa)', () => {
+    let bloco;
+    let segundo;
+
+    beforeAll(async () => {
+        const cliente = await request(app).post('/corporate-clients').set(auth()).send({
+            razao_social: 'Bloco MQ LTDA', representante_nome: 'Fulano Bloco', cnpj: '55.666.777/0001-88',
+        });
+        const c = await request(app).post('/contracts').set(auth()).send({
+            corporate_client_id: cliente.body.id, objeto: 'Evento bloco', check_in: '2029-07-01', check_out: '2029-07-03',
+            pessoas: 4, total: 1000, testemunha_1: 'A', testemunha_2: 'B',
+        });
+        segundo = await novoQuarto();
+        const s = await request(app).put(`/contracts/${c.body.id}/sign`).set(auth()).send({ room_ids: [await novoQuarto(), segundo] });
+        bloco = s.body.reservation;
+    });
+
+    it.each([
+        ['cancelar', () => request(app).put(`/reservations/${bloco.id}/cancel`).set(auth())],
+        ['mudar datas', () => request(app).put(`/reservations/${bloco.id}`).set(auth()).send({ check_out_date: '2029-07-10' })],
+        ['adicionar quarto', async () => request(app).post(`/reservations/${bloco.id}/rooms`).set(auth()).send({ room_id: await novoQuarto() })],
+        ['remover quarto', () => request(app).delete(`/reservations/${bloco.id}/rooms/${segundo}`).set(auth())],
+    ])('%s a reserva-bloco pela rota de reserva → 409', async (_acao, chamada) => {
+        expect((await chamada()).status).toBe(409);
+        const atual = (await request(app).get(`/reservations/${bloco.id}`).set(auth())).body;
+        expect(atual.status).toBe('CONFIRMED');
+        expect(atual.check_out_date).toBe('2029-07-03');
+    });
+});
