@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
 import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
+import { calculateStayTotal, countNights, toCents, fromCents } from '../../utils/calculateStayTotal.js';
 import getPixProvider from '../../services/pix/index.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
@@ -70,10 +71,15 @@ export default async function CreateBookingController(request, response) {
             return response.status(409).json({ error: 'Sem disponibilidade na categoria para o período' });
         }
 
-        // 4. Cálculo financeiro
-        const nights = Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24));
-        const totalAmount = Number((Number(category.price_per_night) * nights).toFixed(2));
-        const depositAmount = Number((totalAmount * (tenant.deposit_percent / 100)).toFixed(2));
+        // 4. Cálculo financeiro — a mesma função de toda reserva (CA-F.4), em centavos inteiros.
+        // A resposta pública continua devolvendo números: é o contrato da API do site.
+        const nights = countNights(check_in, check_out);
+        const stay = await calculateStayTotal({ roomIds: [availableRoom.id], checkInDate: check_in, checkOutDate: check_out, tenantId: tenant.id });
+        if (stay.error) return response.status(stay.error.status).json({ error: stay.error.message });
+        const totalCents = toCents(stay.total);
+        const depositCents = Math.round(totalCents * tenant.deposit_percent / 100);
+        const totalAmount = stay.total;
+        const depositAmount = fromCents(depositCents);
 
         // 5. Persistência atômica: hóspede + reserva + pivô + cobrança PIX
         const transaction = await sequelize.transaction();
@@ -159,15 +165,15 @@ export default async function CreateBookingController(request, response) {
                     check_out: check_out,
                     nights,
                     category: category.name,
-                    total_amount: totalAmount
+                    total_amount: Number(totalAmount)
                 },
                 payment: {
                     id: payment.id,
                     kind: payment.kind,
                     status: payment.status,
-                    amount: depositAmount,
+                    amount: Number(depositAmount),
                     deposit_percent: tenant.deposit_percent,
-                    balance_due_on_checkin: Number((totalAmount - depositAmount).toFixed(2))
+                    balance_due_on_checkin: Number(fromCents(totalCents - depositCents))
                 },
                 pix: {
                     provider_charge_id: charge.providerChargeId,
