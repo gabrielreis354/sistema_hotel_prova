@@ -48,8 +48,6 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
         END $$;
     `);
 
-    await applyRoomOccupancy(sequelize);
-
     // CHECKs do catálogo. DROP + ADD em vez de IF NOT EXISTS: a allowlist muda
     // quando uma categoria nova entra, e um CHECK criado uma vez e nunca mais
     // atualizado rejeitaria a categoria nova só em produção.
@@ -178,6 +176,16 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     // resolvido sozinho — mensagem com tabela + colunas + índice, para o operador
     // saber exatamente onde olhar (`SELECT tenant_id, <colunas> FROM <tabela> GROUP BY
     // ... HAVING count(*) > 1`), sem expor o valor conflitante (pode ser CPF/e-mail).
+    // Por último: num banco legado com quarto vendido duas vezes, a ocupação recusa criar o
+    // EXCLUDE — e isso não pode impedir a cura dos índices e CHECKs acima. Erro guardado e
+    // reportado junto com os outros.
+    let falhaOcupacao = null;
+    try {
+        await applyRoomOccupancy(sequelize, log);
+    } catch (error) {
+        falhaOcupacao = error;
+    }
+
     if (falhas.length) {
         const detalhe = falhas
             .map((f) => `  - ${f.tabela} (${f.colunas}) -> ${f.nome}: ${f.motivo}`)
@@ -186,9 +194,11 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
             `applyDbConstraints: ${falhas.length} índice(s) não puderam ser curados — ` +
             `provavelmente há linhas VIVAS duplicadas nas colunas abaixo, e não é seguro ` +
             `decidir sozinho qual manter:\n${detalhe}\n` +
-            `O restante das constraints e índices foi aplicado normalmente.`
+            `O restante das constraints e índices foi aplicado normalmente.` +
+            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '')
         );
     }
+    if (falhaOcupacao) throw falhaOcupacao;
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
 }
@@ -210,15 +220,20 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
  * Idempotente. Falha com mensagem clara se um banco legado já tiver quartos vendidos duas
  * vezes — o EXCLUDE não pode ser criado sobre dado que o viola.
  */
-async function applyRoomOccupancy(sequelize) {
+async function applyRoomOccupancy(sequelize, log = () => {}) {
     // A cópia vem SEMPRE da reserva-mãe: ao inserir no pivô e a qualquer UPDATE dele.
     await sequelize.query(`
         CREATE OR REPLACE FUNCTION reservation_rooms_copia_periodo() RETURNS trigger AS $$
         BEGIN
+            -- FOR SHARE: se outra transação está alterando a reserva-mãe (datas, status), esperar
+            -- ela terminar e copiar o valor CONFIRMADO. Sem isso, um quarto extra inserido
+            -- durante uma mudança de datas copiava o período velho — e o EXCLUDE protegia as
+            -- datas erradas (achado 🔴-1 do qa-redteam de 10/10, reproduzido).
             SELECT r.check_in_date, r.check_out_date, (r.status <> 'CANCELLED' AND r.deleted_at IS NULL)
               INTO NEW.check_in_date, NEW.check_out_date, NEW.blocks_room
               FROM reservations r
-             WHERE r.id = NEW.reservation_id;
+             WHERE r.id = NEW.reservation_id
+               FOR SHARE;
             RETURN NEW;
         END $$ LANGUAGE plpgsql;
 
@@ -267,6 +282,25 @@ async function applyRoomOccupancy(sequelize) {
             AFTER INSERT OR UPDATE ON reservations
             FOR EACH ROW EXECUTE FUNCTION reservations_sincroniza_quartos();
     `);
+
+    // Banco legado: antes desta mudança, trocar o quarto principal pelo PUT não mexia no pivô —
+    // o principal ANTIGO ficava lá como se fosse extra, e o novo não entrava. São exatamente as
+    // reservas cujo principal falta no pivô mas que têm outras linhas nele. Não dá para saber
+    // sozinho qual linha é o principal antigo e qual é um extra de verdade: lista para revisão.
+    const [suspeitas] = await sequelize.query(`
+        SELECT r.id FROM reservations r
+         WHERE r.deleted_at IS NULL AND r.status <> 'CANCELLED'
+           AND NOT EXISTS (SELECT 1 FROM reservation_rooms rr WHERE rr.reservation_id = r.id AND rr.room_id = r.room_id)
+           AND EXISTS     (SELECT 1 FROM reservation_rooms rr WHERE rr.reservation_id = r.id)
+         LIMIT 50
+    `);
+    if (suspeitas.length > 0) {
+        log(
+            `⚠️  ${suspeitas.length} reserva(s) tiveram o quarto principal trocado antes desta versão e ` +
+            `podem ter o quarto ANTIGO ainda ocupado como extra — confira e remova-o se for o caso ` +
+            `(DELETE /reservations/:id/rooms/:roomId): ${suspeitas.map((x) => x.id).join(', ')}`
+        );
+    }
 
     // Banco legado: reservas sem o quarto principal no pivô (o seed insere assim) e linhas de
     // pivô anteriores às colunas copiadas. O UPDATE dispara o trigger que preenche a cópia.
