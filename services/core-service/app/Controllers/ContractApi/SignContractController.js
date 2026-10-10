@@ -77,6 +77,14 @@ export default async function SignContractController(request, response) {
 
         const t = await sequelize.transaction();
         try {
+            // Relê o contrato com lock: um cancelamento simultâneo não pode deixar o contrato
+            // CANCELLED com uma reserva-bloco recém-criada segurando os quartos.
+            const locked = await ContractModel.findOne({ where: { id: contract.id, tenant_id: tenantId }, lock: t.LOCK.UPDATE, transaction: t });
+            if (!locked || locked.status !== 'GENERATED') {
+                await t.rollback();
+                return response.status(409).json({ error: `Contrato não pode ser assinado no status atual (${locked?.status ?? 'removido'})` });
+            }
+
             const guest = await findOrCreateRepresentanteGuest(tenantId, client, t);
 
             const reservation = await ReservationModel.create({
@@ -104,7 +112,7 @@ export default async function SignContractController(request, response) {
             await t.commit();
             return response.status(200).json({ ...contract.toJSON(), reservation: reservation.toJSON() });
         } catch (err) {
-            await t.rollback();
+            if (!t.finished) await t.rollback();
             throw err;
         }
     } catch (error) {

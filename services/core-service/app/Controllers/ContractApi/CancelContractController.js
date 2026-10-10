@@ -22,16 +22,21 @@ const BLOCK_CANCEL_BLOCKED_MESSAGES = {
 export default async function CancelContractController(request, response) {
     try {
         const tenantId = request.user.tenantId;
-        const contract = await ContractModel.findOne({ where: { id: request.params.id, tenant_id: tenantId } });
-        if (!contract) return response.status(404).json({ error: 'Contrato não encontrado' });
-        if (contract.status === 'CANCELLED') {
-            return response.status(409).json({ error: 'Contrato já está cancelado' });
-        }
 
-        // Contrato e reserva-bloco mudam juntos (CA-F.2.b); a reserva é lida com lock para que um
-        // check-in simultâneo não passe entre a checagem de status e o cancelamento.
+        // Contrato e reserva-bloco mudam juntos (CA-F.2.b), os dois lidos com lock: uma assinatura
+        // ou um check-in simultâneo não passa entre a checagem de status e o cancelamento.
         const t = await sequelize.transaction();
         try {
+            const contract = await ContractModel.findOne({ where: { id: request.params.id, tenant_id: tenantId }, lock: t.LOCK.UPDATE, transaction: t });
+            if (!contract) {
+                await t.rollback();
+                return response.status(404).json({ error: 'Contrato não encontrado' });
+            }
+            if (contract.status === 'CANCELLED') {
+                await t.rollback();
+                return response.status(409).json({ error: 'Contrato já está cancelado' });
+            }
+
             if (contract.reservation_id) {
                 const block = await ReservationModel.findOne({
                     where: { id: contract.reservation_id, tenant_id: tenantId },
@@ -57,7 +62,7 @@ export default async function CancelContractController(request, response) {
             await t.commit();
             return response.status(200).json(contract);
         } catch (err) {
-            await t.rollback();
+            if (!t.finished) await t.rollback();
             throw err;
         }
     } catch (error) {
