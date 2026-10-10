@@ -26,16 +26,18 @@ export default async function CreateReservationController(request, response) {
         const guest = await GuestModel.findOne({ where: { id: guest_id, tenant_id: tenantId } });
         if (!guest) return response.status(404).json({ error: 'Hóspede não encontrado' });
 
-        const extraRoomIds = [...new Set(extra_room_ids ?? [])].filter((rid) => rid !== room_id);
-        const allRoomIds = [room_id, ...extraRoomIds];
-
-        // Validar todos os quartos ANTES de iniciar qualquer escrita no banco.
+        // Validar todos os quartos ANTES de iniciar qualquer escrita no banco — e daqui em diante
+        // usar o id CANÔNICO do banco (o PostgreSQL aceita UUID em maiúsculas; o mesmo quarto em
+        // duas grafias não pode virar dois quartos).
         const room = await RoomModel.findOne({ where: { id: room_id, tenant_id: tenantId } });
         if (!room) return response.status(404).json({ error: 'Quarto não encontrado' });
-        for (const rid of extraRoomIds) {
+        const extraRoomIds = [];
+        for (const rid of extra_room_ids ?? []) {
             const extraRoom = await RoomModel.findOne({ where: { id: rid, tenant_id: tenantId } });
             if (!extraRoom) return response.status(404).json({ error: `Quarto extra não encontrado: ${rid}` });
+            if (extraRoom.id !== room.id && !extraRoomIds.includes(extraRoom.id)) extraRoomIds.push(extraRoom.id);
         }
+        const allRoomIds = [room.id, ...extraRoomIds];
 
         // TODOS os quartos — o principal e os extras — contra TODOS os ocupados no período,
         // principais e extras de outras reservas (P-1). Antes, o extra só era conferido quanto
@@ -57,7 +59,7 @@ export default async function CreateReservationController(request, response) {
             const reservation = await ReservationModel.create({
                 tenant_id: tenantId,
                 guest_id,
-                room_id,
+                room_id: room.id,
                 user_id: userId,
                 check_in_date,
                 check_out_date,

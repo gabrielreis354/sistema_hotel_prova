@@ -136,7 +136,7 @@ export default async function CreateBookingController(request, response) {
             // Cobrança PIX do sinal via provider (simulado por padrão)
             const pix = getPixProvider();
             const charge = await pix.createCharge({
-                amount: depositAmount,
+                amount: Number(depositAmount),   // interface do PixProvider: número em reais
                 description: `Sinal reserva ${tenant.name}`,
                 externalId: reservation.id
             });

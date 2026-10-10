@@ -153,6 +153,18 @@ describe('P-1 — concorrência (CA-F.1.c)', () => {
     });
 });
 
+describe('P-1 — concorrência com papéis trocados (reauditoria 10/10, N1)', () => {
+    it('quarto principal de uma é extra da outra, em paralelo: uma vence, a outra 409 — nunca 500 (nem por deadlock)', async () => {
+        for (let rodada = 0; rodada < 5; rodada++) {
+            const x = await novoQuarto();
+            const y = await novoQuarto();
+            const datas = { in: `2029-08-${String(1 + rodada * 3).padStart(2, '0')}`, out: `2029-08-${String(3 + rodada * 3).padStart(2, '0')}` };
+            const [a, b] = await Promise.all([reservar(x, [y], datas), reservar(y, [x], datas)]);
+            expect([a.status, b.status].sort()).toEqual([201, 409]);
+        }
+    });
+});
+
 describe('P-1 — cancelar libera todos os quartos (CA-F.1.d)', () => {
     it('cancelar uma reserva libera também o quarto extra', async () => {
         const extra = await novoQuarto();
@@ -316,6 +328,17 @@ describe('Revisões de 10/10 — integridade da reserva', () => {
         expect(res.status).toBe(409);
         expect((await reservar(principal, [], { in: '2029-01-10', out: '2029-01-12' })).status).toBe(409);
         expect((await request(app).get(`/reservations/${r.id}`).set(auth())).body.total_amount).toBe('400.00');
+    });
+
+    it('N3: trocar o principal por um extra da reserva com o UUID em MAIÚSCULAS também é recusado', async () => {
+        const principal = await novoQuarto();
+        const extra = await novoQuarto();
+        const r = (await reservar(principal, [extra], { in: '2029-01-14', out: '2029-01-16' })).body;
+
+        const res = await request(app).put(`/reservations/${r.id}`).set(auth()).send({ room_id: extra.toUpperCase() });
+
+        expect(res.status).toBe(409);
+        expect((await reservar(principal, [], { in: '2029-01-14', out: '2029-01-16' })).status).toBe(409);
     });
 
     it('/security-review: o UUID do principal em MAIÚSCULAS não passa pela proteção de remoção', async () => {
