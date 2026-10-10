@@ -18,6 +18,7 @@ export default async function CreateReservationController(request, response) {
         if (!check_in_date)  errors.push('check_in_date obrigatório');
         if (!check_out_date) errors.push('check_out_date obrigatório');
         if (extra_room_ids !== undefined && !Array.isArray(extra_room_ids)) errors.push('extra_room_ids deve ser uma lista');
+        if (!errors.length && check_out_date <= check_in_date) errors.push('check_out_date deve ser posterior a check_in_date');
         if (errors.length) return response.status(400).json({ errors });
 
         // Valida a FK do hóspede antes de qualquer escrita: um guest_id inexistente

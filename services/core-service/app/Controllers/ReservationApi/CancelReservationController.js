@@ -18,6 +18,12 @@ export default async function CancelReservationController(request, response) {
         const reservation = await ReservationModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
 
+        // Reserva-bloco de contrato: cancelá-la aqui liberaria os quartos do contrato com ele
+        // ainda SIGNED — e cancelar contrato é decisão do ADMIN (P-3). Cancela-se pelo contrato.
+        if (reservation.source === 'B2B') {
+            return response.status(409).json({ error: 'Reserva-bloco de contrato: cancele pelo contrato (PUT /contracts/:id/cancel)' });
+        }
+
         if (!CANCELLABLE_STATUSES.includes(reservation.status)) {
             const message = CANCEL_BLOCKED_MESSAGES[reservation.status]
                 ?? `Cancelamento não permitido no status '${reservation.status}'`;

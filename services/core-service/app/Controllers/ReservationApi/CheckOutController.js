@@ -7,38 +7,46 @@ export default async function CheckOutController(request, response) {
     const { id } = request.params;
     const tenantId = request.user.tenantId;
 
-    const reservation = await ReservationModel.findOne({ where: { id, tenant_id: tenantId } });
-    if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
-
-    if (reservation.status !== 'CHECKED_IN') {
-        return response.status(422).json({ error: 'Check-out só possível quando status for CHECKED_IN' });
-    }
-
-    const room = await RoomModel.findOne({ where: { id: reservation.room_id, tenant_id: tenantId } });
-    if (!room) return response.status(404).json({ error: 'Quarto da reserva não encontrado' });
-
+    // Reserva e quartos lidos com lock DENTRO da transação: um cancelamento de contrato (ou
+    // outra transição) simultâneo não pode gravar por cima — antes, a leitura era feita fora,
+    // e um check-in podia sobrescrever um CANCELLED recém-confirmado.
+    const transaction = await sequelize.transaction();
+    const fail = async (status, body) => {
+        await transaction.rollback();
+        return response.status(status).json(body);
+    };
     try {
-        await sequelize.transaction(async (t) => {
-            reservation.status = 'CHECKED_OUT';
-            room.status = 'CLEANING';
-            await reservation.save({ transaction: t });
-            await room.save({ transaction: t });
+        const reservation = await ReservationModel.findOne({ where: { id, tenant_id: tenantId }, lock: transaction.LOCK.UPDATE, transaction });
+        if (!reservation) return fail(404, { error: 'Reserva não encontrada' });
 
-            const pivotRows = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id } });
-            const extraRoomIds = pivotRows
-                .map(r => r.room_id)
-                .filter(rid => rid !== reservation.room_id);
+        if (!['CHECKED_IN'].includes(reservation.status)) {
+            return fail(422, { error: 'Check-out só possível quando status for CHECKED_IN' });
+        }
 
-            if (extraRoomIds.length > 0) {
-                await RoomModel.update(
-                    { status: 'CLEANING' },
-                    { where: { id: extraRoomIds, tenant_id: tenantId }, transaction: t }
-                );
-            }
-        });
+        const room = await RoomModel.findOne({ where: { id: reservation.room_id, tenant_id: tenantId }, transaction });
+        if (!room) return fail(404, { error: 'Quarto da reserva não encontrado' });
 
+        reservation.status = 'CHECKED_OUT';
+        room.status = 'CLEANING';
+        await reservation.save({ transaction });
+        await room.save({ transaction });
+
+        const pivotRows = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id }, transaction });
+        const extraRoomIds = pivotRows
+            .map(r => r.room_id)
+            .filter(rid => rid !== reservation.room_id);
+
+        if (extraRoomIds.length > 0) {
+            await RoomModel.update(
+                { status: 'CLEANING' },
+                { where: { id: extraRoomIds, tenant_id: tenantId }, transaction }
+            );
+        }
+
+        await transaction.commit();
         return response.json(reservation);
     } catch (error) {
+        if (!transaction.finished) await transaction.rollback();
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }

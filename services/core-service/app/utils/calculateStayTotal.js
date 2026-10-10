@@ -14,16 +14,25 @@ import RoomCategoryModel from '../Models/RoomCategoryModel.js';
  */
 export async function calculateStayTotal({ roomIds, checkInDate, checkOutDate, tenantId, transaction }) {
     const ids = [...new Set(roomIds)];
+    // Reserva sem quarto não existe: lista vazia é defeito de quem chamou — nunca total 0,00.
+    if (ids.length === 0) return { error: { status: 409, message: 'A reserva precisa ter ao menos um quarto' } };
+
+    const nights = countNights(checkInDate, checkOutDate);
+    if (!Number.isInteger(nights) || nights <= 0) {
+        return { error: { status: 400, message: 'check_out_date deve ser posterior a check_in_date' } };
+    }
+
+    // paranoid: false — um quarto excluído do cadastro continua cobrável na reserva que o ocupa.
     const rooms = await RoomModel.findAll({
         where: { id: ids, tenant_id: tenantId },
-        include: [{ model: RoomCategoryModel, as: 'category', attributes: ['price_per_night'] }],
+        include: [{ model: RoomCategoryModel, as: 'category', attributes: ['price_per_night'], paranoid: false }],
+        paranoid: false,
         transaction
     });
     if (rooms.length !== ids.length) {
         return { error: { status: 404, message: 'Quarto não encontrado' } };
     }
 
-    const nights = countNights(checkInDate, checkOutDate);
     let totalCents = 0;
     for (const room of rooms) {
         const cents = toCents(room.category?.price_per_night);
@@ -35,6 +44,7 @@ export async function calculateStayTotal({ roomIds, checkInDate, checkOutDate, t
     return { total: fromCents(totalCents) };
 }
 
+/** Noites entre duas datas YYYY-MM-DD; NaN se alguma for inválida. */
 export function countNights(checkInDate, checkOutDate) {
     return Math.round((Date.parse(`${checkOutDate}T00:00:00Z`) - Date.parse(`${checkInDate}T00:00:00Z`)) / 86_400_000);
 }
@@ -48,4 +58,9 @@ export function toCents(value) {
 
 export function fromCents(cents) {
     return `${Math.trunc(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
+}
+
+/** Total de uma categoria por N noites, em string decimal — para quem não tem quartos (motor público). */
+export function categoryStayTotal(pricePerNight, nights) {
+    return fromCents(toCents(pricePerNight) * nights);
 }
