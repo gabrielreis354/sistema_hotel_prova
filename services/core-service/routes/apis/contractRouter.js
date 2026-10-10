@@ -19,8 +19,11 @@ router.get('/:id/pdf', DownloadContractPdfController);
 router.get('/:id', GetContractController);
 router.post('/', CreateContractController);
 router.put('/:id', UpdateContractController);
-router.put('/:id/sign', SignContractController);
-router.put('/:id/cancel', CancelContractController);
+// Assinar e cancelar contrato é decisão de gerência (vendas e eventos), nunca da recepção nem
+// do A&B (P-3). As demais rotas de escrita (POST /, PUT /:id, baixa de parcela) seguem abertas
+// a qualquer papel autenticado — decisão pendente do Gabriel, registrada no PR da etapa F.
+router.put('/:id/sign', requireRole('ADMIN'), SignContractController);
+router.put('/:id/cancel', requireRole('ADMIN'), CancelContractController);
 router.put('/:id/installments/:installmentId/pay', PayContractInstallmentController);
 router.delete('/:id', requireRole('ADMIN'), DeleteContractController);
 export default router;
