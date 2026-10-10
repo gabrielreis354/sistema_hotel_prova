@@ -176,6 +176,16 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     // resolvido sozinho — mensagem com tabela + colunas + índice, para o operador
     // saber exatamente onde olhar (`SELECT tenant_id, <colunas> FROM <tabela> GROUP BY
     // ... HAVING count(*) > 1`), sem expor o valor conflitante (pode ser CPF/e-mail).
+    // Por último: num banco legado com quarto vendido duas vezes, a ocupação recusa criar o
+    // EXCLUDE — e isso não pode impedir a cura dos índices e CHECKs acima. Erro guardado e
+    // reportado junto com os outros.
+    let falhaOcupacao = null;
+    try {
+        await applyRoomOccupancy(sequelize, log);
+    } catch (error) {
+        falhaOcupacao = error;
+    }
+
     if (falhas.length) {
         const detalhe = falhas
             .map((f) => `  - ${f.tabela} (${f.colunas}) -> ${f.nome}: ${f.motivo}`)
@@ -184,9 +194,153 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
             `applyDbConstraints: ${falhas.length} índice(s) não puderam ser curados — ` +
             `provavelmente há linhas VIVAS duplicadas nas colunas abaixo, e não é seguro ` +
             `decidir sozinho qual manter:\n${detalhe}\n` +
-            `O restante das constraints e índices foi aplicado normalmente.`
+            `O restante das constraints e índices foi aplicado normalmente.` +
+            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '')
+        );
+    }
+    if (falhaOcupacao) throw falhaOcupacao;
+
+    log('✅ Constraints, CHECKs e índices compostos aplicados.');
+}
+
+/**
+ * Ocupação de quarto com garantia de banco para TODOS os quartos de uma reserva (P-1, rodada 3).
+ *
+ * O EXCLUDE de `reservations` só enxerga `reservations.room_id`. Os quartos extras de uma
+ * reserva (e os 2..N de uma reserva-bloco B2B) vivem só em `reservation_rooms` — e eram
+ * vendidos duas vezes. Aqui o pivô vira a fonte única de ocupação:
+ *
+ *   - `reservation_rooms` guarda uma CÓPIA do período e de "bloqueia o quarto" da reserva;
+ *   - a cópia é mantida por TRIGGERS, não pelos controllers: um controller que esqueça de
+ *     sincronizar foi exatamente o que causou a P-1 (decisão do Gabriel, 10/10);
+ *   - o quarto principal entra no pivô pelo próprio banco, ao criar ou trocar o `room_id`;
+ *   - um EXCLUDE no pivô, com o MESMO predicado do de `reservations` (que continua, como
+ *     segunda barreira), recusa sobreposição mesmo sob concorrência.
+ *
+ * Idempotente. Falha com mensagem clara se um banco legado já tiver quartos vendidos duas
+ * vezes — o EXCLUDE não pode ser criado sobre dado que o viola.
+ */
+async function applyRoomOccupancy(sequelize, log = () => {}) {
+    // A cópia vem SEMPRE da reserva-mãe: ao inserir no pivô e a qualquer UPDATE dele.
+    await sequelize.query(`
+        CREATE OR REPLACE FUNCTION reservation_rooms_copia_periodo() RETURNS trigger AS $$
+        BEGIN
+            -- FOR SHARE: se outra transação está alterando a reserva-mãe (datas, status), esperar
+            -- ela terminar e copiar o valor CONFIRMADO. Sem isso, um quarto extra inserido
+            -- durante uma mudança de datas copiava o período velho — e o EXCLUDE protegia as
+            -- datas erradas (achado 🔴-1 do qa-redteam de 10/10, reproduzido).
+            SELECT r.check_in_date, r.check_out_date, (r.status <> 'CANCELLED' AND r.deleted_at IS NULL)
+              INTO NEW.check_in_date, NEW.check_out_date, NEW.blocks_room
+              FROM reservations r
+             WHERE r.id = NEW.reservation_id
+               FOR SHARE;
+            RETURN NEW;
+        END $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS reservation_rooms_copia_periodo ON reservation_rooms;
+        CREATE TRIGGER reservation_rooms_copia_periodo
+            BEFORE INSERT OR UPDATE ON reservation_rooms
+            FOR EACH ROW EXECUTE FUNCTION reservation_rooms_copia_periodo();
+    `);
+
+    // A reserva propaga para o pivô: o quarto principal entra (ou é trocado) e o período e o
+    // status são recopiados — o UPDATE abaixo dispara o BEFORE UPDATE acima, que relê a mãe.
+    await sequelize.query(`
+        CREATE OR REPLACE FUNCTION reservations_sincroniza_quartos() RETURNS trigger AS $$
+        BEGIN
+            -- Só o que afeta a ocupação. A comparação fica aqui, e não numa lista
+            -- "UPDATE OF col" no trigger: o sync({ alter: true }) do migrate reemite
+            -- ALTER COLUMN ... TYPE a cada execução, e o PostgreSQL recusa isso em coluna
+            -- citada na definição de um trigger (o 2º migrate quebrava).
+            IF TG_OP = 'UPDATE'
+               AND NEW.room_id        IS NOT DISTINCT FROM OLD.room_id
+               AND NEW.check_in_date  IS NOT DISTINCT FROM OLD.check_in_date
+               AND NEW.check_out_date IS NOT DISTINCT FROM OLD.check_out_date
+               AND NEW.status         IS NOT DISTINCT FROM OLD.status
+               AND NEW.deleted_at     IS NOT DISTINCT FROM OLD.deleted_at THEN
+                RETURN NEW;
+            END IF;
+
+            IF TG_OP = 'UPDATE' AND NEW.room_id IS DISTINCT FROM OLD.room_id THEN
+                DELETE FROM reservation_rooms WHERE reservation_id = NEW.id AND room_id = OLD.room_id;
+            END IF;
+
+            INSERT INTO reservation_rooms (id, reservation_id, room_id, created_at, updated_at)
+            SELECT gen_random_uuid(), NEW.id, NEW.room_id, now(), now()
+             WHERE NOT EXISTS (
+                SELECT 1 FROM reservation_rooms WHERE reservation_id = NEW.id AND room_id = NEW.room_id
+             );
+
+            IF TG_OP = 'UPDATE' THEN
+                UPDATE reservation_rooms SET updated_at = now() WHERE reservation_id = NEW.id;
+            END IF;
+            RETURN NEW;
+        END $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS reservations_sincroniza_quartos ON reservations;
+        CREATE TRIGGER reservations_sincroniza_quartos
+            AFTER INSERT OR UPDATE ON reservations
+            FOR EACH ROW EXECUTE FUNCTION reservations_sincroniza_quartos();
+    `);
+
+    // Banco legado: antes desta mudança, trocar o quarto principal pelo PUT não mexia no pivô —
+    // o principal ANTIGO ficava lá como se fosse extra, e o novo não entrava. São exatamente as
+    // reservas cujo principal falta no pivô mas que têm outras linhas nele. Não dá para saber
+    // sozinho qual linha é o principal antigo e qual é um extra de verdade: lista para revisão.
+    const [suspeitas] = await sequelize.query(`
+        SELECT r.id FROM reservations r
+         WHERE r.deleted_at IS NULL AND r.status <> 'CANCELLED'
+           AND NOT EXISTS (SELECT 1 FROM reservation_rooms rr WHERE rr.reservation_id = r.id AND rr.room_id = r.room_id)
+           AND EXISTS     (SELECT 1 FROM reservation_rooms rr WHERE rr.reservation_id = r.id)
+         LIMIT 50
+    `);
+    if (suspeitas.length > 0) {
+        log(
+            `⚠️  ${suspeitas.length} reserva(s) tiveram o quarto principal trocado antes desta versão e ` +
+            `podem ter o quarto ANTIGO ainda ocupado como extra — confira e remova-o se for o caso ` +
+            `(DELETE /reservations/:id/rooms/:roomId): ${suspeitas.map((x) => x.id).join(', ')}`
         );
     }
 
-    log('✅ Constraints, CHECKs e índices compostos aplicados.');
+    // Banco legado: reservas sem o quarto principal no pivô (o seed insere assim) e linhas de
+    // pivô anteriores às colunas copiadas. O UPDATE dispara o trigger que preenche a cópia.
+    await sequelize.query(`
+        INSERT INTO reservation_rooms (id, reservation_id, room_id, created_at, updated_at)
+        SELECT gen_random_uuid(), r.id, r.room_id, now(), now()
+          FROM reservations r
+         WHERE NOT EXISTS (
+            SELECT 1 FROM reservation_rooms rr WHERE rr.reservation_id = r.id AND rr.room_id = r.room_id
+         );
+        UPDATE reservation_rooms SET updated_at = updated_at WHERE check_in_date IS NULL OR blocks_room IS NULL;
+    `);
+
+    const [jaExiste] = await sequelize.query(
+        `SELECT 1 FROM pg_constraint WHERE conname = 'reservation_rooms_room_daterange_excl'`
+    );
+    if (jaExiste.length > 0) return;
+
+    const [conflitos] = await sequelize.query(`
+        SELECT a.room_id, a.reservation_id AS reserva_a, b.reservation_id AS reserva_b
+          FROM reservation_rooms a
+          JOIN reservation_rooms b
+            ON a.room_id = b.room_id AND a.id < b.id
+           AND a.blocks_room AND b.blocks_room
+           AND daterange(a.check_in_date, a.check_out_date, '[)') && daterange(b.check_in_date, b.check_out_date, '[)')
+         LIMIT 20
+    `);
+    if (conflitos.length > 0) {
+        const lista = conflitos.map((c) => `quarto ${c.room_id}: reservas ${c.reserva_a} e ${c.reserva_b}`).join('\n  ');
+        throw new Error(
+            'Não consegui criar a garantia anti-double-booking do pivô: o banco já tem quartos vendidos ' +
+            `duas vezes (até 20 casos):\n  ${lista}\nResolva (cancele ou troque o quarto de uma das reservas) e rode o migrate de novo.`
+        );
+    }
+
+    await sequelize.query(`
+        ALTER TABLE reservation_rooms ADD CONSTRAINT reservation_rooms_room_daterange_excl
+            EXCLUDE USING gist (
+                room_id WITH =,
+                daterange(check_in_date, check_out_date, '[)') WITH &&
+            ) WHERE (blocks_room);
+    `);
 }
