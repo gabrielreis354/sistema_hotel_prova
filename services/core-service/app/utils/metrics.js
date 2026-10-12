@@ -46,7 +46,10 @@ export const httpRequestsByTenant = new client.Counter({
 export function routeLabel(request) {
     // O mount do motor de reserva tem parâmetro (/public/:subdomain); baseUrl traz o valor
     // real, então volta ao padrão para não criar uma série por subdomínio.
-    const base = (request.baseUrl || '').replace(/^\/public\/[^/]+/, '/public/:subdomain');
+    // Minúsculas ANTES da regex: o Express casa o mount sem distinguir caixa, mas baseUrl
+    // guarda o texto como veio — "/PUBLIC/<qualquer>" criava uma série por requisição, sem
+    // login (qa-redteam de 12/10, 🔴-2). Todos os mounts do router são minúsculos.
+    const base = (request.baseUrl || '').toLowerCase().replace(/^\/public\/[^/]+/, '/public/:subdomain');
     if (request.route?.path) {
         return base + request.route.path;
     }

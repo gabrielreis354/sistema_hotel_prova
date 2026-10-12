@@ -41,7 +41,9 @@ data:
       # /metrics nunca sai pela porta publica: o contador por tenant revela o volume
       # de cada hotel. O Prometheus fala direto com o backend (T-02.4); o backend ainda
       # exige METRICS_TOKEN — esta regra e a segunda camada, nao a unica.
-      location = /metrics {
+      # Regex sem caixa e com qualquer sufixo: o Express casa /METRICS e /metrics/ (achado
+      # do qa-redteam de 12/10) — o "= /metrics" exato deixava as variacoes passarem.
+      location ~* ^/metrics(/|$) {
         return 404;
       }
 

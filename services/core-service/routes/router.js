@@ -53,7 +53,12 @@ router.get('/health', (request, response) => {
 });
 
 // Métricas Prometheus — protegido por METRICS_TOKEN, não é público (ver controller)
-router.get('/metrics', GetMetricsController);
+// /metrics em Router próprio com caseSensitive e strict: o router principal casa sem distinguir
+// caixa e com barra final opcional, e /METRICS ou /metrics/ escapavam do bloqueio do nginx, que
+// só barrava o caminho exato (qa-redteam de 12/10, 🔴-1). Só "/metrics" exato responde aqui.
+const metricsRouter = Router({ caseSensitive: true, strict: true });
+metricsRouter.get('/metrics', GetMetricsController);
+router.use(metricsRouter);
 
 router.get('/', (request, response) => {
     return response.json({

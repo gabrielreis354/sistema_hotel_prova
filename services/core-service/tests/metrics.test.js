@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { EventEmitter } from 'events';
 import request from 'supertest';
 import { randomUUID } from 'crypto';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
+import { routeLabel, registry } from '../app/utils/metrics.js';
+import metricsMiddleware from '../middlewares/metrics.middleware.js';
 
 // T-02.4 — /metrics no formato Prometheus, protegido por METRICS_TOKEN.
 const app = createApp();
@@ -129,5 +132,56 @@ describe('GET /metrics — conteúdo', () => {
 
         const text = await scrape();
         expect(text).not.toContain('route="/metrics"');
+    });
+});
+
+// Auditoria qa-redteam de 12/10: as duas falhas abaixo (🔴-1 e 🔴-2) passavam pelos testes
+// acima, que só usavam a grafia exata das rotas.
+describe('GET /metrics — variações de caminho (🔴-1)', () => {
+    it.each(['/METRICS', '/Metrics', '/metrics/'])('%s não serve as métricas, nem com o token certo', async (caminho) => {
+        vi.stubEnv('METRICS_TOKEN', METRICS_TOKEN);
+        const res = await request(app).get(caminho).set('Authorization', `Bearer ${METRICS_TOKEN}`);
+
+        expect(res.status).toBe(404);
+        expect(res.text).not.toContain('http_requests_by_tenant_total');
+    });
+});
+
+describe('Rótulo de rota — cardinalidade limitada sem distinção de caixa (🔴-2)', () => {
+    it.each([
+        [{ baseUrl: '/PUBLIC/qualquer-hotel', route: { path: '/hotel' } }, '/public/:subdomain/hotel'],
+        [{ baseUrl: '/Public/Outro', route: { path: '/hotel' } }, '/public/:subdomain/hotel'],
+        [{ baseUrl: '/GuEsTs' }, '/guests/*'],
+        [{ baseUrl: '' }, 'unmatched'],
+    ])('routeLabel(%j) = %s', (req, esperado) => {
+        expect(routeLabel(req)).toBe(esperado);
+    });
+
+    it('requisições sem login com caixa variada não criam séries novas', async () => {
+        vi.stubEnv('METRICS_TOKEN', METRICS_TOKEN);
+        const sufixo = randomUUID().slice(0, 8);
+        await request(app).get(`/PUBLIC/a-${sufixo}/hotel`);
+        await request(app).get(`/PuBlIc/b-${sufixo}/hotel`);
+
+        const text = await scrape();
+        expect(text).not.toContain(sufixo);
+        expect(text).not.toMatch(/route="\/PUBLIC/);
+    });
+});
+
+describe('Requisição abortada pelo cliente (🟡)', () => {
+    it('é registrada com status 499, uma vez só', async () => {
+        const rota = `/abortada-${randomUUID().slice(0, 8)}`;
+        const request_ = { method: 'GET', path: rota, baseUrl: rota, route: undefined };
+        const response_ = Object.assign(new EventEmitter(), { statusCode: 200, writableFinished: false });
+
+        metricsMiddleware(request_, response_, () => {});
+        response_.emit('close');
+        response_.emit('close');
+
+        const text = await registry.metrics();
+        const linha = text.split('\n').find((l) => l.startsWith('http_request_duration_seconds_count') && l.includes(`route="${rota}/*"`));
+        expect(linha).toContain('status_code="499"');
+        expect(linha.trim().endsWith(' 1')).toBe(true);
     });
 });
