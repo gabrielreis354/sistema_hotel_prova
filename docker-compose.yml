@@ -102,7 +102,7 @@ services:
     build:
       context: ./services/core-service
     ports:
-      - "${BACKEND_HOST_PORT:-3000}:3000" # direto no host — o frontend local (Vite, fora
+      - "127.0.0.1:${BACKEND_HOST_PORT:-3000}:3000" # só na máquina local (não na rede do Wi-Fi): direto no host — o frontend local (Vite, fora
         # deste compose) aponta para localhost:3000 sem precisar mudar
         # frontend/apps/pms/vite.config.ts. Ajustável via BACKEND_HOST_PORT no .env se a
         # porta 3000 já estiver em uso por outra coisa na máquina.
@@ -210,7 +210,7 @@ services:
     image: grafana/grafana:11.4.0
     profiles: ["observability"]
     ports:
-      - "${GRAFANA_HOST_PORT:-3002}:3000" # 3000 é do backend; 3002 por padrão
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3002}:3000" # só na máquina local; 3000 é do backend, 3002 por padrão
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
