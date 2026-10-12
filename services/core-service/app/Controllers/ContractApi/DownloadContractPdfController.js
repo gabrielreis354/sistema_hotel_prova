@@ -3,6 +3,7 @@ import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
 import { getPresignedDownloadUrl } from '../../utils/uploadToMinIO.js';
+import { documentPdfKey } from '../../utils/storeDocumentPdf.js';
 
 export default async function DownloadContractPdfController(request, response) {
     try {
@@ -19,8 +20,7 @@ export default async function DownloadContractPdfController(request, response) {
         // Se já tem PDF no MinIO, gera uma URL assinada (bucket é privado, link direto
         // retorna 403) e redireciona; se não, gera o PDF on-demand.
         if (contract.pdf_url) {
-            const key = `${tenantId}/contracts/${contract.id}.pdf`;
-            const signedUrl = await getPresignedDownloadUrl(key);
+            const signedUrl = await getPresignedDownloadUrl(documentPdfKey(tenantId, 'contracts', contract.id));
             return response.redirect(signedUrl);
         }
 

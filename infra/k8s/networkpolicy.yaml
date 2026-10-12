@@ -96,6 +96,10 @@ spec:
         - podSelector:
             matchLabels:
               app: backend
+        # RNF-023: o navegador baixa o PDF pela URL assinada, via nginx (location /hotel-contracts/).
+        - podSelector:
+            matchLabels:
+              app: nginx
       ports:
         - protocol: TCP
           port: 9000

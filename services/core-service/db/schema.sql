@@ -45,9 +45,16 @@ CREATE TABLE IF NOT EXISTS users (
   deleted_at    TIMESTAMPTZ,
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (tenant_id, email),
   CHECK (role IN ('ADMIN', 'RECEPTIONIST', 'WAITER'))
 );
+
+-- Índice PARCIAL, não UNIQUE de tabela: a tabela é soft-delete (deleted_at) e uma
+-- constraint UNIQUE não aceita predicado no PostgreSQL. Sem o WHERE, um usuário
+-- removido queimaria o e-mail para sempre. Espelha users_email_tenant_unique
+-- em app/Models/UserModel.js.
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_tenant_unique
+  ON users (email, tenant_id)
+  WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- 4) Categorias de quarto
@@ -62,10 +69,15 @@ CREATE TABLE IF NOT EXISTS room_categories (
   deleted_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ DEFAULT now(),
   updated_at      TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (tenant_id, name),
   CHECK (capacity > 0),
   CHECK (price_per_night >= 0)
 );
+
+-- Índice PARCIAL — ver justificativa em users_email_tenant_unique acima.
+-- Espelha room_categories_name_tenant_unique em app/Models/RoomCategoryModel.js.
+CREATE UNIQUE INDEX IF NOT EXISTS room_categories_name_tenant_unique
+  ON room_categories (tenant_id, name)
+  WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- 5) Quartos físicos
@@ -81,9 +93,14 @@ CREATE TABLE IF NOT EXISTS rooms (
   deleted_at  TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (tenant_id, number),
   CHECK (status IN ('AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'))
 );
+
+-- Índice PARCIAL — ver justificativa em users_email_tenant_unique acima.
+-- Espelha rooms_number_tenant_unique em app/Models/RoomModel.js.
+CREATE UNIQUE INDEX IF NOT EXISTS rooms_number_tenant_unique
+  ON rooms (tenant_id, number)
+  WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- 6) Hóspedes
@@ -98,10 +115,19 @@ CREATE TABLE IF NOT EXISTS guests (
   email      TEXT,
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (tenant_id, cpf),
-  UNIQUE (tenant_id, email)
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Índices PARCIAIS — ver justificativa em users_email_tenant_unique acima. Aqui o
+-- efeito é o mais visível na operação: um hóspede antigo removido não poderia se
+-- recadastrar com o próprio CPF. Espelham os índices de app/Models/GuestModel.js.
+CREATE UNIQUE INDEX IF NOT EXISTS guests_cpf_tenant_unique
+  ON guests (cpf, tenant_id)
+  WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS guests_email_tenant_unique
+  ON guests (email, tenant_id)
+  WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- 7) Reservas
@@ -144,6 +170,15 @@ CREATE TABLE IF NOT EXISTS reservation_rooms (
   id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
   room_id        UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  -- Cópia da reserva-mãe, mantida pelo BANCO — nunca pela aplicação (P-1, rodada 3). É sobre
+  -- ela que o EXCLUDE recusa o mesmo quarto em duas reservas sobrepostas, inclusive quarto
+  -- extra. O quarto principal (reservations.room_id) também tem linha aqui, inserida por
+  -- trigger. Triggers, preenchimento de banco legado e o EXCLUDE
+  -- reservation_rooms_room_daterange_excl ficam em database/applyDbConstraints.js
+  -- (applyRoomOccupancy), aplicado pelo `command.js migrate` — fonte única.
+  check_in_date  DATE,
+  check_out_date DATE,
+  blocks_room    BOOLEAN,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
   UNIQUE (reservation_id, room_id)
@@ -239,10 +274,18 @@ CREATE TABLE IF NOT EXISTS corporate_clients (
   representante_rg   TEXT,
   deleted_at         TIMESTAMPTZ,
   created_at         TIMESTAMPTZ DEFAULT now(),
-  updated_at         TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (tenant_id, cnpj),
-  UNIQUE (tenant_id, cpf)
+  updated_at         TIMESTAMPTZ DEFAULT now()
 );
+
+-- Índices PARCIAIS — ver justificativa em users_email_tenant_unique acima.
+-- Espelham os índices de app/Models/CorporateClientModel.js.
+CREATE UNIQUE INDEX IF NOT EXISTS corporate_clients_cnpj_tenant_unique
+  ON corporate_clients (cnpj, tenant_id)
+  WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS corporate_clients_cpf_tenant_unique
+  ON corporate_clients (cpf, tenant_id)
+  WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS event_quotes (
   id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -259,6 +302,7 @@ CREATE TABLE IF NOT EXISTS event_quotes (
   total                       NUMERIC(10, 2) NOT NULL,
   observacoes                 TEXT,
   status                      TEXT NOT NULL DEFAULT 'SENT',
+  pdf_url                     TEXT,
   deleted_at                  TIMESTAMPTZ,
   created_at                  TIMESTAMPTZ DEFAULT now(),
   updated_at                  TIMESTAMPTZ DEFAULT now(),

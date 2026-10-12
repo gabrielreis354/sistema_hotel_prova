@@ -111,6 +111,8 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 | `PIX_WEBHOOK_SECRET` | `pms_hotel_pix_webhook_secreto_academico_2026` |
 | `MINIO_ROOT_USER` | `minioadmin` |
 | `MINIO_ROOT_PASSWORD` | `minioadmin123` |
+| `MINIO_PRESIGN_USER` | `gesway-pdf-leitor` — só `s3:GetObject`; assina as URLs de download de PDF (RNF-023) |
+| `MINIO_PRESIGN_PASSWORD` | `leitura_pdf_academico_2026` |
 | `RABBITMQ_DEFAULT_USER` | `hotel_broker` |
 | `RABBITMQ_DEFAULT_PASS` | `rabbitmq_secreto_academico_2026` |
 
@@ -292,9 +294,12 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 
 ```bash
 cp .env.example .env
-# edite o .env: PIX_WEBHOOK_SECRET é obrigatório (o compose recusa subir sem ele).
+# edite o .env: PIX_WEBHOOK_SECRET, MINIO_ROOT_PASSWORD e MINIO_PRESIGN_PASSWORD são obrigatórios
+# (o compose recusa subir sem eles; senhas do MinIO com 8+ caracteres).
 # Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
 # no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
+# Porta 80 já em uso? defina NGINX_PORT=<porta> E MINIO_PUBLIC_ENDPOINT=http://localhost:<porta>
+# no .env — os dois juntos, senão o download de PDF (URL assinada) aponta para a porta errada.
 node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006), uma vez só
 docker compose up -d --build
 docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
@@ -344,6 +349,14 @@ docker compose exec backend node scripts/simular_pagamento_pix.js <provider_char
 ```
 
 O `provider_charge_id` vem na resposta de `POST /public/<subdomínio>/bookings`.
+
+**PDFs de orçamento e contrato** (RNF-023) são baixados por URL assinada de 5 minutos: `GET
+/event-quotes/<id>/pdf` responde `302` para `http://localhost/hotel-contracts/...`, que o nginx
+repassa ao MinIO. O nginx só deixa passar `GET` de um PDF de orçamento ou contrato com assinatura
+na URL — listar o bucket, qualquer outro caminho ou credencial no cabeçalho dão `403`. Quem assina
+é um usuário MinIO **só de leitura** (`MINIO_PRESIGN_USER`), criado pelo serviço `minio-setup` a
+cada `up`; o root nunca assina URL. A URL usa o `MINIO_PUBLIC_ENDPOINT`: se o navegador acessa o
+sistema por outro endereço (outra porta, outra máquina na rede), ajuste a variável.
 
 > `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
 > não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.
@@ -435,7 +448,7 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` e `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, `MINIO_PRESIGN_USER`/`MINIO_PRESIGN_PASSWORD` e `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
 | Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, gerado por ambiente e criado por `scripts/k8s_garantir_secret_jwt.sh` (chamado por `infra_up.sh` e `start.sh up`) |
 
 Os Pods leem essas variáveis via `envFrom` (ConfigMap), `env.valueFrom.secretKeyRef` (Secret `hotel-secret`) e um volume montado a partir do Secret `jwt-rsa-keys`. Nenhuma credencial está hardcoded nas imagens.
