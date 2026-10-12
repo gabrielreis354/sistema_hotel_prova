@@ -87,21 +87,28 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 
 ---
 
-### T-03.2 — Integração Mercado Pago (sandbox) 🔲
+### T-03.2 — Integração Mercado Pago (sandbox) 🟡
 
 **Estimativa:** 2 a 3 dias
 **Uso no negócio:** cobrança PIX real no motor de reserva direta, substituindo o `FakePixProvider`.
 
+**Código pronto em 07/10/2026** (`feature/mercadopago-pix`): provider, `verifyWebhook` com o
+`x-signature` do MP, consulta de status na fonte antes de marcar `PAID`, conferência de valor
+fail-safe. Duas auditorias qa-redteam em `docs/qa/redteam_mercadopago-pix_*`. **Falta** validar
+contra o *sandbox* real (CA-03.2.c e d), com `MERCADOPAGO_ACCESS_TOKEN` de teste e uma URL
+pública para o *webhook*. **Pendência conhecida:** reconciliação quando o PSP esgota os
+reenvios (achado 🟡 nº 3, item c, da reauditoria) — hoje o pagamento fica `PENDING`.
+
 **Critérios de aceitação**
-- [ ] **CA-03.2.a** — `MercadoPagoPixProvider` implementa o contrato `PixProvider` existente
-- [ ] **CA-03.2.b** — Registrado no *switch* de `PROVIDERS`, selecionável por `PIX_PROVIDER=mercadopago`
+- [x] **CA-03.2.a** — `MercadoPagoPixProvider` implementa o contrato `PixProvider` existente
+- [x] **CA-03.2.b** — Registrado no *switch* de `PROVIDERS`, selecionável por `PIX_PROVIDER=mercadopago`
 - [ ] **CA-03.2.c** — Cobrança real criada no *sandbox*, com QR Code e *payload* copia-e-cola válidos
 - [ ] **CA-03.2.d** — *Webhook* de confirmação processa notificação real do provedor
-- [ ] **CA-03.2.e** — Validação de autenticidade da notificação — não confiar em `POST` anônimo
-- [ ] **CA-03.2.f** — `FakePixProvider` **permanece** e continua sendo o padrão em teste
-- [ ] **CA-03.2.g** — `services/core-service/tests/public-booking.test.js` continua passando com o *fake*
-- [ ] **CA-03.2.h** — Credenciais via variável de ambiente; `.env.example` atualizado
-- [ ] **CA-03.2.i** — Falha do provedor não deixa `Payment` em estado inconsistente
+- [x] **CA-03.2.e** — Validação de autenticidade da notificação — não confiar em `POST` anônimo
+- [x] **CA-03.2.f** — `FakePixProvider` **permanece** e continua sendo o padrão em teste
+- [x] **CA-03.2.g** — `services/core-service/tests/public-booking.test.js` continua passando com o *fake*
+- [x] **CA-03.2.h** — Credenciais via variável de ambiente; `.env.example` atualizado
+- [x] **CA-03.2.i** — Falha do provedor não deixa `Payment` em estado inconsistente
 
 > **Ponto de atenção:** o `PaymentModel` já tem `provider`, `provider_charge_id`, `pix_qr_code`, `pix_expiration` e os *status* `PENDING`/`PAID`/`EXPIRED`/`FAILED`. O modelo de dados **já está pronto** para o provedor real — os campos foram criados pensando nisso. A integração deve usá-los, não criar estrutura nova.
 
