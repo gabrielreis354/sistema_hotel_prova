@@ -467,6 +467,25 @@ nesta branch — é documentação.
 | **P-4** | A reserva com quartos extras cobra só o quarto principal: `total_amount = preço da categoria do quarto principal × noites` | 🟡 | `CreateReservationController.js:54-57` |
 | **P-5** | Escritas em lote que o *outbox* da T-01.4 precisa cobrir **explicitamente** (um `Model.update` com `where` não dispara *hook* por linha): quartos extras no check-in e no check-out, e a reserva-bloco no cancelamento de contrato | 🟢 | `CheckInController.js:33`, `CheckOutController.js:33`, `CancelContractController.js:22` |
 
+> **Estado em 10/10/2026 — etapa F da rodada 3 (branch `fix/reserva-multiquarto-contrato`):**
+>
+> - **P-1 resolvida** — `reservation_rooms` virou a fonte única de ocupação: todo quarto de toda
+>   reserva tem linha nele (o principal entra pelo banco), com cópia do período e de "bloqueia o
+>   quarto" mantida por **triggers**, e um `EXCLUDE` com o mesmo predicado do de `reservations`.
+>   Detalhes em `docs/db/ARQ_DATABASE.md` §7.
+> - **P-2 resolvida** — cancelar contrato só com a reserva-bloco em `PENDING`/`CONFIRMED`; em
+>   `CHECKED_IN`/`CHECKED_OUT` → `409`. A reserva-bloco também não se cancela nem se altera pela
+>   rota de reserva (só pelo contrato).
+> - **P-3 resolvida** — `sign` e `cancel` exigem `ADMIN`. O `WAITER` já era barrado pela allowlist
+>   global; a brecha real era o `RECEPTIONIST`.
+> - **P-4 resolvida** — `calculateStayTotal`: soma de cada quarto, em centavos inteiros.
+> - **P-5 continua para a T-01.4**, com um ajuste: o cancelamento de contrato agora grava a
+>   reserva-bloco por `save()` (dispara hook); seguem em lote o status dos quartos extras no
+>   check-in e no check-out. **Atenção para o *outbox*:** a sincronia do pivô acontece em
+>   trigger, invisível a hooks do Sequelize — não afeta os eventos do catálogo (nenhum é de
+>   `reservation_rooms`), mas quem precisar do conjunto de quartos de uma reserva deve lê-lo
+>   depois do commit.
+
 As decisões D-2 e D-3 (§9) também são defeitos atuais: afetam os indicadores de hoje, não só
 os da projeção.
 

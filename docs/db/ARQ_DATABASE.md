@@ -129,22 +129,35 @@ Representa cada hotel/pousada cliente da plataforma.
 EXCLUDE USING gist (
   room_id WITH =,
   daterange(check_in_date, check_out_date, '[)') WITH &&
-)
+) WHERE (status <> 'CANCELLED' AND deleted_at IS NULL)
 ```
-Impede sobreposição de datas no nível do banco — mesmo que dois processos tentem criar a segunda reserva simultaneamente.
+Impede sobreposição de datas no nível do banco — mesmo que dois processos tentem criar a segunda reserva simultaneamente. Cobre **só o quarto principal**; os quartos extras são protegidos pelo EXCLUDE de `reservation_rooms` (abaixo), e este continua como segunda barreira.
 
 ---
 
-### 7. `reservation_rooms` — Pivô N:N (Reservas ↔ Quartos adicionais)
+### 7. `reservation_rooms` — Pivô N:N (Reservas ↔ Quartos)
 
 | Coluna | Tipo | Constraint | Descrição |
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE | |
 | `room_id` | UUID | FK → rooms(id) ON DELETE CASCADE | |
+| `check_in_date` / `check_out_date` | DATE | cópia da reserva | Período da reserva-mãe, **mantido por trigger** |
+| `blocks_room` | BOOLEAN | cópia da reserva | `status <> 'CANCELLED' AND deleted_at IS NULL` da reserva-mãe, **mantido por trigger** |
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
 **Constraint:** `UNIQUE (reservation_id, room_id)` — um quarto não pode aparecer duas vezes na mesma reserva.
+
+**Fonte única de ocupação (P-1, 10/10/2026).** Todo quarto de toda reserva tem linha aqui — inclusive o principal, que o banco insere ao criar ou trocar `reservations.room_id`. Sobre o período copiado, um segundo `EXCLUDE` recusa o mesmo quarto em duas reservas sobrepostas:
+
+```sql
+EXCLUDE USING gist (
+  room_id WITH =,
+  daterange(check_in_date, check_out_date, '[)') WITH &&
+) WHERE (blocks_room)
+```
+
+Antes, um quarto que só existia aqui (quarto extra, ou os quartos 2..N de uma reserva-bloco B2B) ficava invisível para a disponibilidade e podia ser vendido duas vezes. A cópia é mantida por **triggers**, não pelos controllers — decisão do Gabriel: um controller que esquecesse de sincronizar era a própria causa do defeito. Triggers, preenchimento de banco legado e o EXCLUDE ficam em `database/applyDbConstraints.js` (`applyRoomOccupancy`). Se um banco legado já tiver venda dupla, o `migrate` recusa criar o EXCLUDE e lista os casos.
 
 **Decisão de modelagem (1FN):** uma reserva pode abranger múltiplos quartos (ex: família reserva 2 quartos). A tabela pivô elimina a necessidade de arrays ou grupos repetitivos em `reservations`.
 

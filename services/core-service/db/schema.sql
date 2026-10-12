@@ -170,6 +170,15 @@ CREATE TABLE IF NOT EXISTS reservation_rooms (
   id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
   room_id        UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  -- Cópia da reserva-mãe, mantida pelo BANCO — nunca pela aplicação (P-1, rodada 3). É sobre
+  -- ela que o EXCLUDE recusa o mesmo quarto em duas reservas sobrepostas, inclusive quarto
+  -- extra. O quarto principal (reservations.room_id) também tem linha aqui, inserida por
+  -- trigger. Triggers, preenchimento de banco legado e o EXCLUDE
+  -- reservation_rooms_room_daterange_excl ficam em database/applyDbConstraints.js
+  -- (applyRoomOccupancy), aplicado pelo `command.js migrate` — fonte única.
+  check_in_date  DATE,
+  check_out_date DATE,
+  blocks_room    BOOLEAN,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
   UNIQUE (reservation_id, room_id)

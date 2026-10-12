@@ -1,6 +1,7 @@
 import RoomModel from '../Models/RoomModel.js';
 import RoomCategoryModel from '../Models/RoomCategoryModel.js';
 import { checkReservationConflict } from './checkReservationConflict.js';
+import { categoryStayTotal, countNights } from './calculateStayTotal.js';
 
 /**
  * Calcula disponibilidade por CATEGORIA para o motor de reserva direta.
@@ -17,7 +18,7 @@ import { checkReservationConflict } from './checkReservationConflict.js';
  * @returns {Promise<{ nights: number, categories: Array }>}
  */
 export async function getAvailableCategories({ tenantId, checkIn, checkOut, guests = 1 }) {
-    const nights = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24));
+    const nights = countNights(checkIn, checkOut);
 
     const rooms = await RoomModel.findAll({
         where: { tenant_id: tenantId },
@@ -54,7 +55,8 @@ export async function getAvailableCategories({ tenantId, checkIn, checkOut, gues
         .map((c) => ({
             ...c,
             nights,
-            total_price: Number((c.price_per_night * nights).toFixed(2))
+            // Mesmo cálculo da reserva (centavos); a resposta pública segue em número.
+            total_price: Number(categoryStayTotal(c.price_per_night, nights))
         }))
         .sort((a, b) => a.price_per_night - b.price_per_night);
 
