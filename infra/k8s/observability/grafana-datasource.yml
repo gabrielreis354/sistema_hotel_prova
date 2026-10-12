@@ -1,0 +1,12 @@
+# Provisionamento do Grafana (T-02.4) — compartilhado pelo docker-compose e pelo k8s:
+# nos dois ambientes o Prometheus responde no service `prometheus:9090`.
+# uid fixo: o dashboard referencia o datasource por ele.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

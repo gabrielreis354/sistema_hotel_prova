@@ -13,10 +13,21 @@ resources:
   - pdb.yaml
   - minio.yaml
   - networkpolicy.yaml
+  - observability.yaml
 
-# Script de setup do MinIO (bucket + usuário de leitura que assina URLs — RNF-023), usado pelo
-# contêiner `setup` do pod do MinIO. O mesmo arquivo é montado pelo serviço minio-setup do compose.
 configMapGenerator:
+  # Provisionamento do Grafana (T-02.4) — mesmos arquivos que o docker-compose monta.
+  - name: grafana-datasource
+    files:
+      - prometheus.yml=observability/grafana-datasource.yml
+  - name: grafana-dashboard-provider
+    files:
+      - gesway.yml=observability/grafana-dashboards.yml
+  - name: grafana-dashboards
+    files:
+      - gesway-dashboard.json=observability/gesway-dashboard.json
+  # Script de setup do MinIO (bucket + usuário de leitura que assina URLs — RNF-023), usado pelo
+  # contêiner `setup` do pod do MinIO. O mesmo arquivo é montado pelo serviço minio-setup do compose.
   - name: minio-setup
     files:
       - minio-setup.sh
