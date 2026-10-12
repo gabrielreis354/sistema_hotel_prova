@@ -13,4 +13,9 @@ data:
   REDIS_URL: "redis://redis:6379"
   MINIO_ENDPOINT: "http://minio:9000"
   MINIO_BUCKET: hotel-contracts
+  # Endereço pelo qual o navegador chega ao nginx — só para assinar a URL de download de PDF
+  # (RNF-023). Docker Desktop (LoadBalancer na 80): http://localhost. Minikube com
+  # `./start.sh tunnel`: http://localhost:8080. Na nuvem: o domínio público.
+  # Só a ORIGEM (esquema://host[:porta]), sem caminho.
+  MINIO_PUBLIC_ENDPOINT: "http://localhost"
   MINIO_USE_SSL: "false"

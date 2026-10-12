@@ -1,14 +1,15 @@
 import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
-import { checkReservationConflict } from '../../utils/checkReservationConflict.js';
+import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
+import { calculateStayTotal, countNights, toCents, fromCents } from '../../utils/calculateStayTotal.js';
 import getPixProvider from '../../services/pix/index.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import GuestModel from '../../Models/GuestModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
-import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 
 /**
  * POST /public/:subdomain/bookings
@@ -70,19 +71,40 @@ export default async function CreateBookingController(request, response) {
             return response.status(409).json({ error: 'Sem disponibilidade na categoria para o período' });
         }
 
-        // 4. Cálculo financeiro
-        const nights = Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24));
-        const totalAmount = Number((Number(category.price_per_night) * nights).toFixed(2));
-        const depositAmount = Number((totalAmount * (tenant.deposit_percent / 100)).toFixed(2));
+        // 4. Cálculo financeiro — a mesma função de toda reserva (CA-F.4), em centavos inteiros.
+        // A resposta pública continua devolvendo números: é o contrato da API do site.
+        const nights = countNights(check_in, check_out);
+        const stay = await calculateStayTotal({ roomIds: [availableRoom.id], checkInDate: check_in, checkOutDate: check_out, tenantId: tenant.id });
+        if (stay.error) return response.status(stay.error.status).json({ error: stay.error.message });
+        const totalCents = toCents(stay.total);
+        const depositCents = Math.round(totalCents * tenant.deposit_percent / 100);
+        const totalAmount = stay.total;
+        const depositAmount = fromCents(depositCents);
 
         // 5. Persistência atômica: hóspede + reserva + pivô + cobrança PIX
         const transaction = await sequelize.transaction();
         try {
-            // find-or-create do hóspede (por e-mail dentro do tenant)
+            // find-or-create do hóspede (por CPF, senão por e-mail, dentro do tenant).
+            // Só por e-mail deixava o CPF passar direto pro create: um hóspede já
+            // cadastrado na recepção que reserva pelo site com um e-mail novo batia
+            // no índice único de CPF sem nenhum guard antes — 500 em vez de reaproveitar
+            // o cadastro.
+            //
+            // Duas consultas em ORDEM EXPLÍCITA, não um `Op.or` das duas condições: com
+            // `Op.or`, se o e-mail casasse com o hóspede A e o CPF com o hóspede B — dois
+            // cadastros diferentes, situação normal numa base de hotel — o resultado
+            // dependia do plano de execução do Postgres, não determinístico. CPF vem
+            // primeiro porque é identidade mais forte (não muda; e-mail muda).
             let guestRecord = null;
-            if (guest.email) {
+            if (guest.cpf) {
                 guestRecord = await GuestModel.findOne({
-                    where: { email: guest.email, tenant_id: tenant.id },
+                    where: { tenant_id: tenant.id, cpf: guest.cpf },
+                    transaction
+                });
+            }
+            if (!guestRecord && guest.email) {
+                guestRecord = await GuestModel.findOne({
+                    where: { tenant_id: tenant.id, email: guest.email },
                     transaction
                 });
             }
@@ -108,15 +130,13 @@ export default async function CreateBookingController(request, response) {
                 total_amount: totalAmount
             }, { transaction });
 
-            await ReservationRoomModel.create(
-                { reservation_id: reservation.id, room_id: availableRoom.id },
-                { transaction }
-            );
+            // O quarto entra em reservation_rooms pelo próprio banco (trigger
+            // reservations_sincroniza_quartos) — é lá que o EXCLUDE recusa a venda dupla.
 
             // Cobrança PIX do sinal via provider (simulado por padrão)
             const pix = getPixProvider();
             const charge = await pix.createCharge({
-                amount: depositAmount,
+                amount: Number(depositAmount),   // interface do PixProvider: número em reais
                 description: `Sinal reserva ${tenant.name}`,
                 externalId: reservation.id
             });
@@ -145,15 +165,15 @@ export default async function CreateBookingController(request, response) {
                     check_out: check_out,
                     nights,
                     category: category.name,
-                    total_amount: totalAmount
+                    total_amount: Number(totalAmount)
                 },
                 payment: {
                     id: payment.id,
                     kind: payment.kind,
                     status: payment.status,
-                    amount: depositAmount,
+                    amount: Number(depositAmount),
                     deposit_percent: tenant.deposit_percent,
-                    balance_due_on_checkin: Number((totalAmount - depositAmount).toFixed(2))
+                    balance_due_on_checkin: Number(fromCents(totalCents - depositCents))
                 },
                 pix: {
                     provider_charge_id: charge.providerChargeId,
@@ -166,7 +186,18 @@ export default async function CreateBookingController(request, response) {
             throw txError;
         }
     } catch (error) {
-        console.error('CreateBookingController:', error);
+        // Único endpoint PÚBLICO e sem autenticação que ainda faltava esse guard.
+        // Sem ele, uma colisão de CPF/e-mail que escapasse do find-or-create acima
+        // (race entre duas reservas simultâneas com o mesmo CPF, por exemplo) virava
+        // 500 e o console.error(error) abaixo imprimia error.parent.detail e o SQL do
+        // INSERT — CPF, nome e e-mail do hóspede no stdout do container.
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
+        // Duas reservas públicas simultâneas escolheram o mesmo último quarto livre: o banco
+        // recusou a segunda (EXCLUDE). O hóspede tenta de novo — não é erro do servidor.
+        if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
+
+        console.error('CreateBookingController:', error.message);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

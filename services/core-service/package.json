@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "qa:checks": "bash ../../scripts/qa_checks.sh",
-    "setup:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f db/schema.sql",
+    "setup:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f db/schema.sql && node command.js migrate",
     "seed:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f seed/seed_hotels.sql"
   },
   "dependencies": {

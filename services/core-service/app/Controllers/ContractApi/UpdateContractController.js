@@ -5,6 +5,7 @@ import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
 import uploadToMinIO from '../../utils/uploadToMinIO.js';
+import { documentPdfKey } from '../../utils/storeDocumentPdf.js';
 import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
 
 export default async function UpdateContractController(request, response) {
@@ -67,7 +68,7 @@ export default async function UpdateContractController(request, response) {
                 const allInstallments = await ContractInstallmentModel.findAll({ where: { contract_id: contract.id }, transaction: t });
                 const pdfData = { ...contract.toJSON(), client: client.toJSON(), installments: allInstallments.map(i => i.toJSON()) };
                 const pdfBuffer = await generateContractPdf(pdfData);
-                const key = `${tenantId}/contracts/${contract.id}.pdf`;
+                const key = documentPdfKey(tenantId, 'contracts', contract.id);
                 const pdfUrl = await uploadToMinIO(pdfBuffer, key);
                 await contract.update({ pdf_url: pdfUrl }, { transaction: t });
             }
