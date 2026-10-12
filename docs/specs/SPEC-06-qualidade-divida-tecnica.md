@@ -252,6 +252,75 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 
 ---
 
+### T-06.13 — Estorno no lugar da exclusão de pagamento 🔲
+
+**Origem:** decisão D-2 do catálogo de eventos (`docs/specs/anexos/SPEC-01-catalogo-eventos.md` §9.1,
+aprovada em 04/10/2026), pelo critério de mercado da rodada 3: **lançamento financeiro não se apaga —
+se estorna.** *(A delegação da rodada 3 previa o número T-06.12, já ocupado pela tarefa acima.)*
+
+**Problema.** `DELETE /payments/:id` (`routes/apis/paymentRouter.js:19`,
+`DeletePaymentController.js`) faz *soft delete* do pagamento. Três consequências, conferidas no código
+em 12/10/2026:
+
+1. **Sem motivo, sem autor.** O registro some das listagens sem dizer por quê nem quem o apagou — o
+   oposto do que o fechamento de caixa (RF-056) e uma auditoria contábil precisam.
+2. **A receita fica errada.** `GetRevenueController` e `GetPaymentMixController` somam `amount` com
+   `paid_at IS NOT NULL` e **não filtram `deleted_at`**: pagamento excluído continua contando como
+   receita (defeito D-2 do catálogo).
+3. **Qualquer papel exclui.** A rota não tem `requireRole`: um `RECEPTIONIST` apaga um pagamento. Só o
+   `WAITER` é barrado, pela allowlist global de papéis.
+
+**Quem usa o `DELETE` hoje** (pesquisa de 12/10/2026): nenhum fluxo do sistema. Não há chamada no
+frontend (`frontend/apps/*/src`: nenhuma ocorrência de `payments`), nem em outro controller. O único
+consumidor é o teste `tests/payments.test.js:161` (*"remove pagamento (soft delete) e retorna 204"*),
+que muda junto com a rota. O Swagger documenta a rota.
+
+**Decisão: `VOIDED`, não `REFUNDED`.** São operações diferentes, e o mercado as separa:
+
+| | `VOIDED` — estorno do lançamento | `REFUNDED` — devolução ao hóspede |
+|---|---|---|
+| O que é | Correção de um lançamento **feito por engano**: valor digitado errado, pagamento lançado na reserva errada, duplicado | Devolução de dinheiro que **de fato entrou** |
+| Movimento de caixa | Nenhum — o dinheiro nunca entrou, ou entrou em outro lançamento | Saída de caixa, com meio próprio (PIX de volta, cartão, espécie) |
+| No PIX online | Não se aplica: a cobrança veio do PSP | Passa pelo PSP (estorno do PIX) |
+
+O `DELETE` de hoje é usado para **o primeiro caso** — corrigir lançamento —, então o substituto é
+`VOIDED`. `REFUNDED` fica registrado como necessidade futura, ligada ao estorno pelo PSP: a auditoria do
+Mercado Pago (`docs/qa/redteam_mercadopago-pix_delta_12out2026.md`, 🟡-4) mostrou que um estorno feito
+no PSP depois do `PAID` hoje é ignorado pelo *webhook*. Misturar as duas operações num status só
+confundiria o fechamento de caixa: anular um lançamento não tira dinheiro da gaveta; devolver, tira.
+
+**Critérios de aceitação**
+- [ ] **CA-06.13.a** — `DELETE /payments/:id` deixa de existir. A rota responde `405` com a indicação
+  do estorno, para que um cliente antigo não falhe em silêncio
+- [ ] **CA-06.13.b** — `POST /payments/:id/void` com `{ "reason": "..." }`: **motivo obrigatório**
+  (texto não vazio, `400` sem ele). Grava `status = 'VOIDED'`, `void_reason`, `voided_by` (usuário do
+  JWT) e `voided_at`. O pagamento original **permanece** — nenhum *soft delete*
+- [ ] **CA-06.13.c** — Transição em **allowlist** (regra do CLAUDE.md): só `PAID` vira `VOIDED`.
+  `VOIDED` de novo → `409`. Pagamento de **PSP** (`provider` preenchido — PIX online) → `409`: tirar da
+  receita um dinheiro que o PSP de fato recebeu exige devolução pelo PSP (`REFUNDED`, fora desta tarefa)
+- [ ] **CA-06.13.d** — Restrito a `ADMIN`: anular lançamento financeiro é decisão de gerência
+- [ ] **CA-06.13.e** — `status` ganha `VOIDED` no `CHECK` do banco (`db/schema.sql:208`) e no model;
+  `void_reason`, `voided_by` (FK `users`) e `voided_at` nulos para todo pagamento não anulado
+- [ ] **CA-06.13.f** — **A receita é a soma dos efetivados.** As consultas de receita e de mix de
+  pagamento passam a contar só `status = 'PAID'` — hoje contam `paid_at IS NOT NULL`, e um `VOIDED`
+  mantém o `paid_at` (é histórico). A conta da reserva (`GetBillController`) já soma só `PAID` e não muda
+- [ ] **CA-06.13.g** — O pagamento anulado aparece na listagem e na conta da reserva, marcado como
+  anulado, com o motivo — o histórico é visível, não escondido
+- [ ] **CA-06.13.h** — Isolamento de tenant: pagamento de outro hotel → `404`
+- [ ] **CA-06.13.i** — Testes: estorno feliz; sem motivo → `400`; de novo → `409`; de PSP → `409`;
+  `RECEPTIONIST` → `403`; outro tenant → `404`; a receita do analytics deixa de contar o anulado; o
+  `DELETE` responde `405`
+
+**Eventos (T-01.4).** O `payment.status_changed` do catálogo (§4.6) já cobre a transição — com
+`previous_status: "PAID"` e `status: "VOIDED"`. O catálogo ganha `VOIDED` na lista de status; a
+projeção do analytics conta só `PAID`, então nenhum campo novo é necessário no evento. Com esta tarefa,
+o `payment.deleted` do catálogo deixa de ser emitido por este caminho.
+
+**Fora do escopo:** `REFUNDED` e a devolução pelo PSP; o fechamento de caixa por turno (RF-056), que
+vai consumir os anulados.
+
+---
+
 ## 3. Ordem sugerida
 
 ```
@@ -265,6 +334,7 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
  8. T-06.3  RoomCategoryModel       — bug confirmado, correção conhecida
  9. T-06.6  R4                      — risco baixo hoje
 10. T-06.7  refresh token           — decisão antes de implementação
+11. T-06.13 estorno de pagamento    — antes do fechamento de caixa (RF-056) e da projeção de receita (T-01.4)
 ```
 
 > T-06.1 antes de T-06.8 se houver dúvida sobre a cobertura — subir o portão e descobrir que reprova **durante** o PR é pior que descobrir antes.
