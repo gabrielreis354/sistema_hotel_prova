@@ -367,3 +367,30 @@ describe('POST /webhooks/pix — validações', () => {
         expect(res.status).toBe(404);
     });
 });
+
+describe('Webhook PIX x check-in simultâneo (qa-redteam de 12/10, 🟡-2)', () => {
+    it('o check-in que chega durante a confirmação não é sobrescrito: a reserva fica CHECKED_IN', async () => {
+        const booking = await request(app).post(`/public/${subdomain}/bookings`).send({
+            category_id: categoryId, check_in: '2027-09-01', check_out: '2027-09-03', guests: 1,
+            guest: { full_name: 'Hóspede Corrida', email: 'corrida.pix@example.com' },
+        });
+        expect(booking.status).toBe(201);
+        const reservationId = booking.body.reservation.id;
+
+        // A recepção faz o check-in (que aceita PENDING) e segura a linha da reserva — ainda sem commit.
+        const recepcao = await sequelize.transaction();
+        await ReservationModel.update({ status: 'CHECKED_IN' }, { where: { id: reservationId }, transaction: recepcao });
+
+        // O PSP confirma o sinal nesse meio-tempo.
+        const rawBody = JSON.stringify({ provider_charge_id: booking.body.pix.provider_charge_id });
+        const webhook = postSignedWebhook(rawBody).then((r) => r);
+        await new Promise((ok) => setTimeout(ok, 400));
+        await recepcao.commit();
+        const res = await webhook;
+
+        // Sem o lock, o webhook lia PENDING antes do commit e gravava CONFIRMED por cima do CHECKED_IN.
+        expect(res.status).toBe(200);
+        expect((await ReservationModel.findByPk(reservationId)).status).toBe('CHECKED_IN');
+        expect((await PaymentModel.findOne({ where: { reservation_id: reservationId } })).status).toBe('PAID');
+    });
+});

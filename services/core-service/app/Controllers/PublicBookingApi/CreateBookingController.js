@@ -202,6 +202,10 @@ export default async function CreateBookingController(request, response) {
             });
         } catch (txError) {
             await transaction.rollback();
+            // A cobrança já existe no PSP e a reserva não foi gravada: cobrança órfã. O QR não
+            // chega ao hóspede (só sai depois do commit), mas o id fica no log para o hotel
+            // reconciliar ou cancelar no PSP (qa-redteam de 12/10, 🟡-1).
+            console.error('CreateBookingController: reserva não gravada — cobrança órfã no PSP', charge?.providerChargeId);
             throw txError;
         }
     } catch (error) {

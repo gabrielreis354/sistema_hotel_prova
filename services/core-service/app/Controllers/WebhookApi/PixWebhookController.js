@@ -53,6 +53,9 @@ export default async function PixWebhookController(request, response) {
         // A cobrança é única globalmente (id do PSP) — não há subdomínio no callback.
         const payment = await PaymentModel.findOne({ where: { provider_charge_id } });
         if (!payment) {
+            // Cobrança sem pagamento no banco: típico de cobrança órfã (a reserva falhou depois
+            // de a cobrança ser criada no PSP). Logado com o id para reconciliação.
+            console.warn('PixWebhookController: notificação de cobrança sem pagamento no banco — reconciliar no PSP', provider_charge_id);
             return response.status(404).json({ error: 'Cobrança não encontrada' });
         }
 
@@ -108,19 +111,34 @@ export default async function PixWebhookController(request, response) {
 
         const transaction = await sequelize.transaction();
         try {
-            payment.status = 'PAID';
-            payment.paid_at = new Date();
-            await payment.save({ transaction });
+            // Pagamento e reserva lidos com lock DENTRO da transação, e o status reconferido sob
+            // o lock. Sem isso: um check-in simultâneo (que aceita PENDING) era sobrescrito e a
+            // reserva voltava de CHECKED_IN para CONFIRMED; duas notificações iguais em paralelo
+            // processavam duas vezes (qa-redteam de 12/10, 🟡-2; pendência N4 da Etapa F).
+            const lockedPayment = await PaymentModel.findOne({ where: { id: payment.id }, lock: transaction.LOCK.UPDATE, transaction });
+            if (['PAID', 'FAILED', 'EXPIRED'].includes(lockedPayment.status)) {
+                await transaction.rollback();
+                return response.status(200).json({ status: 'already_processed', payment_id: payment.id });
+            }
+            lockedPayment.status = 'PAID';
+            lockedPayment.paid_at = new Date();
+            await lockedPayment.save({ transaction });
 
             const reservation = await ReservationModel.findOne({
                 where: { id: payment.reservation_id, tenant_id: payment.tenant_id },
+                lock: transaction.LOCK.UPDATE,
                 transaction
             });
 
-            // Só promove PENDING → CONFIRMED. Outros estados não são tocados.
+            // Só promove PENDING → CONFIRMED. Outros estados não são tocados — mas um sinal pago
+            // para reserva já cancelada (ou em outro estado) é dinheiro a devolver: log para o
+            // hotel reconciliar (🟡-3).
             if (reservation && reservation.status === 'PENDING') {
                 reservation.status = 'CONFIRMED';
                 await reservation.save({ transaction });
+            } else {
+                console.warn('PixWebhookController: sinal pago para reserva fora de PENDING — reconciliar/estornar',
+                    { payment_id: payment.id, reservation_id: payment.reservation_id, reservation_status: reservation?.status ?? null });
             }
 
             await transaction.commit();
@@ -132,7 +150,7 @@ export default async function PixWebhookController(request, response) {
                 reservation_status: reservation ? reservation.status : null
             });
         } catch (txError) {
-            await transaction.rollback();
+            if (!transaction.finished) await transaction.rollback();
             throw txError;
         }
     } catch (error) {
