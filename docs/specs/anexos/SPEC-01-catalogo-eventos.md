@@ -186,7 +186,7 @@ endpoints — ver §9, decisão D-1.
 | `reservation_id` | UUID | `revenue.unpaid` e `alerts.no_show_risk` (reserva **sem** pagamento) |
 | `amount` | string decimal | `revenue.realized` · `payment-mix` |
 | `method` | string | `payment-mix` |
-| `status` | `PENDING` \| `PAID` \| `EXPIRED` \| `FAILED` | ver §9, D-3 |
+| `status` | `PENDING` \| `PAID` \| `EXPIRED` \| `FAILED` \| `VOIDED` | ver §9, D-3. `VOIDED` (estorno de lançamento) entra com a T-06.13 da SPEC-06; a projeção conta só `PAID` |
 | `paid_at` | ISO-8601 ou `null` | `revenue.realized` (por mês) · `payment-mix` — só conta com `paid_at` preenchido |
 
 Dados do provedor (`provider`, `provider_charge_id`, `pix_qr_code`) não entram — já são
