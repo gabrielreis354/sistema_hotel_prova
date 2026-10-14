@@ -182,6 +182,8 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     // Por último: num banco legado com quarto vendido duas vezes, a ocupação recusa criar o
     // EXCLUDE — e isso não pode impedir a cura dos índices e CHECKs acima. Erro guardado e
     // reportado junto com os outros.
+    await applyOutbox(sequelize);
+
     let falhaOcupacao = null;
     try {
         await applyRoomOccupancy(sequelize, log);
@@ -432,4 +434,117 @@ async function applyRoomOccupancy(sequelize, log = () => {}) {
                 daterange(check_in_date, check_out_date, '[)') WITH &&
             ) WHERE (blocks_room);
     `);
+}
+
+/**
+ * Outbox transacional por TRIGGER (T-01.4/H.1, decisão do Gabriel de 14/10) — contrato no catálogo
+ * de eventos v1.0 (docs/specs/anexos/SPEC-01-catalogo-eventos.md).
+ *
+ * Por que no banco, e não nos controllers: são mais de 20 caminhos de escrita nas 6 tabelas
+ * (CRUD, check-in/out, cancelamentos, webhook PIX, contrato, reserva pública, escrita em lote).
+ * Um que esquecesse de gravar o evento deixaria o analytics divergente sem erro nenhum — o mesmo
+ * risco que gerou a P-1. O trigger também cumpre a regra do §6 por construção: é AFTER, então a
+ * linha do outbox (e o número da sequência, o aggregate_version) vem DEPOIS da escrita de
+ * domínio, sob o lock da linha.
+ *
+ * Payload: só os campos do §4 — minimização (o hóspede leva só o nome). Dinheiro como texto
+ * ("1250.00"), data como "YYYY-MM-DD", instante como ISO-8601 UTC. Uma atualização que não muda
+ * nenhum campo do payload não gera evento (ex.: telefone do hóspede, preço da categoria).
+ */
+async function applyOutbox(sequelize) {
+    await sequelize.query(`
+        CREATE OR REPLACE FUNCTION outbox_iso(ts timestamptz) RETURNS text AS $$
+            SELECT to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        $$ LANGUAGE sql IMMUTABLE;
+
+        CREATE OR REPLACE FUNCTION outbox_grava_evento() RETURNS trigger AS $$
+        DECLARE
+            novo     jsonb := CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE to_jsonb(NEW) END;
+            velho    jsonb := CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE to_jsonb(OLD) END;
+            atual    jsonb := COALESCE(novo, velho);
+            agregado text;
+            fato     text;
+            dados    jsonb;
+            antes    jsonb;
+            tenant   uuid;
+        BEGIN
+            agregado := CASE TG_TABLE_NAME
+                WHEN 'tenants'         THEN 'tenant'
+                WHEN 'room_categories' THEN 'room_category'
+                WHEN 'rooms'           THEN 'room'
+                WHEN 'guests'          THEN 'guest'
+                WHEN 'reservations'    THEN 'reservation'
+                WHEN 'payments'        THEN 'payment'
+            END;
+
+            -- Payload do §4, do estado atual (e do anterior, para detectar se algo relevante mudou).
+            dados := CASE agregado
+                WHEN 'tenant'        THEN jsonb_build_object('status', atual->>'status')
+                WHEN 'room_category' THEN jsonb_build_object('name', atual->>'name')
+                WHEN 'room'          THEN jsonb_build_object('category_id', atual->>'category_id', 'number', atual->>'number', 'status', atual->>'status')
+                WHEN 'guest'         THEN jsonb_build_object('full_name', atual->>'full_name')
+                WHEN 'reservation'   THEN jsonb_build_object(
+                    'guest_id', atual->>'guest_id', 'room_id', atual->>'room_id', 'status', atual->>'status',
+                    'check_in_date', atual->>'check_in_date', 'check_out_date', atual->>'check_out_date',
+                    'total_amount', atual->>'total_amount',
+                    'created_at', outbox_iso((atual->>'created_at')::timestamptz))
+                WHEN 'payment'       THEN jsonb_build_object(
+                    'reservation_id', atual->>'reservation_id', 'amount', atual->>'amount', 'method', atual->>'method',
+                    'status', atual->>'status',
+                    'paid_at', CASE WHEN atual->>'paid_at' IS NULL THEN NULL ELSE outbox_iso((atual->>'paid_at')::timestamptz) END)
+            END;
+
+            IF TG_OP = 'INSERT' THEN
+                fato := 'created';
+            ELSIF TG_OP = 'DELETE' THEN
+                fato := 'deleted';
+            ELSIF velho->>'deleted_at' IS NULL AND novo->>'deleted_at' IS NOT NULL THEN
+                fato := 'deleted';                                   -- exclusão lógica (paranoid)
+            ELSE
+                antes := CASE agregado
+                    WHEN 'tenant'        THEN jsonb_build_object('status', velho->>'status')
+                    WHEN 'room_category' THEN jsonb_build_object('name', velho->>'name')
+                    WHEN 'room'          THEN jsonb_build_object('category_id', velho->>'category_id', 'number', velho->>'number', 'status', velho->>'status')
+                    WHEN 'guest'         THEN jsonb_build_object('full_name', velho->>'full_name')
+                    WHEN 'reservation'   THEN jsonb_build_object(
+                        'guest_id', velho->>'guest_id', 'room_id', velho->>'room_id', 'status', velho->>'status',
+                        'check_in_date', velho->>'check_in_date', 'check_out_date', velho->>'check_out_date',
+                        'total_amount', velho->>'total_amount',
+                        'created_at', outbox_iso((velho->>'created_at')::timestamptz))
+                    WHEN 'payment'       THEN jsonb_build_object(
+                        'reservation_id', velho->>'reservation_id', 'amount', velho->>'amount', 'method', velho->>'method',
+                        'status', velho->>'status',
+                        'paid_at', CASE WHEN velho->>'paid_at' IS NULL THEN NULL ELSE outbox_iso((velho->>'paid_at')::timestamptz) END)
+                END;
+
+                IF dados = antes AND (velho->>'deleted_at') IS NOT DISTINCT FROM (novo->>'deleted_at') THEN
+                    RETURN NULL;                                     -- nada que o analytics use mudou
+                END IF;
+
+                IF agregado IN ('reservation', 'payment') AND (velho->>'status') IS DISTINCT FROM (novo->>'status') THEN
+                    fato := 'status_changed';
+                    dados := dados || jsonb_build_object('previous_status', velho->>'status');
+                ELSE
+                    fato := 'updated';
+                END IF;
+            END IF;
+
+            tenant := CASE WHEN agregado = 'tenant' THEN (atual->>'id')::uuid ELSE (atual->>'tenant_id')::uuid END;
+
+            INSERT INTO outbox (event_id, type, version, tenant_id, aggregate_id, payload, occurred_at)
+            VALUES (gen_random_uuid(), agregado || '.' || fato, 1, tenant, (atual->>'id')::uuid, dados, now());
+            RETURN NULL;
+        END $$ LANGUAGE plpgsql;
+    `);
+
+    // Sem lista de colunas ("UPDATE OF ..."): o sync({ alter }) do migrate reemite ALTER TYPE a
+    // cada execução e o PostgreSQL recusa isso em coluna citada num trigger (lição da etapa F).
+    for (const tabela of ['tenants', 'room_categories', 'rooms', 'guests', 'reservations', 'payments']) {
+        await sequelize.query(`
+            DROP TRIGGER IF EXISTS ${tabela}_outbox ON ${tabela};
+            CREATE TRIGGER ${tabela}_outbox
+                AFTER INSERT OR UPDATE OR DELETE ON ${tabela}
+                FOR EACH ROW EXECUTE FUNCTION outbox_grava_evento();
+        `);
+    }
 }
