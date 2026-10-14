@@ -13,6 +13,8 @@ import QuoteServiceModel from "../app/Models/QuoteServiceModel.js";
 import ContractModel from "../app/Models/ContractModel.js";
 import ContractInstallmentModel from "../app/Models/ContractInstallmentModel.js";
 import ProductModel from "../app/Models/ProductModel.js";
+import AccountModel from "../app/Models/AccountModel.js";
+import AccountItemModel from "../app/Models/AccountItemModel.js";
 
 export default function initRelations() {
     // 1) Relacionamentos de Tenants (SaaS Multi-tenant)
@@ -106,4 +108,22 @@ export default function initRelations() {
     // 11) Catálogo de produtos (cardápio) — base do módulo de consumo
     TenantModel.hasMany(ProductModel, { foreignKey: 'tenant_id', as: 'products' });
     ProductModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+
+    // 12) Comanda — contas e itens lançados (SPEC-04, T-04.1)
+    // onDelete repetido em TODA associação: belongsTo/hasMany sobrescrevem o do atributo,
+    // e o padrão do Sequelize para FK anulável é SET NULL — apagaria em silêncio o
+    // vínculo da conta com a estadia. Conferido no banco por tests/accounts-db.test.js.
+    TenantModel.hasMany(AccountModel, { foreignKey: 'tenant_id', as: 'accounts', onDelete: 'CASCADE' });
+    AccountModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant', onDelete: 'CASCADE' });
+    ReservationModel.hasMany(AccountModel, { foreignKey: 'reservation_id', as: 'accounts', onDelete: 'RESTRICT' });
+    AccountModel.belongsTo(ReservationModel, { foreignKey: 'reservation_id', as: 'reservation', onDelete: 'RESTRICT' });
+    AccountModel.belongsTo(RoomModel, { foreignKey: 'room_id', as: 'room', onDelete: 'RESTRICT' });
+    AccountModel.belongsTo(GuestModel, { foreignKey: 'guest_id', as: 'guest', onDelete: 'RESTRICT' });
+
+    AccountModel.hasMany(AccountItemModel, { foreignKey: 'account_id', as: 'items', onDelete: 'CASCADE' });
+    AccountItemModel.belongsTo(AccountModel, { foreignKey: 'account_id', as: 'account', onDelete: 'CASCADE' });
+    AccountItemModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant', onDelete: 'CASCADE' });
+    AccountItemModel.belongsTo(ProductModel, { foreignKey: 'product_id', as: 'product', onDelete: 'RESTRICT' });
+    AccountItemModel.belongsTo(UserModel, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT' });
+    AccountItemModel.belongsTo(UserModel, { foreignKey: 'deleted_by', as: 'deleter', onDelete: 'RESTRICT' });
 }
