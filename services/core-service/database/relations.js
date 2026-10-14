@@ -13,6 +13,8 @@ import QuoteServiceModel from "../app/Models/QuoteServiceModel.js";
 import ContractModel from "../app/Models/ContractModel.js";
 import ContractInstallmentModel from "../app/Models/ContractInstallmentModel.js";
 import ProductModel from "../app/Models/ProductModel.js";
+import AccountModel from "../app/Models/AccountModel.js";
+import AccountItemModel from "../app/Models/AccountItemModel.js";
 
 export default function initRelations() {
     // 1) Relacionamentos de Tenants (SaaS Multi-tenant)
@@ -106,4 +108,20 @@ export default function initRelations() {
     // 11) Catálogo de produtos (cardápio) — base do módulo de consumo
     TenantModel.hasMany(ProductModel, { foreignKey: 'tenant_id', as: 'products' });
     ProductModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+
+    // 12) Comanda — contas e itens lançados (SPEC-04, T-04.1)
+    // A ação de exclusão de cada FK (CASCADE/RESTRICT do MER) fica no atributo do model.
+    TenantModel.hasMany(AccountModel, { foreignKey: 'tenant_id', as: 'accounts' });
+    AccountModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+    ReservationModel.hasMany(AccountModel, { foreignKey: 'reservation_id', as: 'accounts' });
+    AccountModel.belongsTo(ReservationModel, { foreignKey: 'reservation_id', as: 'reservation' });
+    AccountModel.belongsTo(RoomModel, { foreignKey: 'room_id', as: 'room' });
+    AccountModel.belongsTo(GuestModel, { foreignKey: 'guest_id', as: 'guest' });
+
+    AccountModel.hasMany(AccountItemModel, { foreignKey: 'account_id', as: 'items' });
+    AccountItemModel.belongsTo(AccountModel, { foreignKey: 'account_id', as: 'account' });
+    AccountItemModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
+    AccountItemModel.belongsTo(ProductModel, { foreignKey: 'product_id', as: 'product' });
+    AccountItemModel.belongsTo(UserModel, { foreignKey: 'created_by', as: 'creator' });
+    AccountItemModel.belongsTo(UserModel, { foreignKey: 'deleted_by', as: 'deleter' });
 }
