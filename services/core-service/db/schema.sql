@@ -256,6 +256,74 @@ CREATE UNIQUE INDEX IF NOT EXISTS products_name_tenant_unique
   WHERE deleted_at IS NULL;
 
 -- =============================================================================
+-- 9d) Comanda — contas e itens lançados (SPEC-04, T-04.1; MER 4.11 e 4.12)
+-- Models: AccountModel, AccountItemModel
+-- Allowlists em app/utils/accountEnums.js. Mesmos nomes de constraint que
+-- database/applyDbConstraints.js (applyAccountConstraints) — fonte do migrate.
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS accounts (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  type            TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'OPEN',
+  reservation_id  UUID REFERENCES reservations(id) ON DELETE RESTRICT,
+  room_id         UUID REFERENCES rooms(id) ON DELETE RESTRICT,
+  guest_id        UUID REFERENCES guests(id) ON DELETE RESTRICT,
+  label           TEXT NOT NULL,
+  charges_lodging BOOLEAN NOT NULL DEFAULT true,
+  opened_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at       TIMESTAMPTZ,
+  deleted_at      TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT accounts_type_allowlist   CHECK (type IN ('ROOM', 'DAY_USE', 'TABLE', 'DIRECT', 'INTERNAL')),
+  CONSTRAINT accounts_status_allowlist CHECK (status IN ('OPEN', 'CLOSED', 'PAID')),
+  -- D-4: só a conta da suíte cobra diária
+  CONSTRAINT accounts_charges_lodging_room_only CHECK (type = 'ROOM' OR charges_lodging = false),
+  -- D-5: vínculos exigidos por tipo
+  CONSTRAINT accounts_room_requires_stay CHECK (type <> 'ROOM' OR (reservation_id IS NOT NULL AND room_id IS NOT NULL AND guest_id IS NOT NULL)),
+  CONSTRAINT accounts_reservation_only_room CHECK (type = 'ROOM' OR reservation_id IS NULL),
+  CONSTRAINT accounts_no_guest_table_internal CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL)
+);
+
+-- RN-005 (D-3): uma conta cobrando diária por quarto DA ESTADIA. Parcial: conta
+-- excluída não disputa; a próxima estadia no mesmo quarto cobra a sua.
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_lodging_unique
+  ON accounts (reservation_id, room_id)
+  WHERE charges_lodging = true AND deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS account_items (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  account_id     UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  product_id     UUID REFERENCES products(id) ON DELETE RESTRICT,
+  description    TEXT NOT NULL,
+  quantity       INTEGER NOT NULL,
+  unit_price     NUMERIC(10, 2) NOT NULL,
+  total          NUMERIC(10, 2) NOT NULL,
+  billable       BOOLEAN NOT NULL DEFAULT true,
+  reason         TEXT,
+  client_item_id UUID,
+  created_by     UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  deleted_by     UUID REFERENCES users(id) ON DELETE RESTRICT,
+  deleted_at     TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  updated_at     TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT account_items_quantity_positive       CHECK (quantity > 0),
+  CONSTRAINT account_items_unit_price_non_negative CHECK (unit_price >= 0),
+  -- CA-04.1.c: total sempre quantity × unit_price (implica total >= 0)
+  CONSTRAINT account_items_total_matches           CHECK (total = quantity * unit_price),
+  CONSTRAINT account_items_reason_allowlist        CHECK (reason IS NULL OR reason IN ('COURTESY', 'STAFF', 'LOSS', 'INTERNAL_USE')),
+  -- RN-007: cortesia exige motivo
+  CONSTRAINT account_items_reason_required         CHECK (billable OR reason IS NOT NULL)
+);
+
+-- RN-008 (D-6): índice TOTAL de propósito — exceção à regra dos paranoid. O item
+-- excluído continua barrando o reenvio do mesmo client_item_id da fila offline.
+CREATE UNIQUE INDEX IF NOT EXISTS account_items_client_item_tenant_unique
+  ON account_items (tenant_id, client_item_id);
+
+-- =============================================================================
 -- 9c) Módulo B2B — clientes corporativos, orçamentos e contratos de evento
 -- Models: CorporateClientModel, EventQuoteModel, QuoteServiceModel, ContractModel,
 --         ContractInstallmentModel
@@ -372,6 +440,9 @@ CREATE INDEX IF NOT EXISTS idx_event_quotes_client         ON event_quotes (corp
 CREATE INDEX IF NOT EXISTS idx_quote_services_quote        ON quote_services (quote_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_client            ON contracts (corporate_client_id);
 CREATE INDEX IF NOT EXISTS idx_contract_installments_contract ON contract_installments (contract_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_tenant_status      ON accounts (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_accounts_reservation        ON accounts (reservation_id);
+CREATE INDEX IF NOT EXISTS idx_account_items_account       ON account_items (account_id);
 
 -- =============================================================================
 -- 11) Trigger de updated_at automático
@@ -398,3 +469,5 @@ CREATE TRIGGER trg_event_quotes_updated_at    BEFORE UPDATE ON event_quotes     
 CREATE TRIGGER trg_quote_services_updated_at  BEFORE UPDATE ON quote_services      FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_contracts_updated_at       BEFORE UPDATE ON contracts           FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_contract_installments_upd  BEFORE UPDATE ON contract_installments FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER trg_accounts_updated_at        BEFORE UPDATE ON accounts            FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER trg_account_items_updated_at   BEFORE UPDATE ON account_items       FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();

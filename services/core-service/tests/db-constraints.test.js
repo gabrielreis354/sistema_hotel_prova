@@ -76,6 +76,12 @@ describe('Constraints de banco no ambiente de teste', () => {
     it('nenhum model paranoid ficou com índice único total', async () => {
         // Contraparte no banco da regra 8 do scripts/qa_checks.sh, que olha o código.
         // Tabelas soft-delete: todo índice único delas tem que ter o predicado.
+        //
+        // ÚNICA exceção, deliberada (D-6 da T-04.1): o client_item_id de account_items.
+        // Ali o índice TOTAL é a regra de negócio — um item excluído precisa continuar
+        // barrando o reenvio da fila offline do garçom, senão o hóspede seria cobrado de
+        // novo (RN-008). Coberta por tests/accounts-db.test.js. Nova exceção aqui exige
+        // a mesma justificativa: um valor que, excluído, NÃO pode voltar.
         const [rows] = await sequelize.query(`
             SELECT i.indexname, i.tablename
             FROM pg_indexes i
@@ -85,6 +91,7 @@ describe('Constraints de banco no ambiente de teste', () => {
               AND i.indexdef LIKE '%UNIQUE%'
               AND i.indexname NOT LIKE '%_pkey'
               AND i.indexdef NOT LIKE '%deleted_at IS NULL%'
+              AND i.indexname <> 'account_items_client_item_tenant_unique'
         `);
 
         expect(rows).toEqual([]);

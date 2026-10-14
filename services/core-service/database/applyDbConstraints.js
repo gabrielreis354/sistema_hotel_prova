@@ -1,4 +1,5 @@
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
+import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
 
 /**
  * Objetos de banco que o `sequelize.sync()` NÃO gera: extensões, constraints
@@ -65,6 +66,8 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
             END IF;
         END $$;
     `);
+
+    await applyAccountConstraints(sequelize);
 
     // Índices únicos PARCIAIS em models paranoid — mesmo mecanismo da EXCLUDE acima,
     // agora para os 8 índices auditados na SPEC-06 (users, room_categories, rooms,
@@ -201,6 +204,92 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     if (falhaOcupacao) throw falhaOcupacao;
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
+}
+
+/**
+ * Comanda (SPEC-04, T-04.1) — segunda barreira atrás dos 422 dos controllers.
+ *
+ * As regras de tipo de conta (D-4, D-5) e as financeiras do item viram CHECK: um
+ * controller que esqueça uma validação não grava conta de mesa cobrando diária nem item
+ * com total divergente de quantidade × preço. Mesmo DROP + ADD dos CHECKs de products,
+ * pelo mesmo motivo — a allowlist muda e um CHECK antigo nunca seria atualizado.
+ *
+ * Mesma ressalva dos demais: se um banco já tiver linha violando a regra, o ADD falha e
+ * o migrate para com o nome da constraint. Com as tabelas nascendo nesta tarefa, não há.
+ */
+async function applyAccountConstraints(sequelize) {
+    const lista = (valores) => valores.map((v) => `'${v}'`).join(', ');
+
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'accounts') THEN
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_type_allowlist;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_type_allowlist
+                    CHECK (type IN (${lista(ACCOUNT_TYPES)}));
+
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_status_allowlist;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_status_allowlist
+                    CHECK (status IN (${lista(ACCOUNT_STATUSES)}));
+
+                -- D-4: só a conta da suíte cobra diária; não há diária em mesa, balcão,
+                -- day-use nem conta interna.
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_charges_lodging_room_only;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_charges_lodging_room_only
+                    CHECK (type = 'ROOM' OR charges_lodging = false);
+
+                -- D-5: conta de suíte pertence a uma estadia, a um quarto e a um hóspede.
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_room_requires_stay;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_room_requires_stay
+                    CHECK (type <> 'ROOM' OR (reservation_id IS NOT NULL AND room_id IS NOT NULL AND guest_id IS NOT NULL));
+
+                -- D-5: só a conta de suíte tem reserva — é o que permite consumo sem hospedagem.
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_reservation_only_room;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_reservation_only_room
+                    CHECK (type = 'ROOM' OR reservation_id IS NULL);
+
+                -- D-5: mesa aberta ao público e conta interna não têm responsável (MER 4.11).
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_no_guest_table_internal;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_no_guest_table_internal
+                    CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL);
+
+                CREATE INDEX IF NOT EXISTS idx_accounts_tenant_status ON accounts (tenant_id, status);
+                CREATE INDEX IF NOT EXISTS idx_accounts_reservation   ON accounts (reservation_id);
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'account_items') THEN
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_quantity_positive;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_quantity_positive CHECK (quantity > 0);
+
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_unit_price_non_negative;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_unit_price_non_negative CHECK (unit_price >= 0);
+
+                -- CA-04.1.c no banco. Também implica total >= 0 (MER): quantity > 0 e
+                -- unit_price >= 0. Inteiro × NUMERIC(10,2) é exato — sem falso positivo
+                -- por arredondamento de centavo.
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_total_matches;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_total_matches CHECK (total = quantity * unit_price);
+
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_reason_allowlist;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_reason_allowlist
+                    CHECK (reason IS NULL OR reason IN (${lista(ITEM_REASONS)}));
+
+                -- RN-007: cortesia é registrada com motivo, para o relatório gerencial.
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_reason_required;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_reason_required
+                    CHECK (billable OR reason IS NOT NULL);
+
+                -- RN-008 com a D-6: índice TOTAL, exceção deliberada à regra dos paranoid.
+                -- O item excluído continua barrando o reenvio do mesmo client_item_id —
+                -- se o índice fosse parcial, a fila offline do garçom recriaria o item
+                -- excluído e recobraria o hóspede. Por tenant: o id vem do dispositivo.
+                CREATE UNIQUE INDEX IF NOT EXISTS account_items_client_item_tenant_unique
+                    ON account_items (tenant_id, client_item_id);
+
+                CREATE INDEX IF NOT EXISTS idx_account_items_account ON account_items (account_id);
+            END IF;
+        END $$;
+    `);
 }
 
 /**

@@ -265,10 +265,10 @@ describe('isolamento multi-tenant no banco (CA-04.1.m)', () => {
         expect(col.is_nullable).toBe('NO');
     });
 
-    // confdeltype: c = CASCADE, r = RESTRICT. Conferido no banco, não no model: o
-    // belongsTo do Sequelize troca o onDelete de FK anulável para SET NULL se a
-    // associação não repetir a regra — e SET NULL num FK de reserva apagaria o vínculo
-    // da conta com a estadia em silêncio.
+    // confdeltype: c = CASCADE, r = RESTRICT. Conferido no banco, não no model: sem o
+    // onDelete no atributo, o Sequelize cria FK anulável como SET NULL — e excluir a
+    // reserva apagaria em silêncio o vínculo da conta com a estadia. Provado por
+    // mutação em 14/10: tirar o onDelete de reservation_id quebra este teste.
     it.each([
         ['accounts', 'tenant_id', 'c'],
         ['accounts', 'reservation_id', 'r'],
