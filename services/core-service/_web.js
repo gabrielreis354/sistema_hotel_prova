@@ -13,6 +13,19 @@ dotenv.config({
 const { default: express } = await import('express');
 const { default: router } = await import('./routes/router.js');
 const { default: app } = await import('./bootstrap/app.js');
+const { getPrivateKey, getPublicKey, assertKeyPair } = await import('./app/utils/jwtKeys.js');
+
+// Fail-fast (ADR-006): sem um par RS256 VÁLIDO o servidor recusa subir. Sem isto ele
+// subiria "saudável" — /health responde, o container fica healthy — e só falharia no
+// primeiro login, com 500. No docker-compose de contingência isso significaria descobrir
+// o problema no meio da defesa; aqui aparece no `docker compose ps` (Restarting) e no log.
+// Confere existência, conteúdo legível e que as duas chaves formam um par.
+try {
+    assertKeyPair(getPrivateKey(), getPublicKey());
+} catch (error) {
+    console.error(`❌ JWT RS256 indisponível — servidor não vai subir. ${error.message}`);
+    process.exit(1);
+}
 
 // Inicializa os relacionamentos do Sequelize
 app();

@@ -1,0 +1,246 @@
+# Contingência local (T-06.4) — sobe o sistema inteiro sem depender da nuvem. Serve para o
+# dia da defesa se a infraestrutura em nuvem (SPEC-02) cair; não substitui o deploy em produção.
+#
+# Uso:
+#   cp .env.example .env        # ajuste PIX_WEBHOOK_SECRET e senhas antes de usar fora do laptop
+#   node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006)
+#   docker compose up -d
+#   docker compose exec backend node command.js migrate
+#   docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional, dados de demo
+#
+# Os mesmos nomes de serviço (postgres, redis, minio, rabbitmq, backend, nginx) usados aqui são
+# os nomes usados em infra/k8s/ — o nginx.conf é o mesmo conteúdo nos dois ambientes.
+#
+# Porta 3000 do host ocupada por outra coisa? defina BACKEND_HOST_PORT no .env (ver serviço
+# backend abaixo) — e aponte o Vite do frontend (frontend/apps/pms/vite.config.ts) pra mesma porta.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hotel_user} -d ${POSTGRES_DB:-gestao_hotel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    # minio/minio saiu do Docker Hub em set/2026 (pulls anônimos passaram a dar 401/"denied") —
+    # a distribuição oficial migrou para quay.io, mesmas tags.
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      # Sem valor padrão: o download de PDF passa pelo nginx até o MinIO (RNF-023), e uma senha
+      # root conhecida não pode subir em silêncio.
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env antes de subir o compose}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Bucket + usuário MinIO só de leitura que assina as URLs de download (RNF-023). Roda e sai;
+  # o backend só sobe depois que ele termina com sucesso. Mesmo script do initContainer do k8s.
+  minio-setup:
+    image: quay.io/minio/minio:latest
+    entrypoint: ["/bin/sh", "/minio-setup.sh"]
+    environment:
+      MINIO_URL: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-hotel-contracts}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env antes de subir o compose}
+      MINIO_PRESIGN_USER: ${MINIO_PRESIGN_USER:-gesway-pdf-leitor}
+      MINIO_PRESIGN_PASSWORD: ${MINIO_PRESIGN_PASSWORD:?defina MINIO_PRESIGN_PASSWORD no .env antes de subir o compose}
+    volumes:
+      - ./infra/k8s/minio-setup.sh:/minio-setup.sh:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
+  rabbitmq:
+    # Só provisionamento nesta etapa — nenhum código publica/consome ainda (ver infra/k8s/rabbitmq.yaml).
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-hotel_broker}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rabbitmq_local_password}
+    ports:
+      - "15672:15672" # UI de gestão — só para inspeção local, não exposta em produção
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./services/core-service
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-3000}:3000" # só na máquina local (não na rede do Wi-Fi): direto no host — o frontend local (Vite, fora
+        # deste compose) aponta para localhost:3000 sem precisar mudar
+        # frontend/apps/pms/vite.config.ts. Ajustável via BACKEND_HOST_PORT no .env se a
+        # porta 3000 já estiver em uso por outra coisa na máquina.
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NODE_WEB_PORT: ${NODE_WEB_PORT:-3000}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-gestao_hotel}
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password}
+      # JWT RS256 (ADR-006): as chaves NÃO estão na imagem (.dockerignore exclui keys/) —
+      # entram pelo volume abaixo. Gere antes do primeiro `up`:
+      #   node services/core-service/scripts/gerar_chaves_jwt.js
+      # Sem elas o backend recusa subir (fail-fast em _web.js), em vez de ficar "healthy"
+      # e só falhar no primeiro login.
+      JWT_PRIVATE_KEY_PATH: /app/keys/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:-core-v1}
+      # Webhook PIX assinado (T-06.9): sem o segredo, /webhooks/pix recusa TODA requisição
+      # (fail-closed) — a confirmação de pagamento da demo não funcionaria.
+      PIX_WEBHOOK_SECRET: ${PIX_WEBHOOK_SECRET:?defina PIX_WEBHOOK_SECRET no .env antes de subir o compose}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      # Token do scrape em /metrics (T-02.4). Opcional para subir: sem ele o backend sobe
+      # normal e só o /metrics responde 503 (fail-closed). Obrigatório no profile observability.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      # Endereço pelo qual o NAVEGADOR chega ao nginx — usado só para assinar a URL de download
+      # de PDF (RNF-023). Precisa bater com a porta publicada do nginx (NGINX_PORT).
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env antes de subir o compose}
+      MINIO_PRESIGN_USER: ${MINIO_PRESIGN_USER:-gesway-pdf-leitor}
+      MINIO_PRESIGN_PASSWORD: ${MINIO_PRESIGN_PASSWORD:?defina MINIO_PRESIGN_PASSWORD no .env antes de subir o compose}
+      MINIO_BUCKET: ${MINIO_BUCKET:-hotel-contracts}
+      MINIO_USE_SSL: "false"
+    volumes:
+      - ./services/core-service/keys:/app/keys:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # /health (não /healthz) — atravessa o location / até o backend_pool de verdade.
+      # /healthz é um checkpoint estático do próprio nginx, sempre 200 mesmo com o backend morto.
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Observabilidade (T-02.4) — fora do `up` padrão: só sobe com o profile ──────────
+  #   docker compose --profile observability up -d
+  # Fica fora do padrão para não pesar no laptop nem exigir variáveis novas de quem só
+  # quer a contingência. Exige METRICS_TOKEN e GRAFANA_ADMIN_PASSWORD no .env.
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: ["observability"]
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    # O Prometheus não expande variável de ambiente no config: grava o token no arquivo que
+    # docker/prometheus/prometheus.yml lê (credentials_file). Sem token, recusa subir —
+    # senão ficaria "no ar" com o alvo eternamente em 503.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        [ -n "$$METRICS_TOKEN" ] || { echo "defina METRICS_TOKEN no .env" >&2; exit 1; };
+        printf %s "$$METRICS_TOKEN" > /prometheus/metrics_token &&
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml
+        --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=2d
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    # Sem porta no host: quem consulta o Prometheus é o Grafana, pela rede do compose.
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: ["observability"]
+    ports:
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3002}:3000" # só na máquina local; 3000 é do backend, 3002 por padrão
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    # Sem senha definida o Grafana cairia no padrão admin/admin — recusa subir (CA-02.4.b).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        [ -n "$$GF_SECURITY_ADMIN_PASSWORD" ] || { echo "defina GRAFANA_ADMIN_PASSWORD no .env" >&2; exit 1; };
+        exec /run.sh
+    volumes:
+      - ./infra/k8s/observability/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./infra/k8s/observability/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/gesway.yml:ro
+      - ./infra/k8s/observability/gesway-dashboard.json:/var/lib/grafana/dashboards/gesway-dashboard.json:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:

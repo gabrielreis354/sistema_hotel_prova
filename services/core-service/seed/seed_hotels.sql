@@ -65,7 +65,7 @@ CROSS JOIN (VALUES
   ('Presidencial', 6, 800.00)
 ) AS v(name, capacity, price)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, name) DO NOTHING;
+ON CONFLICT (tenant_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Standard do Hotel Aurora (8: 101-108, andar 1)
@@ -85,7 +85,7 @@ CROSS JOIN (VALUES
   ('108', 1, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Suite do Hotel Aurora (5: 201-205, andar 2)
@@ -102,7 +102,7 @@ CROSS JOIN (VALUES
   ('205', 2, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Presidencial do Hotel Aurora (2: 301-302, andar 3)
@@ -116,7 +116,7 @@ CROSS JOIN (VALUES
   ('302', 3, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Usuários do Hotel Aurora (3: 1 ADMIN + 2 RECEPTIONIST)
@@ -131,7 +131,7 @@ CROSS JOIN (VALUES
   ('Recepcao Aurora 2',  'recep2@aurora.example', 'RECEPTIONIST')
 ) AS v(name, email, role)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, email) DO NOTHING;
+ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Hóspedes do Hotel Aurora — lote 1 (20: CPFs 30000000001..20)
@@ -162,7 +162,7 @@ CROSS JOIN (VALUES
   ('Thiago Araujo',     '30000000020', '+55-11-91000-0020', 'hospede20@aurora.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, cpf) DO NOTHING;
+ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Hóspedes do Hotel Aurora — lote 2 (20: CPFs 30000000021..40)
@@ -193,7 +193,7 @@ CROSS JOIN (VALUES
   ('Natalia Siqueira',    '30000000040', '+55-11-91000-0040', 'hospede40@aurora.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'aurora'
-ON CONFLICT (tenant_id, cpf) DO NOTHING;
+ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Reservas do Hotel Aurora (25)
@@ -240,6 +240,13 @@ CROSS JOIN (VALUES
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
 WHERE t.subdomain = 'aurora'
+-- A EXCLUDE de anti-double-booking tem predicado WHERE (status <> 'CANCELLED' ...) —
+-- de propósito, reserva cancelada não deve travar o quarto. Efeito colateral: ela também
+-- não dá ao ON CONFLICT DO NOTHING nada para capturar nas linhas CANCELLED deste seed, que
+-- duplicariam a cada execução sem este guard.
+AND NOT EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
+)
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -298,7 +305,7 @@ CROSS JOIN (VALUES
   ('Conforto', 3, 220.00)
 ) AS v(name, capacity, price)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, name) DO NOTHING;
+ON CONFLICT (tenant_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Básico da Pousada Sol (7: 1-7, andar 1)
@@ -317,7 +324,7 @@ CROSS JOIN (VALUES
   ('7', 1, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Quartos Conforto da Pousada Sol (3: 8-10, andar 2)
@@ -332,7 +339,7 @@ CROSS JOIN (VALUES
   ('10', 2, 'AVAILABLE')
 ) AS v(number, floor, status)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, number) DO NOTHING;
+ON CONFLICT (tenant_id, number) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Usuários da Pousada Sol (2: 1 ADMIN + 1 RECEPTIONIST)
@@ -346,7 +353,7 @@ CROSS JOIN (VALUES
   ('Recepcao Sol 1', 'recep1@sol.example', 'RECEPTIONIST')
 ) AS v(name, email, role)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, email) DO NOTHING;
+ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Hóspedes da Pousada Sol (20: CPFs 40000000001..20)
@@ -377,7 +384,7 @@ CROSS JOIN (VALUES
   ('Junia Valente',         '40000000020', '+55-21-92000-0020', 'hospede20@sol.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'sol'
-ON CONFLICT (tenant_id, cpf) DO NOTHING;
+ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Reservas da Pousada Sol (15)
@@ -412,6 +419,9 @@ CROSS JOIN (VALUES
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
 WHERE t.subdomain = 'sol'
+AND NOT EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
+)
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -521,7 +531,7 @@ INSERT INTO event_quotes (tenant_id, corporate_client_id, check_in, check_out, p
 SELECT t.id, cc.id,
   v.check_in::date, v.check_out::date, v.pessoas::int,
   v.vdc::numeric, v.vds::numeric, v.refeicao::bool, v.roupa::bool,
-  v.desconto::numeric, v.total::numeric, v.obs, v.status
+  v.desconto::numeric, v.total::numeric, v.obs, v.status::"enum_event_quotes_status"
 FROM (VALUES
   ('11111111000101','2026-08-15','2026-08-20',120, 85.00, 60.00,true, true, 0,   56500.00,
    'Programa completo: café da manhã, almoço e jantar inclusos. Pedido de sala para cultos noturno.',
@@ -550,7 +560,7 @@ INSERT INTO event_quotes (tenant_id, corporate_client_id, check_in, check_out, p
 SELECT t.id, cc.id,
   v.check_in::date, v.check_out::date, v.pessoas::int,
   v.vdc::numeric, v.vds::numeric, v.refeicao::bool, v.roupa::bool,
-  v.desconto::numeric, v.total::numeric, v.obs, v.status
+  v.desconto::numeric, v.total::numeric, v.obs, v.status::"enum_event_quotes_status"
 FROM (VALUES
   ('44444444000104','2026-09-15','2026-09-18',45, 70.00,50.00,true, true, 0, 9450.00,
    'Excursão pedagógica com atividades ao ar livre. Necessário espaço para assembléia.',
@@ -595,7 +605,7 @@ WHERE NOT EXISTS (
 INSERT INTO contracts (tenant_id, corporate_client_id, quote_id, objeto, check_in, check_out,
   pessoas, total, testemunha_1, testemunha_2, status)
 SELECT t.id, cc.id, eq.id, v.objeto, v.check_in::date, v.check_out::date,
-  v.pessoas::int, v.total::numeric, v.test1, v.test2, v.status
+  v.pessoas::int, v.total::numeric, v.test1, v.test2, v.status::"enum_contracts_status"
 FROM (VALUES
   ('aurora','11111111000101','2026-08-15',
    'Locação temporária de espaço para Retiro Espiritual com hospedagem completa e alimentação para 120 pessoas, no período de 15 a 20 de agosto de 2026.',

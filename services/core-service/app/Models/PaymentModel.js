@@ -72,7 +72,18 @@ const PaymentModel = sequelize.define(
         createdAt: 'created_at',
         updatedAt: 'updated_at',
         paranoid: true,
-        deletedAt: 'deleted_at'
+        deletedAt: 'deleted_at',
+        // Defesa por MODEL, não por call site: pix_qr_code e provider_charge_id nunca
+        // saem por padrão. provider_charge_id é a ÚNICA credencial que POST /webhooks/pix
+        // exige (T-06.9) — qualquer consumidor de PaymentModel que "esquecer" o
+        // `attributes` (como ListPaymentController e GetPaymentController esqueciam,
+        // achado 🔴 reconfirmado em 3 auditorias qa-redteam) continua protegido.
+        // Quem precisar dos campos de verdade (o próprio fluxo PIX, o futuro
+        // RealPixProvider) usa PaymentModel.unscoped() ou .scope(null) explicitamente —
+        // a exceção fica visível no código, não escondida atrás do padrão.
+        defaultScope: {
+            attributes: { exclude: ['pix_qr_code', 'provider', 'provider_charge_id'] }
+        }
     }
 );
 

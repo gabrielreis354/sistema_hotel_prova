@@ -83,7 +83,7 @@ correção sobreviveu à mudança de layout, rodar o portão de QA e abrir PR.
    ```
 
    **c) `qa-redteam` sobre o diff** — relatório completo em
-   `docs/qa/redteam_public-booking-leak_16set2026.md`. **Veredito: APROVADO COM RESSALVAS.**
+   `docs/qa/redteam_public-booking-leak_16set2026_rodada-pos-merge.md`. **Veredito: APROVADO COM RESSALVAS.**
 
    Achado central (🔴, dentro do escopo dos critérios desta tarefa):
    **CA-06.5.b não está cumprido.** `POST /public/:subdomain/bookings` (endpoint público, sem

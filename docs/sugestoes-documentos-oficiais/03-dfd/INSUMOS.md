@@ -28,6 +28,16 @@ UniFAAT) e **SPEC-01** (`docs/specs/SPEC-01-microsservicos.md`, §5).
 
 ## A regra do que entra no diagrama
 
+> ⚠️ **Esta seção foi superada em 21/09/2026.** O DFD é documento **normativo**: declara como o
+> sistema deve funcionar, e é contra ele que o projeto será cobrado. Por isso **processos,
+> armazenamentos e fluxos não levam status de implementação** — só as **entidades de dados**
+> levam, porque ali o status é atributo da entidade e vem do Doc 04. O acompanhamento de
+> execução é do Doc 08. Ver `MOTIVOS.md`, seção "Decisão tomada", e o `README.md` da pasta.
+>
+> O resto do arquivo continua valendo: as marcas 🟡 e 🔵 abaixo dizem **quando** cada peça da
+> arquitetura será construída, o que serve para o Doc 08 e para conferir o que já existe no
+> código.
+
 O critério **C9** exige documentação *"válida e atualizada"*. A regra adotada é a mesma que o
 **MER** já usa, e que o professor aceitou no PR #3: **cada elemento é marcado como implementado
 ou planejado.**

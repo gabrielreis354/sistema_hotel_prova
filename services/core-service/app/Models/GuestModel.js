@@ -42,15 +42,22 @@ const GuestModel = sequelize.define(
             {
                 // CPF único por tenant — PostgreSQL não considera dois NULLs como iguais,
                 // então múltiplos hóspedes sem CPF são permitidos naturalmente.
+                //
+                // Índice PARCIAL. Sem o filtro, um hóspede soft-deletado queimaria o CPF
+                // para sempre: a linha morta continua no índice, o guard da aplicação não
+                // a enxerga (escopo paranoid) e quem barra é o Postgres, virando 500.
+                // Um hóspede antigo removido impediria seu próprio recadastro.
                 unique: true,
                 fields: ['cpf', 'tenant_id'],
-                name: 'guests_cpf_tenant_unique'
+                name: 'guests_cpf_tenant_unique',
+                where: { deleted_at: null }
             },
             {
                 // Email único por tenant — mesmo comportamento NULL do CPF acima.
                 unique: true,
                 fields: ['email', 'tenant_id'],
-                name: 'guests_email_tenant_unique'
+                name: 'guests_email_tenant_unique',
+                where: { deleted_at: null }
             }
         ]
     }

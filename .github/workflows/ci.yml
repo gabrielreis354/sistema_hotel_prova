@@ -62,7 +62,13 @@ jobs:
       POSTGRES_DB: gestao_hotel_test
       POSTGRES_USER: hotel_user
       POSTGRES_PASSWORD: hotel_password
-      JWT_SECRET: pms_hotel_test_secret_ci
+      PIX_WEBHOOK_SECRET: pms_hotel_test_pix_webhook_secret_ci
+      # JWT RS256 (ADR-006/T-01.3) — sem arquivo de chave versionado nenhum: o
+      # globalSetup dos testes gera o par nesse caminho se ele ainda não existir
+      # (mesmo mecanismo do ambiente local/testes, ver tests/setup/globalSetup.js).
+      JWT_PRIVATE_KEY_PATH: tests/setup/.tmp-jwt-keys/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: tests/setup/.tmp-jwt-keys/jwt-public.pem
+      JWT_KEY_ID: core-ci
 
     steps:
       - name: Checkout

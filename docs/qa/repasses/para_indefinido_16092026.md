@@ -1,7 +1,7 @@
 # Repasses sem dono definido — 16/09/2026
 
 Origem: auditoria da branch `fix/public-booking-payment-leak` (T-06.5) —
-relatório em `docs/qa/redteam_public-booking-leak_16set2026.md`.
+relatório em `docs/qa/redteam_public-booking-leak_16set2026_rodada-pos-merge.md`.
 
 Área: backend de B2B (`ContractApi`, `EventQuoteApi`). A §3.3 da divisão dá o **frontend** de B2B
 ao Weslley; o backend não aparece na §7. `git log` mostra commits de Gabriel, Sirlande e de um

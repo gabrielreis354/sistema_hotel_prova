@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "qa:checks": "bash ../../scripts/qa_checks.sh",
-    "setup:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f db/schema.sql",
+    "setup:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f db/schema.sql && node command.js migrate",
     "seed:db": "psql -h ${POSTGRES_HOST:-localhost} -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gestao_hotel} -f seed/seed_hotels.sql"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "pdfkit": "^0.19.1",
     "pg": "^8.12.0",
     "pg-hstore": "^2.3.4",
+    "prom-client": "^15.1.3",
     "sequelize": "^6.37.3",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"

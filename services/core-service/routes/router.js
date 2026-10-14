@@ -3,6 +3,8 @@ import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from '../config/swagger.js';
 import corsMiddleware from '../middlewares/cors.middleware.js';
+import metricsMiddleware from '../middlewares/metrics.middleware.js';
+import GetMetricsController from '../app/Controllers/MetricsApi/GetMetricsController.js';
 import authRouter         from './apis/authRouter.js';
 import LoginController    from '../app/Controllers/AuthApi/LoginController.js';
 import userRouter         from './apis/userRouter.js';
@@ -23,11 +25,23 @@ import addressRouter       from './apis/addressRouter.js';
 
 const router = Router();
 
+// Métricas antes de tudo — mede inclusive o que o CORS ou o auth barrarem (T-02.4).
+router.use(metricsMiddleware);
+
 // CORS antes de tudo — o preflight (OPTIONS) precisa ser respondido sem passar
 // por auth. Fica aqui, no router compartilhado por _web.js e pelos testes.
 router.use(corsMiddleware);
 
-router.use(express.json());
+// `verify` guarda o BUFFER CRU do corpo em request.rawBody antes do parse.
+// Necessário para o webhook PIX (T-06.9): o HMAC do PSP é calculado sobre os
+// bytes exatos enviados, e por aqui o corpo já está consumido quando chega ao
+// controller. JSON.stringify(request.body) não serve — pode diferir do que
+// foi de fato transmitido (ordem de chaves, espaçamento).
+router.use(express.json({
+    verify: (request, response, buf) => {
+        request.rawBody = buf;
+    }
+}));
 
 // Health Check
 router.get('/health', (request, response) => {
@@ -37,6 +51,14 @@ router.get('/health', (request, response) => {
         service: 'Sistema de Gestão de Hotel Backend'
     });
 });
+
+// Métricas Prometheus — protegido por METRICS_TOKEN, não é público (ver controller)
+// /metrics em Router próprio com caseSensitive e strict: o router principal casa sem distinguir
+// caixa e com barra final opcional, e /METRICS ou /metrics/ escapavam do bloqueio do nginx, que
+// só barrava o caminho exato (qa-redteam de 12/10, 🔴-1). Só "/metrics" exato responde aqui.
+const metricsRouter = Router({ caseSensitive: true, strict: true });
+metricsRouter.get('/metrics', GetMetricsController);
+router.use(metricsRouter);
 
 router.get('/', (request, response) => {
     return response.json({

@@ -88,7 +88,7 @@ O Kubernetes e o ambiente de execucao do projeto. Ele organiza cada parte do sis
 | Backend Express | Deployment e Service | API REST com 3 réplicas |
 | Nginx | Deployment e Service | Entrada HTTP do sistema |
 | ConfigMap | Configuração | Variáveis não sensíveis |
-| Secret | Segurança | Senha do banco e JWT secret |
+| Secret | Segurança | `hotel-secret`: senha do banco, webhook PIX, MinIO e RabbitMQ · `jwt-rsa-keys`: par RS256 do JWT, não versionado (ADR-006) |
 | Namespace | Organização | Isolamento lógico do projeto |
 
 ## Fluxo
