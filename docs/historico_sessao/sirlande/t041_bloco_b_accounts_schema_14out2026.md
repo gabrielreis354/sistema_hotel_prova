@@ -40,7 +40,13 @@
   - `migrate` em banco vazio, rodado 2×: 11 CHECKs, 7 índices e FKs com a ação do MER. É idempotente.
   - `schema.sql` puro: mesmas constraints e índices.
   - `schema.sql` seguido de `migrate`: as constraints de conta aplicam, mas o `sync({alter})` falha em `event_quotes` (ver pendência 1). O erro **reproduz no `develop`** sem esta branch.
-- **Não rodados:** qa-redteam e `/security-review`. Pela tabela de blocos, rodam depois do Bloco D, antes do merge.
+- **Não rodados:** qa-redteam e `/security-review`. Pela tabela de blocos, rodariam depois do Bloco D, antes do merge.
+
+#### Merge antecipado (decisão do Sirlande, 14/10)
+
+- O plano previa o merge em `develop` só depois do Bloco D. A pedido do Sirlande, o Bloco B foi mergeado agora. A mudança é aditiva: tabelas novas, nenhuma rota e nenhum contrato de API alterado.
+- O qa-redteam continua obrigatório antes do merge do Bloco D e passa a cobrir também o schema já mergeado.
+- No mesmo fechamento subiram: o documento de decisões `docs/specs/anexos/SPEC-04-decisoes-T-04.1.md`, os documentos da sessão de 16/09 que nunca foram publicados (branch `fix/public-booking-payment-leak`) e dois arquivos que estavam fora do versionamento.
 
 #### Commits
 
@@ -50,7 +56,9 @@
 | `e7ad820` | `feat(accounts): models Account e AccountItem com relations` |
 | `34a20ca` | `fix(accounts): onDelete fica so no atributo do model` |
 | `8cce937` | `feat(db): CHECKs, RN-005 e idempotencia de account_items` |
-| (este) | `docs(historico): relatorio do Bloco B da T-04.1 (14/10)` |
+| `5417426` | `docs(historico): relatorio do Bloco B da T-04.1 (14/10)` |
+| `888517d` | `docs(specs): anexo da SPEC-04 com as decisoes D-1 a D-13 da T-04.1` |
+| (este) | `docs(historico): registra o merge antecipado do Bloco B` |
 
 #### Pendências
 
@@ -62,5 +70,5 @@
 | 4 | Bloco D: o reenvio do `client_item_id` responde 200 com o item existente, inclusive quando o item foi excluído (D-6) | — | Decidir a resposta para item excluído: devolver o item com `deleted_at` ou 409. Hoje o banco só garante que não duplica |
 | 5 | MER: sugerir `deleted_by` em `ACCOUNT_ITEMS` (D-7) e o escopo da RN-005 por estadia (D-3) | 🟢 Baixa | Entra na próxima versão sugerida do Doc 04 |
 | 6 | T-04.2: `consumptions.amount` é `NUMERIC(12,2)`, `account_items.total` é `(10,2)` | 🟢 Baixa | Acima de R$ 99.999.999,99 não migraria. Irreal, mas o CA-04.2.a diz "sem perda de valor": a migração deve checar antes |
-| 7 | qa-redteam com foco em dados | — | O `estado.sh` recomenda já, porque há model e schema no diff. Pelo plano, roda após o Bloco D sobre a branch inteira. Se preferir uma rodada antecipada só do schema, é aqui |
+| 7 | qa-redteam com foco em dados | 🟡 Média | O `estado.sh` recomendou na hora, porque há model e schema no diff. Com o merge antecipado, a auditoria do Bloco D precisa cobrir também o schema que já está em `develop` |
 | 8 | Próximo: **Bloco C**, na mesma branch | — | — |
