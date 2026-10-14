@@ -83,6 +83,14 @@ spec:
           port: 5672
         - protocol: TCP
           port: 15672
+    # Prometheus lê a profundidade das filas, inclusive a de mensagens mortas (CA-01.4.f).
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 15692
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

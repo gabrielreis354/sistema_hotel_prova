@@ -11,6 +11,9 @@ data:
   POSTGRES_DB: gestao_hotel
   POSTGRES_USER: hotel_user
   REDIS_URL: "redis://redis:6379"
+  # Publicador do outbox (T-01.4). A credencial do core vem do hotel-secret.
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
   MINIO_ENDPOINT: "http://minio:9000"
   MINIO_BUCKET: hotel-contracts
   # Endereço pelo qual o navegador chega ao nginx — só para assinar a URL de download de PDF

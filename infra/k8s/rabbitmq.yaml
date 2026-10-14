@@ -30,12 +30,12 @@ spec:
     spec:
       containers:
         - name: rabbitmq
-          # Só provisionamento nesta etapa — nenhum código publica/consome ainda.
-          # O outbox transacional + consumidor chegam com a extração do analytics-service (T-01.4).
+          # Broker dos eventos do core (T-01.4): o publicador do outbox entrega aqui.
           image: rabbitmq:4-management-alpine
           ports:
             - containerPort: 5672   # AMQP
             - containerPort: 15672  # UI de gestão
+            - containerPort: 15692  # métricas (plugin rabbitmq_prometheus) — profundidade das filas
           env:
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
@@ -69,10 +69,79 @@ spec:
           volumeMounts:
             - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
+        # Topologia (exchanges, filas, fila de mensagens mortas) e usuários por serviço — script
+        # infra/k8s/rabbitmq-setup.sh, o mesmo do serviço rabbitmq-setup do compose. Fica no pod do
+        # RabbitMQ, não no do backend: o core opera com o broker fora (CA-01.4.c), os eventos só
+        # acumulam no outbox. Tenta até dar certo e fica parado (o script é idempotente).
+        - name: setup
+          image: rabbitmq:4-management-alpine
+          # Falha é logada a cada tentativa: `kubectl -n hotel-system logs rabbitmq-0 -c setup`.
+          # Até resolver, o publicador do core recebe ACCESS_REFUSED e os eventos esperam no outbox.
+          # `trap` + `sleep & wait`: responde ao SIGTERM na hora, sem segurar o pod em Terminating.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              trap 'exit 0' TERM INT
+              tentativa=0
+              until /bin/sh /setup/rabbitmq-setup.sh; do
+                tentativa=$((tentativa + 1))
+                echo "rabbitmq-setup: FALHOU (tentativa $tentativa) — eventos do core ficam no outbox até resolver; causa nas linhas acima. Nova tentativa em 10 s." >&2
+                sleep 10 & wait $!
+              done
+              while true; do sleep 3600 & wait $!; done
+          env:
+            - name: RABBITMQ_API_HOST
+              value: localhost
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_DEFAULT_PASS
+            - name: RABBITMQ_CORE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_CORE_USER
+            - name: RABBITMQ_CORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_CORE_PASSWORD
+            - name: RABBITMQ_ANALYTICS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_ANALYTICS_USER
+            - name: RABBITMQ_ANALYTICS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_ANALYTICS_PASSWORD
+          # rabbitmqadmin é um binário só, leve; em repouso o contêiner só dorme.
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          volumeMounts:
+            - name: rabbitmq-setup
+              mountPath: /setup
+              readOnly: true
       volumes:
         - name: rabbitmq-data
           persistentVolumeClaim:
             claimName: rabbitmq-data
+        - name: rabbitmq-setup
+          configMap:
+            name: rabbitmq-setup
 ---
 apiVersion: v1
 kind: Service
@@ -90,3 +159,6 @@ spec:
     - name: management
       port: 15672
       targetPort: 15672
+    - name: metrics
+      port: 15692
+      targetPort: 15692
