@@ -44,3 +44,14 @@ web.listen(port, () => {
     console.log(`💾 Banco de Dados PostgreSQL conectado via Sequelize`);
     console.log(`==================================================\n`);
 });
+
+// Publicador do outbox (T-01.4/H.1): entrega os eventos de domínio ao RabbitMQ. Sem
+// RABBITMQ_HOST fica desligado e os eventos só acumulam — a API não depende do broker.
+const { startOutboxPublisherFromEnv } = await import('./app/services/outbox/publisher.js');
+const outboxPublisher = startOutboxPublisherFromEnv();
+for (const sinal of ['SIGTERM', 'SIGINT']) {
+    process.once(sinal, () => {
+        outboxPublisher?.stop();
+        process.exit(0);
+    });
+}
