@@ -351,7 +351,7 @@ O Termo de Aceite pede microsserviços em contêineres e orquestração. O siste
 ### ADR-006: Propagação de Identidade entre Serviços
 
 **Data:** 24/09/2026
-**Status:** Aceita — implementada no `core-service` em 28/09/2026; as partes que dependem dos novos serviços entram com eles
+**Status:** Aceita — JWT RS256 implementado em 28/09/2026 e usuários do RabbitMQ por serviço em 15/10/2026; as rotas internas com `X-Internal-Token` entram com o `b2b-service`
 **Autores:** Gabriel Reis Cunha
 
 #### Contexto
