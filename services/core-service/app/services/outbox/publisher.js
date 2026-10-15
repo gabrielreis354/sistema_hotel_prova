@@ -12,6 +12,13 @@ import sequelize from '../../../database/connections/sequelize.js';
  *
  * Broker fora do ar: a API não depende disto — os eventos acumulam no outbox (CA-01.4.c) e o
  * publicador espera cada vez mais entre tentativas, até 30 s.
+ *
+ * Publicação com `mandatory`: sem fila ligada à exchange, o broker CONFIRMA e descarta — o outbox
+ * marcaria como entregue um evento que ninguém recebeu. Com `mandatory` a mensagem volta
+ * (basic.return, sempre antes da confirmação) e o lote inteiro é desfeito.
+ *
+ * Retenção: linha publicada há mais de `retentionDays` é apagada (LGPD — o payload de hóspede leva
+ * o nome; sem limpeza o histórico de nomes ficaria para sempre). Pendente nunca é apagada.
  */
 export const EXCHANGE = 'gesway.core.events';
 
@@ -53,10 +60,22 @@ export function createOutboxPublisher({
     batchSize = 100,
     maxBackoffMs = 30000,
     confirmTimeoutMs = 10000,
+    retentionDays = 7,
+    purgeEveryMs = 60 * 60 * 1000,
     sleep = defaultSleep,
     logger = console,
 } = {}) {
     let running = false;
+    let ultimaLimpeza = 0;
+
+    /** Apaga o que já foi publicado há mais de `retentionDays`. Devolve quantas linhas saíram. */
+    async function purgePublished() {
+        const [, resultado] = await sequelize.query(
+            'DELETE FROM outbox WHERE published_at < now() - make_interval(days => :dias)',
+            { replacements: { dias: retentionDays } }
+        );
+        return resultado.rowCount;
+    }
 
     /** Publica um lote. Devolve quantos eventos saíram. Lança se o broker não confirmar. */
     async function publishPending(channel) {
@@ -76,15 +95,26 @@ export function createOutboxPublisher({
                 return 0;
             }
 
-            for (const row of rows) {
-                channel.publish(EXCHANGE, row.type, Buffer.from(JSON.stringify(toEnvelope(row))), {
-                    persistent: true,
-                    contentType: 'application/json',
-                    messageId: row.event_id,
-                    type: row.type,
-                });
+            const devolvidas = [];
+            const aoDevolver = (msg) => devolvidas.push(msg.properties.messageId);
+            channel.on('return', aoDevolver);
+            try {
+                for (const row of rows) {
+                    channel.publish(EXCHANGE, row.type, Buffer.from(JSON.stringify(toEnvelope(row))), {
+                        persistent: true,
+                        mandatory: true,
+                        contentType: 'application/json',
+                        messageId: row.event_id,
+                        type: row.type,
+                    });
+                }
+                await confirmWithin(channel, confirmTimeoutMs);
+            } finally {
+                channel.off('return', aoDevolver);
             }
-            await confirmWithin(channel, confirmTimeoutMs);
+            if (devolvidas.length) {
+                throw new Error(`${devolvidas.length} evento(s) sem fila de destino na exchange ${EXCHANGE} — topologia incompleta?`);
+            }
 
             await sequelize.query('UPDATE outbox SET published_at = now() WHERE id IN (:ids)', {
                 replacements: { ids: rows.map((r) => r.id) },
@@ -109,6 +139,10 @@ export function createOutboxPublisher({
             try {
                 if (!connection) connection = await connect();
                 const published = await publishPending(connection.channel);
+                if (Date.now() - ultimaLimpeza >= purgeEveryMs) {
+                    ultimaLimpeza = Date.now();
+                    await purgePublished();
+                }
                 if (ultimoErro) logger.info('Outbox: publicação retomada.');
                 backoff = 0;
                 ultimoErro = null;
@@ -136,7 +170,7 @@ export function createOutboxPublisher({
         running = false;
     }
 
-    return { publishPending, start, stop };
+    return { publishPending, purgePublished, start, stop };
 }
 
 /**

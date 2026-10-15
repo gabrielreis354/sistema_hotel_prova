@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import { QueryTypes } from 'sequelize';
@@ -16,19 +17,24 @@ import { createOutboxPublisher, EXCHANGE } from '../app/services/outbox/publishe
 const app = createApp();
 let jwt;
 
-function canalFalso({ confirma = true, atrasoMs = 0 } = {}) {
-    const publicados = [];
-    return {
-        publicados,
-        publish(exchange, routingKey, content, options) {
-            publicados.push({ exchange, routingKey, envelope: JSON.parse(content.toString()), options });
-            return true;
-        },
-        async waitForConfirms() {
-            if (atrasoMs) await new Promise((ok) => setTimeout(ok, atrasoMs));
-            if (!confirma) throw new Error('nack do broker');
-        },
+// `semFila`: tipos de evento que o broker devolve (basic.return) por não haver fila ligada.
+// `trava`: confirmação que nunca chega (alarme de memória/disco do RabbitMQ).
+function canalFalso({ confirma = true, atrasoMs = 0, semFila = [], trava = false } = {}) {
+    const canal = new EventEmitter();
+    canal.publicados = [];
+    canal.publish = (exchange, routingKey, content, options) => {
+        canal.publicados.push({ exchange, routingKey, envelope: JSON.parse(content.toString()), options });
+        if (options.mandatory && semFila.includes(routingKey)) {
+            queueMicrotask(() => canal.emit('return', { fields: { routingKey }, properties: { messageId: options.messageId } }));
+        }
+        return true;
     };
+    canal.waitForConfirms = async () => {
+        if (trava) return new Promise(() => {});
+        if (atrasoMs) await new Promise((ok) => setTimeout(ok, atrasoMs));
+        if (!confirma) throw new Error('nack do broker');
+    };
+    return canal;
 }
 
 const pendentes = async () => (await sequelize.query('SELECT count(*)::int AS n FROM outbox WHERE published_at IS NULL', { type: QueryTypes.SELECT }))[0].n;
@@ -57,7 +63,7 @@ describe('publishPending — entrega e confirmação (CA-01.4.b)', () => {
         expect(criado.exchange).toBe(EXCHANGE);
         expect(criado.routingKey).toBe('guest.created');
         expect(atualizado.routingKey).toBe('guest.updated');
-        expect(criado.options).toMatchObject({ persistent: true, contentType: 'application/json', messageId: criado.envelope.event_id, type: 'guest.created' });
+        expect(criado.options).toMatchObject({ persistent: true, mandatory: true, contentType: 'application/json', messageId: criado.envelope.event_id, type: 'guest.created' });
         expect(Object.keys(criado.envelope).sort()).toEqual(['aggregate_id', 'aggregate_version', 'event_id', 'occurred_at', 'payload', 'tenant_id', 'type', 'version']);
         expect(criado.envelope).toMatchObject({ type: 'guest.created', version: 1, aggregate_id: g.id, payload: { full_name: 'Publicada Um' } });
         expect(typeof criado.envelope.aggregate_version).toBe('number');
@@ -80,9 +86,15 @@ describe('publishPending — entrega e confirmação (CA-01.4.b)', () => {
 
     it('broker bloqueado (alarme de memória/disco) não prende a réplica: estoura o prazo e nada é marcado', async () => {
         await createGuest(app, jwt, { full_name: 'Broker Bloqueado' });
-        const travado = { ...canalFalso(), waitForConfirms: () => new Promise(() => {}) };
 
-        await expect(createOutboxPublisher({ confirmTimeoutMs: 50 }).publishPending(travado)).rejects.toThrow('não confirmou');
+        await expect(createOutboxPublisher({ confirmTimeoutMs: 50 }).publishPending(canalFalso({ trava: true }))).rejects.toThrow('não confirmou');
+        expect(await pendentes()).toBe(1);
+    });
+
+    it('evento sem fila de destino (devolvido pelo broker) desfaz o lote: nada é marcado como entregue', async () => {
+        await createGuest(app, jwt, { full_name: 'Sem Fila' });
+
+        await expect(createOutboxPublisher().publishPending(canalFalso({ semFila: ['guest.created'] }))).rejects.toThrow('sem fila de destino');
         expect(await pendentes()).toBe(1);
     });
 
@@ -176,5 +188,22 @@ describe('Broker fora do ar (CA-01.4.c)', () => {
         expect(canal.publicados.map((p) => p.envelope.payload.full_name)).toContain('Acumulado');
         expect(await pendentes()).toBe(0);
         expect(esperas).toEqual([1000, 2000, 1000]);
+    });
+});
+
+describe('Retenção do outbox (LGPD)', () => {
+    it('apaga só o que foi publicado há mais do prazo; pendente e recente ficam', async () => {
+        await createGuest(app, jwt, { full_name: 'Antigo' });
+        await createGuest(app, jwt, { full_name: 'Recente' });
+        await createGuest(app, jwt, { full_name: 'Pendente' });
+        await sequelize.query(`UPDATE outbox SET published_at = now() - interval '8 days' WHERE payload->>'full_name' = 'Antigo'`);
+        await sequelize.query(`UPDATE outbox SET published_at = now() - interval '6 days' WHERE payload->>'full_name' = 'Recente'`);
+        const nomes = async () => (await sequelize.query(
+            `SELECT payload->>'full_name' AS n FROM outbox WHERE payload->>'full_name' IN ('Antigo', 'Recente', 'Pendente') ORDER BY id`,
+            { type: QueryTypes.SELECT },
+        )).map((r) => r.n);
+
+        expect(await createOutboxPublisher({ retentionDays: 7 }).purgePublished()).toBeGreaterThanOrEqual(1);
+        expect(await nomes()).toEqual(['Recente', 'Pendente']);
     });
 });
