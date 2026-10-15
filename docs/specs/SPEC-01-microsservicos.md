@@ -227,21 +227,21 @@ Hoje o JWT é validado por *middleware* local (`services/core-service/middleware
 
 ---
 
-### T-01.4 — Extrair o `analytics-service` com pipeline de eventos 🔲
+### T-01.4 — Extrair o `analytics-service` com pipeline de eventos 🔄 (H.1 entregue — core e broker)
 
 **DEP:** T-01.1 ✅, T-01.2, T-01.3
 
 Primeiro serviço a sair: não altera estado do hotel, então a extração não arrisca invariante nenhuma. **É também a tarefa que implanta o broker** — o que a torna maior do que a v1.1 desta Spec previa.
 
 **No core**
-- [ ] **CA-01.4.a** — Tabela de *outbox* no banco do core; cada evento é gravado **na mesma transação** da alteração que o originou
-- [ ] **CA-01.4.b** — Publicador entrega os eventos pendentes à *exchange* do RabbitMQ e marca como publicados
-- [ ] **CA-01.4.c** — Com o RabbitMQ fora do ar, o core continua operando e os eventos acumulam no *outbox* — **comprovado por teste**
-- [ ] **CA-01.4.d** — Todos os eventos da §5 publicados, com `tenant_id`
+- [x] **CA-01.4.a** — Tabela de *outbox* no banco do core; cada evento é gravado **na mesma transação** da alteração que o originou — *H.1: trigger `AFTER` por linha em 6 tabelas (decisão do Gabriel: no banco, não nos controllers); cobre também as escritas em lote da P-5*
+- [x] **CA-01.4.b** — Publicador entrega os eventos pendentes à *exchange* do RabbitMQ e marca como publicados — *H.1: `FOR UPDATE SKIP LOCKED`, publisher confirms com prazo, `published_at` só depois da confirmação*
+- [x] **CA-01.4.c** — Com o RabbitMQ fora do ar, o core continua operando e os eventos acumulam no *outbox* — **comprovado por teste** — *H.1: `tests/outbox-publisher.test.js` e no compose real (broker parado → 201 → drenado ao religar)*
+- [x] **CA-01.4.d** — Todos os eventos da §5 publicados, com `tenant_id` — *H.1: os do catálogo v1.0 §4; `guest.erased` (payload vazio) já sai do `DELETE` físico de hóspede, que só a T-06.11 vai disparar*
 
 **No broker**
-- [ ] **CA-01.4.e** — RabbitMQ no `infra/k8s/` e no Docker Compose, com fila durável do analytics e fila de mensagens mortas
-- [ ] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8)
+- [x] **CA-01.4.e** — RabbitMQ no `infra/k8s/` e no Docker Compose, com fila durável do analytics e fila de mensagens mortas — *H.1: `infra/k8s/rabbitmq-setup.sh`, usuário por serviço com menor privilégio (catálogo §8)*
+- [ ] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8) — *H.1: Prometheus já raspa `/metrics/per-object` (profundidade de cada fila, inclusive DLQ); falta o painel no Grafana (T-02.4, Weslley). Atraso de consumo só existe com o consumidor (H.2)*
 
 **No analytics**
 - [ ] **CA-01.4.g** — Serviço em processo próprio, com `package.json`, `Dockerfile` e banco PostgreSQL próprios
