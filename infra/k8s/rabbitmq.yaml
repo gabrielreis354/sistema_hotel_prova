@@ -47,25 +47,34 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: RABBITMQ_DEFAULT_PASS
+          # Probes por TCP na porta AMQP, que só abre no fim do boot. O `rabbitmq-diagnostics`
+          # sobe uma VM Erlang a cada checagem: passava do timeout de 10 s com CPU limitada e somava
+          # memória ao contêiner — no minikube o pod ficou em OOMKilled/reinício por dias (14/10).
+          # O 1º boot leva ~1 min; o startupProbe dá até 5 min antes de a liveness valer.
+          startupProbe:
+            tcpSocket:
+              port: 5672
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "-q", "check_running"]
-            initialDelaySeconds: 15
+            tcpSocket:
+              port: 5672
             periodSeconds: 15
-            timeoutSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "-q", "check_running"]
-            initialDelaySeconds: 45
+            tcpSocket:
+              port: 5672
             periodSeconds: 30
-            timeoutSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # 256 Mi não comportava o RabbitMQ 4 com o plugin de gestão (OOMKilled no minikube).
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "300m"
               memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           volumeMounts:
             - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
