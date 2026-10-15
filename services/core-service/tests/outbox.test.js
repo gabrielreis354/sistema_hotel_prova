@@ -136,6 +136,15 @@ describe('Hóspede — guests: minimização (§4.4)', () => {
         expect(lista.map((e) => e.type)).toEqual(['guest.created', 'guest.updated', 'guest.deleted']);
         expect(lista[1].payload).toEqual({ full_name: 'João Depois' });
     });
+    it('eliminação física (T-06.11) gera guest.erased com payload VAZIO — o nome não viaja de novo', async () => {
+        const g = await createGuest(app, jwt, { full_name: 'Titular Eliminado' });
+        await GuestModel.destroy({ where: { id: g.id, tenant_id: tenantId }, force: true });
+
+        const e = await ultimo(g.id);
+        expect(e.type).toBe('guest.erased');
+        expect(e.payload).toEqual({});
+        expect(e.tenant_id).toBe(tenantId);
+    });
 });
 
 describe('Reserva — reservations (§4.5)', () => {
@@ -253,5 +262,24 @@ describe('Atomicidade e ordem (CA-01.4.a, §6)', () => {
         const lista = (await eventos(g.id)).filter((e) => e.type === 'guest.updated');
         expect(lista.map((e) => e.payload.full_name)).toEqual(['Concorrência 1', 'Concorrência 2']);
         expect(Number(lista[1].id)).toBeGreaterThan(Number(lista[0].id));
+    });
+});
+
+describe('Isolamento multi-tenant do evento', () => {
+    it('cada evento leva o tenant_id do hotel dono da linha — nunca o de outro, nunca o id da linha', async () => {
+        const outro = await registerAndLogin(app, { tenantName: 'Hotel Outbox Vizinho' });
+        const meu = await createGuest(app, jwt, { full_name: 'Hóspede Daqui' });
+        const deles = await createGuest(app, outro.jwt, { full_name: 'Hóspede de Lá' });
+
+        expect((await ultimo(meu.id)).tenant_id).toBe(tenantId);
+        expect((await ultimo(deles.id)).tenant_id).toBe(outro.tenantId);
+        expect((await ultimo(outro.tenantId)).tenant_id).toBe(outro.tenantId);   // tenant.created: o próprio hotel
+        const [{ errados }] = await sequelize.query(
+            `SELECT count(*)::int AS errados FROM outbox o
+               LEFT JOIN guests g ON g.id = o.aggregate_id
+              WHERE o.type LIKE 'guest.%' AND g.id IS NOT NULL AND g.tenant_id <> o.tenant_id`,
+            { type: QueryTypes.SELECT },
+        );
+        expect(errados).toBe(0);
     });
 });

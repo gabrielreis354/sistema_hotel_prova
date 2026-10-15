@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
 
@@ -182,7 +183,12 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     // Por último: num banco legado com quarto vendido duas vezes, a ocupação recusa criar o
     // EXCLUDE — e isso não pode impedir a cura dos índices e CHECKs acima. Erro guardado e
     // reportado junto com os outros.
-    await applyOutbox(sequelize);
+    let falhaOutbox = null;
+    try {
+        await applyOutbox(sequelize);
+    } catch (error) {
+        falhaOutbox = error;
+    }
 
     let falhaOcupacao = null;
     try {
@@ -200,10 +206,14 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
             `provavelmente há linhas VIVAS duplicadas nas colunas abaixo, e não é seguro ` +
             `decidir sozinho qual manter:\n${detalhe}\n` +
             `O restante das constraints e índices foi aplicado normalmente.` +
-            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '')
+            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '') +
+            (falhaOutbox ? `\n\nOutbox: ${falhaOutbox.message}` : '')
         );
     }
-    if (falhaOcupacao) throw falhaOcupacao;
+    if (falhaOcupacao && falhaOutbox) {
+        throw new Error(`${falhaOcupacao.message}\n\nOutbox: ${falhaOutbox.message}`);
+    }
+    if (falhaOcupacao || falhaOutbox) throw falhaOcupacao ?? falhaOutbox;
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
 }
@@ -452,9 +462,38 @@ async function applyRoomOccupancy(sequelize, log = () => {}) {
  * nenhum campo do payload não gera evento (ex.: telefone do hóspede, preço da categoria).
  */
 async function applyOutbox(sequelize) {
+    // Trigger apontando para uma tabela que não existe derruba TODA escrita nas 6 tabelas. O
+    // migrate tolera falha no sync — então confere antes e recusa com mensagem clara.
+    const [{ existe }] = await sequelize.query(
+        "SELECT to_regclass('public.outbox') IS NOT NULL AS existe",
+        { type: QueryTypes.SELECT }
+    );
+    if (!existe) {
+        throw new Error('tabela outbox não existe (o sync falhou antes de criá-la) — triggers do outbox NÃO criados');
+    }
+
     await sequelize.query(`
         CREATE OR REPLACE FUNCTION outbox_iso(ts timestamptz) RETURNS text AS $$
             SELECT to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        $$ LANGUAGE sql IMMUTABLE;
+
+        -- Payload do §4 a partir de uma linha — o mesmo para o estado atual e o anterior.
+        CREATE OR REPLACE FUNCTION outbox_payload(agregado text, l jsonb) RETURNS jsonb AS $$
+            SELECT CASE agregado
+                WHEN 'tenant'        THEN jsonb_build_object('status', l->>'status')
+                WHEN 'room_category' THEN jsonb_build_object('name', l->>'name')
+                WHEN 'room'          THEN jsonb_build_object('category_id', l->>'category_id', 'number', l->>'number', 'status', l->>'status')
+                WHEN 'guest'         THEN jsonb_build_object('full_name', l->>'full_name')
+                WHEN 'reservation'   THEN jsonb_build_object(
+                    'guest_id', l->>'guest_id', 'room_id', l->>'room_id', 'status', l->>'status',
+                    'check_in_date', l->>'check_in_date', 'check_out_date', l->>'check_out_date',
+                    'total_amount', l->>'total_amount',
+                    'created_at', outbox_iso((l->>'created_at')::timestamptz))
+                WHEN 'payment'       THEN jsonb_build_object(
+                    'reservation_id', l->>'reservation_id', 'amount', l->>'amount', 'method', l->>'method',
+                    'status', l->>'status',
+                    'paid_at', CASE WHEN l->>'paid_at' IS NULL THEN NULL ELSE outbox_iso((l->>'paid_at')::timestamptz) END)
+            END
         $$ LANGUAGE sql IMMUTABLE;
 
         CREATE OR REPLACE FUNCTION outbox_grava_evento() RETURNS trigger AS $$
@@ -465,7 +504,6 @@ async function applyOutbox(sequelize) {
             agregado text;
             fato     text;
             dados    jsonb;
-            antes    jsonb;
             tenant   uuid;
         BEGIN
             agregado := CASE TG_TABLE_NAME
@@ -476,48 +514,22 @@ async function applyOutbox(sequelize) {
                 WHEN 'reservations'    THEN 'reservation'
                 WHEN 'payments'        THEN 'payment'
             END;
-
-            -- Payload do §4, do estado atual (e do anterior, para detectar se algo relevante mudou).
-            dados := CASE agregado
-                WHEN 'tenant'        THEN jsonb_build_object('status', atual->>'status')
-                WHEN 'room_category' THEN jsonb_build_object('name', atual->>'name')
-                WHEN 'room'          THEN jsonb_build_object('category_id', atual->>'category_id', 'number', atual->>'number', 'status', atual->>'status')
-                WHEN 'guest'         THEN jsonb_build_object('full_name', atual->>'full_name')
-                WHEN 'reservation'   THEN jsonb_build_object(
-                    'guest_id', atual->>'guest_id', 'room_id', atual->>'room_id', 'status', atual->>'status',
-                    'check_in_date', atual->>'check_in_date', 'check_out_date', atual->>'check_out_date',
-                    'total_amount', atual->>'total_amount',
-                    'created_at', outbox_iso((atual->>'created_at')::timestamptz))
-                WHEN 'payment'       THEN jsonb_build_object(
-                    'reservation_id', atual->>'reservation_id', 'amount', atual->>'amount', 'method', atual->>'method',
-                    'status', atual->>'status',
-                    'paid_at', CASE WHEN atual->>'paid_at' IS NULL THEN NULL ELSE outbox_iso((atual->>'paid_at')::timestamptz) END)
-            END;
+            dados := outbox_payload(agregado, atual);
 
             IF TG_OP = 'INSERT' THEN
                 fato := 'created';
+            ELSIF TG_OP = 'DELETE' AND agregado = 'guest' THEN
+                -- Hóspede só sai fisicamente do banco por eliminação a pedido do titular (T-06.11):
+                -- §4.4 manda guest.erased com payload VAZIO — o nome não pode viajar de novo.
+                fato := 'erased';
+                dados := '{}'::jsonb;
             ELSIF TG_OP = 'DELETE' THEN
                 fato := 'deleted';
             ELSIF velho->>'deleted_at' IS NULL AND novo->>'deleted_at' IS NOT NULL THEN
                 fato := 'deleted';                                   -- exclusão lógica (paranoid)
             ELSE
-                antes := CASE agregado
-                    WHEN 'tenant'        THEN jsonb_build_object('status', velho->>'status')
-                    WHEN 'room_category' THEN jsonb_build_object('name', velho->>'name')
-                    WHEN 'room'          THEN jsonb_build_object('category_id', velho->>'category_id', 'number', velho->>'number', 'status', velho->>'status')
-                    WHEN 'guest'         THEN jsonb_build_object('full_name', velho->>'full_name')
-                    WHEN 'reservation'   THEN jsonb_build_object(
-                        'guest_id', velho->>'guest_id', 'room_id', velho->>'room_id', 'status', velho->>'status',
-                        'check_in_date', velho->>'check_in_date', 'check_out_date', velho->>'check_out_date',
-                        'total_amount', velho->>'total_amount',
-                        'created_at', outbox_iso((velho->>'created_at')::timestamptz))
-                    WHEN 'payment'       THEN jsonb_build_object(
-                        'reservation_id', velho->>'reservation_id', 'amount', velho->>'amount', 'method', velho->>'method',
-                        'status', velho->>'status',
-                        'paid_at', CASE WHEN velho->>'paid_at' IS NULL THEN NULL ELSE outbox_iso((velho->>'paid_at')::timestamptz) END)
-                END;
-
-                IF dados = antes AND (velho->>'deleted_at') IS NOT DISTINCT FROM (novo->>'deleted_at') THEN
+                IF dados = outbox_payload(agregado, velho)
+                   AND (velho->>'deleted_at') IS NOT DISTINCT FROM (novo->>'deleted_at') THEN
                     RETURN NULL;                                     -- nada que o analytics use mudou
                 END IF;
 
