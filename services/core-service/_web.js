@@ -48,10 +48,7 @@ web.listen(port, () => {
 // Publicador do outbox (T-01.4/H.1): entrega os eventos de domínio ao RabbitMQ. Sem
 // RABBITMQ_HOST fica desligado e os eventos só acumulam — a API não depende do broker.
 const { startOutboxPublisherFromEnv } = await import('./app/services/outbox/publisher.js');
-const outboxPublisher = startOutboxPublisherFromEnv();
-for (const sinal of ['SIGTERM', 'SIGINT']) {
-    process.once(sinal, () => {
-        outboxPublisher?.stop();
-        process.exit(0);
-    });
-}
+// Sem handler de SIGTERM de propósito: como PID 1 do contêiner, o processo segue atendendo até o
+// fim do prazo de encerramento do pod. Lote interrompido não se perde — a transação cai junto com
+// a conexão e o lote volta na próxima rodada de outra réplica.
+startOutboxPublisherFromEnv();
