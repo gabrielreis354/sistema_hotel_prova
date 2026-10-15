@@ -1,7 +1,11 @@
-# Documento 07 (ADR) — motivos da proposta ADR-006
+# Documento 07 (ADR) — motivos
+
+> **Atualização de 14/10/2026 — o Documento 07 passou ao Gabriel.** A versão completa para entrega
+> está em `versao-sugerida_v1.0.md` e tem seção própria ao final deste arquivo. As seções abaixo,
+> até ela, registram a proposta da ADR-006 (22/09), quando o dono era o Weslley; ficam como histórico.
 
 **Documento oficial:** `Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md`
-**Dono:** **Weslley Lucas** (a ADR-003 foi redigida pelo Gabriel, mas o documento é dele)
+**Dono:** ~~Weslley Lucas~~ → **Gabriel Reis Cunha**, desde 14/10/2026
 **Proposta:** `ADR-006-proposta.md`
 **Data:** 22/09/2026 · **Autor:** agente executor, trilha do Gabriel (Etapa 5, fase 5a da delegação `docs/delegacoes/pendencias_liberadas_gabriel_16set2026.md`)
 
@@ -66,3 +70,48 @@ tarefas chegarem.
   serviço RS256, mTLS), a tabela "Alternativas Consideradas" da proposta já registra o trade-off
   de cada uma — a mudança de decisão não exige nova pesquisa, só escolher outra linha da tabela e
   ajustar a seção "Decisão" correspondente.
+
+---
+
+## Versão v1.0 para entrega (14/10/2026)
+
+**Arquivo:** `versao-sugerida_v1.0.md` — o Documento 07 inteiro, pronto para transcrever no fork
+(`Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md`). **Dono:** Gabriel.
+**Base:** a v0.1 da `main` do fork (só a ADR-003). A ADR-003 foi mantida **sem nenhuma alteração**.
+
+Para ver o que muda:
+
+```bash
+diff --strip-trailing-cr <fork>/Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md \
+     docs/sugestoes-documentos-oficiais/07-adr/versao-sugerida_v1.0.md
+```
+
+### De onde vem cada ADR
+
+| ADR | Status | Fonte no repositório |
+|---|---|---|
+| 001 — Backend Node.js + Express | Aceita (13/05) | Primeiro commit; `docs/CODING_STANDARDS.md`; `services/core-service/package.json` |
+| 002 — PostgreSQL 17 | Aceita (21/05) | Doc 04 §2 (justificativa já entregue); `db/schema.sql`; regra 8 do `scripts/qa_checks.sh` |
+| 003 — Recorte de serviços | Aceita (14/09) | Já no fork — **inalterada** |
+| 004 — AWS, k3s em dois nós de 1 GiB | Aceita (16/09, revista em 10/10) | `docs/historico_sessao/weslley/viacep_e_decisao_k8s_16set2026.md` (insumo da ADR-004); Doc 05 v1.0 do PR #6 do fork. O faseamento `t3.micro → t3.small` de 16/09 vira alternativa rejeitada |
+| 005 — Docker + Kubernetes, Compose de contingência | Aceita (10/06) | Manifests de `infra/k8s/` (10/06); `docker-compose.yml` de contingência (T-06.4, 16/09) |
+| 006 — Identidade entre serviços | Aceita (24/09) | `ADR-006-proposta.md`, sem as notas internas e a seção de implementação |
+| 007 — Uma reserva por quarto | **Proposta** | `ADR-007-candidata.md`, resumida, com o gatilho de decisão |
+| 008 — Integrações externas atrás de interface | Aceita (27/06) | `app/services/pix/` e `app/services/address/`; **atende a T-03.3** da SPEC-03 (CA-03.3.a–c) |
+| 009 — Consumo por contas | Aceita, em implementação (07/08) | SPEC-04 §4 e `docs/specs/anexos/SPEC-04-decisoes-T-04.1.md` (D-1 a D-13) |
+| 010 — Estorno no lugar de exclusão | Aceita, implementação planejada (04/10) | D-2 do catálogo de eventos; T-06.13 da SPEC-06 |
+| 011 — Frontend em SPA e monorepo | Aceita (07/08) | SPEC-05 §3 e `frontend/package.json`. A SPEC-05 diz React 19; o código usa **18.3.1**, que é o registrado |
+
+As afirmações de cada ADR foram conferidas contra a `develop` em 14/10/2026.
+
+### Pontos em aberto
+
+- **RNF-003 × nuvem.** O Doc 02 exige no mínimo 3 réplicas do backend; a ADR-004 e o Doc 05 rodam 1
+  réplica por serviço nos nós de 1 GiB. Está registrado como consequência negativa da ADR-004. A
+  correção é no Doc 02 (dono: Gabriel) — por exemplo, limitar o RNF-003 ao cluster local na v1.4.
+- **ADR-007 como "Proposta".** Mostra ao professor uma decisão em aberto, com gatilho. Se a equipe
+  preferir só decisões fechadas, sai da v1.0 e entra quando for decidida.
+- **Coerência com o Doc 06.** As alternativas da §5 do Doc 06 v1.1 sugerido batem com as ADR-001, 002,
+  004 e 005; a linha 8 da §5 do Doc 06 deve citar a ADR-008.
+- **Ordem de entrega.** O 07 é entregue depois do 05 e do 06. Até lá, o documento é atualizado a cada
+  decisão nova; quando for transcrito no fork, esta pasta registra a data.
