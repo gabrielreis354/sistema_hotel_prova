@@ -10,7 +10,7 @@ Este projeto tambem pode ser executado em Kubernetes como uma alternativa ao Doc
 | Backend Express | Deployment + Service | 3 | API REST do sistema |
 | Nginx | Deployment + Service LoadBalancer | 1 | Entrada HTTP e proxy reverso |
 | Configuracoes | ConfigMap | - | Variaveis nao sensiveis |
-| Segredos | Secret | - | `hotel-secret`: senha do banco, webhook PIX, MinIO e RabbitMQ · `jwt-rsa-keys`: par RS256 do JWT, não versionado (ADR-006) |
+| Segredos | Secret | - | `hotel-secret`: senha do banco, webhook PIX, MinIO e RabbitMQ (admin + usuários do core e do analytics) · `jwt-rsa-keys`: par RS256 do JWT, não versionado (ADR-006) |
 | Namespace | Namespace | - | Isolamento logico do projeto |
 
 ## Fluxo de rede
@@ -28,7 +28,7 @@ infra/k8s/
   kustomization.yaml     — ponto de entrada (kubectl apply -k infra/k8s/)
   namespace.yaml         — namespace hotel-system
   configmap.yaml         — variaveis nao sensiveis
-  secret.yaml            — POSTGRES_PASSWORD, PIX_WEBHOOK_SECRET, MINIO_ROOT_*, MINIO_PRESIGN_* e RABBITMQ_DEFAULT_* (JWT vira o secret jwt-rsa-keys, não versionado — ver README.md, ADR-006)
+  secret.yaml            — POSTGRES_PASSWORD, PIX_WEBHOOK_SECRET, MINIO_ROOT_*, MINIO_PRESIGN_*, RABBITMQ_DEFAULT_*, RABBITMQ_CORE_* e RABBITMQ_ANALYTICS_* (JWT vira o secret jwt-rsa-keys, não versionado — ver README.md, ADR-006)
   postgres.yaml          — PVC + Deployment + Service do PostgreSQL
   backend.yaml           — Deployment (3 replicas) + Service do backend
   nginx.yaml             — ConfigMap nginx + Deployment + Service LoadBalancer
