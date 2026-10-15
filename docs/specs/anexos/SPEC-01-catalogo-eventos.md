@@ -486,6 +486,12 @@ nesta branch — é documentação.
 >   `reservation_rooms`), mas quem precisar do conjunto de quartos de uma reserva deve lê-lo
 >   depois do commit.
 
+> **Estado em 14/10/2026 — etapa H.1 (branch `feature/outbox-core`):** **P-5 resolvida** sem
+> código por ponto: o *outbox* é gravado por trigger `AFTER ... FOR EACH ROW` no banco, que dispara
+> para cada linha de um `UPDATE` em lote tanto quanto para um `save()`. Teste:
+> `tests/outbox.test.js`, "P-5: o check-in em LOTE dos quartos extras gera room.updated para cada
+> quarto".
+
 As decisões D-2 e D-3 (§9) também são defeitos atuais: afetam os indicadores de hoje, não só
 os da projeção.
 

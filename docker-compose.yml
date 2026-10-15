@@ -81,13 +81,13 @@ services:
     restart: "no"
 
   rabbitmq:
-    # Só provisionamento nesta etapa — nenhum código publica/consome ainda (ver infra/k8s/rabbitmq.yaml).
+    # Broker dos eventos do core (T-01.4). Topologia e usuários por serviço: serviço rabbitmq-setup.
     image: rabbitmq:4-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-hotel_broker}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rabbitmq_local_password}
     ports:
-      - "15672:15672" # UI de gestão — só para inspeção local, não exposta em produção
+      - "127.0.0.1:15672:15672" # UI de gestão — só na máquina local, nunca na rede do Wi-Fi
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -95,8 +95,30 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 20s
+      # O 1º boot (volume vazio) passa de 1 min no WSL — com 20 s o compose desistia do broker.
+      start_period: 60s
     restart: unless-stopped
+
+  # Topologia (exchanges, filas, fila de mensagens mortas) e usuários do core e do analytics,
+  # com menor privilégio (catálogo de eventos §3 e §8). Roda e sai; mesmo script do contêiner
+  # `setup` do pod no k8s. O backend NÃO espera por ele: o core opera com o broker fora (CA-01.4.c).
+  rabbitmq-setup:
+    image: rabbitmq:4-management-alpine
+    entrypoint: ["/bin/sh", "/rabbitmq-setup.sh"]
+    environment:
+      RABBITMQ_API_HOST: rabbitmq
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-hotel_broker}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rabbitmq_local_password}
+      RABBITMQ_CORE_USER: ${RABBITMQ_CORE_USER:-hotel_core_publisher}
+      RABBITMQ_CORE_PASSWORD: ${RABBITMQ_CORE_PASSWORD:?defina RABBITMQ_CORE_PASSWORD no .env antes de subir o compose}
+      RABBITMQ_ANALYTICS_USER: ${RABBITMQ_ANALYTICS_USER:-hotel_analytics_consumer}
+      RABBITMQ_ANALYTICS_PASSWORD: ${RABBITMQ_ANALYTICS_PASSWORD:?defina RABBITMQ_ANALYTICS_PASSWORD no .env antes de subir o compose}
+    volumes:
+      - ./infra/k8s/rabbitmq-setup.sh:/rabbitmq-setup.sh:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
 
   backend:
     build:
@@ -130,6 +152,10 @@ services:
       # normal e só o /metrics responde 503 (fail-closed). Obrigatório no profile observability.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       REDIS_URL: redis://redis:6379
+      # Publicador do outbox (T-01.4): credencial do core, que só publica na exchange do core.
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_CORE_USER: ${RABBITMQ_CORE_USER:-hotel_core_publisher}
+      RABBITMQ_CORE_PASSWORD: ${RABBITMQ_CORE_PASSWORD:?defina RABBITMQ_CORE_PASSWORD no .env antes de subir o compose}
       MINIO_ENDPOINT: http://minio:9000
       # Endereço pelo qual o NAVEGADOR chega ao nginx — usado só para assinar a URL de download
       # de PDF (RNF-023). Precisa bater com a porta publicada do nginx (NGINX_PORT).
@@ -151,8 +177,10 @@ services:
         condition: service_healthy
       minio-setup:
         condition: service_completed_successfully
+      # Só "iniciado", não "saudável": o core opera com o broker fora (CA-01.4.c) — o publicador
+      # do outbox tenta de novo com espera crescente e os eventos acumulam até o broker responder.
       rabbitmq:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
 
   nginx:

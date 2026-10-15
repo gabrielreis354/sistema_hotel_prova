@@ -31,3 +31,8 @@ configMapGenerator:
   - name: minio-setup
     files:
       - minio-setup.sh
+  # Topologia e usuários do RabbitMQ (T-01.4), usado pelo contêiner `setup` do pod do RabbitMQ.
+  # O mesmo arquivo é montado pelo serviço rabbitmq-setup do compose.
+  - name: rabbitmq-setup
+    files:
+      - rabbitmq-setup.sh

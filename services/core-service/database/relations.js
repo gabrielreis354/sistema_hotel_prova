@@ -15,6 +15,8 @@ import ContractInstallmentModel from "../app/Models/ContractInstallmentModel.js"
 import ProductModel from "../app/Models/ProductModel.js";
 import AccountModel from "../app/Models/AccountModel.js";
 import AccountItemModel from "../app/Models/AccountItemModel.js";
+// Sem associações: importado para o sync criar a tabela outbox (T-01.4).
+import "../app/Models/OutboxModel.js";
 
 export default function initRelations() {
     // 1) Relacionamentos de Tenants (SaaS Multi-tenant)

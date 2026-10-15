@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
 
@@ -182,6 +183,13 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     // Por último: num banco legado com quarto vendido duas vezes, a ocupação recusa criar o
     // EXCLUDE — e isso não pode impedir a cura dos índices e CHECKs acima. Erro guardado e
     // reportado junto com os outros.
+    let falhaOutbox = null;
+    try {
+        await applyOutbox(sequelize);
+    } catch (error) {
+        falhaOutbox = error;
+    }
+
     let falhaOcupacao = null;
     try {
         await applyRoomOccupancy(sequelize, log);
@@ -198,10 +206,14 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
             `provavelmente há linhas VIVAS duplicadas nas colunas abaixo, e não é seguro ` +
             `decidir sozinho qual manter:\n${detalhe}\n` +
             `O restante das constraints e índices foi aplicado normalmente.` +
-            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '')
+            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '') +
+            (falhaOutbox ? `\n\nOutbox: ${falhaOutbox.message}` : '')
         );
     }
-    if (falhaOcupacao) throw falhaOcupacao;
+    if (falhaOcupacao && falhaOutbox) {
+        throw new Error(`${falhaOcupacao.message}\n\nOutbox: ${falhaOutbox.message}`);
+    }
+    if (falhaOcupacao || falhaOutbox) throw falhaOcupacao ?? falhaOutbox;
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
 }
@@ -432,4 +444,119 @@ async function applyRoomOccupancy(sequelize, log = () => {}) {
                 daterange(check_in_date, check_out_date, '[)') WITH &&
             ) WHERE (blocks_room);
     `);
+}
+
+/**
+ * Outbox transacional por TRIGGER (T-01.4/H.1, decisão do Gabriel de 14/10) — contrato no catálogo
+ * de eventos v1.0 (docs/specs/anexos/SPEC-01-catalogo-eventos.md).
+ *
+ * Por que no banco, e não nos controllers: são mais de 20 caminhos de escrita nas 6 tabelas
+ * (CRUD, check-in/out, cancelamentos, webhook PIX, contrato, reserva pública, escrita em lote).
+ * Um que esquecesse de gravar o evento deixaria o analytics divergente sem erro nenhum — o mesmo
+ * risco que gerou a P-1. O trigger também cumpre a regra do §6 por construção: é AFTER, então a
+ * linha do outbox (e o número da sequência, o aggregate_version) vem DEPOIS da escrita de
+ * domínio, sob o lock da linha.
+ *
+ * Payload: só os campos do §4 — minimização (o hóspede leva só o nome). Dinheiro como texto
+ * ("1250.00"), data como "YYYY-MM-DD", instante como ISO-8601 UTC. Uma atualização que não muda
+ * nenhum campo do payload não gera evento (ex.: telefone do hóspede, preço da categoria).
+ */
+async function applyOutbox(sequelize) {
+    // Trigger apontando para uma tabela que não existe derruba TODA escrita nas 6 tabelas. O
+    // migrate tolera falha no sync — então confere antes e recusa com mensagem clara.
+    const [{ existe }] = await sequelize.query(
+        "SELECT to_regclass('public.outbox') IS NOT NULL AS existe",
+        { type: QueryTypes.SELECT }
+    );
+    if (!existe) {
+        throw new Error('tabela outbox não existe (o sync falhou antes de criá-la) — triggers do outbox NÃO criados');
+    }
+
+    await sequelize.query(`
+        CREATE OR REPLACE FUNCTION outbox_iso(ts timestamptz) RETURNS text AS $$
+            SELECT to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        $$ LANGUAGE sql IMMUTABLE;
+
+        -- Payload do §4 a partir de uma linha — o mesmo para o estado atual e o anterior.
+        CREATE OR REPLACE FUNCTION outbox_payload(agregado text, l jsonb) RETURNS jsonb AS $$
+            SELECT CASE agregado
+                WHEN 'tenant'        THEN jsonb_build_object('status', l->>'status')
+                WHEN 'room_category' THEN jsonb_build_object('name', l->>'name')
+                WHEN 'room'          THEN jsonb_build_object('category_id', l->>'category_id', 'number', l->>'number', 'status', l->>'status')
+                WHEN 'guest'         THEN jsonb_build_object('full_name', l->>'full_name')
+                WHEN 'reservation'   THEN jsonb_build_object(
+                    'guest_id', l->>'guest_id', 'room_id', l->>'room_id', 'status', l->>'status',
+                    'check_in_date', l->>'check_in_date', 'check_out_date', l->>'check_out_date',
+                    'total_amount', l->>'total_amount',
+                    'created_at', outbox_iso((l->>'created_at')::timestamptz))
+                WHEN 'payment'       THEN jsonb_build_object(
+                    'reservation_id', l->>'reservation_id', 'amount', l->>'amount', 'method', l->>'method',
+                    'status', l->>'status',
+                    'paid_at', CASE WHEN l->>'paid_at' IS NULL THEN NULL ELSE outbox_iso((l->>'paid_at')::timestamptz) END)
+            END
+        $$ LANGUAGE sql IMMUTABLE;
+
+        CREATE OR REPLACE FUNCTION outbox_grava_evento() RETURNS trigger AS $$
+        DECLARE
+            novo     jsonb := CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE to_jsonb(NEW) END;
+            velho    jsonb := CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE to_jsonb(OLD) END;
+            atual    jsonb := COALESCE(novo, velho);
+            agregado text;
+            fato     text;
+            dados    jsonb;
+            tenant   uuid;
+        BEGIN
+            agregado := CASE TG_TABLE_NAME
+                WHEN 'tenants'         THEN 'tenant'
+                WHEN 'room_categories' THEN 'room_category'
+                WHEN 'rooms'           THEN 'room'
+                WHEN 'guests'          THEN 'guest'
+                WHEN 'reservations'    THEN 'reservation'
+                WHEN 'payments'        THEN 'payment'
+            END;
+            dados := outbox_payload(agregado, atual);
+
+            IF TG_OP = 'INSERT' THEN
+                fato := 'created';
+            ELSIF TG_OP = 'DELETE' AND agregado = 'guest' THEN
+                -- Hóspede só sai fisicamente do banco por eliminação a pedido do titular (T-06.11):
+                -- §4.4 manda guest.erased com payload VAZIO — o nome não pode viajar de novo.
+                fato := 'erased';
+                dados := '{}'::jsonb;
+            ELSIF TG_OP = 'DELETE' THEN
+                fato := 'deleted';
+            ELSIF velho->>'deleted_at' IS NULL AND novo->>'deleted_at' IS NOT NULL THEN
+                fato := 'deleted';                                   -- exclusão lógica (paranoid)
+            ELSE
+                IF dados = outbox_payload(agregado, velho)
+                   AND (velho->>'deleted_at') IS NOT DISTINCT FROM (novo->>'deleted_at') THEN
+                    RETURN NULL;                                     -- nada que o analytics use mudou
+                END IF;
+
+                IF agregado IN ('reservation', 'payment') AND (velho->>'status') IS DISTINCT FROM (novo->>'status') THEN
+                    fato := 'status_changed';
+                    dados := dados || jsonb_build_object('previous_status', velho->>'status');
+                ELSE
+                    fato := 'updated';
+                END IF;
+            END IF;
+
+            tenant := CASE WHEN agregado = 'tenant' THEN (atual->>'id')::uuid ELSE (atual->>'tenant_id')::uuid END;
+
+            INSERT INTO outbox (event_id, type, version, tenant_id, aggregate_id, payload, occurred_at)
+            VALUES (gen_random_uuid(), agregado || '.' || fato, 1, tenant, (atual->>'id')::uuid, dados, now());
+            RETURN NULL;
+        END $$ LANGUAGE plpgsql;
+    `);
+
+    // Sem lista de colunas ("UPDATE OF ..."): o sync({ alter }) do migrate reemite ALTER TYPE a
+    // cada execução e o PostgreSQL recusa isso em coluna citada num trigger (lição da etapa F).
+    for (const tabela of ['tenants', 'room_categories', 'rooms', 'guests', 'reservations', 'payments']) {
+        await sequelize.query(`
+            DROP TRIGGER IF EXISTS ${tabela}_outbox ON ${tabela};
+            CREATE TRIGGER ${tabela}_outbox
+                AFTER INSERT OR UPDATE OR DELETE ON ${tabela}
+                FOR EACH ROW EXECUTE FUNCTION outbox_grava_evento();
+        `);
+    }
 }

@@ -78,11 +78,19 @@ spec:
         - podSelector:
             matchLabels:
               app: backend
+      # Só AMQP: a topologia é declarada pelo contêiner `setup` dentro do próprio pod (localhost),
+      # então o backend não tem motivo para alcançar a UI/API de gestão (15672).
       ports:
         - protocol: TCP
           port: 5672
+    # Prometheus lê a profundidade das filas, inclusive a de mensagens mortas (CA-01.4.f).
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
         - protocol: TCP
-          port: 15672
+          port: 15692
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
