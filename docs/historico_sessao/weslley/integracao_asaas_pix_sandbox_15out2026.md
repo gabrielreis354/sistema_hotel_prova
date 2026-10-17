@@ -82,8 +82,8 @@ ser trocada ao fim dos testes (expira em 15/11/2026).
 
 1. ~~Teste real no sandbox~~ ✅ feito em 16/10 (o botão "Confirmar pagamento" gera `RECEIVED`).
    Chave de sandbox exposta: ✅ trocada pelo dev em 16/10. Eventos críticos pendentes no painel:
-   ✅ tratados pelo dev. Falta: dev **excluir a chave de produção** exposta; testar o webhook
-   chamado pelo próprio Asaas (ngrok + cadastro em Integrações → Webhooks).
+   ✅ tratados pelo dev. Chave de produção exposta: ✅ excluída pelo dev em 16/10. Falta: testar
+   o webhook chamado pelo próprio Asaas (ngrok + cadastro em Integrações → Webhooks).
 2. Autorizar commits e merge em `develop` (nada foi commitado).
 3. Swagger de `POST /webhooks/pix` ainda descreve só o HMAC do fake.
 4. Cartão de crédito (tokenização, captura, risco) — não iniciado.
