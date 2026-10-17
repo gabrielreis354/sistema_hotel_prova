@@ -91,12 +91,17 @@ export default async function CreateBookingController(request, response) {
         // escrito no banco ainda.
         const reservationId = crypto.randomUUID();
         const pix = getPixProvider();
+        // PSP que exige CPF para cobrar (Asaas): 400 claro aqui, em vez de 503 vindo do PSP.
+        if (pix.requiresPayerCpf && !(guest.cpf && onlyDigits(guest.cpf))) {
+            return response.status(400).json({ errors: ['guest.cpf obrigatório para pagamento PIX'] });
+        }
         let charge;
         try {
             charge = await pix.createCharge({
                 amount: Number(depositAmount),   // interface do PixProvider: número em reais
                 description: `Sinal reserva ${tenant.name}`,
                 externalId: reservationId,
+                payerName: guest.full_name,
                 payerEmail: guest.email,
                 payerCpf: guest.cpf ? onlyDigits(guest.cpf) : undefined
             });
