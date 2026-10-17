@@ -361,9 +361,9 @@ const options = {
                 },
                 WebhookConfirmResponse: {
                     type: 'object',
-                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência)',
+                    description: 'POST /webhooks/pix — confirmed na primeira confirmação; already_processed em reenvio (idempotência); pending/not_approved conforme o status real no PSP; ignored para notificação autêntica sem cobrança conhecida',
                     properties: {
-                        status:             { type: 'string', enum: ['confirmed', 'already_processed'] },
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'pending', 'not_approved', 'ignored'] },
                         payment_id:         { type: 'string', format: 'uuid' },
                         reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Ausente quando status é already_processed' },
                         reservation_status: { type: 'string', nullable: true, description: 'Ausente quando status é already_processed' }
@@ -453,22 +453,23 @@ const options = {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED depois de consultar o status real no PSP. Idempotente. A autenticação depende do provider ativo (PIX_PROVIDER): fake → HMAC-SHA256 em x-pix-signature (PIX_WEBHOOK_SECRET); mercadopago → x-signature; asaas → token em asaas-access-token (ASAAS_WEBHOOK_TOKEN). Sem autenticação válida, ou sem o segredo configurado, responde 401 e nada muda. Notificação AUTÊNTICA que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 { status: "ignored" } — um 4xx faria o PSP reenviar para sempre e o Asaas pausar a fila. Para demonstração com o fake, use scripts/simular_pagamento_pix.js.',
                     security: [],
                     parameters: [
-                        { in: 'header', name: 'x-pix-signature', required: true, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>' }
+                        { in: 'header', name: 'x-pix-signature', required: false, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'PIX_PROVIDER=fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>' },
+                        { in: 'header', name: 'asaas-access-token', required: false, schema: { type: 'string' }, description: 'PIX_PROVIDER=asaas: token cadastrado no webhook do Asaas (ASAAS_WEBHOOK_TOKEN)' }
                     ],
                     requestBody: {
                         required: true,
-                        content: { 'application/json': { schema: { type: 'object', required: ['provider_charge_id'], properties: {
+                        description: 'Formato do PSP. fake: { provider_charge_id }. asaas: { id, event, payment: { id } }.',
+                        content: { 'application/json': { schema: { type: 'object', properties: {
                             provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
                         }}}}
                     },
                     responses: {
-                        200: { description: 'Pagamento confirmado (ou já processado)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
-                        400: { description: 'provider_charge_id ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        401: { description: 'Assinatura ausente, inválida, ou PIX_WEBHOOK_SECRET não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        200: { description: 'confirmed · already_processed · pending (PSP ainda não pagou) · not_approved (cancelada/estornada/valor divergente) · ignored (notificação autêntica sem cobrança conhecida)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
+                        401: { description: 'Autenticação ausente ou inválida, ou segredo do provider não configurado (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'PSP indisponível para confirmar o status — nada muda, o PSP reenvia', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },

@@ -342,29 +342,42 @@ describe('POST /public/:subdomain/bookings — validações', () => {
 });
 
 describe('POST /webhooks/pix — validações', () => {
-    // A assinatura é verificada ANTES de qualquer outra validação — mesmo os
-    // testes de erro 4xx "de negócio" precisam de uma requisição assinada,
-    // senão o 401 da assinatura mascararia o que o teste quer provar.
-    it('retorna 400 sem provider_charge_id', async () => {
+    // A assinatura é verificada ANTES de qualquer outra validação — mesmo estes
+    // testes precisam de uma requisição assinada, senão o 401 da assinatura
+    // mascararia o que o teste quer provar.
+    //
+    // Notificação AUTÊNTICA que não dá para processar responde 200 "ignored" (não 400/404):
+    // o PSP reenvia todo não-2xx e o Asaas pausa a fila da conta após 15 falhas
+    // (qa-redteam de 16/10, 🟡-2). Sem assinatura, continua 401 (testes acima).
+    it('sem provider_charge_id: 200 ignored', async () => {
         const rawBody = JSON.stringify({});
         const res = await postSignedWebhook(rawBody);
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('ignored');
     });
 
-    it('retorna 400 quando provider_charge_id não é string (ex.: array vira IN() no Sequelize)', async () => {
+    it('provider_charge_id que não é string (ex.: array viraria IN() no Sequelize): ignored SEM consultar o banco', async () => {
         // Achado da auditoria qa-redteam de 21/09: sem checar o tipo, um array em
         // provider_charge_id vira `WHERE provider_charge_id IN (...)` — quem tem o
         // segredo (só o PSP, agora que a assinatura é obrigatória) consegue buscar
-        // várias cobranças em lote numa única chamada.
-        const rawBody = JSON.stringify({ provider_charge_id: ['fake_a', 'fake_b'] });
-        const res = await postSignedWebhook(rawBody);
-        expect(res.status).toBe(400);
+        // várias cobranças em lote numa única chamada. O que importa é a query não rodar.
+        const findSpy = vi.spyOn(PaymentModel, 'findOne');
+        try {
+            const rawBody = JSON.stringify({ provider_charge_id: ['fake_a', 'fake_b'] });
+            const res = await postSignedWebhook(rawBody);
+            expect(res.status).toBe(200);
+            expect(res.body.status).toBe('ignored');
+            expect(findSpy).not.toHaveBeenCalled();
+        } finally {
+            findSpy.mockRestore();
+        }
     });
 
-    it('retorna 404 para cobrança inexistente', async () => {
+    it('cobrança inexistente: 200 ignored', async () => {
         const rawBody = JSON.stringify({ provider_charge_id: 'fake_inexistente_000' });
         const res = await postSignedWebhook(rawBody);
-        expect(res.status).toBe(404);
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('ignored');
     });
 });
 
