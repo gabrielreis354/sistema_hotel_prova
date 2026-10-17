@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import PixProvider from './PixProvider.js';
 import { InvalidWebhookSignatureError } from './errors.js';
+import { CHARGE_STATUS } from './chargeStatus.js';
 import { computePixSignature, verifyPixSignature } from '../../utils/pixWebhookSignature.js';
 
 /**
@@ -52,7 +53,7 @@ export default class FakePixProvider extends PixProvider {
     // aprovação. amountVerifiable: false declara, de forma explícita, que este provider não
     // tem como conferir valor; um provider real nunca devolve false.
     async getChargeStatus() {
-        return { status: 'approved', amount: null, amountVerifiable: false };
+        return { status: CHARGE_STATUS.PAID, amount: null, amountVerifiable: false };
     }
 
     /**

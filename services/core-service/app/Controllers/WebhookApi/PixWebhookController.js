@@ -3,6 +3,7 @@ import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import getPixProvider from '../../services/pix/index.js';
 import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../../services/pix/errors.js';
+import { CHARGE_STATUS } from '../../services/pix/chargeStatus.js';
 
 /**
  * POST /webhooks/pix
@@ -25,7 +26,8 @@ import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../..
  *
  * A validação da assinatura e a extração do id da cobrança são responsabilidade do provider
  * ativo (provider.verifyWebhook): o fake confere o HMAC de `x-pix-signature` com
- * PIX_WEBHOOK_SECRET; o Mercado Pago confere o `x-signature` com MERCADOPAGO_WEBHOOK_SECRET.
+ * PIX_WEBHOOK_SECRET; o Mercado Pago confere o `x-signature` com MERCADOPAGO_WEBHOOK_SECRET;
+ * o Asaas confere o token do cabeçalho `asaas-access-token` com ASAAS_WEBHOOK_TOKEN.
  */
 export default async function PixWebhookController(request, response) {
     try {
@@ -83,14 +85,15 @@ export default async function PixWebhookController(request, response) {
             || (chargeStatus.amount != null
                 && Number(chargeStatus.amount).toFixed(2) === Number(payment.amount).toFixed(2));
 
-        if (chargeStatus.status !== 'approved' || !amountMatches) {
-            // FAILED só quando o provedor encerrou a cobrança (cancelled/rejected) ou quando
-            // disse "approved" com um valor que não bate (sinal de fraude). Qualquer outro
-            // status não-terminal (pending, in_process...) — mesmo com valor ainda
-            // desconhecido — não pode travar em FAILED: uma notificação futura com o status
-            // final correto precisa continuar podendo confirmar o pagamento.
-            const isTerminalNegative = ['cancelled', 'rejected'].includes(chargeStatus.status);
-            const isApprovedWithWrongAmount = chargeStatus.status === 'approved' && !amountMatches;
+        // chargeStatus.status já vem normalizado pelo provider (CHARGE_STATUS) — o controller
+        // não conhece o vocabulário de nenhum PSP.
+        if (chargeStatus.status !== CHARGE_STATUS.PAID || !amountMatches) {
+            // FAILED só quando o provedor encerrou a cobrança ou quando disse "pago" com um
+            // valor que não bate (sinal de fraude). Qualquer status não-terminal (PENDING) —
+            // mesmo com valor ainda desconhecido — não pode travar em FAILED: uma notificação
+            // futura com o status final correto precisa continuar podendo confirmar o pagamento.
+            const isTerminalNegative = chargeStatus.status === CHARGE_STATUS.FAILED;
+            const isApprovedWithWrongAmount = chargeStatus.status === CHARGE_STATUS.PAID && !amountMatches;
 
             if (isTerminalNegative || isApprovedWithWrongAmount) {
                 const transaction = await sequelize.transaction();
@@ -105,7 +108,7 @@ export default async function PixWebhookController(request, response) {
                 return response.status(200).json({ status: 'not_approved', payment_id: payment.id });
             }
 
-            // pending, in_process, authorized... — sem efeito, aguarda a próxima notificação.
+            // PENDING — sem efeito, aguarda a próxima notificação.
             return response.status(200).json({ status: 'pending', payment_id: payment.id });
         }
 
