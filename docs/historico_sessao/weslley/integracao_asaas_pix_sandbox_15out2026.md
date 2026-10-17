@@ -2,7 +2,7 @@
 
 **Dev:** Weslley (sessão orquestrada com Claude Code)
 **Branch:** `feature/asaas-pix` (a partir de `origin/develop` em `8840ad5`)
-**Status:** implementado e testado localmente, **sem commit** (aguardando autorização do dev)
+**Status:** implementado, testado de verdade no sandbox (16/10) e auditado pelo qa-redteam (APROVADO COM RESSALVAS, `docs/qa/redteam_asaas-pix_16out2026.md`); mesclado em `develop`
 
 ## Contexto
 
@@ -84,7 +84,7 @@ ser trocada ao fim dos testes (expira em 15/11/2026).
    Chave de sandbox exposta: ✅ trocada pelo dev em 16/10. Eventos críticos pendentes no painel:
    ✅ tratados pelo dev. Chave de produção exposta: ✅ excluída pelo dev em 16/10. Falta: testar
    o webhook chamado pelo próprio Asaas (ngrok + cadastro em Integrações → Webhooks).
-2. Autorizar commits e merge em `develop` (nada foi commitado).
+2. ~~Commits e merge em `develop`~~ ✅ feitos em 17/10. Ressalvas 🟡 do qa-redteam (validade de 1 ano da cobrança, 404 que pode pausar a fila do Asaas, CPF malformado → 503) precisam ser resolvidas antes de produção.
 3. Swagger de `POST /webhooks/pix` ainda descreve só o HMAC do fake.
 4. Cartão de crédito (tokenização, captura, risco) — não iniciado.
 5. Herdadas: PIX pago em reserva cancelada só gera log; `payment-mix` soma pagamento de reserva
