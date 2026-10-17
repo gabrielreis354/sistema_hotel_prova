@@ -6,12 +6,22 @@
  */
 export default class PixProvider {
     /**
+     * true quando o PSP exige o CPF do pagador para gerar a cobrança (o Asaas exige
+     * `cpfCnpj` no cadastro do cliente). O controller usa isto para devolver 400 com uma
+     * mensagem clara, em vez de um 503 vindo do PSP.
+     */
+    get requiresPayerCpf() {
+        return false;
+    }
+
+    /**
      * Cria uma cobrança PIX.
      * @param {object} params
      * @param {number} params.amount        — valor em reais (ex.: 135.00)
      * @param {string} params.description    — descrição exibida ao pagador
      * @param {string} params.externalId     — id da reserva (correlaciona webhook → reserva; também usado como chave de idempotência)
      * @param {number} [params.expiresInMinutes=30]
+     * @param {string} [params.payerName]    — nome do hóspede (o Asaas exige no cadastro do cliente)
      * @param {string} [params.payerEmail]   — e-mail do hóspede, quando disponível (PSPs reais exigem)
      * @param {string} [params.payerCpf]     — CPF do hóspede, quando disponível
      * @returns {Promise<{ providerChargeId: string, qrCode: string, expiration: Date }>}
@@ -35,7 +45,9 @@ export default class PixProvider {
      * webhook só prova quem enviou a notificação — nunca que o pagamento foi aprovado. Todo
      * controller precisa chamar isto antes de marcar um Payment como PAID.
      * @param {string} providerChargeId
-     * @returns {Promise<{ status: string, amount: number|null, amountVerifiable: boolean }>}
+     * @returns {Promise<{ status: 'PAID'|'FAILED'|'PENDING', amount: number|null, amountVerifiable: boolean }>}
+     *   status: SEMPRE um valor de CHARGE_STATUS (./chargeStatus.js) — o provider traduz o
+     *   vocabulário do PSP; o controller nunca vê o status cru.
      *   amountVerifiable: false SÓ quando o provedor não tem como confirmar o valor (o
      *   simulado). Provider real devolve true e amount preenchido — ou lança
      *   PixProviderUnavailableError; valor ausente nunca pode virar confirmação.
