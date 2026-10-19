@@ -98,13 +98,58 @@ describe('PUT /accounts/:id/close (CA-04.3.g)', () => {
         expect(res.status).toBe(422);
     });
 
-    it('conta da suíte fecha com o hóspede ainda hospedado (acertar o bar antes de sair)', async () => {
+    it('conta que cobra diária não fecha com a estadia em andamento → 422 (N-1 da reauditoria)', async () => {
         const { reservation, room } = await newStay({ checkIn: true });
         const account = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: 'Suíte' });
 
         const res = await close(account.id);
+
+        expect(res.status).toBe(422);
+        expect(res.body.error).toMatch(/check-out|diária/i);
+        expect((await reload(account.id)).status).toBe('OPEN');
+    });
+
+    it('nem antes do check-in → 422', async () => {
+        const { reservation } = await newStay();
+        await request(app).post(`/reservations/${reservation.id}/consumptions`).set(auth(jwt)).send({ description: 'Café', amount: 5 });
+        const account = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+
+        expect((await close(account.id)).status).toBe(422);
+    });
+
+    it('conta da suíte sem diária fecha com o hóspede hospedado (acertar o bar antes de sair)', async () => {
+        const { reservation, room } = await newStay({ checkIn: true });
+        const bar = await openAccount({
+            type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: 'Bar', charges_lodging: false
+        });
+        await addItem(bar.id, { description: 'Drink', unit_price: '22.00' });
+
+        const res = await close(bar.id);
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ room_charges: '0.00', total: '22.00' });
+    });
+
+    it('conta de diária que sobrou aberta numa estadia encerrada fecha, com o resto do total', async () => {
+        const { reservation, room } = await newStay({ checkIn: true });
+        const account = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: 'Sobrou' });
+        await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        // Como a corrida da D-36: a conta ficou aberta depois do encerramento.
+        await AccountModel.update({ status: 'OPEN', closed_at: null, closed_room_charges: null }, { where: { id: account.id } });
+
+        const res = await close(account.id);
         expect(res.status).toBe(200);
         expect(res.body.room_charges).toBe('300.00'); // 2 × 150
+    });
+
+    it('closeAccount recusa conta que não está aberta (N-4)', async () => {
+        const { closeAccount } = await import('../app/utils/accountBill.js');
+        const table = await openAccount({ type: 'TABLE', label: 'Mesa N-4' });
+        await close(table.id);
+        const closedAt = (await reload(table.id)).closed_at.toISOString();
+
+        const locked = await reload(table.id);
+        await expect(sequelize.transaction((t) => closeAccount(locked, t))).rejects.toThrow(/aberta/);
+        expect((await reload(table.id)).closed_at.toISOString()).toBe(closedAt);
     });
 
     it.each(['CLOSED', 'PAID'])('conta %s → 422, sem mudar o closed_at', async (status) => {
@@ -141,7 +186,8 @@ describe('PUT /accounts/:id/close (CA-04.3.g)', () => {
         const accounts = [];
         for (let i = 0; i < 6; i += 1) {
             const { reservation, room } = await newStay({ checkIn: true });
-            accounts.push(await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: `Pool ${i}` }));
+            // Sem diária: fecha durante a estadia e passa pela checagem do consumo não migrado.
+            accounts.push(await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: `Pool ${i}`, charges_lodging: false }));
         }
         const started = Date.now();
         const results = await Promise.all(accounts.map((a) => close(a.id)));
@@ -153,7 +199,9 @@ describe('PUT /accounts/:id/close (CA-04.3.g)', () => {
     it('o realinhamento da troca de quarto não move conta fechada (🟡-1 do qa-redteam)', async () => {
         const { reservation, room } = await newStay({ checkIn: true });
         const account = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: 'Fechada antes' });
-        await close(account.id);
+        // Conta de diária fechada com a estadia em andamento não sai mais pela API (N-1); o
+        // estado vem de antes dessa regra, e o realinhamento não pode mexer nele.
+        await AccountModel.update({ status: 'CLOSED', closed_at: new Date(), closed_room_charges: '300.00' }, { where: { id: account.id } });
         roomNumber += 1;
         const other = await createRoom(app, jwt, category.id, { number: String(roomNumber) });
         const swap = await request(app).put(`/reservations/${reservation.id}`).set(auth(jwt)).send({ room_id: other.id });
@@ -219,7 +267,9 @@ describe('Encerrar a estadia fecha as contas abertas dela (D-36)', () => {
 
     it('check-out não reescreve o closed_at de uma conta já fechada', async () => {
         const { reservation, room } = await newStay({ checkIn: true });
-        const account = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: 'Já fechada' });
+        const account = await openAccount({
+            type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: 'Já fechada', charges_lodging: false
+        });
         await close(account.id);
         const closedAt = (await reload(account.id)).closed_at.toISOString();
 
@@ -298,7 +348,9 @@ describe('Encerrar a estadia fecha as contas abertas dela (D-36)', () => {
     it('fechamento manual e check-out simultâneos: a conta fecha uma vez só', async () => {
         for (let round = 0; round < 8; round += 1) {
             const { reservation, room } = await newStay({ checkIn: true });
-            const account = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: `Corrida ${round}` });
+            const account = await openAccount({
+                type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: `Corrida ${round}`, charges_lodging: false
+            });
             const [manual] = await Promise.all([
                 close(account.id),
                 request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt))
@@ -342,27 +394,44 @@ describe('Diária gravada no fechamento (D-39)', () => {
         return { reservation: res.body, std, a, b };
     }
 
+    // Uma conta de diária fechada e outra aberta na mesma estadia: só acontece numa sobra da
+    // corrida da D-36 ou antes da regra do N-1. Gravado direto, para testar o rateio do resto.
+    const closeDirect = (id, charges) =>
+        AccountModel.update({ status: 'CLOSED', closed_at: new Date(), closed_room_charges: charges }, { where: { id } });
+
     it('o fechamento grava a diária apresentada', async () => {
-        const { a } = await twoRoomStay();
+        const { reservation, a, b } = await twoRoomStay();
+        await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        await AccountModel.update({ status: 'OPEN', closed_at: null, closed_room_charges: null }, { where: { id: a.id } });
+
         const closed = await close(a.id);
 
-        expect(closed.body.room_charges).toBe('600.00');
+        expect(closed.body.room_charges).toBe('600.00'); // 1000 − os 400 já gravados em b
         expect((await reload(a.id)).closed_room_charges).toBe('600.00');
+        expect((await reload(b.id)).closed_room_charges).toBe('400.00');
     });
 
-    it('preço da categoria muda depois: a conta fechada não muda, e a aberta leva o resto do total', async () => {
-        const { std, a, b } = await twoRoomStay();
-        await close(a.id); // 600 gravado
+    it('preço da categoria muda depois do check-out: as contas fechadas não mudam', async () => {
+        const { reservation, std, a, b } = await twoRoomStay();
+        await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
         const update = await request(app).put(`/room-categories/${std.id}`).set(auth(jwt)).send({ price_per_night: 900 });
         expect(update.status).toBe(200);
 
         expect((await bill(a.id)).body.room_charges).toBe('600.00');
-        expect((await bill(b.id)).body.room_charges).toBe('400.00'); // 1000 − 600, nunca mais que o total
+        expect((await bill(b.id)).body.room_charges).toBe('400.00');
+    });
+
+    it('preço muda com uma fechada e outra aberta: a aberta leva o resto do total, nunca mais', async () => {
+        const { std, a, b } = await twoRoomStay();
+        await closeDirect(a.id, '600.00');
+        await request(app).put(`/room-categories/${std.id}`).set(auth(jwt)).send({ price_per_night: 900 });
+
+        expect((await bill(b.id)).body.room_charges).toBe('400.00');
     });
 
     it('total da reserva muda depois: a aberta absorve a diferença', async () => {
         const { reservation, a, b } = await twoRoomStay();
-        await close(a.id);
+        await closeDirect(a.id, '600.00');
         await ReservationModel.update({ total_amount: '1250.00' }, { where: { id: reservation.id } });
 
         expect((await bill(a.id)).body.room_charges).toBe('600.00');
@@ -371,7 +440,7 @@ describe('Diária gravada no fechamento (D-39)', () => {
 
     it('total da reserva cai abaixo do que já foi fechado: a aberta fica com 0, nunca negativo', async () => {
         const { reservation, a, b } = await twoRoomStay();
-        await close(a.id);
+        await closeDirect(a.id, '600.00');
         await ReservationModel.update({ total_amount: '500.00' }, { where: { id: reservation.id } });
 
         expect((await bill(b.id)).body.room_charges).toBe('0.00');
