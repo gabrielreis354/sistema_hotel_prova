@@ -1,7 +1,7 @@
 import { PRODUCT_CATEGORIES } from './productCategories.js';
 
 // DECIMAL(10,2) — acima disso o Postgres estoura e o erro vira 500.
-const MAX_PRICE = 99999999.99;
+export const MAX_PRICE = 99999999.99;
 
 /**
  * Converte o price recebido em número, ou null se não for um valor aceitável.

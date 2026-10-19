@@ -1,6 +1,7 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { VALID_ROLES } from '../app/utils/roles.js';
+import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
 
 const options = {
     definition: {
@@ -62,6 +63,66 @@ const options = {
                         price:       { type: 'string', example: '12.00', description: 'DECIMAL(10,2) serializado como string' },
                         category:    { type: 'string', enum: PRODUCT_CATEGORIES, example: 'DRINK' },
                         active:      { type: 'boolean', example: true }
+                    }
+                },
+                // Comanda (SPEC-04). Sem hóspede nem reserva embutidos: o garçom também lê (LGPD).
+                Account: {
+                    type: 'object',
+                    properties: {
+                        id:              { type: 'string', format: 'uuid' },
+                        tenant_id:       { type: 'string', format: 'uuid' },
+                        type:            { type: 'string', enum: ACCOUNT_TYPES, example: 'TABLE' },
+                        status:          { type: 'string', enum: ACCOUNT_STATUSES, example: 'OPEN' },
+                        reservation_id:  { type: 'string', format: 'uuid', nullable: true, description: 'Só em conta ROOM' },
+                        room_id:         { type: 'string', format: 'uuid', nullable: true },
+                        guest_id:        { type: 'string', format: 'uuid', nullable: true, description: 'Nulo em TABLE e INTERNAL' },
+                        label:           { type: 'string', example: 'Mesa 5' },
+                        charges_lodging: { type: 'boolean', description: 'Esta conta carrega a diária do quarto (RN-005). Sempre false fora de ROOM' },
+                        opened_at:       { type: 'string', format: 'date-time' },
+                        closed_at:       { type: 'string', format: 'date-time', nullable: true },
+                        created_at:      { type: 'string', format: 'date-time' },
+                        updated_at:      { type: 'string', format: 'date-time' },
+                        deleted_at:      { type: 'string', format: 'date-time', nullable: true }
+                    }
+                },
+                AccountItem: {
+                    type: 'object',
+                    properties: {
+                        id:             { type: 'string', format: 'uuid' },
+                        tenant_id:      { type: 'string', format: 'uuid' },
+                        account_id:     { type: 'string', format: 'uuid' },
+                        product_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Nulo em lançamento avulso' },
+                        description:    { type: 'string', example: 'Cerveja 600ml' },
+                        quantity:       { type: 'integer', example: 2 },
+                        unit_price:     { type: 'string', example: '12.00', description: 'DECIMAL(10,2) serializado como string. Preço no momento do lançamento' },
+                        total:          { type: 'string', example: '24.00', description: 'quantity × unit_price, sempre calculado no servidor' },
+                        billable:       { type: 'boolean', description: 'false = cortesia: valor gravado, fora da soma da conta (RN-007)' },
+                        reason:         { type: 'string', enum: ITEM_REASONS, nullable: true, description: 'Obrigatório se billable = false; proibido se true' },
+                        client_item_id: { type: 'string', format: 'uuid', nullable: true, description: 'Gerado pelo app do garçom — idempotência da fila offline (RN-008)' },
+                        created_by:     { type: 'string', format: 'uuid' },
+                        deleted_by:     { type: 'string', format: 'uuid', nullable: true },
+                        created_at:     { type: 'string', format: 'date-time' },
+                        updated_at:     { type: 'string', format: 'date-time' },
+                        deleted_at:     { type: 'string', format: 'date-time', nullable: true, description: 'Preenchido só na resposta de reenvio de um item já excluído' }
+                    }
+                },
+                AccountDetail: {
+                    allOf: [
+                        { $ref: '#/components/schemas/Account' },
+                        {
+                            type: 'object',
+                            properties: {
+                                items: { type: 'array', items: { $ref: '#/components/schemas/AccountItem' }, description: 'Itens não excluídos, em ordem de lançamento' },
+                                total: { type: 'string', example: '24.00', description: 'Soma dos itens faturáveis e não excluídos' }
+                            }
+                        }
+                    ]
+                },
+                AccountItemResult: {
+                    type: 'object',
+                    properties: {
+                        item:          { $ref: '#/components/schemas/AccountItem' },
+                        account_total: { type: 'string', example: '24.00', description: 'Total atualizado da conta (CA-04.1.e)' }
                     }
                 },
                 RoomCategory: {
@@ -1258,6 +1319,130 @@ const options = {
                         401: { description: 'Token não fornecido ou inválido' },
                         403: { description: 'Requer papel ADMIN' },
                         404: { description: 'Produto não encontrado no tenant' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts': {
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Lista as contas do hotel',
+                    description: 'Todos os papéis. O app do garçom usa `?status=OPEN`. A resposta não traz dados do hóspede.',
+                    parameters: [
+                        { in: 'query', name: 'status', required: false, schema: { type: 'string', enum: ACCOUNT_STATUSES } },
+                        { in: 'query', name: 'type',   required: false, schema: { type: 'string', enum: ACCOUNT_TYPES } }
+                    ],
+                    responses: {
+                        200: { description: 'Contas, da mais recente para a mais antiga', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Account' } } } } },
+                        400: { description: 'status ou type fora da allowlist' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        500: { description: 'Erro interno' }
+                    }
+                },
+                post: {
+                    tags: ['Comandas'],
+                    summary: 'Abre uma conta',
+                    description: [
+                        'Toda conta nasce `OPEN`; o `status` enviado é ignorado.',
+                        '',
+                        'Vínculos por tipo: `ROOM` exige `reservation_id` (com check-in feito), `room_id` (quarto da reserva) e `guest_id` (qualquer hóspede do hotel). Os demais tipos não aceitam `reservation_id`; `TABLE` e `INTERNAL` também não aceitam `guest_id`.',
+                        '',
+                        '`charges_lodging` vale `true` por padrão em `ROOM` (mande `false` para dividir a suíte) e é sempre `false` nos demais tipos.',
+                        '',
+                        'O garçom (`WAITER`) abre só `TABLE` e `DIRECT`.'
+                    ].join('\n'),
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: {
+                            type: 'object',
+                            required: ['type', 'label'],
+                            properties: {
+                                type:            { type: 'string', enum: ACCOUNT_TYPES },
+                                label:           { type: 'string', maxLength: 100, example: 'Mesa 5' },
+                                reservation_id:  { type: 'string', format: 'uuid' },
+                                room_id:         { type: 'string', format: 'uuid' },
+                                guest_id:        { type: 'string', format: 'uuid' },
+                                charges_lodging: { type: 'boolean' }
+                            }
+                        }}}
+                    },
+                    responses: {
+                        201: { description: 'Conta aberta', content: { 'application/json': { schema: { $ref: '#/components/schemas/Account' } } } },
+                        400: { description: 'type fora da allowlist, label vazio, id que não é UUID ou charges_lodging não booleano' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom abrindo conta ROOM, DAY_USE ou INTERNAL' },
+                        404: { description: 'Reserva, quarto ou hóspede não encontrado no hotel' },
+                        422: { description: 'Vínculo proibido ou ausente para o tipo, reserva sem check-in, quarto fora da reserva, diária fora de ROOM ou segunda conta cobrando a diária do quarto na estadia (RN-005)' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}': {
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Busca uma conta com os itens e o total',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        200: { description: 'Conta encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountDetail' } } } },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        404: { description: 'Conta não encontrada no hotel' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/items': {
+                post: {
+                    tags: ['Comandas'],
+                    summary: 'Lança um item na conta',
+                    description: [
+                        'Com `product_id`, descrição e preço vêm do cardápio (o que o cliente mandar é ignorado). Sem `product_id`, `description` e `unit_price` são obrigatórios. `total` é sempre calculado no servidor.',
+                        '',
+                        '**Idempotência:** o reenvio do mesmo `client_item_id` responde **200** com o item original e não duplica — inclusive se o item já foi excluído (vem com `deleted_at`) ou se a conta fechou depois. O mesmo `client_item_id` em outra conta do hotel dá 409.',
+                        '',
+                        '**Cortesia e avulso:** `billable: false` exige `reason`. Cortesia e lançamento sem `product_id` exigem papel ADMIN ou RECEPTIONIST — o garçom só lança item do cardápio, faturável.',
+                        '',
+                        'Conta `ROOM` só recebe item enquanto a reserva estiver `CHECKED_IN`.'
+                    ].join('\n'),
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: {
+                            type: 'object',
+                            properties: {
+                                product_id:     { type: 'string', format: 'uuid' },
+                                description:    { type: 'string', maxLength: 200, example: 'Taxa de rolha' },
+                                unit_price:     { type: 'number', format: 'float', minimum: 0, example: 30.00, description: 'No máximo 2 casas decimais' },
+                                quantity:       { type: 'integer', minimum: 1, maximum: 9999, default: 1 },
+                                billable:       { type: 'boolean', default: true },
+                                reason:         { type: 'string', enum: ITEM_REASONS },
+                                client_item_id: { type: 'string', format: 'uuid' }
+                            }
+                        }}}
+                    },
+                    responses: {
+                        200: { description: 'Reenvio: item original, sem duplicar', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountItemResult' } } } },
+                        201: { description: 'Item lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountItemResult' } } } },
+                        400: { description: 'Campo inválido, description/unit_price ausentes sem product_id, preço com mais de 2 casas, quantity fora de 1–9999, reason fora da allowlist ou total acima do limite' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom lançando cortesia ou item avulso (sem product_id)' },
+                        404: { description: 'Conta ou produto não encontrado no hotel' },
+                        409: { description: 'client_item_id já usado em outra conta' },
+                        422: { description: 'Conta fora de OPEN, conta ROOM com check-out feito, produto inativo, cortesia sem reason ou reason em item faturável' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/items/{itemId}': {
+                delete: {
+                    tags: ['Comandas'],
+                    summary: 'Exclui um item — soft delete com auditoria (ADMIN)',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }, { in: 'path', name: 'itemId', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        204: { description: 'Item excluído; quem excluiu fica registrado' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
+                        404: { description: 'Conta ou item não encontrado' },
+                        422: { description: 'Conta fora de OPEN' },
                         500: { description: 'Erro interno' }
                     }
                 }

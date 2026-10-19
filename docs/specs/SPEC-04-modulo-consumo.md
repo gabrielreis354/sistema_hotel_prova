@@ -1,7 +1,7 @@
 # SPEC-04 — Módulo de Consumo (Comanda)
 
 **Prioridade:** 🟠 Alta — diferencial de produto
-**Estado:** 🟡 Parcialmente implementado — **2 de 9 fatias concluídas**
+**Estado:** 🟡 Parcialmente implementado — **3 de 9 fatias concluídas** (T-04.1 em 19/10/2026)
 **Criado em:** 26/08/2026
 **Bloqueia:** SPEC-05 Fase 2 (comanda no frontend)
 
@@ -92,25 +92,25 @@ Payment (alteração)
 
 > Cada fatia é uma branch própria com merge próprio. Nenhuma acumula duas fatias.
 
-### T-04.1 — `Account` + `AccountItem` + CRUD 🔲 *(fatia 2a · ~3,5 dias)*
+### T-04.1 — `Account` + `AccountItem` + CRUD ✅ *(fatia 2a · ~3,5 dias — concluída em 19/10/2026; decisões em `anexos/SPEC-04-decisoes-T-04.1.md`)*
 
 Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 
 **Critérios de aceitação**
-- [ ] **CA-04.1.a** — `POST /accounts/:id/items` com `product_id` copia `description` e `unit_price` do catálogo
-- [ ] **CA-04.1.b** — Sem `product_id`, exige `description` + `unit_price`
-- [ ] **CA-04.1.c** — `total` **sempre** calculado no servidor; valor do cliente é ignorado
-- [ ] **CA-04.1.d** — Reenvio do mesmo `client_item_id` não duplica (RN-008)
-- [ ] **CA-04.1.e** — Resposta do `POST /items` devolve o total atualizado da conta
-- [ ] **CA-04.1.f** — `GET /accounts?status=OPEN&type=ROOM` filtra
-- [ ] **CA-04.1.g** — Conta `CLOSED` rejeita item novo → **422**
-- [ ] **CA-04.1.h** — `type: INTERNAL` aceito sem `reservation_id` e sem `guest_id`
-- [ ] **CA-04.1.i** — Item `billable: false` exige `reason`, validado por **allowlist**
-- [ ] **CA-04.1.j** — Soma da conta ignora `billable: false` (RN-007)
-- [ ] **CA-04.1.k** — Duas contas no mesmo `room_id` com `charges_lodging: true` → **422** (RN-005)
-- [ ] **CA-04.1.l** — Lançar item não faturável exige `ADMIN` ou `RECEPTIONIST` — garçom não dá cortesia sozinho
-- [ ] **CA-04.1.m** — Isolamento multi-tenant em `accounts` e `account_items`
-- [ ] **CA-04.1.n** — **Least privilege do `WAITER` fechado** — ver §6
+- [x] **CA-04.1.a** — `POST /accounts/:id/items` com `product_id` copia `description` e `unit_price` do catálogo *(19/10, Bloco D)*
+- [x] **CA-04.1.b** — Sem `product_id`, exige `description` + `unit_price` *(19/10, Bloco D)*
+- [x] **CA-04.1.c** — `total` **sempre** calculado no servidor; valor do cliente é ignorado *(19/10, Bloco D)*
+- [x] **CA-04.1.d** — Reenvio do mesmo `client_item_id` não duplica (RN-008) *(19/10, Bloco D)*
+- [x] **CA-04.1.e** — Resposta do `POST /items` devolve o total atualizado da conta *(19/10, Bloco D)*
+- [x] **CA-04.1.f** — `GET /accounts?status=OPEN&type=ROOM` filtra *(19/10, Bloco C)*
+- [x] **CA-04.1.g** — Conta `CLOSED` rejeita item novo → **422** *(19/10, Bloco D)*
+- [x] **CA-04.1.h** — `type: INTERNAL` aceito sem `reservation_id` e sem `guest_id` *(19/10, Bloco C)*
+- [x] **CA-04.1.i** — Item `billable: false` exige `reason`, validado por **allowlist** *(19/10, Bloco D)*
+- [x] **CA-04.1.j** — Soma da conta ignora `billable: false` (RN-007) *(19/10, Bloco D)*
+- [x] **CA-04.1.k** — Duas contas no mesmo `room_id` com `charges_lodging: true` → **422** (RN-005) *(19/10, Bloco C — por estadia, D-3)*
+- [x] **CA-04.1.l** — Lançar item não faturável exige `ADMIN` ou `RECEPTIONIST` — garçom não dá cortesia sozinho *(19/10, Bloco D)*
+- [x] **CA-04.1.m** — Isolamento multi-tenant em `accounts` e `account_items` *(19/10, Blocos C e D)*
+- [x] **CA-04.1.n** — **Least privilege do `WAITER` fechado** — ver §6
 
 **Armadilha:** `services/core-service/database/relations.js` já causou conflito neste projeto. Acrescentar ao final da seção, nunca reordenar.
 
@@ -214,7 +214,7 @@ A Fatia 0 criou a role `WAITER` mas só a bloqueou em `/rooms`, `/users` e `/ana
 
 Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e precisa ser fechado na T-04.1.
 
-- [ ] **CA-04.1.n.1** — `WAITER` lê `/products` e lança em `/accounts`
+- [x] **CA-04.1.n.1** — `WAITER` lê `/products` e lança em `/accounts` *(19/10, Bloco D — só item do cardápio, D-21)*
 - [x] **CA-04.1.n.2** — `WAITER` **não** alcança `/reservations`, `/guests`, `/payments`, check-in/out nem `/bill` *(07/10, branch `fix/waiter-least-privilege`: allowlist no `authMiddleware` — o garçom é negado em todo router autenticado, não só nestes)*
 - [x] **CA-04.1.n.3** — Teste cobrindo cada 403 *(`tests/waiter-least-privilege.test.js`)*
 

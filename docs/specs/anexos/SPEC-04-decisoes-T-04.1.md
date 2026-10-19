@@ -1,8 +1,8 @@
 # SPEC-04 · Anexo — Decisões da T-04.1 (`Account` + `AccountItem` + CRUD)
 
-**Responsável:** Sirlande (orquestrando Claude Code) · **Período:** 07/10/2026 a 14/10/2026
-**Estado da tarefa:** Bloco A ✅ em `develop` · Bloco B ✅ · Blocos C e D 🔲
-**Fontes:** relatórios `docs/historico_sessao/sirlande/t041_bloco_a_waiter_least_privilege_07out2026.md` e `t041_bloco_b_accounts_schema_14out2026.md`
+**Responsável:** Sirlande (orquestrando Claude Code) · **Período:** 07/10/2026 a 19/10/2026
+**Estado da tarefa:** ✅ concluída — Blocos A a D em `develop`, auditados pelo qa-redteam (`docs/qa/redteam_t041-accounts_19out2026.md`)
+**Fontes:** relatórios `docs/historico_sessao/sirlande/t041_bloco_a_waiter_least_privilege_07out2026.md` `t041_bloco_b_accounts_schema_14out2026.md` `t041_bloco_c_accounts_api_19out2026.md` e `t041_bloco_d_account_items_19out2026.md`
 
 > Este anexo reúne num só lugar o que foi decidido e **por quê**. A SPEC-04 diz o que entregar; a MER (entidades 4.11 e 4.12) diz o desenho; aqui ficam as escolhas que nenhum dos dois fixava e que os Blocos C e D precisam respeitar.
 
@@ -14,8 +14,8 @@
 |---|---|---|---|
 | **A** ✅ | Garçom (`WAITER`) restrito a uma allowlist de rotas: cardápio e comandas. Papel desconhecido é negado | CA-04.1.n.2, n.3 | `app/utils/roles.js`, `authMiddleware`, `tests/waiter-least-privilege.test.js` |
 | **B** ✅ | Tabelas `accounts` e `account_items`, com as regras de negócio garantidas pelo banco | CA-04.1.m e k (camada de banco) | `AccountModel.js`, `AccountItemModel.js`, `accountEnums.js`, `applyDbConstraints.js`, `schema.sql`, `tests/accounts-db.test.js` |
-| C 🔲 | `POST/GET /accounts`, `GET /accounts/:id`, regras por tipo em 422 | f, h, k, m | — |
-| D 🔲 | Lançar e excluir item, idempotência, cortesia, Swagger | a–e, g, i, j, l, n.1 | — |
+| **C** ✅ | Abrir, listar e ler contas, com as regras por tipo, papel e hotel respondidas em 422, 403 e 404 | f, h, k, m (contas) | `AccountApi/`, `accountRouter.js`, `accountRuleViolation.js`, `tests/accounts.test.js` |
+| **D** ✅ | Lançar e excluir item, idempotência da fila offline, cortesia, soma da conta, Swagger de `/accounts` | a–e, g, i, j, l, m (itens), n.1 | `CreateAccountItemController`, `DeleteAccountItemController`, `accountTotal.js`, `config/swagger.js`, `tests/account-items.test.js` |
 
 **Garantias que já valem no banco**, provadas por 51 testes que contornam a aplicação:
 
@@ -104,14 +104,57 @@
 ### D-13 — Sem CHECK próprio para `total >= 0`
 - **Justificativa:** já é consequência de `quantity > 0`, `unit_price >= 0` e `total = quantity × unit_price`. Um CHECK redundante também impediria provar cada regra isoladamente: um preço negativo seria recusado pela regra errada e o teste não saberia distinguir.
 
+### D-14 — Hóspede da conta `ROOM`: qualquer hóspede do hotel
+- **Alternativa descartada:** só o titular da reserva.
+- **Justificativa:** o cenário "pessoas diferentes na mesma suíte, contas separadas" (SPEC-04 §3) exige abrir a conta no nome do acompanhante. O banco não registra quem está hospedado em cada quarto, então não há como restringir mais do que "hóspede deste hotel". A busca filtra por `tenant_id`.
+
+### D-15 — `label` obrigatório e enviado pelo cliente, em todos os tipos
+- **Alternativa descartada:** gerar automaticamente ("Suíte 201 — João").
+- **Justificativa:** o garçom lista as contas. Um rótulo gerado colocaria o nome do hóspede na tela dele sem ninguém ter escolhido isso (LGPD). Quem abre a conta decide como ela aparece.
+
+### D-16 — Reserva, quarto ou hóspede de outro hotel → 404
+- **Justificativa:** é o padrão do sistema (`CreateReservationController`) e não confirma que o id existe em outro hotel. As FKs de `accounts` só garantem que o registro existe, não de qual hotel ele é, então o controller busca cada vínculo filtrando por `tenant_id`.
+
+### D-17 — Recusa do banco da comanda vira 422 num utilitário próprio
+- **Alternativa descartada:** reaproveitar o `uniqueConstraintConflict`.
+- **Justificativa:** ele responde 409, e a RN-005 é regra de negócio (CA-04.1.k pede 422), não duplicata de cadastro. O `accountRuleViolation` mapeia o nome de cada constraint da comanda para a mensagem da regra. Constraint sem entrada segue para o 500, para não mascarar um defeito de verdade.
+
+### D-18 — Resposta das contas sem hóspede nem reserva
+- **Justificativa:** o garçom também lista e lê contas (D-8). A resposta traz só os ids e o `label`, nunca o objeto do hóspede ou da reserva. Quem precisa dos dados pessoais usa `/guests`, que o garçom não alcança (D-1).
+
+### D-19 — Reenvio de item já excluído → 200 com `deleted_at` (fecha o ponto aberto da D-6)
+- **Alternativa descartada:** 409.
+- **Justificativa:** a fila do celular só precisa saber que o lançamento foi recebido, para parar de reenviar. Um 409 seria tratado como erro: a fila tentaria de novo ou alertaria o garçom sem motivo. Com o `deleted_at` preenchido, o app ainda pode mostrar "excluído pela recepção". O reenvio é reconhecido **antes** de checar papel e status da conta: um item que entrou antes do fechamento continua aceito no reenvio. O mesmo `client_item_id` em outra conta do hotel dá 409 (bug do app, não reenvio).
+
+### D-20 — `quantity` entre 1 e 9999, padrão 1
+- **Justificativa:** o padrão 1 é o caso comum ("uma cerveja"). O teto existe porque um valor acima do `INTEGER` do banco derrubava a API com 500 (achado do qa-redteam). Mais de 9999 num lançamento só é erro de digitação.
+
+### D-21 — Garçom só lança item do cardápio, faturável
+- **Alternativa descartada:** aceitar avulso do garçom com preço maior que zero.
+- **Justificativa:** o qa-redteam mostrou que o garçom lançava avulso a preço 0 (cortesia sem motivo, fora do relatório) ou a R$ 0,01 (venda abaixo do cardápio). Exigir preço > 0 ainda deixaria o garçom definir o preço. Lançamento avulso e cortesia ficam com ADMIN e RECEPTIONIST: quem define o preço define também se o item sai de graça. Com `product_id`, o preço e a descrição enviados pelo cliente são ignorados, e valem os do cardápio, pelo mesmo princípio do CA-04.1.c.
+
+### D-22 — Conta `ROOM` só recebe item com a reserva `CHECKED_IN`
+- **Justificativa:** depois do check-out o hóspede já saiu, e o qa-redteam reproduziu o garçom lançando na suíte mesmo assim. Fechar a conta automaticamente no check-out é da T-04.3; até lá, esta regra impede a cobrança indevida.
+
+### D-23 — Recusas de regra em 422
+- **`reason` em item faturável → 422.** "Cobrado, com motivo cortesia" é contraditório e confundiria o relatório de consumo interno (T-04.7).
+- **Excluir item de conta `CLOSED` ou `PAID` → 422.** A conta já foi apresentada ou paga; mudá-la alteraria o que o hóspede recebeu.
+- **Preço com mais de 2 casas → 400.** Antes era arredondado sem aviso.
+
+### D-24 — `total` de conta `INTERNAL` no GET soma os itens; o total zero é regra do fechamento
+- **Achado do qa-redteam:** a CA-04.3.f pede que a conta `INTERNAL` feche com `total: 0`.
+- **Decisão:** a regra se aplica no `/bill` da T-04.3, não na tela da comanda. Ali, saber quanto custou a refeição da equipe é informação útil para o gestor (RN-006 trata de **receita**, não do custo exibido).
+
 ---
 
 ## 3. Pontos em aberto, herdados pelos próximos blocos
 
 | # | Ponto | Quando |
 |---|---|---|
-| 1 | Resposta ao reenvio de `client_item_id` de item já excluído (D-6) | Bloco D |
-| 2 | Recusas do banco viram 422 com mensagem, nunca 500 | Bloco C |
-| 3 | Conta `ROOM` confere o quarto em `reservation_rooms` (reserva com vários quartos), não só em `reservations.room_id` | Bloco C |
+| 1 | ~~Resposta ao reenvio de `client_item_id` de item já excluído (D-6)~~ ✅ D-19 | Bloco D |
+| 2 | ~~Recusas do banco viram 422 com mensagem, nunca 500~~ ✅ D-17 | Bloco C |
+| 3 | ~~Conta `ROOM` confere o quarto em `reservation_rooms`~~ ✅ testado com reserva multiquarto | Bloco C |
 | 4 | `consumptions.amount` é `(12,2)` e `account_items.total` é `(10,2)`: a migração confere antes (CA-04.2.a) | T-04.2 |
 | 5 | Sugerir na MER: `deleted_by` (D-7) e o escopo por estadia da RN-005 (D-3) | Próxima versão do Doc 04 |
+| 6 | Conta `INTERNAL` fecha com total 0 (D-24, CA-04.3.f) e conta `ROOM` fecha no check-out (D-22) | T-04.3 |
+| 7 | `GET /accounts` sem paginação: o garçom recebe o histórico inteiro de rótulos (achado 🟢 do qa-redteam) | T-06.10 (paginação de todas as listagens) |
