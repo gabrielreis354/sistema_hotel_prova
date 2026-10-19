@@ -102,14 +102,14 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 - [ ] **CA-04.1.c** — `total` **sempre** calculado no servidor; valor do cliente é ignorado
 - [ ] **CA-04.1.d** — Reenvio do mesmo `client_item_id` não duplica (RN-008)
 - [ ] **CA-04.1.e** — Resposta do `POST /items` devolve o total atualizado da conta
-- [ ] **CA-04.1.f** — `GET /accounts?status=OPEN&type=ROOM` filtra
+- [x] **CA-04.1.f** — `GET /accounts?status=OPEN&type=ROOM` filtra *(19/10, Bloco C)*
 - [ ] **CA-04.1.g** — Conta `CLOSED` rejeita item novo → **422**
-- [ ] **CA-04.1.h** — `type: INTERNAL` aceito sem `reservation_id` e sem `guest_id`
+- [x] **CA-04.1.h** — `type: INTERNAL` aceito sem `reservation_id` e sem `guest_id` *(19/10, Bloco C)*
 - [ ] **CA-04.1.i** — Item `billable: false` exige `reason`, validado por **allowlist**
 - [ ] **CA-04.1.j** — Soma da conta ignora `billable: false` (RN-007)
-- [ ] **CA-04.1.k** — Duas contas no mesmo `room_id` com `charges_lodging: true` → **422** (RN-005)
+- [x] **CA-04.1.k** — Duas contas no mesmo `room_id` com `charges_lodging: true` → **422** (RN-005) *(19/10, Bloco C — por estadia, D-3)*
 - [ ] **CA-04.1.l** — Lançar item não faturável exige `ADMIN` ou `RECEPTIONIST` — garçom não dá cortesia sozinho
-- [ ] **CA-04.1.m** — Isolamento multi-tenant em `accounts` e `account_items`
+- [ ] **CA-04.1.m** — Isolamento multi-tenant em `accounts` e `account_items` *(`accounts` ✅ 19/10; `account_items` no Bloco D)*
 - [ ] **CA-04.1.n** — **Least privilege do `WAITER` fechado** — ver §6
 
 **Armadilha:** `services/core-service/database/relations.js` já causou conflito neste projeto. Acrescentar ao final da seção, nunca reordenar.
