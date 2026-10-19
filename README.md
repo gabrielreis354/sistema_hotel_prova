@@ -13,6 +13,7 @@
   - [Pré-requisitos](#pré-requisitos)
   - [Configuração (ConfigMap e Secret)](#configuração-configmap-e-secret)
   - [Como Subir o Ambiente](#como-subir-o-ambiente-how-to-up)
+  - [Contingência Local (Docker Compose)](#contingência-local-docker-compose)
   - [Detalhamento Técnico da Infraestrutura](#detalhamento-técnico-da-infraestrutura)
 - [Parte 3 — API e Backend](#parte-3--api-e-backend)
   - [Documentação Swagger](#documentação-swagger)
@@ -63,7 +64,7 @@ Sistema de gestão hoteleira **SaaS multi-tenant**: múltiplos hotéis utilizam 
 
 ## Infraestrutura — Kubernetes
 
-O ambiente de execução é **Kubernetes**, aplicado via `kustomize` a partir dos manifests em `k8s/`. Cada componente do sistema roda como um recurso K8s dedicado — Deployment, Service, ConfigMap, Secret, PVC — dentro do namespace `hotel-system`.
+O ambiente de execução é **Kubernetes**, aplicado via `kustomize` a partir dos manifests em `infra/k8s/`. Cada componente do sistema roda como um recurso K8s dedicado — Deployment, Service, ConfigMap, Secret, PVC — dentro do namespace `hotel-system`.
 
 ---
 
@@ -91,7 +92,7 @@ O ambiente de execução é **Kubernetes**, aplicado via `kustomize` a partir do
 
 No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 
-**`k8s/configmap.yaml` — variáveis não sensíveis:**
+**`infra/k8s/configmap.yaml` — variáveis não sensíveis:**
 
 | Variável | Valor |
 |---|---|
@@ -102,16 +103,53 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 | `POSTGRES_DB` | `gestao_hotel` |
 | `POSTGRES_USER` | `hotel_user` |
 
-**`k8s/secret.yaml` — variáveis sensíveis:**
+**`infra/k8s/secret.yaml` — variáveis sensíveis:**
 
 | Variável | Valor padrão (acadêmico) |
 |---|---|
 | `POSTGRES_PASSWORD` | `hotel_password` |
-| `JWT_SECRET` | `pms_hotel_secreto_academico_2026` |
+| `PIX_WEBHOOK_SECRET` | `pms_hotel_pix_webhook_secreto_academico_2026` |
+| `MINIO_ROOT_USER` | `minioadmin` |
+| `MINIO_ROOT_PASSWORD` | `minioadmin123` |
+| `MINIO_PRESIGN_USER` | `gesway-pdf-leitor` — só `s3:GetObject`; assina as URLs de download de PDF (RNF-023) |
+| `MINIO_PRESIGN_PASSWORD` | `leitura_pdf_academico_2026` |
+| `RABBITMQ_DEFAULT_USER` | `hotel_broker` |
+| `RABBITMQ_DEFAULT_PASS` | `rabbitmq_secreto_academico_2026` |
+| `RABBITMQ_CORE_USER` | `hotel_core_publisher` — só publica na exchange `gesway.core.events` (T-01.4, catálogo §8) |
+| `RABBITMQ_CORE_PASSWORD` | `rabbitmq_core_academico_2026` |
+| `RABBITMQ_ANALYTICS_USER` | `hotel_analytics_consumer` — só lê a fila `analytics.core-events` |
+| `RABBITMQ_ANALYTICS_PASSWORD` | `rabbitmq_analytics_academico_2026` |
 
 > Em produção, substitua os valores do `secret.yaml` por credenciais reais e **nunca commite o arquivo com senhas reais**. Para este projeto acadêmico os valores estão no repositório para facilitar a avaliação.
 
-Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `k8s/`.
+**JWT (RS256, ADR-006/T-01.3) é a exceção — não vai no `secret.yaml` versionado.** O
+backend assina o token com uma chave privada RSA e verifica com a pública; versionar a
+privada anularia o motivo de ter saído do HS256. O secret `jwt-rsa-keys` precisa existir
+**antes** do backend subir (sem ele, os pods ficam em `ContainerCreating`):
+
+```bash
+node services/core-service/scripts/gerar_chaves_jwt.js   # uma vez por ambiente
+```
+
+`scripts/infra_up.sh` e `./start.sh up` criam o secret sozinhos a partir de
+`services/core-service/keys/` (via `scripts/k8s_garantir_secret_jwt.sh`) — ou abortam com o
+comando acima, se as chaves não existirem. Aplicando os manifests à mão, crie o namespace
+**primeiro** (num cluster novo ele ainda não existe) e o secret depois:
+
+```bash
+kubectl apply -f infra/k8s/namespace.yaml
+kubectl create secret generic jwt-rsa-keys \
+  --from-file=jwt-private.pem=services/core-service/keys/jwt-private.pem \
+  --from-file=jwt-public.pem=services/core-service/keys/jwt-public.pem \
+  -n hotel-system
+kubectl apply -k infra/k8s/
+```
+
+> **Trocar a chave** exige recriar o secret e `kubectl rollout restart deploy/backend` — cada pod
+> guarda a chave em memória. Todas as sessões caem (os tokens antigos deixam de valer), e durante o
+> *rollout* pods velhos e novos convivem: `401` intermitente até ele terminar.
+
+Não é necessário criar arquivo `.env` para rodar no Kubernetes — a configuração está inteiramente nos manifests `infra/k8s/`, mais o secret `jwt-rsa-keys` acima.
 
 ---
 
@@ -159,7 +197,7 @@ Resultado: imagem enxuta (~120 MB), sem ferramentas de build, rodando como usuá
 ### Passo 3 — Aplicar todos os manifests com Kustomize
 
 ```bash
-kubectl apply -k k8s/
+kubectl apply -k infra/k8s/
 ```
 
 Este único comando cria em sequência:
@@ -200,7 +238,7 @@ kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
 Com o cluster rodando, crie todas as tabelas no banco:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 Saída esperada:
@@ -247,6 +285,128 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 
 ---
 
+## Contingência Local (Docker Compose)
+
+> O Termo de Aceite prevê: se a infraestrutura em nuvem falhar no dia da defesa, a equipe pode
+> demonstrar a aplicação localmente via Docker/Docker Compose, sem penalidade — desde que os
+> arquivos de containerização estejam **atualizados e funcionais**. É isto (T-06.4).
+>
+> Não usa Kubernetes, não depende do cluster em nuvem (SPEC-02) e não substitui o deploy em
+> produção — é a rede de segurança para o dia da apresentação.
+
+### Subir tudo
+
+```bash
+cp .env.example .env
+# edite o .env: PIX_WEBHOOK_SECRET, MINIO_ROOT_PASSWORD, MINIO_PRESIGN_PASSWORD,
+# RABBITMQ_CORE_PASSWORD e RABBITMQ_ANALYTICS_PASSWORD são obrigatórios
+# (o compose recusa subir sem eles; senhas do MinIO com 8+ caracteres).
+# Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
+# no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
+# Porta 80 já em uso? defina NGINX_PORT=<porta> E MINIO_PUBLIC_ENDPOINT=http://localhost:<porta>
+# no .env — os dois juntos, senão o download de PDF (URL assinada) aponta para a porta errada.
+node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006), uma vez só
+docker compose up -d --build
+docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
+docker compose exec backend node command.js migrate
+docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional — dados de demonstração
+```
+
+> As chaves do JWT **não entram na imagem** (`keys/` está no `.dockerignore`): o compose monta
+> `services/core-service/keys/` no container, somente leitura. Esqueceu de gerar? O backend
+> **recusa subir** e fica em `Restarting` no `docker compose ps` — o motivo aparece em
+> `docker compose logs backend`. Melhor descobrir aqui do que no primeiro login da defesa.
+>
+> Duas armadilhas de permissão, as duas com mensagem clara:
+> - **Gere as chaves antes do primeiro `up`.** Se o compose subir antes, o Docker cria
+>   `services/core-service/keys/` como `root`, e o script de geração não consegue mais gravar — ele
+>   mesmo mostra o `sudo rm -rf` para resolver.
+> - O backend roda como o usuário `node` (**uid 1000**) e a chave privada é `0600`. No Linux, ela
+>   precisa pertencer ao uid 1000 do host — o primeiro usuário no WSL e na maioria das distros. Com
+>   outro uid, o backend recusa subir (`EACCES` no log): rode `sudo chown 1000
+>   services/core-service/keys/*.pem`.
+
+> `seed` recusa rodar sem `ALLOW_SEED=1` quando `NODE_ENV=production` (o default deste compose) —
+> ele cria usuários com senha conhecida (`senha123`), então só roda com confirmação explícita.
+> Idempotente: rodar de novo não duplica dados.
+
+### Verificar
+
+```bash
+curl http://localhost/health      # atravessa o nginx até o backend
+```
+
+Resposta esperada:
+
+```json
+{ "status": "OK", "timestamp": "...", "service": "Sistema de Gestão de Hotel Backend" }
+```
+
+Documentação da API: **http://localhost/api-docs** · UI de gestão do RabbitMQ (só inspeção
+local): **http://localhost:15672**.
+
+Para **confirmar um pagamento PIX** na demonstração (o webhook exige assinatura HMAC — T-06.9 —,
+então chamar a rota à mão dá `401`), use o script que assina como o PSP faria. Ele roda dentro
+do container, onde o compose já injetou o `PIX_WEBHOOK_SECRET`:
+
+```bash
+docker compose exec backend node scripts/simular_pagamento_pix.js <provider_charge_id>
+```
+
+O `provider_charge_id` vem na resposta de `POST /public/<subdomínio>/bookings`.
+
+**PDFs de orçamento e contrato** (RNF-023) são baixados por URL assinada de 5 minutos: `GET
+/event-quotes/<id>/pdf` responde `302` para `http://localhost/hotel-contracts/...`, que o nginx
+repassa ao MinIO. O nginx só deixa passar `GET` de um PDF de orçamento ou contrato com assinatura
+na URL — listar o bucket, qualquer outro caminho ou credencial no cabeçalho dão `403`. Quem assina
+é um usuário MinIO **só de leitura** (`MINIO_PRESIGN_USER`), criado pelo serviço `minio-setup` a
+cada `up`; o root nunca assina URL. A URL usa o `MINIO_PUBLIC_ENDPOINT`: se o navegador acessa o
+sistema por outro endereço (outra porta, outra máquina na rede), ajuste a variável.
+
+> `http://localhost/healthz` também responde `200`, mas é um checkpoint **do nginx**, estático —
+> não prova que o backend está de pé. Use `/health` (acima) para validar o backend de verdade.
+
+### Observabilidade (opcional — T-02.4)
+
+Prometheus e Grafana ficam fora do `up` padrão. Para a demonstração do monitoramento:
+
+```bash
+# no .env: METRICS_TOKEN (openssl rand -hex 32) e GRAFANA_ADMIN_PASSWORD
+docker compose --profile observability up -d
+```
+
+Grafana em http://localhost:3002 (login `admin` + `GRAFANA_ADMIN_PASSWORD`), pasta **Gesway** →
+*Saúde do core-service*. O `/metrics` do backend exige `Authorization: Bearer $METRICS_TOKEN` e
+não sai pelo nginx (404) — o contador por tenant revela o volume de cada hotel. No k8s, o mesmo
+conjunto está em `infra/k8s/observability.yaml`; acesso com
+`kubectl -n hotel-system port-forward svc/grafana 3002:3000`.
+
+### Frontend
+
+O compose sobe só o backend e a infraestrutura de apoio — não há `Dockerfile` em `frontend/`.
+Para demonstrar as telas, rode o frontend localmente, fora do compose, apontando para o backend
+que o compose expõe em `localhost:3000`:
+
+```bash
+cd frontend
+pnpm install
+pnpm --filter app-pms dev   # abre em http://localhost:5173
+```
+
+O `vite.config.ts` do `app-pms` já usa `http://localhost:3000` como alvo do proxy — o mesmo
+`:3000` que o serviço `backend` do compose publica no host por padrão, então nenhuma configuração
+extra é necessária **se você não mudou `BACKEND_HOST_PORT`**. Se mudou (porta 3000 ocupada na
+máquina), edite o `target` em `frontend/apps/pms/vite.config.ts` para a mesma porta.
+
+### Derrubar
+
+```bash
+docker compose down          # mantém os volumes (dados do banco preservados)
+docker compose down -v       # remove tudo, inclusive os dados — use após a defesa
+```
+
+---
+
 ## Detalhamento Técnico da Infraestrutura
 
 ### Recursos Kubernetes e suas funções
@@ -255,7 +415,8 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 |---|---|---|---|
 | Namespace | `hotel-system` | — | Isolamento lógico de todos os recursos do projeto |
 | ConfigMap | `hotel-config` | — | Variáveis de ambiente não sensíveis |
-| Secret | `hotel-secret` | — | Credenciais do banco e JWT secret |
+| Secret | `hotel-secret` | — | Senha do banco, segredo do webhook PIX, credenciais do MinIO e do RabbitMQ (versionado — valores acadêmicos) |
+| Secret | `jwt-rsa-keys` | — | Par de chaves RS256 do JWT — **não versionado**, criado por `scripts/k8s_garantir_secret_jwt.sh`; montado em `/app/keys` com `defaultMode: 0400` + `fsGroup: 1000` (efetivo `r--r----- root:1000`) |
 | PVC | `postgres-data` | — | Volume persistente de 1 Gi para o PostgreSQL |
 | StatefulSet + Service | `postgres` | 1 | Banco de dados (ClusterIP:5432) |
 | Deployment + Service | `backend` | **3** | API REST Node.js (ClusterIP:3000) |
@@ -307,9 +468,10 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD` e `JWT_SECRET` |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, `MINIO_PRESIGN_USER`/`MINIO_PRESIGN_PASSWORD` `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS`, `RABBITMQ_CORE_USER`/`RABBITMQ_CORE_PASSWORD` e `RABBITMQ_ANALYTICS_USER`/`RABBITMQ_ANALYTICS_PASSWORD` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
+| Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, gerado por ambiente e criado por `scripts/k8s_garantir_secret_jwt.sh` (chamado por `infra_up.sh` e `start.sh up`) |
 
-Os Pods leem essas variáveis via `envFrom` (ConfigMap) e `env.valueFrom.secretKeyRef` (Secret). Nenhuma credencial está hardcoded nas imagens.
+Os Pods leem essas variáveis via `envFrom` (ConfigMap), `env.valueFrom.secretKeyRef` (Secret `hotel-secret`) e um volume montado a partir do Secret `jwt-rsa-keys`. Nenhuma credencial está hardcoded nas imagens.
 
 ### Otimização da imagem Docker (Multi-stage Build)
 
@@ -320,7 +482,7 @@ Estágio runner → node:24-alpine  |  copia node_modules + código-fonte
                                     EXPOSE 3000
 ```
 
-O `.dockerignore` exclui do build: `node_modules/`, `tests/`, `docs/`, `k8s/`, `.git/`, `.env`, `*.md`.
+O `.dockerignore` exclui do build: `node_modules/`, `tests/`, `docs/`, `infra/k8s/`, `.git/`, `.env`, `*.md`.
 
 ### Segurança
 
@@ -469,73 +631,84 @@ CLEANING  ──► AVAILABLE (limpeza concluída — via PUT /rooms/:id)
 
 ## Estrutura do Projeto
 
+> **O backend mudou de lugar em 15/09/2026.** Saiu da raiz e passou para
+> `services/core-service/`, primeiro passo da divisão em microsserviços (SPEC-01, ADR-003).
+> Os manifests do Kubernetes foram para `infra/k8s/`, e o material superado — `docker/`,
+> `modelagem/`, `queries/`, `justificativa/` — para `docs/legado/`.
+>
+> Na prática: `npm install`, `npm test`, `npm start` e `node command.js` rodam **de dentro de
+> `services/core-service/`**, onde ficam o `package.json` e o `.env`. Os scripts de `scripts/`
+> e o `start.sh` continuam sendo chamados da raiz.
+
 ```
 sistema_gestao_hotel/
 │
-├── _web.js                   # Entrypoint HTTP — inicia o servidor Express
-├── command.js                # Entrypoint CLI  — node command.js migrate
+├── services/                       # Um diretório por microsserviço
+│   └── core-service/               # Operação do hotel — reservas, hospedagem, pagamentos, consumo
+│       ├── _web.js                 # Entrypoint HTTP — inicia o servidor Express
+│       ├── command.js              # Entrypoint CLI  — node command.js migrate
+│       ├── package.json            # Dependências e scripts DO SERVIÇO
+│       ├── Dockerfile              # Multi-stage build — o contexto é esta pasta
+│       ├── .dockerignore
+│       ├── vitest.config.js
+│       │
+│       ├── bootstrap/
+│       │   ├── app.js              # Inicialização: dotenv + relações Sequelize
+│       │   └── config.js           # Constantes globais
+│       │
+│       ├── app/
+│       │   ├── Controllers/        # Um arquivo por ação (Responsabilidade Única)
+│       │   │   ├── AuthApi/        #   Register, Login
+│       │   │   ├── GuestApi/       #   CRUD de hóspedes
+│       │   │   ├── PaymentApi/     #   CRUD de pagamentos
+│       │   │   ├── ReservationApi/ #   CRUD + CheckIn + CheckOut + Cancel + Pivot
+│       │   │   ├── RoomApi/        #   CRUD + ListAvailable
+│       │   │   ├── RoomCategoryApi/#   CRUD de categorias
+│       │   │   ├── ProductApi/     #   Catálogo de consumo
+│       │   │   ├── AnalyticsApi/   #   Indicadores (sai na T-01.4)
+│       │   │   └── UserApi/        #   CRUD de usuários
+│       │   ├── Models/             # Modelos Sequelize
+│       │   ├── services/pix/       # Provedor de cobrança PIX
+│       │   └── utils/              # Utilitários compartilhados (DRY)
+│       │
+│       ├── database/
+│       │   ├── connections/        # Singleton de conexão com PostgreSQL
+│       │   └── relations.js        # Associações entre modelos
+│       │
+│       ├── middlewares/            # authMiddleware · roleMiddleware · tenantMiddleware
+│       │
+│       ├── routes/
+│       │   ├── router.js           # Router principal (monta todos os sub-routers)
+│       │   └── apis/               # Sub-routers por domínio
+│       │
+│       ├── config/swagger.js       # Especificação OpenAPI 3.0
+│       ├── db/schema.sql           # Schema SQL — fonte de verdade do banco
+│       ├── seed/seed_hotels.sql    # 165 registros de exemplo (2 hotéis)
+│       └── tests/                  # Integração (Vitest + Supertest)
 │
-├── bootstrap/
-│   ├── app.js                # Inicialização: dotenv + relações Sequelize
-│   └── config.js             # Constantes globais
+├── infra/
+│   └── k8s/                        # Manifests Kubernetes (ambiente principal)
+│       ├── kustomization.yaml      #   Ponto de entrada (kubectl apply -k infra/k8s/)
+│       ├── namespace.yaml          #   Namespace hotel-system
+│       ├── configmap.yaml          #   Variáveis de ambiente não sensíveis
+│       ├── secret.yaml             #   Credenciais (POSTGRES_PASSWORD, PIX_WEBHOOK_SECRET)
+│       ├── postgres.yaml           #   PVC + Deployment + Service do PostgreSQL
+│       ├── backend.yaml            #   Deployment (3 réplicas) + Service do Node.js
+│       ├── nginx.yaml              #   ConfigMap nginx + Deployment + Service LoadBalancer
+│       ├── pdb.yaml                #   PodDisruptionBudget (mínimo 2 réplicas)
+│       └── networkpolicy.yaml      #   Políticas de rede (postgres ← backend ← nginx)
 │
-├── app/
-│   ├── Controllers/          # Um arquivo por ação (Princípio da Responsabilidade Única)
-│   │   ├── AuthApi/          #   Register, Login
-│   │   ├── GuestApi/         #   CRUD de hóspedes
-│   │   ├── PaymentApi/       #   CRUD de pagamentos
-│   │   ├── ReservationApi/   #   CRUD + CheckIn + CheckOut + Cancel + Pivot
-│   │   ├── RoomApi/          #   CRUD + ListAvailable
-│   │   ├── RoomCategoryApi/  #   CRUD de categorias
-│   │   └── UserApi/          #   CRUD de usuários
-│   ├── Models/               # Modelos Sequelize (8 tabelas)
-│   └── utils/                # Utilitários compartilhados (DRY)
+├── frontend/                       # Monorepo pnpm — apps/pms, packages/ui, api-client...
 │
-├── database/
-│   ├── connections/          # Singleton de conexão com PostgreSQL
-│   └── relations.js          # Associações entre modelos (hasMany, belongsTo, etc.)
+├── scripts/                        # qa_checks.sh · estado.sh · setup_db.sh · infra_up.sh
+│   └── setup.sql                   # DDL de referência comentado (fins acadêmicos)
 │
-├── middlewares/              # authMiddleware · roleMiddleware · tenantMiddleware
+├── start.sh · test_rotas.sh        # Operação do cluster local
 │
-├── routes/
-│   ├── router.js             # Router principal (monta todos os sub-routers)
-│   └── apis/                 # Sub-routers por domínio
-│
-├── config/swagger.js         # Especificação OpenAPI 3.0
-│
-├── Dockerfile                # Multi-stage build (deps + runner) — gera a imagem do backend
-├── .dockerignore             # Exclui arquivos desnecessários do build
-│
-├── k8s/                      # Manifests Kubernetes (ambiente principal)
-│   ├── kustomization.yaml    #   Ponto de entrada do kustomize (kubectl apply -k k8s/)
-│   ├── namespace.yaml        #   Namespace hotel-system
-│   ├── configmap.yaml        #   Variáveis de ambiente não sensíveis
-│   ├── secret.yaml           #   Credenciais (POSTGRES_PASSWORD, JWT_SECRET)
-│   ├── postgres.yaml         #   PVC + Deployment + Service do PostgreSQL
-│   ├── backend.yaml          #   Deployment (3 réplicas) + Service do Node.js
-│   ├── nginx.yaml            #   ConfigMap nginx + Deployment + Service LoadBalancer
-│   ├── pdb.yaml              #   PodDisruptionBudget (mínimo 2 réplicas do backend)
-│   └── networkpolicy.yaml    #   Políticas de rede (postgres ← backend ← nginx apenas)
-│
-├── db/schema.sql             # Schema SQL completo — fonte de verdade do banco
-├── scripts/setup.sql         # DDL de referência comentado (fins acadêmicos)
-├── seed/seed_hotels.sql      # 165 registros de exemplo (2 hotéis)
-│
-├── queries/
-│   ├── crud.sql              # Consultas CRUD com isolamento multi-tenant
-│   ├── consultas_avancadas.sql # 5 JOINs complexos
-│   └── agregacoes.sql        # 5 consultas de agregação (relatórios)
-│
-├── modelagem/
-│   ├── der.png               # Diagrama Entidade-Relacionamento (DER)
-│   ├── modelo_logico.png     # Diagrama Lógico
-│   └── dicionario_dados.md   # Dicionário de dados completo
-│
-├── justificativa/
-│   └── arquitetura.md        # Justificativa técnica da escolha do banco
-│
-├── docs/                     # Documentação técnica e histórico de sessões
-└── tests/                    # Suite de testes de integração (Vitest + Supertest)
+└── docs/                           # Documentação técnica, specs e histórico
+    ├── specs/                      #   SPEC-01 a SPEC-07
+    ├── sugestoes-documentos-oficiais/
+    └── legado/                     #   docker/, modelagem/, queries/, justificativa/
 ```
 
 ---
@@ -623,10 +796,10 @@ As consultas estão organizadas em `queries/`:
 
 ## Schema e Migrations
 
-O schema completo está em `db/schema.sql`. Para criar ou atualizar todas as tabelas:
+O schema completo está em `services/core-service/db/schema.sql`. Para criar ou atualizar todas as tabelas:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 O comando usa `sequelize.sync({ alter: true })` — cria tabelas inexistentes e adiciona colunas novas sem derrubar dados existentes.
@@ -971,7 +1144,7 @@ Causas comuns:
 As migrations não foram executadas após subir o cluster:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 ### Backend não consegue conectar ao PostgreSQL
@@ -1011,10 +1184,10 @@ kubectl get secret hotel-secret -n hotel-system -o jsonpath='{.data.POSTGRES_PAS
 
 Se precisar recriar tudo do zero:
 ```bash
-kubectl delete -k k8s/
-kubectl apply -k k8s/
+kubectl delete -k infra/k8s/
+kubectl apply -k infra/k8s/
 kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
 ```
 
 ---
@@ -1035,7 +1208,7 @@ Configure em: **GitHub → Settings → Secrets and variables → Actions**
 
 # Kubernetes
 
-A pasta `k8s/` contém os manifests para executar a mesma arquitetura no Kubernetes:
+A pasta `infra/k8s/` contém os manifests para executar a mesma arquitetura no Kubernetes:
 
 | Recurso | Função |
 |---|---|
@@ -1069,10 +1242,10 @@ Mais detalhes em `docs/infra/KUBERNETES.md`.
 
 ```bash
 # Remover todos os recursos do cluster — PVC e dados do banco são preservados
-kubectl delete -k k8s/
+kubectl delete -k infra/k8s/
 
 # Remover tudo incluindo o PVC (apaga os dados do banco permanentemente)
-kubectl delete -k k8s/
+kubectl delete -k infra/k8s/
 kubectl delete pvc postgres-data -n hotel-system
 ```
 

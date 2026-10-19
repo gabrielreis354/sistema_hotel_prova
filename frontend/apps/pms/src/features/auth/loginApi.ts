@@ -22,11 +22,7 @@ export class LoginError extends Error {
   }
 }
 
-/**
- * Autentica contra POST /auth/login. Usa o cliente tipado para a rota e o corpo; o corpo
- * da resposta 200 ainda não tem schema no Swagger (pendência para o backend documentar),
- * então tipamos o retorno localmente.
- */
+/** Autentica contra POST /auth/login — corpo e resposta (LoginResponse) tipados pelo Swagger. */
 export async function login(input: LoginInput): Promise<LoginResult> {
   const { data, error, response } = await api.POST('/auth/login', {
     body: input,
@@ -39,5 +35,5 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     throw new LoginError('Credenciais inválidas.');
   }
 
-  return data as unknown as LoginResult;
+  return data;
 }

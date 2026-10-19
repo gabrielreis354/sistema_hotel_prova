@@ -19,7 +19,12 @@
 
 set -uo pipefail
 
-SRC_DIRS="app routes middlewares database config bootstrap"
+# Os caminhos abaixo são relativos à raiz do repositório. O script pode ser chamado
+# de qualquer lugar — do CI, da raiz ou de dentro de services/core-service via npm.
+cd "$(dirname "$0")/.." || exit 1
+
+CORE="services/core-service"
+SRC_DIRS="$CORE/app $CORE/routes $CORE/middlewares $CORE/database $CORE/config $CORE/bootstrap"
 ERRORS=0
 WARNS=0
 
@@ -93,7 +98,7 @@ report_error "tenant_id lido do body/query/params" \
 # 4. Ordem de rotas — /:param declarado antes de rota literal captura a literal
 # ─────────────────────────────────────────────────────────────────────────────
 route_issues=""
-for f in routes/apis/*.js; do
+for f in $CORE/routes/apis/*.js; do
     [ -f "$f" ] || continue
     unset seen_param 2>/dev/null || true
     declare -A seen_param=()
@@ -150,19 +155,119 @@ report_warn "include de model com dado sensível, sem attributes" \
 # 7. Endpoint novo sem Swagger — quebra o cliente tipado do frontend
 # ─────────────────────────────────────────────────────────────────────────────
 missing_swagger=""
-for f in routes/apis/*.js; do
+for f in $CORE/routes/apis/*.js; do
     [ -f "$f" ] || continue
     base=$(basename "$f" .js)
     resource=$(printf '%s' "$base" | sed -E 's/Router$//')
     # camelCase -> kebab-case (roomCategory -> room-category)
     kebab=$(printf '%s' "$resource" | sed -E 's/([a-z0-9])([A-Z])/\1-\L\2/g' | tr '[:upper:]' '[:lower:]')
-    if ! grep -qi -- "$kebab" config/swagger.js 2>/dev/null; then
-        missing_swagger+="$f: recurso '$kebab' não aparece em config/swagger.js"$'\n'
+    if ! grep -qi -- "$kebab" $CORE/config/swagger.js 2>/dev/null; then
+        missing_swagger+="$f: recurso '$kebab' não aparece em $CORE/config/swagger.js"$'\n'
     fi
 done
 report_warn "Router sem entrada no Swagger" \
     "O cliente tipado do frontend é gerado do OpenAPI — endpoint fora do Swagger não existe para o frontend" \
     "$(printf '%s' "$missing_swagger")"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Model paranoid com unique TOTAL — queima o valor do campo para sempre
+#
+# O defeito já apareceu quatro vezes no projeto (products, reservations, e mais
+# cinco models achados de uma vez em 26/08). O mecanismo é sempre o mesmo:
+#
+#   model é `paranoid: true` + índice único SEM `where: { deleted_at: null }`
+#     → ao excluir, a linha morta continua no índice
+#     → o guard da aplicação não a enxerga (escopo paranoid diz que não existe)
+#     → quem barra a recriação é o Postgres, e o erro cai no catch genérico → 500
+#     → na prática o nome/CPF/e-mail fica QUEIMADO, e não há endpoint de restore
+#
+# Esta regra é ERRO, não aviso: é a única forma de impedir que volte pela quinta.
+#
+# Versão anterior contava `unique: true` e `deleted_at: null` no ARQUIVO INTEIRO —
+# a auditoria de 27/08 (docs/qa/redteam_paranoid-unique_27ago2026.md) provou 3
+# jeitos de burlar isso sem tocar no defeito real: (a) `unique: '<nome>'` — forma
+# string, que o grep de `unique:\s*true` não via; (b) `where` removido do índice,
+# mas um `deleted_at: null` em OUTRO bloco do arquivo (ex.: defaultScope) igualava
+# a contagem; (c) o mesmo com um simples COMENTÁRIO contendo o texto
+# `deleted_at: null`, que o grep também contava.
+#
+# A heurística agora é ESTRUTURAL, não contagem: para cada bloco `{ ... }` que
+# contenha `unique:` (true ou string), o PRÓPRIO bloco — aninhados inclusive,
+# como o `where: { deleted_at: null }` dentro do índice — precisa conter
+# `deleted_at`. Comentários são removidos antes de escanear, então (c) não cola
+# mais. Blocos são delimitados de verdade (pilha de `{`/`}`), então um
+# `deleted_at: null` em defaultScope nunca conta para o bloco do índice — (b)
+# também não cola. E `unique:` casa tanto `true` quanto aspas — (a) fechado.
+#
+# Um segundo laço cobre o `db/schema.sql`: qualquer `UNIQUE (` dentro de um
+# `CREATE TABLE` que também declare `deleted_at` é sempre defeituosa — o
+# PostgreSQL não aceita predicado em UNIQUE de tabela, então isso não tem correção
+# possível a não ser virar CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL.
+# ─────────────────────────────────────────────────────────────────────────────
+paranoid_issues=""
+for f in $CORE/app/Models/*.js; do
+    [ -f "$f" ] || continue
+    grep -q "paranoid:[[:space:]]*true" "$f" || continue
+
+    achou_defeito=$(sed 's|//.*$||' "$f" | awk '
+        {
+            line = $0
+            n = length(line)
+            for (i = 1; i <= n; i++) {
+                c = substr(line, i, 1)
+                if (c == "{") {
+                    depth++
+                    stack[depth] = ""
+                }
+                # Anexa o caractere a TODOS os níveis abertos — inclusive o que acabou
+                # de abrir nesta mesma iteração. Feito por caractere, não por linha:
+                # um bloco que abre E fecha na mesma linha (ex.: um índice curto de uma
+                # linha só) precisa ter seu conteúdo já acumulado no momento em que o
+                # "}" é avaliado logo abaixo. Anexar só no fim da linha (versão anterior)
+                # deixava esse caso com content == "", nunca casando `unique:`.
+                for (d = 1; d <= depth; d++) { stack[d] = stack[d] c }
+                if (c == "}") {
+                    content = stack[depth]
+                    if (content ~ /unique:[ \t]*(true|["'"'"'])/) {
+                        if (content !~ /deleted_at/) { bad = 1 }
+                    }
+                    delete stack[depth]
+                    if (depth > 0) depth--
+                }
+            }
+            # Separador entre linhas nos blocos que continuam abertos — sem isto, o fim
+            # de uma linha poderia colar no início da próxima e formar um "deleted_at"
+            # que não existe no código (ex.: "...delete" + "d_at...").
+            for (d = 1; d <= depth; d++) { stack[d] = stack[d] "\n" }
+        }
+        END { if (bad) print "1" }
+    ')
+
+    if [ "$achou_defeito" = "1" ]; then
+        paranoid_issues+="$f: bloco com unique (true ou string) sem deleted_at no mesmo escopo"$'\n'
+    fi
+done
+report_error "Model paranoid com índice único total" \
+    "Todo unique em model paranoid precisa de where: { deleted_at: null } NO MESMO BLOCO, senão um registro excluído queima o valor para sempre (ver $CORE/app/Models/ProductModel.js)" \
+    "$(printf '%s' "$paranoid_issues")"
+
+schema_unique_issues=$(awk '
+    /^CREATE TABLE/ {
+        intable = 1; buf = ""; tabela = $0
+        sub(/^CREATE TABLE( IF NOT EXISTS)? /, "", tabela)
+        sub(/ *\($/, "", tabela)
+    }
+    intable { buf = buf "\n" $0 }
+    intable && /^\);/ {
+        intable = 0
+        if (buf ~ /deleted_at/ && buf ~ /UNIQUE[ \t]*\(/) {
+            print "'"$CORE"'/db/schema.sql: tabela " tabela " tem UNIQUE de tabela com deleted_at — Postgres nao aceita predicado nisso, precisa virar CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL"
+        }
+    }
+' $CORE/db/schema.sql)
+report_error "UNIQUE de tabela em tabela soft-delete no schema.sql" \
+    "UNIQUE (...) dentro de CREATE TABLE não aceita predicado no PostgreSQL — numa tabela com deleted_at isso é sempre total e sempre defeituoso" \
+    "$schema_unique_issues"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. Frontend — divergência do design system
@@ -209,6 +314,24 @@ if [ -n "$FEATURES_DIRS" ]; then
     report_warn "Bloco de classes repetido em features/" \
         "Repetido 3+ vezes é componente disfarçado — crie local e promova no segundo módulo que precisar (packages/ui/CATALOGO.md)" \
         "$dup"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Regra 10 — as duas cópias da configuração do nginx são a mesma
+# docker/nginx/default.conf (compose) e o ConfigMap de infra/k8s/nginx.yaml são a única
+# barreira entre a internet e o MinIO (RNF-023: só GET de PDF por URL pré-assinada pelo
+# usuário de leitura). Uma cópia afrouxada sem a outra reabriria o acesso em um dos ambientes.
+# Compara as diretivas, ignorando comentários, linhas vazias e indentação.
+# ─────────────────────────────────────────────────────────────────────────────
+nginx_diretivas() { sed -E 's/^[[:space:]]+//; /^#/d; /^$/d'; }
+if [ -f docker/nginx/default.conf ] && [ -f infra/k8s/nginx.yaml ]; then
+    k8s_conf=$(awk '/^  default\.conf: \|/{on=1; next} on && /^---/{exit} on' infra/k8s/nginx.yaml | nginx_diretivas)
+    compose_conf=$(nginx_diretivas < docker/nginx/default.conf)
+    hits=$(diff <(printf '%s\n' "$compose_conf") <(printf '%s\n' "$k8s_conf") \
+            | sed 's/^</compose:/; s/^>/k8s:    /' | grep -E '^(compose|k8s)' || true)
+    report_error "Configuração do nginx diverge entre compose e k8s" \
+        "docker/nginx/default.conf e o ConfigMap de infra/k8s/nginx.yaml precisam ter as mesmas diretivas" \
+        "$hits"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

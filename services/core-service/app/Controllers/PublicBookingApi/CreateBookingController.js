@@ -1,0 +1,231 @@
+import crypto from 'crypto';
+import { Op } from 'sequelize';
+import sequelize from '../../../database/connections/sequelize.js';
+import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
+import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
+import { calculateStayTotal, countNights, toCents, fromCents } from '../../utils/calculateStayTotal.js';
+import { onlyDigits } from '../../utils/onlyDigits.js';
+import getPixProvider from '../../services/pix/index.js';
+import { PixProviderUnavailableError } from '../../services/pix/errors.js';
+import RoomModel from '../../Models/RoomModel.js';
+import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
+import GuestModel from '../../Models/GuestModel.js';
+import ReservationModel from '../../Models/ReservationModel.js';
+import PaymentModel from '../../Models/PaymentModel.js';
+import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+
+/**
+ * POST /public/:subdomain/bookings
+ *
+ * Reserva direta feita pelo próprio hóspede (sem login). Fluxo:
+ *   1. resolve o hotel pelo subdomínio
+ *   2. acha um quarto livre na categoria escolhida
+ *   3. find-or-create do hóspede (por e-mail dentro do tenant)
+ *   4. cria reserva PENDING (source=DIRECT, sem recepcionista)
+ *   5. cobra o SINAL (deposit_percent do hotel) via provider PIX → payment PENDING
+ *   6. devolve o QR/copia-e-cola para o hóspede pagar
+ *
+ * Reserva vira CONFIRMED só quando o webhook do PIX confirmar o pagamento.
+ */
+export default async function CreateBookingController(request, response) {
+    try {
+        const { subdomain } = request.params;
+        const { category_id, check_in, check_out, guests, guest } = request.body;
+
+        const { tenant, error } = await resolveTenantBySubdomain(subdomain);
+        if (error) return response.status(error.status).json({ error: error.message });
+
+        // 1. Validação de entrada
+        const errors = [];
+        if (!category_id) errors.push('category_id obrigatório');
+        if (!check_in)    errors.push('check_in obrigatório (YYYY-MM-DD)');
+        if (!check_out)   errors.push('check_out obrigatório (YYYY-MM-DD)');
+        if (!guest?.full_name) errors.push('guest.full_name obrigatório');
+        if (!guest?.email && !guest?.phone) errors.push('informe ao menos guest.email ou guest.phone');
+        if (errors.length) return response.status(400).json({ errors });
+        if (check_in >= check_out) {
+            return response.status(400).json({ error: 'check_out deve ser posterior a check_in' });
+        }
+
+        // 2. Categoria válida e pertencente ao tenant
+        const category = await RoomCategoryModel.findOne({
+            where: { id: category_id, tenant_id: tenant.id }
+        });
+        if (!category) return response.status(404).json({ error: 'Categoria não encontrada' });
+
+        const numGuests = guests ? parseInt(guests, 10) : 1;
+        if (category.capacity < numGuests) {
+            return response.status(422).json({ error: 'Categoria não comporta o número de hóspedes' });
+        }
+        if (!category.price_per_night || Number(category.price_per_night) <= 0) {
+            return response.status(422).json({ error: 'Categoria sem preço definido' });
+        }
+
+        // 3. Encontrar um quarto livre na categoria para o período
+        const rooms = await RoomModel.findAll({
+            where: { tenant_id: tenant.id, category_id, status: { [Op.ne]: 'MAINTENANCE' } }
+        });
+        let availableRoom = null;
+        for (const room of rooms) {
+            const conflict = await checkReservationConflict(room.id, check_in, check_out, null, tenant.id);
+            if (!conflict) { availableRoom = room; break; }
+        }
+        if (!availableRoom) {
+            return response.status(409).json({ error: 'Sem disponibilidade na categoria para o período' });
+        }
+
+        // 4. Cálculo financeiro — a mesma função de toda reserva (CA-F.4), em centavos inteiros.
+        // A resposta pública continua devolvendo números: é o contrato da API do site.
+        const nights = countNights(check_in, check_out);
+        const stay = await calculateStayTotal({ roomIds: [availableRoom.id], checkInDate: check_in, checkOutDate: check_out, tenantId: tenant.id });
+        if (stay.error) return response.status(stay.error.status).json({ error: stay.error.message });
+        const totalCents = toCents(stay.total);
+        const depositCents = Math.round(totalCents * tenant.deposit_percent / 100);
+        const totalAmount = stay.total;
+        const depositAmount = fromCents(depositCents);
+
+        // 5. Cobrança PIX do sinal via provider (simulado por padrão) — ANTES de abrir a
+        // transação. O id da reserva é gerado aqui (e não pelo default do model) para servir
+        // de chave de idempotência/correlação da cobrança sem segurar uma transação de banco
+        // aberta durante uma chamada de rede a um PSP real. Se a cobrança falhar, nada foi
+        // escrito no banco ainda.
+        const reservationId = crypto.randomUUID();
+        const pix = getPixProvider();
+        // PSP que exige CPF para cobrar (Asaas): 400 claro aqui, em vez de 503 vindo do PSP.
+        if (pix.requiresPayerCpf && !(guest.cpf && onlyDigits(guest.cpf))) {
+            return response.status(400).json({ errors: ['guest.cpf obrigatório para pagamento PIX'] });
+        }
+        let charge;
+        try {
+            charge = await pix.createCharge({
+                amount: Number(depositAmount),   // interface do PixProvider: número em reais
+                description: `Sinal reserva ${tenant.name}`,
+                externalId: reservationId,
+                payerName: guest.full_name,
+                payerEmail: guest.email,
+                payerCpf: guest.cpf ? onlyDigits(guest.cpf) : undefined
+            });
+        } catch (chargeError) {
+            if (chargeError instanceof PixProviderUnavailableError) {
+                return response.status(503).json({ error: 'Serviço de pagamento indisponível no momento' });
+            }
+            throw chargeError;
+        }
+
+        // 6. Persistência atômica: hóspede + reserva + pivô + pagamento (a cobrança já existe no PSP)
+        const transaction = await sequelize.transaction();
+        try {
+            // find-or-create do hóspede (por CPF, senão por e-mail, dentro do tenant).
+            // Só por e-mail deixava o CPF passar direto pro create: um hóspede já
+            // cadastrado na recepção que reserva pelo site com um e-mail novo batia
+            // no índice único de CPF sem nenhum guard antes — 500 em vez de reaproveitar
+            // o cadastro.
+            //
+            // Duas consultas em ORDEM EXPLÍCITA, não um `Op.or` das duas condições: com
+            // `Op.or`, se o e-mail casasse com o hóspede A e o CPF com o hóspede B — dois
+            // cadastros diferentes, situação normal numa base de hotel — o resultado
+            // dependia do plano de execução do Postgres, não determinístico. CPF vem
+            // primeiro porque é identidade mais forte (não muda; e-mail muda).
+            let guestRecord = null;
+            if (guest.cpf) {
+                guestRecord = await GuestModel.findOne({
+                    where: { tenant_id: tenant.id, cpf: guest.cpf },
+                    transaction
+                });
+            }
+            if (!guestRecord && guest.email) {
+                guestRecord = await GuestModel.findOne({
+                    where: { tenant_id: tenant.id, email: guest.email },
+                    transaction
+                });
+            }
+            if (!guestRecord) {
+                guestRecord = await GuestModel.create({
+                    tenant_id: tenant.id,
+                    full_name: guest.full_name,
+                    email: guest.email ?? null,
+                    phone: guest.phone ?? null,
+                    cpf: guest.cpf ?? null
+                }, { transaction });
+            }
+
+            const reservation = await ReservationModel.create({
+                id: reservationId,
+                tenant_id: tenant.id,
+                guest_id: guestRecord.id,
+                room_id: availableRoom.id,
+                user_id: null,            // reserva online não tem recepcionista
+                source: 'DIRECT',
+                check_in_date: check_in,
+                check_out_date: check_out,
+                status: 'PENDING',
+                total_amount: totalAmount
+            }, { transaction });
+
+            // O quarto entra em reservation_rooms pelo próprio banco (trigger
+            // reservations_sincroniza_quartos) — é lá que o EXCLUDE recusa a venda dupla.
+
+            const payment = await PaymentModel.create({
+                tenant_id: tenant.id,
+                reservation_id: reservation.id,
+                amount: depositAmount,
+                method: 'PIX',
+                status: 'PENDING',
+                kind: 'DEPOSIT',
+                provider: process.env.PIX_PROVIDER || 'fake',
+                provider_charge_id: charge.providerChargeId,
+                pix_qr_code: charge.qrCode,
+                pix_expiration: charge.expiration,
+                paid_at: null
+            }, { transaction });
+
+            await transaction.commit();
+
+            return response.status(201).json({
+                reservation: {
+                    id: reservation.id,
+                    status: reservation.status,
+                    check_in: check_in,
+                    check_out: check_out,
+                    nights,
+                    category: category.name,
+                    total_amount: Number(totalAmount)
+                },
+                payment: {
+                    id: payment.id,
+                    kind: payment.kind,
+                    status: payment.status,
+                    amount: Number(depositAmount),
+                    deposit_percent: tenant.deposit_percent,
+                    balance_due_on_checkin: Number(fromCents(totalCents - depositCents))
+                },
+                pix: {
+                    provider_charge_id: charge.providerChargeId,
+                    qr_code: charge.qrCode,
+                    expiration: charge.expiration
+                }
+            });
+        } catch (txError) {
+            await transaction.rollback();
+            // A cobrança já existe no PSP e a reserva não foi gravada: cobrança órfã. O QR não
+            // chega ao hóspede (só sai depois do commit), mas o id fica no log para o hotel
+            // reconciliar ou cancelar no PSP (qa-redteam de 12/10, 🟡-1).
+            console.error('CreateBookingController: reserva não gravada — cobrança órfã no PSP', charge?.providerChargeId);
+            throw txError;
+        }
+    } catch (error) {
+        // Único endpoint PÚBLICO e sem autenticação que ainda faltava esse guard.
+        // Sem ele, uma colisão de CPF/e-mail que escapasse do find-or-create acima
+        // (race entre duas reservas simultâneas com o mesmo CPF, por exemplo) virava
+        // 500 e o console.error(error) abaixo imprimia error.parent.detail e o SQL do
+        // INSERT — CPF, nome e e-mail do hóspede no stdout do container.
+        const conflito = uniqueConstraintConflict(error, response);
+        if (conflito) return conflito;
+        // Duas reservas públicas simultâneas escolheram o mesmo último quarto livre: o banco
+        // recusou a segunda (EXCLUDE). O hóspede tenta de novo — não é erro do servidor.
+        if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
+
+        console.error('CreateBookingController:', error.message);
+        return response.status(500).json({ error: 'Erro interno do servidor' });
+    }
+}

@@ -1,7 +1,7 @@
 # SPEC-06 — Qualidade e Dívida Técnica
 
 **Prioridade:** 🟡 Média — mas contém item que **quebra o portão do CI**
-**Estado:** 🔲 Não iniciado
+**Estado:** 🟡 Em andamento — T-06.2, T-06.3, T-06.4, T-06.5, T-06.6, T-06.8 e T-06.9 concluídas; abertas T-06.1, T-06.7, T-06.10, T-06.11 e T-06.12
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 
@@ -37,7 +37,7 @@ thresholds: { statements: 60, lines: 60, functions: 60, branches: 55 }
 
 ---
 
-### T-06.2 — Schema de resposta no Swagger 🔲
+### T-06.2 — Schema de resposta no Swagger ✅
 
 **Problema medido em 26/08:** de 53 respostas 2xx (excluindo 204), **42 não declaram `content`** — **79% sem schema**.
 
@@ -46,76 +46,95 @@ Consequência direta: o cliente TypeScript gerado do OpenAPI devolve `never` no 
 Endpoints sem schema incluem o núcleo: `/auth/login`, `/guests`, `/reservations`, `/rooms`, `/users`.
 
 **Critérios de aceitação**
-- [ ] **CA-06.2.a** — Todas as respostas 2xx dos endpoints usados pelo frontend declaram `content` com `$ref` de schema
-- [ ] **CA-06.2.b** — Schemas reutilizáveis em `components.schemas`, sem duplicação literal
-- [ ] **CA-06.2.c** — Cliente regenerado (`pnpm gen:api`) sem `never` nos módulos cobertos
-- [ ] **CA-06.2.d** — Casts `as unknown as` removidos de `guestsApi.ts`
-- [ ] **CA-06.2.e** — Typecheck do frontend limpo após a remoção
+- [x] **CA-06.2.a** — Todas as respostas 2xx dos endpoints usados pelo frontend declaram `content` com `$ref` de schema *(medido: 54/54 respostas 2xx, eram 42 sem)*
+- [x] **CA-06.2.b** — Schemas reutilizáveis em `components.schemas`, sem duplicação literal *(15 schemas novos; ressalva 🟡 da auditoria: `{id,name}` de categoria/hóspede/usuário resumidos ainda aparecem inline em 2-3 lugares em vez de um schema compartilhado — registrado, não bloqueante)*
+- [x] **CA-06.2.c** — Cliente regenerado (`pnpm gen:api`) sem `never` nos módulos cobertos *(confirmado programaticamente: nenhuma resposta 200/201 com `content?: never`)*
+- [x] **CA-06.2.d** — Casts `as unknown as` removidos de `guestsApi.ts` *(6 casts no total: 4 em guestsApi.ts, 1 em GuestDetailPage.tsx, 1 em loginApi.ts — todos removidos)*
+- [x] **CA-06.2.e** — Typecheck do frontend limpo após a remoção *(`pnpm typecheck` — 4/4 pacotes, confirmado do zero sem cache pela auditoria)*
 
-> **Maior retorno por esforço de toda esta Spec.** É trabalho mecânico no backend que elimina uma classe inteira de bug no frontend e valida a decisão de stack que sustentou a escolha do cliente tipado.
+> **Maior retorno por esforço de toda esta Spec.** Corrigido e verificado em 22/09/2026 — ver `docs/qa/redteam_swagger-response-schemas_22set2026.md` (1ª rodada REPROVADA por 1 achado 🔴 — DECIMAL documentado como `number`; corrigido; reauditoria APROVADA COM RESSALVAS).
+>
+> **Decisão tomada durante esta etapa, com aprovação explícita do usuário:** antes de documentar `/payments`, corrigido o `defaultScope` do `PaymentModel` (achado 🔴 reconfirmado em 3 auditorias anteriores — `pix_qr_code`/`provider`/`provider_charge_id` vazavam em `GET /payments` e `GET /payments/{id}`). Ver commit `fix(payments)` desta branch.
+>
+> **Pendências registradas pela auditoria, fora do escopo desta task:**
+> - `PUT /room-categories/{id}` e `PUT /payments/{id}` devolvem `price_per_night`/`amount` como `number` (o valor cru do body, sem `reload()`), enquanto os `GET` correspondentes devolvem `string` — mesmo `$ref`, dois tipos. Correção: `await instance.reload()` depois do `.update()`, mesma causa raiz nos dois controllers.
+> - `POST /payments` (`.create()`) não passa pelo `defaultScope` do `PaymentModel` — os 3 campos sensíveis vêm `null` nessa resposta específica (documentado no schema, não é vazamento: pagamento manual nunca tem esses dados).
 
 ---
 
-### T-06.3 — `RoomCategoryModel` com `paranoid` + unique total 🔲
+### T-06.3 — `RoomCategoryModel` com `paranoid` + unique total ✅
 
 **Problema:** mesmo defeito corrigido em `ProductModel`. Verificado em 26/08: `RoomCategoryModel` tem unique `(tenant_id, name)` **sem** filtro parcial, num model `paranoid: true`.
 
 **Efeito:** excluir uma categoria **queima o nome para sempre**. A linha morta continua no índice, o guard da aplicação não a enxerga (escopo paranoid) e quem barra é o Postgres — virando **500**.
 
 **Critérios de aceitação**
-- [ ] **CA-06.3.a** — Índice parcial `WHERE deleted_at IS NULL` no model e no `db/schema.sql`
-- [ ] **CA-06.3.b** — `UniqueConstraintError` mapeado para **409**, não 500
-- [ ] **CA-06.3.c** — Teste do ciclo criar → deletar → recriar com o mesmo nome
-- [ ] **CA-06.3.d** — Auditar os demais models `paranoid` com unique, aplicando o mesmo padrão
+- [x] **CA-06.3.a** — Índice parcial `WHERE deleted_at IS NULL` no model e no `services/core-service/db/schema.sql`
+- [x] **CA-06.3.b** — `UniqueConstraintError` mapeado para **409**, não 500
+- [x] **CA-06.3.c** — Teste do ciclo criar → deletar → recriar com o mesmo nome
+- [x] **CA-06.3.d** — Auditar os demais models `paranoid` com unique, aplicando o mesmo padrão
+
+> Branch `fix/paranoid-unique-constraints` — implementada por um agente da trilha do Gabriel, mas **pertence à trilha do Sirlande**: quem aprova o merge é ela. Verificada e preparada para revisão em 21/09/2026 (portão de QA completo + auditoria `qa-redteam` própria) — ver `docs/qa/redteam_paranoid-unique_21set2026.md`. Os 3 achados 🔴 da auditoria de 31/08 (`docs/qa/redteam_paranoid-unique_27ago2026.md`) estão fechados e verificados por reprodução independente.
+>
+> **Concluída em 07/10/2026** — revisada pelo Sirlande e mergeada no PR #82. A revisão atualizou a branch com o `develop` (70 commits) e uma nova auditoria (`docs/qa/redteam_paranoid-unique-merge_07out2026.md`) achou um 🔴 que a de 21/09 não pegou: o `ON CONFLICT (tenant_id, X)` do `seed/seed_hotels.sql` deixou de casar com os índices, agora parciais, e `command.js seed` falhava num banco novo. Corrigido repetindo o `WHERE deleted_at IS NULL` no `ON CONFLICT`. Também corrigidos: teste do CA-06.6.b que dependia da ordem dos arquivos, cliente tipado regenerado, 409 do booking público documentado.
 
 ---
 
-### T-06.4 — `docker-compose.yml` para contingência da defesa 🔲
+### T-06.4 — `docker-compose.yml` para contingência da defesa ✅
 
 **Problema:** o Termo prevê:
 
 > *"Em caso de falha de conectividade [...] a equipe poderá demonstrar a aplicação localmente utilizando **Docker / Docker Compose**, sem penalidade. Para isso, o grupo deve manter os arquivos de containerização **atualizados e funcionais** no repositório."*
 
-Verificado: **não existe nenhum `docker-compose*.yml`** no repositório. O projeto migrou totalmente para Kubernetes.
+**Concluída em 21/09/2026.** Branch `feature/docker-compose-rabbitmq`. Uma primeira versão (16/09)
+tinha `docker-compose.yml` mas 3 dos 6 critérios não eram cumpridos de verdade — achado da
+auditoria `qa-redteam` em `docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`. Fechado com
+evidência real de execução em `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md`
+(seed funcional — inclusive um bug real de cast de `ENUM` só aparecia rodando até o fim —,
+healthchecks corrigidos, instrução de frontend, README documentado).
 
 **Critérios de aceitação**
-- [ ] **CA-06.4.a** — `docker-compose.yml` subindo backend, Postgres, Redis e MinIO
-- [ ] **CA-06.4.b** — `docker compose up` funciona a partir de repositório limpo
-- [ ] **CA-06.4.c** — `migrate` e `seed` executáveis no compose
-- [ ] **CA-06.4.d** — Frontend incluído ou com instrução clara de como subir
-- [ ] **CA-06.4.e** — Testado de verdade, não só escrito
-- [ ] **CA-06.4.f** — README documentando o procedimento de contingência
+- [x] **CA-06.4.a** — `docker-compose.yml` subindo backend, Postgres, Redis e MinIO
+- [x] **CA-06.4.b** — `docker compose up` funciona a partir de repositório limpo
+- [x] **CA-06.4.c** — `migrate` e `seed` executáveis no compose
+- [x] **CA-06.4.d** — Frontend incluído ou com instrução clara de como subir
+- [x] **CA-06.4.e** — Testado de verdade, não só escrito
+- [x] **CA-06.4.f** — README documentando o procedimento de contingência
 
 > **Não é opcional.** É a rede de segurança da defesa. Se a internet cair e o compose não funcionar, não há demonstração — e o Termo já concedeu o direito a essa contingência.
 
 ---
 
-### T-06.5 — Endpoint público vazando dados de pagamento 🔲
+### T-06.5 — Endpoint público vazando dados de pagamento ✅
 
 **Problema:** `GetBookingStatusController.js:21` faz `include: [{ model: PaymentModel, as: 'payments' }]` **sem `attributes`**, num endpoint **público, sem autenticação**.
 
 Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e `provider`.
 
 **Critérios de aceitação**
-- [ ] **CA-06.5.a** — `attributes` explícito, expondo apenas o necessário ao status
-- [ ] **CA-06.5.b** — `pix_qr_code` e `provider_charge_id` não retornados sem autenticação
-- [ ] **CA-06.5.c** — Teste garantindo que campos sensíveis não aparecem
-- [ ] **CA-06.5.d** — `npm run qa:checks` sem o aviso correspondente
+- [x] **CA-06.5.a** — `attributes` explícito, expondo apenas o necessário ao status
+- [x] **CA-06.5.b** — `pix_qr_code` e `provider_charge_id` não retornados sem autenticação *(no endpoint de status; achado novo de 16/09 mostra que `POST /public/:subdomain/bookings` ainda devolve `provider_charge_id` — pré-existente, fora deste escopo, ver pendência abaixo)*
+- [x] **CA-06.5.c** — Teste garantindo que campos sensíveis não aparecem *(teste de resposta + teste que espiona a query e falha se o `attributes` for removido — CA-06.5.c estava cumprido só na letra até 16/09, ver `docs/qa/redteam_public-booking-leak_16set2026.md`)*
+- [x] **CA-06.5.d** — `npm run qa:checks` sem o aviso correspondente
 
-> **Risco de LGPD e segurança.** Foi identificado pelo `qa_checks.sh` e continua em aberto.
+> **Risco de LGPD e segurança.** Foi identificado pelo `qa_checks.sh`. Corrigido e mergeado em 16/09/2026 — ver `docs/qa/redteam_public-booking-leak_16set2026.md`.
+>
+> **Pendência de 16/09 — RESOLVIDA em 22/09 (etapa T-06.2):** a auditoria de 16/09 encontrou dois achados 🔴 pré-existentes — (1) `GET /payments` devolvia o `Payment` inteiro (incluindo `provider_charge_id`) a qualquer usuário autenticado do tenant; (2) o webhook PIX aceitava qualquer requisição com o `provider_charge_id` certo. O item (2) foi fechado pela T-06.9 (21/09). O item (1) foi fechado durante a T-06.2: `defaultScope` no `PaymentModel` excluindo `pix_qr_code`, `provider_charge_id` e `provider` — exatamente a recomendação do auditor, resolvendo todos os consumidores atuais e futuros de uma vez.
 
 ---
 
-### T-06.6 — Ressalva R4: índice parcial não aplicado em banco existente 🔲
+### T-06.6 — Ressalva R4: índice parcial não aplicado em banco existente ✅
 
 **Problema:** um banco que **já tem** a tabela `products` não recebe o índice parcial, e tanto `migrate` quanto `schema.sql` reportam sucesso — `sync({alter})` não substitui índice de mesmo nome e o `IF NOT EXISTS` do SQL é *no-op*.
 
 **Risco hoje é baixo** — a tabela não existe no cluster. Mas é silencioso, e o projeto não tem mecanismo de migração de índice.
 
 **Critérios de aceitação**
-- [ ] **CA-06.6.a** — `applyDbConstraints.js` detecta índice sem o predicado e o recria
-- [ ] **CA-06.6.b** — Teste validando o predicado após migrar um banco com índice antigo
-- [ ] **CA-06.6.c** — Padrão aplicável aos demais índices parciais
+- [x] **CA-06.6.a** — `applyDbConstraints.js` detecta índice sem o predicado e o recria *(inclusive `products`, achado 🟡-1 da auditoria de 21/09 — a primeira versão cobria 7 de 8 índices e deixava de fora justamente `products`, a tabela que originou esta task; corrigido com TDD antes do PR)*
+- [x] **CA-06.6.b** — Teste validando o predicado após migrar um banco com índice antigo *(`db-constraints.test.js`, bloco "applyDbConstraints cura índice único total em banco legado" — 4 cenários, incluindo `products`)*
+- [x] **CA-06.6.c** — Padrão aplicável aos demais índices parciais *(8 índices em `indicesParciais`, mesmo mecanismo para todos)*
+
+> Mesma branch da T-06.3. Verificado por reprodução real em banco legado (provisionado com o `schema.sql` antigo, `node command.js migrate` executado de verdade — inclusive num cenário em que `sync({alter})` falha por motivo alheio e a cura roda mesmo assim). Ver `docs/qa/redteam_paranoid-unique_21set2026.md`.
 
 ---
 
@@ -132,39 +151,47 @@ Devolve o `Payment` inteiro — incluindo `pix_qr_code`, `provider_charge_id` e 
 
 ---
 
-### T-06.8 — Promover `develop` para `main` 🔲
+### T-06.8 — Promover `develop` para `main` ✅
 
-**Problema:** `origin/main` está em `0c463fd` (PR #70). `origin/develop` tem **62 commits não promovidos**, incluindo o frontend inteiro, o catálogo de produtos e a correção do bug da EXCLUDE.
+**Concluída em 15/09/2026** — PR #76, 98 commits, merge feito pelo Gabriel.
 
-Quem abrir a `main` do repositório vê o estado de julho.
+**Problema original:** `origin/main` estava em `0c463fd` (PR #70), sem o frontend, o catálogo de produtos e a correção do bug da EXCLUDE. Quem abria a `main` via o estado de julho.
 
 **Critérios de aceitação**
-- [ ] **CA-06.8.a** — Suíte completa verde em `develop` antes do PR
-- [ ] **CA-06.8.b** — PR `develop → main` aberto, com descrição da release
-- [ ] **CA-06.8.c** — CI verde no PR
-- [ ] **CA-06.8.d** — Merge realizado
+- [x] **CA-06.8.a** — Suíte completa verde em `develop` antes do PR — CI da `develop` com sucesso nas últimas execuções
+- [x] **CA-06.8.b** — PR `develop → main` aberto, com descrição da release gerada dos commits
+- [x] **CA-06.8.c** — CI verde no PR — checagens determinísticas e testes com cobertura aprovados
+- [x] **CA-06.8.d** — Merge realizado
+
+> **Ficaram fora do release**, por não estarem na `develop`: `fix/paranoid-unique-constraints` (16 commits, aguardando suíte e nova auditoria) e `fix/public-booking-payment-leak` (2 commits, correção da T-06.5).
 
 > Convenção do projeto: *"1 PR de `develop → main` por release"*. Estávamos acumulando corretamente — a release é que nunca foi fechada.
 
 ---
 
-### T-06.9 — Webhook PIX sem validação de assinatura 🔴 🔲
+### T-06.9 — Webhook PIX sem validação de assinatura 🔴 ✅
 
-**Problema:** `routes/apis/webhookRouter.js` monta `POST /webhooks/pix` **sem autenticação** — correto, o PSP não tem JWT — mas o controller não verifica assinatura alguma. O próprio comentário do router admite a lacuna: *"em produção, cada webhook deve validar a assinatura do provedor antes de confiar"*.
+**Problema:** `services/core-service/routes/apis/webhookRouter.js` monta `POST /webhooks/pix` **sem autenticação** — correto, o PSP não tem JWT — mas o controller não verifica assinatura alguma. O próprio comentário do router admite a lacuna: *"em produção, cada webhook deve validar a assinatura do provedor antes de confiar"*.
 
 **Cenário de falha:** qualquer pessoa que descubra a URL e um `provider_charge_id` marca um pagamento como `PAID` e promove a reserva de `PENDING` para `CONFIRMED` — sem ter pago. É perda de receita direta, com o quarto bloqueado por uma reserva confirmada e não paga.
 
 **Por que é uma tarefa própria:** o RNF-012 do Doc. 02 exige assinatura verificada em **100%** dos webhooks. A SPEC-03 T-03.2 só a menciona como "avaliar" ao integrar o PSP real — o que deixa a vulnerabilidade **atual** sem dono. Esta tarefa fecha o requisito independentemente da integração externa.
 
 **Critérios de aceitação**
-- [ ] **CA-06.9.a** — Assinatura HMAC-SHA256 verificada com `crypto.timingSafeEqual` antes de qualquer efeito colateral
-- [ ] **CA-06.9.b** — Segredo lido de variável de ambiente, nunca versionado (`.env.example` atualizado)
-- [ ] **CA-06.9.c** — Requisição sem assinatura ou com assinatura inválida responde `401` e **não altera estado**
-- [ ] **CA-06.9.d** — `FakePixProvider` assina a notificação, para que o fluxo de teste exercite o caminho real
-- [ ] **CA-06.9.e** — Teste cobrindo: assinatura válida promove; inválida recusa; ausente recusa; idempotência preservada (RF-027)
-- [ ] **CA-06.9.f** — `provider_charge_id` continua fora de resposta pública (ver T-06.5)
+- [x] **CA-06.9.a** — Assinatura HMAC-SHA256 verificada com `crypto.timingSafeEqual` antes de qualquer efeito colateral
+- [x] **CA-06.9.b** — Segredo lido de variável de ambiente, nunca versionado (`.env.example` atualizado)
+- [x] **CA-06.9.c** — Requisição sem assinatura ou com assinatura inválida responde `401` e **não altera estado**
+- [x] **CA-06.9.d** — `FakePixProvider` assina a notificação, para que o fluxo de teste exercite o caminho real
+- [x] **CA-06.9.e** — Teste cobrindo: assinatura válida promove; inválida recusa; ausente recusa; idempotência preservada (RF-027)
+- [x] **CA-06.9.f** — `provider_charge_id` continua fora de resposta pública (ver T-06.5)
 
-> Rastreia **RNF-012**. Achado de auditoria `qa-redteam` ainda em aberto — a maior severidade desta Spec.
+> Rastreia **RNF-012**. Corrigido e mergeado em 21/09/2026 — ver `docs/qa/redteam_pix-webhook-signature_21set2026.md`.
+> Fail-closed: sem `PIX_WEBHOOK_SECRET` configurado, o webhook recusa toda requisição (nunca "aceita por padrão").
+> Área do Weslley marcada no PR: `PIX_WEBHOOK_SECRET` em `.github/workflows/ci.yml` e `infra/k8s/` (`secret.yaml`, `backend.yaml`).
+>
+> **Pendências registradas pela auditoria, fora do escopo desta task:**
+> 1. `config/swagger.js` não reflete o novo contrato do webhook (cabeçalho `x-pix-signature`, resposta `401`, descrição desatualizada) — fica para a T-06.2, que reescreve o Swagger inteiro.
+> 2. `FakePixProvider.signNotification` não faz parte do contrato `PixProvider` (decisão deliberada — só o simulador precisa "assinar como PSP"; um `RealPixProvider` futuro não precisa desse método). Documentado, não é defeito.
 
 ---
 
@@ -175,7 +202,7 @@ Quem abrir a `main` do repositório vê o estado de julho.
 **Consequência:** o tempo de resposta cresce com o volume do tenant, contra o RNF-001 (P95 < 500 ms). E a SPEC-05 T-05.2 já assume paginação disponível — a suposição vale hoje apenas para reservas.
 
 **Critérios de aceitação**
-- [ ] **CA-06.10.a** — Utilitário único de paginação em `app/utils/`, reaproveitado pelos controllers (DRY)
+- [ ] **CA-06.10.a** — Utilitário único de paginação em `services/core-service/app/utils/`, reaproveitado pelos controllers (DRY)
 - [ ] **CA-06.10.b** — Todas as rotas de listagem aceitam `?page=` e `?limit=`, com teto por página e valor padrão
 - [ ] **CA-06.10.c** — Contrato de resposta uniforme, expondo o total para o cliente montar a navegação
 - [ ] **CA-06.10.d** — Retrocompatível: ausência dos parâmetros não quebra consumidor existente
@@ -189,7 +216,7 @@ Quem abrir a `main` do repositório vê o estado de julho.
 
 ### T-06.11 — Eliminação definitiva de dado pessoal (LGPD art. 18, VI) 🔲
 
-**Problema:** todo model de dado pessoal é `paranoid: true` e nenhum controller oferece eliminação definitiva — `grep -rn "force: true" app/Controllers/` devolve **uma** ocorrência, em `UpdateContractController.js:45`, para parcelas de contrato. `DeleteGuestController` chama `guest.destroy()` sem `force`: a linha permanece com `full_name`, `cpf`, `phone` e `email`.
+**Problema:** todo model de dado pessoal é `paranoid: true` e nenhum controller oferece eliminação definitiva — `grep -rn "force: true" services/core-service/app/Controllers/` devolve **uma** ocorrência, em `UpdateContractController.js:45`, para parcelas de contrato. `DeleteGuestController` chama `guest.destroy()` sem `force`: a linha permanece com `full_name`, `cpf`, `phone` e `email`.
 
 O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro: antes, o índice total limitava a uma a quantidade de linhas com o CPF de uma pessoa. Agora cada ciclo excluir → recadastrar deixa mais uma cópia completa e permanente. Um hóspede que se hospeda todo ano e é "limpado" da base entre temporadas acumula N cópias do próprio CPF, nenhuma alcançável por endpoint algum.
 
@@ -209,6 +236,91 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 
 ---
 
+### T-06.12 — Dado pessoal de hóspede impresso no log via `console.error(error)` 🔲
+
+**Problema:** um erro do Sequelize carrega o `sql` e os `parameters` do INSERT/UPDATE que falhou. Os controllers que fazem `console.error(error)` com o objeto inteiro imprimem nome, CPF e e-mail do hóspede no stdout do container, que vai parar no agregador de logs. Reproduzido na auditoria de 21/09 (`docs/qa/redteam_paranoid-unique_21set2026.md`, pendência 1): o dado sai 3× por erro. A T-06.3 reduziu a frequência (conflito de unicidade virou 409, sem log) e corrigiu o único endpoint público (`CreateBookingController` loga só `error.message`), mas o padrão segue nos demais controllers.
+
+**Regra violada:** LGPD art. 46 (segurança do tratamento) e art. 6º, III (necessidade): log não precisa de CPF para diagnosticar um 500.
+
+**Critérios de aceitação**
+- [ ] **CA-06.12.a** — Nenhum controller loga o objeto de erro do Sequelize inteiro; o log leva mensagem, nome do erro e código, sem `sql`, `parameters` nem `parent.detail`
+- [ ] **CA-06.12.b** — Um utilitário único em `app/utils/` faz essa redução, reaproveitado por todos os controllers (DRY)
+- [ ] **CA-06.12.c** — Teste que provoca um erro com dado pessoal no INSERT e confirma que o CPF não aparece no que foi logado
+- [ ] **CA-06.12.d** — Regra no `qa_checks.sh` barrando `console.error(error)` com o objeto cru em `app/Controllers/`
+
+> Decisão D-3 da revisão do PR #82 (07/10/2026): o achado é anterior à branch e fica fora do diff dela, por isso virou tarefa própria em vez de ampliar o PR.
+
+---
+
+### T-06.13 — Estorno no lugar da exclusão de pagamento 🔲
+
+**Origem:** decisão D-2 do catálogo de eventos (`docs/specs/anexos/SPEC-01-catalogo-eventos.md` §9.1,
+aprovada em 04/10/2026), pelo critério de mercado da rodada 3: **lançamento financeiro não se apaga —
+se estorna.** *(A delegação da rodada 3 previa o número T-06.12, já ocupado pela tarefa acima.)*
+
+**Problema.** `DELETE /payments/:id` (`routes/apis/paymentRouter.js:19`,
+`DeletePaymentController.js`) faz *soft delete* do pagamento. Três consequências, conferidas no código
+em 12/10/2026:
+
+1. **Sem motivo, sem autor.** O registro some das listagens sem dizer por quê nem quem o apagou — o
+   oposto do que o fechamento de caixa (RF-056) e uma auditoria contábil precisam.
+2. **A receita fica errada.** `GetRevenueController` e `GetPaymentMixController` somam `amount` com
+   `paid_at IS NOT NULL` e **não filtram `deleted_at`**: pagamento excluído continua contando como
+   receita (defeito D-2 do catálogo).
+3. **Qualquer papel exclui.** A rota não tem `requireRole`: um `RECEPTIONIST` apaga um pagamento. Só o
+   `WAITER` é barrado, pela allowlist global de papéis.
+
+**Quem usa o `DELETE` hoje** (pesquisa de 12/10/2026): nenhum fluxo do sistema. Não há chamada no
+frontend (`frontend/apps/*/src`: nenhuma ocorrência de `payments`), nem em outro controller. O único
+consumidor é o teste `tests/payments.test.js:161` (*"remove pagamento (soft delete) e retorna 204"*),
+que muda junto com a rota. O Swagger documenta a rota.
+
+**Decisão: `VOIDED`, não `REFUNDED`.** São operações diferentes, e o mercado as separa:
+
+| | `VOIDED` — estorno do lançamento | `REFUNDED` — devolução ao hóspede |
+|---|---|---|
+| O que é | Correção de um lançamento **feito por engano**: valor digitado errado, pagamento lançado na reserva errada, duplicado | Devolução de dinheiro que **de fato entrou** |
+| Movimento de caixa | Nenhum — o dinheiro nunca entrou, ou entrou em outro lançamento | Saída de caixa, com meio próprio (PIX de volta, cartão, espécie) |
+| No PIX online | Não se aplica: a cobrança veio do PSP | Passa pelo PSP (estorno do PIX) |
+
+O `DELETE` de hoje é usado para **o primeiro caso** — corrigir lançamento —, então o substituto é
+`VOIDED`. `REFUNDED` fica registrado como necessidade futura, ligada ao estorno pelo PSP: a auditoria do
+Mercado Pago (`docs/qa/redteam_mercadopago-pix_delta_12out2026.md`, 🟡-4) mostrou que um estorno feito
+no PSP depois do `PAID` hoje é ignorado pelo *webhook*. Misturar as duas operações num status só
+confundiria o fechamento de caixa: anular um lançamento não tira dinheiro da gaveta; devolver, tira.
+
+**Critérios de aceitação**
+- [ ] **CA-06.13.a** — `DELETE /payments/:id` deixa de existir. A rota responde `405` com a indicação
+  do estorno, para que um cliente antigo não falhe em silêncio
+- [ ] **CA-06.13.b** — `POST /payments/:id/void` com `{ "reason": "..." }`: **motivo obrigatório**
+  (texto não vazio, `400` sem ele). Grava `status = 'VOIDED'`, `void_reason`, `voided_by` (usuário do
+  JWT) e `voided_at`. O pagamento original **permanece** — nenhum *soft delete*
+- [ ] **CA-06.13.c** — Transição em **allowlist** (regra do CLAUDE.md): só `PAID` vira `VOIDED`.
+  `VOIDED` de novo → `409`. Pagamento de **PSP** (`provider` preenchido — PIX online) → `409`: tirar da
+  receita um dinheiro que o PSP de fato recebeu exige devolução pelo PSP (`REFUNDED`, fora desta tarefa)
+- [ ] **CA-06.13.d** — Restrito a `ADMIN`: anular lançamento financeiro é decisão de gerência
+- [ ] **CA-06.13.e** — `status` ganha `VOIDED` no `CHECK` do banco (`db/schema.sql:208`) e no model;
+  `void_reason`, `voided_by` (FK `users`) e `voided_at` nulos para todo pagamento não anulado
+- [ ] **CA-06.13.f** — **A receita é a soma dos efetivados.** As consultas de receita e de mix de
+  pagamento passam a contar só `status = 'PAID'` — hoje contam `paid_at IS NOT NULL`, e um `VOIDED`
+  mantém o `paid_at` (é histórico). A conta da reserva (`GetBillController`) já soma só `PAID` e não muda
+- [ ] **CA-06.13.g** — O pagamento anulado aparece na listagem e na conta da reserva, marcado como
+  anulado, com o motivo — o histórico é visível, não escondido
+- [ ] **CA-06.13.h** — Isolamento de tenant: pagamento de outro hotel → `404`
+- [ ] **CA-06.13.i** — Testes: estorno feliz; sem motivo → `400`; de novo → `409`; de PSP → `409`;
+  `RECEPTIONIST` → `403`; outro tenant → `404`; a receita do analytics deixa de contar o anulado; o
+  `DELETE` responde `405`
+
+**Eventos (T-01.4).** O `payment.status_changed` do catálogo (§4.6) já cobre a transição — com
+`previous_status: "PAID"` e `status: "VOIDED"`. O catálogo ganha `VOIDED` na lista de status; a
+projeção do analytics conta só `PAID`, então nenhum campo novo é necessário no evento. Com esta tarefa,
+o `payment.deleted` do catálogo deixa de ser emitido por este caminho.
+
+**Fora do escopo:** `REFUNDED` e a devolução pelo PSP; o fechamento de caixa por turno (RF-056), que
+vai consumir os anulados.
+
+---
+
 ## 3. Ordem sugerida
 
 ```
@@ -222,11 +334,14 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
  8. T-06.3  RoomCategoryModel       — bug confirmado, correção conhecida
  9. T-06.6  R4                      — risco baixo hoje
 10. T-06.7  refresh token           — decisão antes de implementação
+11. T-06.13 estorno de pagamento    — antes do fechamento de caixa (RF-056) e da projeção de receita (T-01.4)
 ```
 
 > T-06.1 antes de T-06.8 se houver dúvida sobre a cobertura — subir o portão e descobrir que reprova **durante** o PR é pior que descobrir antes.
 >
-> T-06.9 subiu ao topo por ser a única vulnerabilidade **explorável hoje**: não depende de integração externa nem de dado de produção. Promover `main` antes dela publicaria o furo na branch de release.
+> T-06.9 subiu ao topo por ser a única vulnerabilidade **explorável hoje**: não depende de integração externa nem de dado de produção.
+>
+> **Correção de 14/09.** Esta nota dizia que promover a `main` antes da T-06.9 publicaria o furo na branch de release. A verificação mostrou o contrário: a `main` já continha o *webhook* sem assinatura e a consulta pública de status desde julho. Promover não introduz os furos — eles seguem abertos nas duas branches. A T-06.8 foi executada antes, e a T-06.9 continua sendo a prioridade de segurança.
 
 ---
 
@@ -237,7 +352,7 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 - [ ] Nenhum endpoint público expondo dado sensível
 - [ ] Nenhum webhook aceitando notificação sem assinatura verificada (RNF-012)
 - [ ] Todas as rotas de listagem paginadas (RNF-002)
-- [ ] `docker compose up` funcionando e testado
+- [x] `docker compose up` funcionando e testado
 - [ ] `main` refletindo o estado atual do projeto
 - [ ] `npm run qa:checks` sem erro nem aviso pendente
 
@@ -249,3 +364,6 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Consolida achados de auditorias `qa-redteam` e itens de conformidade do Termo |
 | 1.1 | 09/09/2026 | Gabriel Reis Cunha | Acrescenta **T-06.9** (assinatura do webhook PIX, RNF-012) e **T-06.10** (paginação nas listagens, RNF-002), apuradas no cruzamento do Doc. 02 v1.2 com as Specs: os dois requisitos exigiam 100% de cobertura e não tinham tarefa em nenhuma Spec. A T-06.9 vai ao topo da ordem por ser a única vulnerabilidade explorável hoje, sem dependência de integração externa |
+| 1.2 | 21/09/2026 | Weslley (orquestrando Claude Code) | **T-06.4 concluída de verdade.** A versão de 16/09 declarava o critério 20 atendido, mas auditoria `qa-redteam` (`docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`) achou 3 dos 6 CAs não cumpridos (seed não funcionava, sem instrução de frontend, README não documentava). Fechados com evidência real de execução — `docker compose up` com os 6 serviços `healthy`, `migrate` + `seed` rodando até o fim (incluindo um bug real de cast de `ENUM` no seed, só visível executando), login via API com usuário seedado. Relatório: `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md` |
+| 1.3 | 21/09/2026 | Weslley (orquestrando Claude Code) | **Ressalvas da reauditoria fechadas.** Uma segunda auditoria `qa-redteam`, desta vez rodando o `docker compose up` ela mesma em vez de confiar no relatório anterior (`docs/qa/redteam_docker-compose-rabbitmq_21set2026.md`), achou que a alegação de idempotência do seed era **falsa**: rodar 2x inseria +5 reservas `CANCELLED` a cada vez (a EXCLUDE não cobre linhas `CANCELLED`, de propósito, e por isso o `ON CONFLICT DO NOTHING` não tinha nada pra capturar ali). Corrigido com guard `NOT EXISTS`, verificado com 3 execuções seguidas dando o mesmo resultado. Também corrigidos: guard `ALLOW_SEED=1` contra rodar o seed sem querer num banco de produção real, README apontando pro `.env.example` errado, `BACKEND_HOST_PORT` não documentado, healthcheck do nginx trocado de `/healthz` (estático) para `/health` (real). Relatório: `docs/historico_sessao/weslley/fecha_t064_ressalvas_reauditoria_21set2026.md` |
+| 1.4 | 07/10/2026 | Sirlande (orquestrando Claude Code) | **T-06.3 e T-06.6 concluídas** — revisão do dono e merge do PR #82, com um 🔴 novo corrigido antes (seed quebrado pelos índices parciais). Acrescenta **T-06.12** (dado pessoal em `console.error`), decisão D-3 da revisão. Estado do cabeçalho atualizado: estava parado em 16/09 |

@@ -1,7 +1,7 @@
 # SPEC-03 — Integrações com APIs Externas
 
 **Prioridade:** 🔴 Crítica — critério de aprovação
-**Estado:** 🔲 Não iniciado
+**Estado:** 🟡 Em andamento — T-03.1 concluída em 16/09/2026
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 
@@ -18,7 +18,7 @@ O Termo de Aceite exige:
 A única tentativa é o PIX, e está explicitamente simulada:
 
 ```js
-// app/services/pix/index.js
+// services/core-service/app/services/pix/index.js
 const PROVIDERS = { fake: FakePixProvider };
 // "Default: 'fake' (simulado) — adequado para demo/TCC."
 ```
@@ -65,40 +65,50 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 
 ## 5. Tarefas
 
-### T-03.1 — Integração ViaCEP 🔲
+### T-03.1 — Integração ViaCEP ✅
 
 **Estimativa:** meio dia
 **Uso no negócio:** ao cadastrar hóspede (`guests`) ou cliente corporativo (`corporate_clients`), preencher endereço a partir do CEP.
 
+**Concluída em 16/09/2026.** Branch `feature/viacep-integration`. Relatório:
+`docs/historico_sessao/weslley/viacep_e_decisao_k8s_16set2026.md`.
+
 **Critérios de aceitação**
-- [ ] **CA-03.1.a** — Endpoint `GET /address/:cep` consulta a ViaCEP e devolve endereço estruturado
-- [ ] **CA-03.1.b** — CEP inválido devolve **400** com mensagem clara, não 500
-- [ ] **CA-03.1.c** — CEP inexistente devolve **404**
-- [ ] **CA-03.1.d** — *Timeout* configurado; API fora do ar devolve **503**, sem travar a requisição
-- [ ] **CA-03.1.e** — Serviço isolado atrás de abstração, no padrão de `app/services/pix/`
-- [ ] **CA-03.1.f** — Testes com o cliente HTTP mockado — sem depender de rede
-- [ ] **CA-03.1.g** — Documentado no Swagger com schema de resposta
-- [ ] **CA-03.1.h** — `tenant_id` respeitado; endpoint exige autenticação
+- [x] **CA-03.1.a** — Endpoint `GET /address/:cep` consulta a ViaCEP e devolve endereço estruturado
+- [x] **CA-03.1.b** — CEP inválido devolve **400** com mensagem clara, não 500
+- [x] **CA-03.1.c** — CEP inexistente devolve **404**
+- [x] **CA-03.1.d** — *Timeout* configurado; API fora do ar devolve **503**, sem travar a requisição
+- [x] **CA-03.1.e** — Serviço isolado atrás de abstração, no padrão de `services/core-service/app/services/pix/`
+- [x] **CA-03.1.f** — Testes com o cliente HTTP mockado — sem depender de rede
+- [x] **CA-03.1.g** — Documentado no Swagger com schema de resposta
+- [x] **CA-03.1.h** — `tenant_id` respeitado; endpoint exige autenticação
 
 > **Decisão de desenho:** a consulta é **de apoio ao preenchimento**, não fonte de verdade. O endereço continua sendo salvo como texto no cadastro — a integração preenche o formulário, não cria dependência de terceiro para o dado existir.
 
 ---
 
-### T-03.2 — Integração Mercado Pago (sandbox) 🔲
+### T-03.2 — Integração Mercado Pago (sandbox) 🟡
 
 **Estimativa:** 2 a 3 dias
 **Uso no negócio:** cobrança PIX real no motor de reserva direta, substituindo o `FakePixProvider`.
 
+**Código pronto em 07/10/2026** (`feature/mercadopago-pix`): provider, `verifyWebhook` com o
+`x-signature` do MP, consulta de status na fonte antes de marcar `PAID`, conferência de valor
+fail-safe. Duas auditorias qa-redteam em `docs/qa/redteam_mercadopago-pix_*`. **Falta** validar
+contra o *sandbox* real (CA-03.2.c e d), com `MERCADOPAGO_ACCESS_TOKEN` de teste e uma URL
+pública para o *webhook*. **Pendência conhecida:** reconciliação quando o PSP esgota os
+reenvios (achado 🟡 nº 3, item c, da reauditoria) — hoje o pagamento fica `PENDING`.
+
 **Critérios de aceitação**
-- [ ] **CA-03.2.a** — `MercadoPagoPixProvider` implementa o contrato `PixProvider` existente
-- [ ] **CA-03.2.b** — Registrado no *switch* de `PROVIDERS`, selecionável por `PIX_PROVIDER=mercadopago`
+- [x] **CA-03.2.a** — `MercadoPagoPixProvider` implementa o contrato `PixProvider` existente
+- [x] **CA-03.2.b** — Registrado no *switch* de `PROVIDERS`, selecionável por `PIX_PROVIDER=mercadopago`
 - [ ] **CA-03.2.c** — Cobrança real criada no *sandbox*, com QR Code e *payload* copia-e-cola válidos
 - [ ] **CA-03.2.d** — *Webhook* de confirmação processa notificação real do provedor
-- [ ] **CA-03.2.e** — Validação de autenticidade da notificação — não confiar em `POST` anônimo
-- [ ] **CA-03.2.f** — `FakePixProvider` **permanece** e continua sendo o padrão em teste
-- [ ] **CA-03.2.g** — `tests/public-booking.test.js` continua passando com o *fake*
-- [ ] **CA-03.2.h** — Credenciais via variável de ambiente; `.env.example` atualizado
-- [ ] **CA-03.2.i** — Falha do provedor não deixa `Payment` em estado inconsistente
+- [x] **CA-03.2.e** — Validação de autenticidade da notificação — não confiar em `POST` anônimo
+- [x] **CA-03.2.f** — `FakePixProvider` **permanece** e continua sendo o padrão em teste
+- [x] **CA-03.2.g** — `services/core-service/tests/public-booking.test.js` continua passando com o *fake*
+- [x] **CA-03.2.h** — Credenciais via variável de ambiente; `.env.example` atualizado
+- [x] **CA-03.2.i** — Falha do provedor não deixa `Payment` em estado inconsistente
 
 > **Ponto de atenção:** o `PaymentModel` já tem `provider`, `provider_charge_id`, `pix_qr_code`, `pix_expiration` e os *status* `PENDING`/`PAID`/`EXPIRED`/`FAILED`. O modelo de dados **já está pronto** para o provedor real — os campos foram criados pensando nisso. A integração deve usá-los, não criar estrutura nova.
 
@@ -143,3 +153,4 @@ Ter pelo menos uma integração com API externa real, funcionando e testada, rel
 | Versão | Data | Autor | Alteração |
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação |
+| 1.1 | 16/09/2026 | Weslley (orquestrando Claude Code) | **T-03.1 concluída.** Endpoint `GET /address/:cep`, provider ViaCEP no padrão de inversão de dependência do PIX (`AddressProvider`/`ViaCepAddressProvider`/factory), erros tipados mapeados para 400/404/503, testes com `fetch` mockado (226 passed \| 1 skipped na suíte completa), Swagger atualizado, validado também contra a API real. Critério 🔴 do Termo fechado sozinho por esta tarefa |

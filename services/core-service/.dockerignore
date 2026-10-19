@@ -1,0 +1,36 @@
+# Dependências locais (nunca enviar ao daemon)
+node_modules/
+npm-debug.log*
+*.log
+
+# Variáveis de ambiente sensíveis
+.env
+.env.*
+!.env.example
+
+# Chaves JWT RS256 (ADR-006) — NUNCA dentro da imagem. O Dockerfile faz `COPY . .`:
+# sem esta linha, quem gerou as chaves com scripts/gerar_chaves_jwt.js e depois
+# fez `docker build`/`docker compose up --build` gravaria a chave PRIVADA numa
+# camada da imagem, recuperável por qualquer um com acesso a ela. A chave entra
+# só em runtime: volume no compose, secret jwt-rsa-keys no k8s.
+keys/
+
+# SQL de criação (não pertence ao runtime — migrate usa Sequelize, não schema.sql)
+db/
+
+# seed/ fica: "node command.js seed" precisa do .sql em runtime (contingência T-06.4)
+
+# Testes (não executam em produção)
+tests/
+vitest.config.js
+coverage/
+
+# Git e IDE
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+
+# Documentação
+*.md

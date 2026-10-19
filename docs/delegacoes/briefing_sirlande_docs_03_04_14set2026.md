@@ -89,10 +89,14 @@ Confira no código antes de marcar ✅ — é assim que o documento será avalia
 **O código de referência é a branch `develop`** do repositório do hotel. A `main` ainda está na
 versão de julho: não tem, por exemplo, o catálogo de produtos nem o frontend.
 
+**E o backend mudou de lugar em 15/09:** saiu da raiz e foi para **`services/core-service/`**,
+primeiro passo da divisão em serviços. Os manifests do Kubernetes foram para `infra/k8s/`. Os
+insumos já estão com os caminhos novos.
+
 ```bash
-cat routes/router.js                               # todas as rotas
-ls routes/apis/                                    # módulos
-grep -rlE "sequelize\.transaction" app/Controllers # transações entre tabelas
+cat services/core-service/routes/router.js                               # todas as rotas
+ls services/core-service/routes/apis/                                    # módulos
+grep -rlE "sequelize\.transaction" services/core-service/app/Controllers # transações entre tabelas
 ```
 
 ---

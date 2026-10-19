@@ -47,13 +47,16 @@ echo ""
 
 # ── FASE 1: Build da imagem ─────────────────────────────────────────────────
 info "=== FASE 1: BUILD ==="
-docker build -t "$IMAGE" .
+docker build -t "$IMAGE" services/core-service
 success "Imagem '$IMAGE' construída."
 echo ""
 
 # ── FASE 2: Aplicar manifests ───────────────────────────────────────────────
 info "=== FASE 2: APPLY ==="
-kubectl apply -k k8s/
+# Secret jwt-rsa-keys (ADR-006) antes do backend: sem ele os pods ficam em ContainerCreating
+# e a FASE 3 estoura por timeout, sem dizer o motivo.
+bash scripts/k8s_garantir_secret_jwt.sh
+kubectl apply -k infra/k8s/
 success "Manifests aplicados no namespace '$NS'."
 echo ""
 

@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: hotel-system
+  labels:
+    app: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # O container roda como `node` (uid/gid 1000, USER do Dockerfile). O volume de
+      # secret monta os arquivos como root; com `defaultMode: 0400` o `node` não leria a
+      # chave privada e o fail-fast derrubaria o pod. O fsGroup passa o grupo dos arquivos
+      # para 1000 e o kubelet acrescenta leitura de grupo: fica r--r----- root:1000.
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: backend
+          image: sistema-gestao-hotel-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: hotel-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: POSTGRES_PASSWORD
+            # JWT RS256 (ADR-006/T-01.3) — a chave PRIVADA não vem do hotel-secret
+            # versionado. É montada do secret `jwt-rsa-keys`, criado por
+            # scripts/k8s_garantir_secret_jwt.sh (chamado por infra_up.sh e start.sh up)
+            # com as chaves jwt-private.pem/jwt-public.pem — ver README.md. Versionar a
+            # privada anularia o motivo de sair do HS256.
+            - name: JWT_PRIVATE_KEY_PATH
+              value: /app/keys/jwt-private.pem
+            - name: JWT_PUBLIC_KEY_PATH
+              value: /app/keys/jwt-public.pem
+            - name: JWT_KEY_ID
+              value: core-v1
+            - name: PIX_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: PIX_WEBHOOK_SECRET
+            # Token do scrape de /metrics (T-02.4) — o Prometheus lê o mesmo valor do secret.
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: METRICS_TOKEN
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_ROOT_PASSWORD
+            - name: MINIO_PRESIGN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_USER
+            - name: MINIO_PRESIGN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: MINIO_PRESIGN_PASSWORD
+            # Publicador do outbox (T-01.4): credencial do core, que só publica na exchange do core.
+            - name: RABBITMQ_CORE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_CORE_USER
+            - name: RABBITMQ_CORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_CORE_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: jwt-rsa-keys
+              mountPath: /app/keys
+              readOnly: true
+      volumes:
+        - name: jwt-rsa-keys
+          secret:
+            secretName: jwt-rsa-keys
+            # Efetivo com o fsGroup acima: r--r----- root:1000. Tira a leitura de "outros"
+            # (o padrão é 0644). Não isola a chave de outros processos do próprio container:
+            # todos rodam como uid/gid 1000 — o isolamento real é a imagem ter um processo só.
+            defaultMode: 0400
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: hotel-system
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

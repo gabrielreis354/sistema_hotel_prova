@@ -49,10 +49,13 @@ diff --strip-trailing-cr <UniFAAT>/Projetos/gesway/02-requisitos-funcionais-nao-
 | Documento | Dono | Versão oficial | O que há aqui | Próximo passo |
 |---|---|---|---|---|
 | **01** — Solicitação do sistema | **Gabriel** | Entregue (PR #3) | — | — |
-| **02** — Requisitos | **Gabriel** | **v1.3 — entregue ao professor** | Versão sugerida v1.4 + motivos — **em revisão** | Conferir a cobertura integral dos critérios de aceite; só com certeza absoluta, reunião com o professor |
-| **03** — DFD | **Sirlande** | Modelo em branco | Insumos | Sirlande produz o documento |
-| **04** — MER | **Sirlande** | Entregue (PR #3) — cabeçalho v1.0, histórico até v1.1 | Versão sugerida v1.2 + motivos | Sirlande avalia; aplicar significa nova entrega ao professor |
-| **07** — ADR | — | ADR-003 registrado diretamente | — | Mudança autorizada no próprio documento |
+| **02** — Requisitos | **Gabriel** | **v1.3 — entregue ao professor** | Versão sugerida v1.4 + motivos — **em revisão**. Em 28/09: RF-045 realinhado para `b2b-service`; RNF-023 mantido, e o código passa a cumpri-lo | Conferir a cobertura integral dos critérios de aceite; só com certeza absoluta, reunião com o professor |
+| **03** — DFD | **Sirlande** | **v1.2 — entregue**: PR #15 no repositório do professor, `[Gesway] - Entrega 4`, mergeado em 09/10 | Insumos + versão sugerida v1.1 (aplicada e superada pela v1.2) + motivos | Doc entregue: só muda após nova reunião com o professor. Pendências para essa reunião: `PRODUCTS` 🔷 (ver `03-dfd/MOTIVOS.md`) e o PDF de orçamento — com o RNF-023 no código (PR #92), seis trechos da v1.2 ficam desatualizados quanto ao PDF de orçamento — texto sugerido em `03-dfd/MOTIVOS.md`, seção "Após o RNF-023 no código" |
+| **04** — MER | **Sirlande** | Entregue (PR #3) — cabeçalho v1.0, histórico até v1.1. **Marca `PRODUCTS` como 🔷, mas ele está implementado** | Versão sugerida v1.2 + motivos — corrige o `PRODUCTS` para ✅ | Sirlande avalia; aplicar significa nova entrega ao professor |
+| **05** — Arquitetura em nuvem | **Weslley** | v1.0 no PR #6 do fork, aberto (10/10) — dois EC2 de 1 GiB, resolvendo o conflito do `t3.small` | Insumos (28/09) + **versão sugerida v1.1 (12/10)** + motivos — ECR permanente, HTTPS, capacidade de memória, elegibilidade `t2`/`t3.micro`, *destroy* limpo, ajuste do cliente S3 | Weslley avalia a v1.1 e escreve ADR-004/005 no Doc 07. Nenhum `apply` antes de conferir o free-tier da conta |
+| **06** — C4 Model | **Weslley** | v1.0 no PR #6 do fork, aberto (10/10) | Insumos (28/09) + versão sugerida v1.0 (07/10, superada pelo PR #6) + **versão sugerida v1.1 (12/10)** + motivos — rotas internas (ADR-003/006), divergência do PDF de orçamento com o Doc 03, alternativas da §5 | Weslley avalia a v1.1 (`06-c4/MOTIVOS.md`, seção "Versão sugerida v1.1") |
+| **07** — ADR | **Weslley** (ADR-003 redigida pelo Gabriel) | ADR-003 registrado diretamente, **só no fork** | Proposta de **ADR-006** (propagação de identidade entre serviços, T-01.3) + motivos — **aprovada pelo Gabriel em 24/09 e implementada no core** (PR #84 do repositório do hotel). **ADR-007 candidata** (12/10): uma reserva por quarto dentro de um agrupador — **não decidida**, aguarda o Gabriel | Weslley formaliza a ADR-006 no documento oficial. Entrega em **ordem numérica**, no encontro do Doc 07. A tabela da ADR-003 está **correta** quanto ao `PRODUCTS` — não alterar |
+| **08** — Planejamento de sprints | **Weslley** | Template em branco — o Doc 02 v1.3 já o cita como registro de execução | **Versão sugerida v1.0 (07/10)** + motivos — plano S1–S10 e registro de execução S1–S5 | Conferir com Gabriel e Sirlande o que o repositório não mostra (`08-sprints/MOTIVOS.md`), depois transcrever |
 
 ---
 
@@ -62,8 +65,16 @@ Todas decorrem da **T-01.1 da SPEC-01** e do **ADR-003**, de 14/09/2026: o recor
 em `core-service`, `b2b-service` e `analytics-service`, com eventos via RabbitMQ do core para o
 analytics. Ver `docs/specs/SPEC-01-microsservicos.md`.
 
-> **Critério C9:** os 8 documentos precisam estar *"válidos e atualizados"*. A regra adotada é a
-> mesma que o MER já usa e que o professor aceitou no PR #3: **cada elemento é marcado como
-> implementado (✅) ou planejado (🔷)**, e só entra como planejado o que consta do plano de
-> implementação da SPEC-01. Notificação ao hóspede e channel manager não entram: estão fora do
-> escopo.
+> **Critério C9 — os 8 documentos precisam estar *"válidos e atualizados"*.** A regra tem dois
+> níveis, definidos em 21/09/2026:
+>
+> 1. **Documento normativo não leva status de implementação.** Requisitos (Doc 02) e fluxo de
+>    dados (Doc 03) declaram como o sistema **deve** funcionar — é contra eles que o projeto
+>    será cobrado. Marcar o que já existe transformaria a norma em relato datado, e o documento
+>    envelheceria a cada commit. O acompanhamento de execução é do **Doc 08**.
+> 2. **Entidade de dados leva status.** No MER (Doc 04) o status é atributo da própria entidade,
+>    e a legenda ✅ implementada / 🔷 planejada / ⚠️ em transição foi aceita pelo professor no
+>    PR #3. Os outros documentos apenas **citam** essa legenda ao listar entidades.
+>
+> Em qualquer nível, só entra como planejado o que consta do plano de implementação da SPEC-01.
+> Notificação ao hóspede e channel manager não entram: estão fora do escopo.

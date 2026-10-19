@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: hotel-system
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres.yaml
+  - redis.yaml
+  - rabbitmq.yaml
+  - backend.yaml
+  - nginx.yaml
+  - pdb.yaml
+  - minio.yaml
+  - networkpolicy.yaml
+  - observability.yaml
+
+configMapGenerator:
+  # Provisionamento do Grafana (T-02.4) — mesmos arquivos que o docker-compose monta.
+  - name: grafana-datasource
+    files:
+      - prometheus.yml=observability/grafana-datasource.yml
+  - name: grafana-dashboard-provider
+    files:
+      - gesway.yml=observability/grafana-dashboards.yml
+  - name: grafana-dashboards
+    files:
+      - gesway-dashboard.json=observability/gesway-dashboard.json
+  # Script de setup do MinIO (bucket + usuário de leitura que assina URLs — RNF-023), usado pelo
+  # contêiner `setup` do pod do MinIO. O mesmo arquivo é montado pelo serviço minio-setup do compose.
+  - name: minio-setup
+    files:
+      - minio-setup.sh
+  # Topologia e usuários do RabbitMQ (T-01.4), usado pelo contêiner `setup` do pod do RabbitMQ.
+  # O mesmo arquivo é montado pelo serviço rabbitmq-setup do compose.
+  - name: rabbitmq-setup
+    files:
+      - rabbitmq-setup.sh

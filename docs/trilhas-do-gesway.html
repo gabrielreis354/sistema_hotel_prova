@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trilhas do Gesway</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --paper:#F6F8F7;
+  --surface:#FFFFFF;
+  --surface-2:#EDF1EF;
+  --ink:#17211F;
+  --ink-2:#3B4946;
+  --muted:#6C7C78;
+  --line:#D6DEDB;
+  --line-soft:#E5EBE9;
+
+  --gabriel:#2E6F6B;
+  --sirlande:#9C5B34;
+  --weslley:#3C5A9A;
+  --alert:#AE382F;
+  --alert-bg:#F8E9E7;
+  --ok:#2F7A4B;
+  --ok-bg:#E6F2EA;
+  --warn:#9A6B12;
+  --warn-bg:#F7EFDC;
+
+  --shadow:0 1px 2px rgba(23,33,31,.06), 0 8px 24px -16px rgba(23,33,31,.28);
+
+  --display:"Newsreader",Georgia,"Times New Roman",serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#111917;
+    --surface:#18211F;
+    --surface-2:#1F2A27;
+    --ink:#E8EEEC;
+    --ink-2:#BCC9C5;
+    --muted:#8B9A96;
+    --line:#2C3936;
+    --line-soft:#232E2B;
+
+    --gabriel:#5FAAA4;
+    --sirlande:#D08A57;
+    --weslley:#7D9BD8;
+    --alert:#E4796C;
+    --alert-bg:#2E1D1B;
+    --ok:#6CC08C;
+    --ok-bg:#16291E;
+    --warn:#D9AE55;
+    --warn-bg:#2A2414;
+
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111917;
+  --surface:#18211F;
+  --surface-2:#1F2A27;
+  --ink:#E8EEEC;
+  --ink-2:#BCC9C5;
+  --muted:#8B9A96;
+  --line:#2C3936;
+  --line-soft:#232E2B;
+
+  --gabriel:#5FAAA4;
+  --sirlande:#D08A57;
+  --weslley:#7D9BD8;
+  --alert:#E4796C;
+  --alert-bg:#2E1D1B;
+  --ok:#6CC08C;
+  --ok-bg:#16291E;
+  --warn:#D9AE55;
+  --warn-bg:#2A2414;
+
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px 96px}
+
+h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;margin:0}
+h1{font-size:clamp(2.1rem,4.6vw,3.2rem);line-height:1.08;letter-spacing:-.015em}
+h2{font-size:clamp(1.45rem,2.4vw,1.85rem);line-height:1.2;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:600;line-height:1.3}
+p{margin:0}
+.lede{font-size:1.08rem;color:var(--ink-2);max-width:62ch}
+.eyebrow{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.note{font-size:.9rem;color:var(--muted);max-width:68ch}
+code,.mono{font-family:var(--mono);font-size:.86em}
+code{background:var(--surface-2);padding:.1em .35em;border-radius:3px;color:var(--ink-2)}
+
+header.top{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+.top-grid{display:grid;gap:28px}
+.meta{display:flex;flex-wrap:wrap;gap:10px 22px;font-family:var(--mono);font-size:.76rem;color:var(--muted)}
+section{padding:56px 0;border-bottom:1px solid var(--line-soft)}
+section:last-of-type{border-bottom:0}
+.head{display:grid;gap:10px;margin-bottom:28px;max-width:72ch}
+
+/* ---------- situação ---------- */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.status{
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:18px 20px;display:grid;gap:10px;align-content:start
+}
+.status h3{font-family:var(--body);font-size:.95rem;display:flex;align-items:center;gap:8px}
+.status ul{margin:0;padding-left:1.1em;display:grid;gap:6px}
+.status li{font-size:.9rem;color:var(--ink-2)}
+.status li strong{color:var(--ink)}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--tone)}
+.status.done{--tone:var(--ok)}
+.status.branch{--tone:var(--warn)}
+.status.blocked{--tone:var(--muted)}
+
+.alerta{
+  margin-top:16px;border:1px solid color-mix(in srgb,var(--alert) 30%,transparent);
+  background:var(--alert-bg);border-radius:10px;padding:16px 20px;display:grid;gap:6px
+}
+.alerta h3{font-family:var(--body);font-size:.95rem;color:var(--alert)}
+.alerta p{font-size:.92rem;color:var(--ink-2)}
+
+/* ---------- pessoas ---------- */
+.people{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.person{
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:22px 22px 20px;display:flex;flex-direction:column;gap:14px;
+  border-top:3px solid var(--who);box-shadow:var(--shadow);
+}
+.person .name{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.person .name h3{color:var(--who)}
+.days{font-family:var(--mono);font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.person dl{margin:0;display:grid;gap:10px}
+.person dt{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.person dd{margin:0;font-size:.93rem;color:var(--ink-2)}
+.first{margin-top:auto;padding-top:14px;border-top:1px dashed var(--line);font-size:.88rem;color:var(--ink-2);display:grid;gap:4px}
+.first .lbl{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.first strong{font-family:var(--mono);font-size:.85rem;color:var(--who)}
+.zero{font-family:var(--mono);font-size:.72rem;color:var(--alert)}
+
+/* ---------- arquitetura ---------- */
+.arch{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.svc{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:grid;gap:8px;align-content:start}
+.svc .tag{font-family:var(--mono);font-size:.7rem;color:var(--muted)}
+.svc h3{font-family:var(--mono);font-size:.95rem}
+.svc p{font-size:.9rem;color:var(--ink-2)}
+
+/* ---------- rack ---------- */
+.rack-scroll{overflow-x:auto;padding-bottom:6px}
+.rack{min-width:880px;display:grid;grid-template-columns:132px repeat(10,1fr);gap:6px;align-items:stretch}
+.rack .wk{font-family:var(--mono);font-size:.7rem;color:var(--muted);text-align:center;padding-bottom:8px;border-bottom:1px solid var(--line);letter-spacing:.04em}
+.rack .wk.now{color:var(--ink);font-weight:600;border-bottom:2px solid var(--ink)}
+.rack .corner{border-bottom:1px solid var(--line)}
+.lane-label{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9rem;padding:10px 0;color:var(--who)}
+.lane-label::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--who);flex:none}
+.bar{
+  background:color-mix(in srgb,var(--who) 13%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--who) 42%,transparent);
+  border-left:3px solid var(--who);
+  border-radius:5px;padding:9px 11px;display:flex;flex-direction:column;gap:3px;min-height:62px
+}
+.bar .t{font-family:var(--mono);font-size:.74rem;font-weight:600;color:var(--who);letter-spacing:.01em}
+.bar .d{font-size:.79rem;line-height:1.35;color:var(--ink-2)}
+.bar.crit{border-color:var(--alert);border-left-color:var(--alert);background:var(--alert-bg)}
+.bar.crit .t{color:var(--alert)}
+.bar.done{background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 40%,transparent);border-left-color:var(--ok)}
+.bar.done .t{color:var(--ok)}
+.bar.done .t::before{content:"✓ "}
+.bar.soft{background:transparent;border-style:dashed;border-left-style:dashed;opacity:.85}
+.bar.idle{background:transparent;border:1px dashed var(--line);border-left:3px dashed var(--line)}
+.bar.idle .t{color:var(--muted)}
+.rend{grid-column:1/-1;display:flex;align-items:center;gap:14px;margin:4px 0 2px;font-size:.87rem;color:var(--ink-2)}
+.rend .tag{font-family:var(--mono);font-size:.72rem;font-weight:600;letter-spacing:.08em;border:1px solid var(--line);border-radius:999px;padding:3px 11px;color:var(--ink);background:var(--surface-2);flex:none}
+.rend .rule{flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 12px)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;font-size:.8rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:10px;border-radius:2px;display:inline-block}
+.sw.done{background:var(--ok-bg);border:1px solid var(--ok)}
+.sw.crit{background:var(--alert-bg);border:1px solid var(--alert)}
+.sw.soft{border:1px dashed var(--muted)}
+.sw.plan{background:var(--surface-2);border:1px solid var(--line)}
+
+/* ---------- tabelas ---------- */
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem;min-width:520px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line)}
+td.who{font-weight:600;white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+
+.principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px}
+.pgroup{display:grid;gap:12px;align-content:start}
+.pgroup ol{margin:0;padding-left:1.35em;display:grid;gap:9px}
+.pgroup li{font-size:.93rem;color:var(--ink-2);padding-left:2px}
+.pgroup li strong{color:var(--ink);font-weight:600}
+
+.callout{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--who,var(--muted));border-radius:8px;padding:18px 20px;display:grid;gap:8px}
+.callout.alert{border-left-color:var(--alert);background:var(--alert-bg);border-color:color-mix(in srgb,var(--alert) 28%,transparent)}
+.callout h3{font-family:var(--body);font-size:.95rem}
+.callout p{font-size:.92rem;color:var(--ink-2)}
+.stack{display:grid;gap:16px}
+.callout ol.rev{margin:0;padding-left:1.25em;display:grid;gap:8px}
+.callout ol.rev li{font-size:.9rem;color:var(--ink-2)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+
+.cut{display:grid;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.cut-row{display:flex;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line-soft);align-items:baseline}
+.cut-row:last-child{border-bottom:0}
+.cut-n{font-family:var(--mono);font-size:.78rem;color:var(--muted);flex:none;width:1.5em}
+.cut-b{display:grid;gap:4px}
+.cut-b .h{font-weight:600;font-size:.95rem}
+.cut-b .s{font-size:.89rem;color:var(--ink-2)}
+.cut-d{margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--muted);white-space:nowrap;flex:none}
+
+.chip{display:inline-block;font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.06em;padding:2px 8px;border-radius:999px;border:1px solid color-mix(in srgb,var(--alert) 40%,transparent);color:var(--alert);background:var(--alert-bg)}
+.chip.calm{border-color:var(--line);color:var(--muted);background:var(--surface-2)}
+
+pre.tree{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;font-family:var(--mono);font-size:.82rem;line-height:1.55;color:var(--ink-2);overflow-x:auto}
+
+footer{padding:40px 0 0;color:var(--muted);font-size:.84rem;display:grid;gap:6px}
+
+@media (max-width:640px){
+  .wrap{padding:0 18px 64px}
+  header.top{padding:44px 0 32px}
+  section{padding:44px 0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="top-grid">
+    <p class="eyebrow">Gesway · PMS SaaS · divisão de trabalho v2.4</p>
+    <h1>Três trilhas, dez semanas,<br>dois pontos de encontro</h1>
+    <p class="lede">Sete Specs e a documentação acadêmica, divididas entre Gabriel, Sirlande e Weslley para que ninguém precise esperar ninguém. Esta versão mostra o que já foi feito até a semana 2 e o que cada um pode começar hoje.</p>
+    <div class="meta">
+      <span>Atualizado em 16/09/2026</span>
+      <span>Semana 2 de 10</span>
+      <span>3 tarefas concluídas</span>
+      <span>3 aguardando verificação</span>
+      <span>8 itens para os donos revisarem</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Onde estamos</p>
+    <h2>Situação em 16/09</h2>
+  </div>
+
+  <div class="status-grid">
+    <div class="status done">
+      <h3><span class="dot"></span>Concluído</h3>
+      <ul>
+        <li><strong>T-01.1</strong> — recorte dos serviços, registrado no ADR-003</li>
+        <li><strong>T-01.0</strong> — repositório em layout de serviços (PR #77)</li>
+        <li><strong>T-06.8</strong> — <code>develop</code> promovida para <code>main</code> (PR #76)</li>
+        <li>Material para os documentos 03 e 04 (PR #75)</li>
+        <li>Documento 02 v1.3 aceito pelo professor (PR #5)</li>
+      </ul>
+    </div>
+    <div class="status branch">
+      <h3><span class="dot"></span>Feito em branch, falta verificar</h3>
+      <ul>
+        <li><strong>T-06.3</strong> e <strong>T-06.6</strong> — em <code>fix/paranoid-unique-constraints</code>, 16 commits. Faltam suíte, auditoria e sincronizar com o layout novo</li>
+        <li><strong>T-06.5</strong> — em <code>fix/public-booking-payment-leak</code>, 2 commits</li>
+      </ul>
+      <p class="note">A T-06.3 e a T-06.6 são da trilha do Sirlande e foram adiantadas pelo Gabriel. A revisão fica com ele.</p>
+    </div>
+    <div class="status blocked">
+      <h3><span class="dot"></span>Bloqueado</h3>
+      <ul>
+        <li><strong>Divisão do frontend</strong> — espera a T-06.2</li>
+        <li><strong>Comanda no frontend</strong> — espera a T-04.3 (R1)</li>
+        <li><strong>T-01.4</strong> — espera a T-01.2 e a T-01.3</li>
+        <li><strong>T-02.3</strong> — espera a T-01.4 (R2)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="alerta">
+    <h3>Nenhum commit do Weslley nem do Sirlande desde 09/09</h3>
+    <p>A semana 2 começa sem avanço registrado nessas duas trilhas. No 5º semestre, o Termo da banca exige ao menos um commit por integrante por semana — vale criar o hábito agora. As tarefas abaixo não dependem de ninguém e podem começar hoje.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Responsabilidade de cada trilha</p>
+    <h2>O que o Gabriel adiantou nas trilhas de vocês</h2>
+    <p class="note">Para não travar o plano, algumas entregas foram feitas pelo Gabriel em áreas que pertencem a outra pessoa. A divisão continua valendo: <strong>o dono da área revisa</strong> se o que foi feito corresponde ao que estava previsto — e pode aprovar, pedir ajuste ou recusar.</p>
+  </div>
+
+  <div class="two">
+    <div class="callout" style="--who:var(--sirlande)">
+      <h3 style="color:var(--sirlande)">Sirlande revisa</h3>
+      <ol class="rev">
+        <li><strong>T-06.3 e T-06.6</strong> — índice único parcial nos models com exclusão lógica e correção do índice em banco já existente. Branch <code>fix/paranoid-unique-constraints</code>. Conferir contra os critérios CA-06.3 e CA-06.6 da SPEC-06.</li>
+        <li><strong>Sugestão de revisão do MER (v1.2)</strong> — aceitar ou recusar item a item; os motivos estão em <code>docs/sugestoes-documentos-oficiais/04-mer/</code>.</li>
+        <li><strong>Insumos do DFD</strong> — conferir se o levantamento de fluxos está completo antes de desenhar.</li>
+        <li><strong>Impacto do ADR-003 na SPEC-04</strong> — <code>accounts</code> e <code>account_items</code> ficam no core, com chave estrangeira normal. Confirmar que a Spec continua coerente.</li>
+      </ol>
+    </div>
+    <div class="callout" style="--who:var(--weslley)">
+      <h3 style="color:var(--weslley)">Weslley revisa</h3>
+      <ol class="rev">
+        <li><strong>Infraestrutura do PR #77</strong> — <code>k8s/</code> movido para <code>infra/k8s/</code>, o <code>docker/</code> antigo para <code>docs/legado/</code>, o contexto do Dockerfile, <code>infra_up.sh</code> e <code>start.sh</code>.</li>
+        <li><strong>CI</strong> — <code>.github/workflows/ci.yml</code> passou a rodar os testes em <code>services/core-service</code>. O CI é área dele.</li>
+        <li><strong>ADR-003 no Documento 07</strong> — o documento é dele. Revisar a forma e o conteúdo da decisão de recorte e do uso de RabbitMQ.</li>
+        <li><strong>Impacto na SPEC-02</strong> — três bancos, RabbitMQ no cluster e o Redis sem uso, registrados na SPEC-01, §5.3.</li>
+      </ol>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:16px">Enquanto a revisão não acontece, esses itens contam como <strong>pendentes de revisão</strong> na trilha do dono — não como concluídos.</p>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Quem fica com o quê</p>
+    <h2>As trilhas</h2>
+    <p class="note">Cada um leva backend e frontend. O critério do frontend foi afinidade: quem constrói a API constrói a tela dela.</p>
+  </div>
+
+  <div class="people">
+    <article class="person" style="--who:var(--gabriel)">
+      <div class="name"><h3>Gabriel</h3><span class="days">~34 dias</span></div>
+      <dl>
+        <div><dt>Backend</dt><dd>SPEC-01 Microsserviços · T-06.2, T-06.5, T-06.9 · portão de QA de todas as frentes</dd></div>
+        <div><dt>Frontend</dt><dd>Reservas · Rack · Painel do dia</dd></div>
+        <div><dt>Documentos</dt><dd>01 e 02 · layout, rotas e sessão do frontend</dd></div>
+      </dl>
+      <div class="first">
+        <span class="lbl">Disponível agora</span>
+        <span><strong>T-06.9</strong> webhook sem assinatura — atrasada · <strong>T-06.2</strong> schema no Swagger — antecipada · integrar as duas branches · T-01.2 · T-01.3 · conferir o Documento 02 contra os critérios</span>
+      </div>
+    </article>
+
+    <article class="person" style="--who:var(--sirlande)">
+      <div class="name"><h3>Sirlande</h3><span class="days">~33 dias</span></div>
+      <dl>
+        <div><dt>Backend</dt><dd>SPEC-04 Consumo (comanda) · T-06.10, T-06.11 · <strong>revisar</strong> T-06.3 e T-06.6</dd></div>
+        <div><dt>Frontend</dt><dd>Comanda · Ficha do hóspede</dd></div>
+        <div><dt>Documentos</dt><dd>03 (DFD) e 04 (MER) · dono de <code>db/schema.sql</code> e <code>app/Models/</code></dd></div>
+      </dl>
+      <div class="first">
+        <span class="lbl">Disponível agora</span>
+        <span><strong>Revisar</strong> o que foi adiantado na trilha · <strong>T-04.1</strong> <code>Account</code> e <code>AccountItem</code> — ficam no core, com FK normal · <strong>Documentos 03 e 04</strong> — insumos e briefing já publicados</span>
+        <span class="zero">0 commits desde 09/09</span>
+      </div>
+    </article>
+
+    <article class="person" style="--who:var(--weslley)">
+      <div class="name"><h3>Weslley</h3><span class="days">~33 dias</span></div>
+      <dl>
+        <div><dt>Backend</dt><dd>SPEC-03 Integrações · SPEC-02 Cloud/IaC · T-06.4 docker-compose</dd></div>
+        <div><dt>Frontend</dt><dd>Financeiro · Fechamento de caixa · B2B · Configurações</dd></div>
+        <div><dt>Documentos</dt><dd>05 a 08, incluindo o ADR-003 no 07 · dono do CI e de <code>infra/</code></dd></div>
+      </dl>
+      <div class="first">
+        <span class="lbl">Disponível agora</span>
+        <span><strong>Revisar</strong> a infraestrutura do PR #77 e o ADR-003 · <strong>T-03.1</strong> ViaCEP · <strong>T-02.1</strong> decidir Kubernetes e estimar custo · T-06.4 · RabbitMQ no cluster · Documento 08</span>
+        <span class="zero">0 commits desde 09/09</span>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">O que estamos construindo</p>
+    <h2>Arquitetura decidida</h2>
+    <p class="note">ADR-003, de 14/09. O critério de divisão é o que precisa ser gravado junto — por isso pagamento ficou no core. Hoje o repositório já está organizado assim, mas o sistema ainda roda como um único processo: o primeiro serviço sai na T-01.4.</p>
+  </div>
+
+  <div class="arch">
+    <div class="svc">
+      <span class="tag">existe · ainda com tudo junto</span>
+      <h3>core-service</h3>
+      <p>Operação do hotel: reservas, quartos, hóspedes, check-in, pagamentos, PIX, consumo, produtos e a futura comanda.</p>
+    </div>
+    <div class="svc">
+      <span class="tag">T-01.4 · 4º semestre</span>
+      <h3>analytics-service</h3>
+      <p>Os 7 indicadores, com banco próprio alimentado por <strong>eventos do core via RabbitMQ</strong>.</p>
+    </div>
+    <div class="svc">
+      <span class="tag">T-01.6 · 5º semestre</span>
+      <h3>b2b-service</h3>
+      <p>Clientes corporativos, orçamentos e contratos. Pede ao core, por chamada direta, o bloqueio dos quartos.</p>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:24px">
+    <pre class="tree">services/core-service/   backend atual
+infra/k8s/               manifests do cluster
+frontend/                monorepo pnpm
+scripts/  docs/
+docs/legado/             material antigo</pre>
+    <div class="callout">
+      <h3>Depois do PR #77, no seu computador</h3>
+      <p>Rode <code>npm ci</code> dentro de <code>services/core-service/</code> e mova <code>.env</code> e <code>.env.test</code> para essa pasta. O <code>k8s/</code> agora é <code>infra/k8s/</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Grade</p>
+    <h2>As dez semanas</h2>
+    <p class="note">Antes de R1 e R2 as trilhas não se tocam. A T-06.2 subiu para as semanas 3 e 4 porque a divisão do frontend depende dela.</p>
+  </div>
+
+  <div class="rack-scroll">
+    <div class="rack">
+      <div class="corner"></div>
+      <div class="wk">S1</div><div class="wk now">S2 · hoje</div><div class="wk">S3</div><div class="wk">S4</div>
+      <div class="wk">S5</div><div class="wk">S6</div><div class="wk">S7</div><div class="wk">S8</div>
+      <div class="wk">S9</div><div class="wk">S10</div>
+
+      <!-- Gabriel -->
+      <div class="lane-label" style="--who:var(--gabriel)">Gabriel</div>
+      <div class="bar done" style="--who:var(--gabriel);grid-column:span 1">
+        <span class="t">T-01.1 · T-01.0</span><span class="d">Recorte e layout · T-06.8 release</span>
+      </div>
+      <div class="bar crit" style="--who:var(--gabriel);grid-column:span 1">
+        <span class="t">T-06.9</span><span class="d">Webhook PIX sem assinatura — atrasada</span>
+      </div>
+      <div class="bar" style="--who:var(--gabriel);grid-column:span 2">
+        <span class="t">T-06.2 · T-06.5 · T-01.2 · T-01.3</span><span class="d">Swagger (antecipada), integrar correção, contratos, RS256 · frontend começa</span>
+      </div>
+      <div class="bar" style="--who:var(--gabriel);grid-column:span 2">
+        <span class="t">T-01.4</span><span class="d">Extrair o <span class="mono">analytics-service</span> — reestimar</span>
+      </div>
+      <div class="bar" style="--who:var(--gabriel);grid-column:span 2">
+        <span class="t">T-01.5</span><span class="d">CI/CD por serviço — entrega ao Weslley</span>
+      </div>
+      <div class="bar soft" style="--who:var(--gabriel);grid-column:span 2">
+        <span class="t">Folga</span><span class="d">Reserva para a T-01.4, que ficou maior</span>
+      </div>
+
+      <!-- Sirlande -->
+      <div class="lane-label" style="--who:var(--sirlande)">Sirlande</div>
+      <div class="bar" style="--who:var(--sirlande);grid-column:span 2">
+        <span class="t">Revisão · T-04.1 · Docs 03 e 04</span><span class="d">Revisar T-06.3 e T-06.6 · <span class="mono">Account</span> + <span class="mono">AccountItem</span> · DFD e MER</span>
+      </div>
+      <div class="bar" style="--who:var(--sirlande);grid-column:span 2">
+        <span class="t">T-04.2 · T-04.3</span><span class="d">Migração de dado financeiro · bill da conta · frontend começa</span>
+      </div>
+      <div class="bar crit" style="--who:var(--sirlande);grid-column:span 2">
+        <span class="t">T-04.4 · T-04.5</span><span class="d"><span class="mono">Payment ↔ Account</span> — branch isolada</span>
+      </div>
+      <div class="bar" style="--who:var(--sirlande);grid-column:span 2">
+        <span class="t">T-04.6 · T-04.7</span><span class="d">Check-in cria conta · fecha a SPEC-04</span>
+      </div>
+      <div class="bar soft" style="--who:var(--sirlande);grid-column:span 2">
+        <span class="t">SPEC-07</span><span class="d">Tarifas — só se o cronograma segurar</span>
+      </div>
+
+      <!-- Weslley -->
+      <div class="lane-label" style="--who:var(--weslley)">Weslley</div>
+      <div class="bar" style="--who:var(--weslley);grid-column:span 2">
+        <span class="t">Revisão · T-03.1 · T-02.1</span><span class="d">Revisar infra e ADR-003 · ViaCEP · decidir Kubernetes e custo</span>
+      </div>
+      <div class="bar" style="--who:var(--weslley);grid-column:span 2">
+        <span class="t">T-03.2 · T-06.4 · RabbitMQ</span><span class="d">Mercado Pago · docker-compose · broker no cluster · frontend começa</span>
+      </div>
+      <div class="bar" style="--who:var(--weslley);grid-column:span 2">
+        <span class="t">T-02.2 · Doc 08</span><span class="d">Terraform base · planejamento de sprints</span>
+      </div>
+      <div class="bar" style="--who:var(--weslley);grid-column:span 2">
+        <span class="t">T-02.5</span><span class="d">Deploy automatizado no CI</span>
+      </div>
+      <div class="bar" style="--who:var(--weslley);grid-column:span 2">
+        <span class="t">T-02.3 · T-02.4</span><span class="d">Portar k8s · observabilidade · Docs 05 e 06</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw done"></i>Concluído</span>
+    <span><i class="sw crit"></i>Crítico</span>
+    <span><i class="sw plan"></i>Planejado</span>
+    <span><i class="sw soft"></i>Buffer ou folga</span>
+  </div>
+
+  <div class="stack" style="margin-top:26px">
+    <div class="rend">
+      <span class="tag">R1 · fim da S4</span>
+      <span><strong>T-04.3</strong> fecha o bill da conta e destrava a comanda no frontend.</span>
+      <span class="rule"></span>
+    </div>
+    <div class="rend">
+      <span class="tag">R2 · fim da S6</span>
+      <span><strong>T-01.4</strong> extrai o <span class="mono">analytics-service</span> com RabbitMQ e destrava a T-02.3 e a versão final dos documentos 03 e 06.</span>
+      <span class="rule"></span>
+    </div>
+    <p class="note">São as duas únicas dependências entre pessoas do plano inteiro. Quem fecha, anuncia — dependência que ninguém anuncia vira espera silenciosa.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Frontend</p>
+    <h2>O contrato</h2>
+    <p class="note">A SPEC-05 tem ~35 dias e nenhum dos três tem prática de React. Por isso ela é dividida em módulos verticais — nunca em camadas —, sob princípios acordados. A divisão começa quando a T-06.2 sair, com previsão para a semana 4.</p>
+  </div>
+
+  <div class="tbl-scroll" style="margin-bottom:32px">
+    <table>
+      <thead><tr><th>Módulo</th><th>Dono</th><th>Tarefas</th></tr></thead>
+      <tbody>
+        <tr><td>Reservas, rack, painel do dia</td><td class="who" style="color:var(--gabriel)">Gabriel</td><td class="mono">T-05.2 · T-05.3 · T-05.4</td></tr>
+        <tr><td>Comanda, ficha do hóspede</td><td class="who" style="color:var(--sirlande)">Sirlande</td><td class="mono">T-05.5 · T-05.10</td></tr>
+        <tr><td>Financeiro, caixa, B2B, configurações</td><td class="who" style="color:var(--weslley)">Weslley</td><td class="mono">T-05.6 · T-05.7 · T-05.8 · T-05.11</td></tr>
+        <tr><td>Quartos, governança, busca global</td><td class="who">de quem terminar primeiro</td><td class="mono">T-05.1 · T-05.9 · T-05.12</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="principles">
+    <div class="pgroup">
+      <p class="eyebrow">Estrutura</p>
+      <ol>
+        <li><strong>Fatia vertical, nunca camada.</strong> Módulo é pasta em <code>src/features/&lt;nome&gt;/</code>.</li>
+        <li><strong>Módulo não importa tripa de outro módulo</strong> — só o que ele exporta no <code>index.ts</code>.</li>
+        <li><strong>Uma rota, um dono.</strong></li>
+      </ol>
+    </div>
+    <div class="pgroup">
+      <p class="eyebrow">Dados</p>
+      <ol start="4">
+        <li><strong>Nenhum <code>fetch</code> direto.</strong> Tudo pelo <code>api-client</code> gerado do OpenAPI.</li>
+        <li><strong>Sem <code>as unknown as</code>.</strong> Tipo que falta se conserta no Swagger.</li>
+        <li><strong>Dinheiro e data têm um lugar só:</strong> <code>@hotel/domain</code>.</li>
+        <li><strong>Nenhuma tela baixa a coleção inteira do hotel</strong> para filtrar na memória.</li>
+        <li><strong>Estado de servidor é TanStack Query.</strong> Zustand só para sessão.</li>
+      </ol>
+    </div>
+    <div class="pgroup">
+      <p class="eyebrow">Interface — os quatro são RNF no documento oficial</p>
+      <ol start="9">
+        <li><strong>Quatro estados por tela:</strong> carregando, vazio, erro e conteúdo.</li>
+        <li><strong>Status sempre com cor e rótulo</strong>, nunca só cor.</li>
+        <li><strong>Ação indisponível fica desabilitada, com o motivo.</strong></li>
+        <li><strong>Alvo de toque ≥ 48px</strong> nas telas de uso móvel.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:32px">
+    <div class="callout" style="--who:var(--gabriel)">
+      <h3>O design system não tem dono</h3>
+      <p>Componente nasce dentro do módulo e sobe para <code>packages/ui</code> quando o <strong>segundo</strong> módulo precisar dele. Antes de criar, consulte o <code>CATALOGO.md</code>. A regra 9 do <code>qa_checks.sh</code> aponta divergências, e a reunião semanal reserva dez minutos para revisar os componentes novos.</p>
+    </div>
+    <div class="callout" style="--who:var(--weslley)">
+      <h3>O que continua com dono</h3>
+      <p><code>packages/api-client</code> é <strong>regenerado, nunca editado à mão</strong>. <strong>Layout, rotas e sessão</strong> ficam com o Gabriel: rota nova é livre, mas mudar o fluxo de sessão ou o controle de papel precisa de acordo.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Convivência</p>
+    <h2>Onde as trilhas colidem</h2>
+    <p class="note">Não por dependência de tarefa, e sim por arquivo.</p>
+  </div>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Arquivo</th><th>Quem quer mexer</th><th>Regra</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">.github/workflows</td><td>Gabriel (T-01.5) e Weslley (T-02.5)</td><td><strong>Weslley é o dono.</strong> Gabriel entrega o que precisa e ele integra</td></tr>
+        <tr><td class="mono">services/core-service/config/swagger.js</td><td>todos</td><td>A T-06.2 reescreve o arquivo inteiro: <strong>uma pessoa, uma vez</strong>, e ninguém mexe nele durante</td></tr>
+        <tr><td class="mono">services/core-service/db/schema.sql · app/Models/</td><td>Sirlande e Gabriel</td><td><strong>Sirlande é o dono.</strong> Gabriel avisa antes</td></tr>
+        <tr><td class="mono">infra/k8s/ · terraform/ · docker-compose.yml</td><td>Weslley</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="two" style="margin-top:32px">
+    <div class="callout">
+      <h3>O portão de QA avalia cada dev pelo próprio escopo</h3>
+      <p>O <code>qa-redteam</code> roda antes de todo merge e julga só o diff da branch. <strong>Um problema encontrado fora desse escopo nunca reprova a branch</strong>: ele é repassado ao dono da área em <code>docs/qa/repasses/</code>.</p>
+    </div>
+    <div class="callout">
+      <h3>Revisão humana só onde não tem volta</h3>
+      <p>Migração de dado financeiro (<span class="mono">T-04.2</span>), tudo que mexe em valor ou pagamento, qualquer recurso de nuvem com custo e a promoção para <code>main</code>. No resto, basta o autor e o <code>qa-redteam</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Escopo</p>
+    <h2>O que se corta primeiro</h2>
+    <p class="note">São ~111 dias-dev para três pessoas, ~37 cada. Para quem também estuda, isso é um semestre sem folga. A ordem de corte já está marcada.</p>
+  </div>
+
+  <div class="cut">
+    <div class="cut-row">
+      <span class="cut-n">1</span>
+      <span class="cut-b"><span class="h">SPEC-07 — Tarifas por período</span><span class="s">É o buffer. O produto funciona sem tarifa por período, só fica menos completo.</span></span>
+      <span class="cut-d">~12 dias</span>
+    </div>
+    <div class="cut-row">
+      <span class="cut-n">2</span>
+      <span class="cut-b"><span class="h">T-05.9 a T-05.12</span><span class="s">Governança, ficha do hóspede, fechamento de caixa e busca global. Saem inteiras sem quebrar o resto.</span></span>
+      <span class="cut-d">~9,5 dias</span>
+    </div>
+    <div class="cut-row">
+      <span class="cut-n">3</span>
+      <span class="cut-b"><span class="h">T-04.3 é ponto de parada seguro</span><span class="s">Se o prazo apertar no meio da comanda, para ali — a conta da reserva já funciona.</span></span>
+      <span class="cut-d">—</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Riscos</p>
+    <h2>O que pode dar errado</h2>
+  </div>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Risco</th><th>Sev.</th><th>Mitigação</th></tr></thead>
+      <tbody>
+        <tr><td>Duas trilhas sem avanço desde 09/09</td><td><span class="chip">Alto</span></td><td>Começar hoje pelas tarefas sem bloqueio; conversar sobre isso na reunião semanal</td></tr>
+        <tr><td>T-01.4 maior que o previsto, com o RabbitMQ</td><td><span class="chip">Alto</span></td><td>Reestimar na reunião; as semanas 9 e 10 do Gabriel viraram folga</td></tr>
+        <tr><td>Escopo não caber até a defesa</td><td><span class="chip">Alto</span></td><td>Ordem de corte já declarada</td></tr>
+        <tr><td>Custo de nuvem escapar do free-tier</td><td><span class="chip">Alto</span></td><td>Regra absoluta: recurso sobe, recurso desce no fim do uso. Nunca o usuário <span class="mono">root</span></td></tr>
+        <tr><td>Três pessoas aprendendo React ao mesmo tempo</td><td><span class="chip calm">Médio</span></td><td>Princípios comuns; cada um orquestra um agente no próprio módulo</td></tr>
+        <tr><td>Branch do executor divergir do layout novo</td><td><span class="chip calm">Médio</span></td><td>Ao sincronizar, mover 3 arquivos para <span class="mono">services/core-service/</span> e resolver o conflito no <span class="mono">qa_checks.sh</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="eyebrow">Cadência</p>
+    <h2>Uma reunião por semana</h2>
+  </div>
+
+  <div class="two">
+    <div class="pgroup">
+      <p class="eyebrow">Pauta fixa</p>
+      <ol>
+        <li>O que fechou desde a última?</li>
+        <li>O que está travando?</li>
+        <li>O que vai colidir na próxima semana?</li>
+        <li>Alguma Spec mudou?</li>
+        <li>Revisão dos componentes novos do design system</li>
+      </ol>
+      <p class="note">Metade disso o <code>bash scripts/estado.sh</code> responde antes da reunião.</p>
+    </div>
+    <div class="callout alert">
+      <h3>Duas regras que valem mais que a reunião</h3>
+      <p><strong>Bloqueio não espera a reunião.</strong> Travou na segunda, avisa na segunda.</p>
+      <p><strong>R1 e R2 são anunciados</strong> por quem os conclui.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Documento completo: <code>docs/DIVISAO_TRABALHO_TIME_09set2026.md</code> (v2.4) · Specs em <code>docs/specs/</code> · Material dos documentos oficiais em <code>docs/sugestoes-documentos-oficiais/</code></p>
+  <p>Gesway — Gabriel Reis Cunha · Sirlande Martins · Weslley Lucas · UniFAAT, 4º semestre</p>
+</footer>
+
+</div>
+</body>
+</html>

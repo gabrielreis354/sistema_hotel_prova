@@ -20,8 +20,8 @@ status da v1.1 foram registrados a partir de uma **cópia desatualizada** do rep
 | # | Onde | No documento oficial | Na v1.2 sugerida | Evidência |
 |---|---|---|---|---|
 | 1 | **Seção 7** — microsserviços | Preliminar, com `billing-service` e alternativas em aberto | Consolidada conforme o ADR-003: `core-service`, `b2b-service`, `analytics-service` com banco próprio alimentado por eventos | ADR-003, Documento 07 |
-| 2 | **`PRODUCTS`** — §1, índice §1.3 e §4.10 | 🔷 Planejado, *"sem Model nem tabela"* | ✅ Implementado | `app/Models/ProductModel.js` · `db/schema.sql` (tabela `products`) · `tests/products.test.js` · `routes/apis/productRouter.js` |
-| 3 | **`USERS.role`** — §4.2 | `CHECK IN ('ADMIN','RECEPTIONIST')`, `WAITER` planejado | `CHECK IN ('ADMIN','RECEPTIONIST','WAITER')` | `db/schema.sql:49` · `app/utils/roles.js:5` |
+| 2 | **`PRODUCTS`** — §1, índice §1.3 e §4.10 | 🔷 Planejado, *"sem Model nem tabela"* | ✅ Implementado | `services/core-service/app/Models/ProductModel.js` · `services/core-service/db/schema.sql` (tabela `products`) · `services/core-service/tests/products.test.js` · `services/core-service/routes/apis/productRouter.js` |
+| 3 | **`USERS.role`** — §4.2 | `CHECK IN ('ADMIN','RECEPTIONIST')`, `WAITER` planejado | `CHECK IN ('ADMIN','RECEPTIONIST','WAITER')` | `services/core-service/db/schema.sql:49` · `services/core-service/app/utils/roles.js:5` |
 | 4 | Contagem de entidades — §1 e §8 | 14 implementadas / 3 planejadas | 15 implementadas / 2 planejadas | Consequência do item 2 |
 | 5 | Cabeçalho | Versão **1.0** — mas o histórico já registra a 1.1 | Versão **1.2** | O próprio documento |
 | 6 | §8 — política de versões | Seção 7 *"prevista como v1.1"* | *"consolidada na v1.2"* | A v1.1 já foi usada em 28/08 |
@@ -30,7 +30,7 @@ status da v1.1 foram registrados a partir de uma **cópia desatualizada** do rep
 Todas as evidências valem para a branch **`develop`** do repositório do hotel. A `main` ainda está
 na versão de julho e não tem o catálogo de produtos.
 
-Conferi os atributos de `PRODUCTS` campo a campo contra `db/schema.sql` e o model — batem com a
+Conferi os atributos de `PRODUCTS` campo a campo contra `services/core-service/db/schema.sql` e o model — batem com a
 tabela da §4.10. A promoção a ✅ não exige mudar nenhum atributo.
 
 ---

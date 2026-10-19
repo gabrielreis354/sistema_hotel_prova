@@ -68,7 +68,7 @@ Entidade `rate_periods`: `tenant_id`, `category_id`, `start_date`, `end_date`, `
 - [ ] **CA-07.1.b** — Índice único parcial onde couber unicidade, com `WHERE deleted_at IS NULL` — o padrão da SPEC-06 vale aqui desde o primeiro dia
 - [ ] **CA-07.1.c** — `EXCLUDE USING gist` impedindo dois períodos sobrepostos para a mesma categoria, ignorando linhas excluídas
 - [ ] **CA-07.1.d** — `end_date` posterior a `start_date`, validado no banco e na aplicação
-- [ ] **CA-07.1.e** — Entidade acrescentada ao `db/schema.sql` e ao Documento 04 (MER)
+- [ ] **CA-07.1.e** — Entidade acrescentada ao `services/core-service/db/schema.sql` e ao Documento 04 (MER)
 
 ---
 
@@ -89,7 +89,7 @@ Entidade `rate_periods`: `tenant_id`, `category_id`, `start_date`, `end_date`, `
 
 **DEP:** T-07.1
 
-Utilitário único em `app/utils/`, que recebe categoria e intervalo e devolve o valor noite a noite.
+Utilitário único em `services/core-service/app/utils/`, que recebe categoria e intervalo e devolve o valor noite a noite.
 
 **Critérios de aceitação**
 - [ ] **CA-07.3.a** — Para cada noite, aplica nesta ordem: preço de fim de semana do período, preço do período, tarifa base da categoria

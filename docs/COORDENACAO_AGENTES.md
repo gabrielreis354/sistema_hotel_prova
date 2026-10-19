@@ -177,12 +177,12 @@ Com esta divisão o overlap é quase nulo: J3 trabalha em diretório novo.
 | Área | Dono | Observação |
 |---|---|---|
 | `frontend/` (todo o monorepo) | **J3** | Diretório novo — J2 não entra |
-| `app/`, `routes/`, `database/`, `db/`, `seed/`, `tests/` | **J2** | J3 não entra |
-| **Raiz**: `package.json`, `Dockerfile`, `_web.js` | **J1** | J3 **não** transforma a raiz em workspace pnpm — quebra Docker, CI e K8s |
+| `services/core-service/` — `app/`, `routes/`, `database/`, `db/`, `seed/`, `tests/` | **J2** | J3 não entra |
+| Configuração do serviço: `services/core-service/package.json`, `Dockerfile`, `_web.js` | **J1** | J3 **não** transforma a raiz em workspace pnpm — quebra Docker, CI e K8s |
 | `docs/frontend/` | J3 | |
 | `docs/historico_sessao/<dev>/` | cada um no seu | |
 | `docs/COORDENACAO_AGENTES.md` | ambos | Só a própria linha do quadro |
-| `CLAUDE.md`, `.gitignore`, `k8s/` | **J1** | Peça a J1, não edite |
+| `CLAUDE.md`, `.gitignore`, `infra/k8s/` | **J1** | Peça a J1, não edite |
 
 ### Arquivos de registro — alto risco de conflito
 
@@ -190,10 +190,10 @@ Estes acumulam entradas de vários módulos e **já causaram conflito neste proj
 (`relations.js`, no merge do B2B):
 
 ```
-database/relations.js
-routes/router.js
-command.js
-config/swagger.js
+services/core-service/database/relations.js
+services/core-service/routes/router.js
+services/core-service/command.js
+services/core-service/config/swagger.js
 package.json
 ```
 
@@ -326,7 +326,7 @@ Leia nesta ordem, antes de qualquer coisa:
 
 ATENÇÃO: documentos anteriores afirmavam que não existe modelo de consumo.
 Está ERRADO. A develop já tem ConsumptionModel, os endpoints
-/reservations/:id/consumptions, o GetBillController e tests/bill-consumptions.test.js.
+/reservations/:id/consumptions, o GetBillController e services/core-service/tests/bill-consumptions.test.js.
 Antes de criar qualquer arquivo, verifique se ele já existe.
 
 Sua tarefa agora: Fatia 0 (caminho crítico — o Agente Frontend está bloqueado até
@@ -381,7 +381,7 @@ Sua tarefa agora: Fase 0, nesta ordem
      (cores de status, densidade compact/comfortable, alvo de toque 48px)
   4. apps/pms: React + TypeScript + Vite + Tailwind + shadcn/ui, shell,
      login contra POST /auth/login, rota protegida por role
-  5. packages/api-client: gerar tipos do OpenAPI em config/swagger.js (na raiz)
+  5. packages/api-client: gerar tipos do OpenAPI em services/core-service/config/swagger.js (na raiz)
 
 VOCE NAO ESTA BLOQUEADO. Configure o proxy de dev do Vite e integre contra o
 backend real desde o inicio:

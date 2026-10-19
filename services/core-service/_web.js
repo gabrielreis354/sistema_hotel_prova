@@ -1,0 +1,54 @@
+import dotenv from 'dotenv';
+
+// dotenv precisa carregar ANTES de qualquer módulo que leia process.env na própria
+// avaliação (ex.: database/connections/sequelize.js, minio.js). Em ESM, imports
+// estáticos são avaliados antes do corpo deste arquivo — não importa a ordem textual
+// das linhas — então usamos import() dinâmico pra adiar esse carregamento pra depois
+// do dotenv.config(). Mesmo padrão já usado em command.js.
+dotenv.config({
+    quiet: true,
+    path: process.cwd() + '/.env'
+});
+
+const { default: express } = await import('express');
+const { default: router } = await import('./routes/router.js');
+const { default: app } = await import('./bootstrap/app.js');
+const { getPrivateKey, getPublicKey, assertKeyPair } = await import('./app/utils/jwtKeys.js');
+
+// Fail-fast (ADR-006): sem um par RS256 VÁLIDO o servidor recusa subir. Sem isto ele
+// subiria "saudável" — /health responde, o container fica healthy — e só falharia no
+// primeiro login, com 500. No docker-compose de contingência isso significaria descobrir
+// o problema no meio da defesa; aqui aparece no `docker compose ps` (Restarting) e no log.
+// Confere existência, conteúdo legível e que as duas chaves formam um par.
+try {
+    assertKeyPair(getPrivateKey(), getPublicKey());
+} catch (error) {
+    console.error(`❌ JWT RS256 indisponível — servidor não vai subir. ${error.message}`);
+    process.exit(1);
+}
+
+// Inicializa os relacionamentos do Sequelize
+app();
+
+const web = express();
+
+// Registrar as Rotas Principais
+web.use('/', router);
+
+const port = process.env.NODE_WEB_PORT || 3000;
+
+web.listen(port, () => {
+    console.log(`\n==================================================`);
+    console.log(`🚀 Servidor Hotel PMS rodando com sucesso!`);
+    console.log(`📡 URL Local: http://localhost:${port}`);
+    console.log(`💾 Banco de Dados PostgreSQL conectado via Sequelize`);
+    console.log(`==================================================\n`);
+});
+
+// Publicador do outbox (T-01.4/H.1): entrega os eventos de domínio ao RabbitMQ. Sem
+// RABBITMQ_HOST fica desligado e os eventos só acumulam — a API não depende do broker.
+const { startOutboxPublisherFromEnv } = await import('./app/services/outbox/publisher.js');
+// Sem handler de SIGTERM de propósito: como PID 1 do contêiner, o processo segue atendendo até o
+// fim do prazo de encerramento do pod. Lote interrompido não se perde — a transação cai junto com
+// a conexão e o lote volta na próxima rodada de outra réplica.
+startOutboxPublisherFromEnv();
