@@ -167,7 +167,18 @@ describe('Banco: payments com account_id (CA-04.4.a e b)', () => {
     it('recusa pagamento que aponta para a conta de outra reserva', async () => {
         const other = await stayWithAccount();
         await expect(insertPayment({ account_id: stay.account.id, reservation_id: other.reservation.id }))
-            .rejects.toThrow(/payments_account_reservation_fk/);
+            .rejects.toThrow(/payments_account_consistency/);
+    });
+
+    it('recusa pagamento da conta da suíte sem a reserva', async () => {
+        await expect(insertPayment({ account_id: stay.account.id }))
+            .rejects.toThrow(/payments_account_consistency/);
+    });
+
+    it('recusa pagamento com o tenant diferente do da conta', async () => {
+        const [[other]] = await sequelize.query(`SELECT id FROM tenants WHERE id <> :tenantId LIMIT 1`, { replacements: { tenantId } });
+        await expect(insertPayment({ account_id: dayUse.id, tenant_id: other.id }))
+            .rejects.toThrow(/payments_account_consistency/);
     });
 });
 

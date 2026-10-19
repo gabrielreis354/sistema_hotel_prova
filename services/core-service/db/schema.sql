@@ -305,11 +305,27 @@ ALTER TABLE payments ALTER COLUMN reservation_id DROP NOT NULL;
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
 ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
   CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
-ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_id_reservation_unique CASCADE;
-ALTER TABLE accounts ADD  CONSTRAINT accounts_id_reservation_unique UNIQUE (id, reservation_id);
-ALTER TABLE payments ADD  CONSTRAINT payments_account_reservation_fk
-  FOREIGN KEY (account_id, reservation_id) REFERENCES accounts (id, reservation_id) ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+-- Pagamento com conta tem a reserva e o tenant da conta
+CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
+DECLARE
+  conta accounts%ROWTYPE;
+BEGIN
+  IF NEW.account_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+  SELECT * INTO conta FROM accounts WHERE id = NEW.account_id;
+  IF conta.tenant_id IS DISTINCT FROM NEW.tenant_id
+     OR conta.reservation_id IS DISTINCT FROM NEW.reservation_id THEN
+    RAISE EXCEPTION 'payments_account_consistency: o pagamento precisa ter a reserva e o tenant da conta %', NEW.account_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS payments_account_consistency ON payments;
+CREATE TRIGGER payments_account_consistency
+  BEFORE INSERT OR UPDATE ON payments
+  FOR EACH ROW EXECUTE FUNCTION payments_account_consistency();
 
 -- RN-005 (D-3): uma conta cobrando diária por quarto DA ESTADIA. Parcial: conta
 -- excluída não disputa; a próxima estadia no mesmo quarto cobra a sua.

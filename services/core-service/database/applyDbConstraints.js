@@ -226,11 +226,12 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
  *   motivo do `account_items.created_by`: com FK na coluna, o sync({ alter }) só refaz a
  *   FK e deixa o NOT NULL de um banco anterior.
  * - Todo pagamento tem reserva ou conta.
- * - FK composta (account_id, reservation_id) → accounts(id, reservation_id): o banco
- *   recusa um pagamento que aponte para a conta de uma reserva e para outra reserva.
- *   MATCH SIMPLE: com reservation_id nulo (day-use, mesa) só vale a FK de account_id.
- *   Precisa de um UNIQUE (id, reservation_id) em accounts, redundante com a PK, que só
- *   existe para a FK apontar.
+ * - Trigger payments_account_consistency: pagamento com conta tem a reserva e o tenant
+ *   da conta. O banco recusa um pagamento que aponte para a conta de uma reserva e para
+ *   outra reserva, ou que deixe a reserva nula na conta da suíte. Trigger, não FK
+ *   composta: a FK precisaria de um UNIQUE (id, reservation_id) total em accounts, que a
+ *   regra dos paranoid proíbe (tests/db-constraints.test.js), e com MATCH SIMPLE não
+ *   pegaria a reserva nula.
  */
 async function applyPaymentAccountConstraints(sequelize) {
     await sequelize.query(`
@@ -245,16 +246,38 @@ async function applyPaymentAccountConstraints(sequelize) {
                 ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
                     CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
 
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'accounts_id_reservation_unique') THEN
-                    ALTER TABLE accounts ADD CONSTRAINT accounts_id_reservation_unique UNIQUE (id, reservation_id);
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_account_reservation_fk') THEN
-                    ALTER TABLE payments ADD CONSTRAINT payments_account_reservation_fk
-                        FOREIGN KEY (account_id, reservation_id) REFERENCES accounts (id, reservation_id)
-                        ON DELETE RESTRICT;
-                END IF;
-
                 CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+            END IF;
+        END $$;
+
+        CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
+        DECLARE
+            conta accounts%ROWTYPE;
+        BEGIN
+            IF NEW.account_id IS NULL THEN
+                RETURN NEW;
+            END IF;
+            SELECT * INTO conta FROM accounts WHERE id = NEW.account_id;
+            IF conta.tenant_id IS DISTINCT FROM NEW.tenant_id
+               OR conta.reservation_id IS DISTINCT FROM NEW.reservation_id THEN
+                RAISE EXCEPTION 'payments_account_consistency: o pagamento precisa ter a reserva e o tenant da conta %', NEW.account_id
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            RETURN NEW;
+        END $$ LANGUAGE plpgsql;
+    `);
+
+    // Sem lista de colunas ("UPDATE OF ..."): mesma lição do outbox — o sync({ alter })
+    // reemite ALTER TYPE e o PostgreSQL recusa em coluna citada num trigger.
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'account_id') THEN
+                DROP TRIGGER IF EXISTS payments_account_consistency ON payments;
+                CREATE TRIGGER payments_account_consistency
+                    BEFORE INSERT OR UPDATE ON payments
+                    FOR EACH ROW EXECUTE FUNCTION payments_account_consistency();
             END IF;
         END $$;
     `);
