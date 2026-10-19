@@ -1358,7 +1358,7 @@ const options = {
                             required: ['type', 'label'],
                             properties: {
                                 type:            { type: 'string', enum: ACCOUNT_TYPES },
-                                label:           { type: 'string', example: 'Mesa 5' },
+                                label:           { type: 'string', maxLength: 100, example: 'Mesa 5' },
                                 reservation_id:  { type: 'string', format: 'uuid' },
                                 room_id:         { type: 'string', format: 'uuid' },
                                 guest_id:        { type: 'string', format: 'uuid' },
@@ -1399,7 +1399,9 @@ const options = {
                         '',
                         '**Idempotência:** o reenvio do mesmo `client_item_id` responde **200** com o item original e não duplica — inclusive se o item já foi excluído (vem com `deleted_at`) ou se a conta fechou depois. O mesmo `client_item_id` em outra conta do hotel dá 409.',
                         '',
-                        '**Cortesia:** `billable: false` exige `reason` e papel ADMIN ou RECEPTIONIST.'
+                        '**Cortesia e avulso:** `billable: false` exige `reason`. Cortesia e lançamento sem `product_id` exigem papel ADMIN ou RECEPTIONIST — o garçom só lança item do cardápio, faturável.',
+                        '',
+                        'Conta `ROOM` só recebe item enquanto a reserva estiver `CHECKED_IN`.'
                     ].join('\n'),
                     parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                     requestBody: {
@@ -1408,9 +1410,9 @@ const options = {
                             type: 'object',
                             properties: {
                                 product_id:     { type: 'string', format: 'uuid' },
-                                description:    { type: 'string', example: 'Taxa de rolha' },
-                                unit_price:     { type: 'number', format: 'float', example: 30.00 },
-                                quantity:       { type: 'integer', minimum: 1, default: 1 },
+                                description:    { type: 'string', maxLength: 200, example: 'Taxa de rolha' },
+                                unit_price:     { type: 'number', format: 'float', minimum: 0, example: 30.00, description: 'No máximo 2 casas decimais' },
+                                quantity:       { type: 'integer', minimum: 1, maximum: 9999, default: 1 },
                                 billable:       { type: 'boolean', default: true },
                                 reason:         { type: 'string', enum: ITEM_REASONS },
                                 client_item_id: { type: 'string', format: 'uuid' }
@@ -1420,12 +1422,12 @@ const options = {
                     responses: {
                         200: { description: 'Reenvio: item original, sem duplicar', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountItemResult' } } } },
                         201: { description: 'Item lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountItemResult' } } } },
-                        400: { description: 'Campo inválido, description/unit_price ausentes sem product_id, reason fora da allowlist ou total acima do limite' },
+                        400: { description: 'Campo inválido, description/unit_price ausentes sem product_id, preço com mais de 2 casas, quantity fora de 1–9999, reason fora da allowlist ou total acima do limite' },
                         401: { description: 'Token não fornecido ou inválido' },
-                        403: { description: 'Garçom lançando cortesia' },
+                        403: { description: 'Garçom lançando cortesia ou item avulso (sem product_id)' },
                         404: { description: 'Conta ou produto não encontrado no hotel' },
                         409: { description: 'client_item_id já usado em outra conta' },
-                        422: { description: 'Conta fora de OPEN, produto inativo, cortesia sem reason ou reason em item faturável' },
+                        422: { description: 'Conta fora de OPEN, conta ROOM com check-out feito, produto inativo, cortesia sem reason ou reason em item faturável' },
                         500: { description: 'Erro interno' }
                     }
                 }
