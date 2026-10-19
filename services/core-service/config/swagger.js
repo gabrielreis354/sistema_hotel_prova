@@ -133,7 +133,7 @@ const options = {
                         room_id:        { type: 'string', format: 'uuid', nullable: true },
                         opened_at:      { type: 'string', format: 'date-time' },
                         closed_at:      { type: 'string', format: 'date-time', nullable: true },
-                        room_charges:   { type: 'string', example: '800.00', description: 'Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging ou com a reserva cancelada/excluída (D-35)' },
+                        room_charges:   { type: 'string', example: '800.00', description: 'Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging, ou com a reserva cancelada/excluída quando a conta ainda estava aberta (D-35); a conta fechada mantém o valor gravado' },
                         consumptions:   { type: 'string', example: '25.00', description: 'Soma dos itens faturáveis e não excluídos (CA-04.3.c)' },
                         total:          { type: 'string', example: '825.00', description: 'room_charges + consumptions. Conta INTERNAL: sempre 0 (CA-04.3.f)' },
                         payments_made:  { type: 'string', example: '0.00', description: 'Sempre 0 até a T-04.4 ligar pagamento a conta (D-34). O saldo da estadia está em GET /reservations/{id}/bill' },
@@ -981,7 +981,7 @@ const options = {
                         201: { description: 'Consumo lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Consumption' } } } },
                         400: { description: 'description ausente ou acima de 200 caracteres; amount que não é número, <= 0, com mais de 2 casas ou acima de 99999999.99; consumed_at que não é data ISO ou está mais de 1 minuto no futuro', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
                         404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        422: { description: 'Reserva com check-out feito ou cancelada, ou a conta da suíte já foi fechada. Fechar a conta da suíte com o hóspede ainda hospedado (PUT /accounts/{id}/close) desliga esta rota até o fim da estadia; o consumo seguinte vai por POST /accounts/{id}/items numa conta nova', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        422: { description: 'Reserva com check-out feito ou cancelada, ou a conta da suíte já foi fechada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -1503,14 +1503,14 @@ const options = {
                 put: {
                     tags: ['Comandas'],
                     summary: 'Fecha a conta: OPEN → CLOSED (ADMIN, RECEPTIONIST)',
-                    description: 'Vale com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
+                    description: 'Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
                     parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                     responses: {
                         200: { description: 'Conta fechada; devolve o bill', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountBill' } } } },
                         401: { description: 'Token não fornecido ou inválido' },
                         403: { description: 'Garçom não fecha conta' },
                         404: { description: 'Conta não encontrada no hotel' },
-                        422: { description: 'Conta já CLOSED ou PAID' },
+                        422: { description: 'Conta já CLOSED ou PAID, ou conta que cobra diária com a estadia ainda em andamento' },
                         503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)' },
                         500: { description: 'Erro interno' }
                     }
