@@ -106,7 +106,11 @@ export async function closeAccount(account, transaction) {
         closed_at: new Date(),
         closed_room_charges: account.type === 'INTERNAL' ? ZERO : await lodgingShare(account, transaction)
     };
-    await AccountModel.update(values, { where: { id: account.id, tenant_id: account.tenant_id }, transaction });
+    // Só conta aberta (N-4): regravar uma fechada mudaria o que foi apresentado (D-23, D-39).
+    const [updated] = await AccountModel.update(values, {
+        where: { id: account.id, tenant_id: account.tenant_id, status: 'OPEN' }, transaction
+    });
+    if (updated !== 1) throw new Error(`closeAccount: a conta ${account.id} não está aberta`);
     account.set(values);
 }
 

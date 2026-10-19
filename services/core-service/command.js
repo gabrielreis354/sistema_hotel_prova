@@ -58,6 +58,10 @@ async function migrate() {
         // constraints, porque precisa das colunas e dos CHECKs novos de account_items.
         const { default: migrateConsumptions } = await import('./database/migrateConsumptions.js');
         await migrateConsumptions(sequelize, { log: console.log });
+
+        // De novo, depois da migração: as contas que ela cria já CLOSED (D-30) ganham a
+        // diária gravada (D-39) nesta mesma rodada, não só no próximo migrate (N-3).
+        await closeEndedStayAccounts(sequelize, { log: console.log });
     } catch (error) {
         console.error('❌ Erro ao executar migrations:', error.message);
         process.exit(1);
