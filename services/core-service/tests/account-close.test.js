@@ -136,6 +136,35 @@ describe('PUT /accounts/:id/close (CA-04.3.g)', () => {
         expect((await close(randomUUID())).status).toBe(404);
     });
 
+    it('fechamentos simultâneos de contas da suíte não esgotam o pool de conexões (🟡-2 do qa-redteam)', async () => {
+        const accounts = [];
+        for (let i = 0; i < 6; i += 1) {
+            const { reservation, room } = await newStay({ checkIn: true });
+            accounts.push(await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: `Pool ${i}` }));
+        }
+        const started = Date.now();
+        const results = await Promise.all(accounts.map((a) => close(a.id)));
+
+        expect(results.map((r) => r.status)).toEqual([200, 200, 200, 200, 200, 200]);
+        expect(Date.now() - started).toBeLessThan(10_000);
+    });
+
+    it('o realinhamento da troca de quarto não move conta fechada (🟡-1 do qa-redteam)', async () => {
+        const { reservation, room } = await newStay({ checkIn: true });
+        const account = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: 'Fechada antes' });
+        await close(account.id);
+        roomNumber += 1;
+        const other = await createRoom(app, jwt, category.id, { number: String(roomNumber) });
+        const swap = await request(app).put(`/reservations/${reservation.id}`).set(auth(jwt)).send({ room_id: other.id });
+        expect(swap.status).toBe(200);
+
+        await request(app).post('/accounts').set(auth(jwt)).send({
+            type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: other.id, label: 'Quarto novo'
+        });
+
+        expect((await reload(account.id)).room_id).toBe(room.id);
+    });
+
     it('dois fechamentos simultâneos: exatamente um 200', async () => {
         for (let round = 0; round < 8; round += 1) {
             const table = await openAccount({ type: 'TABLE', label: `Mesa corrida ${round}` });

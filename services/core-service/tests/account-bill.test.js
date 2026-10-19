@@ -201,10 +201,10 @@ describe('Diária rateada entre os quartos da reserva (D-33)', () => {
         expect(res.body).toMatchObject({ room_charges: '0.00', consumptions: '8.00', total: '8.00' });
     });
 
-    it('conta cujo quarto saiu da reserva não cobra diária (D-32)', async () => {
+    it('troca de quarto: a conta da suíte segue cobrando a diária inteira (D-40, 🟡-3 do qa-redteam)', async () => {
         const oldRoom = await newRoom();
         const newRoomOfStay = await newRoom();
-        const reservation = await createReservation(app, jwt, guest.id, oldRoom.id, nextDates(2));
+        const reservation = await createReservation(app, jwt, guest.id, oldRoom.id, nextDates(2)); // 2 × 200
         // Consumo pela rota antiga: cria a conta da suíte no quarto atual (D-28).
         const consumption = await request(app).post(`/reservations/${reservation.id}/consumptions`)
             .set(auth(jwt)).send({ description: 'Frigobar', amount: 15 });
@@ -215,8 +215,46 @@ describe('Diária rateada entre os quartos da reserva (D-33)', () => {
             .send({ room_id: newRoomOfStay.id });
         expect(swap.status).toBe(200);
 
+        // Antes da D-40 dava 0: a diária da estadia não ficava em conta nenhuma.
         const res = await getBill(stale.id);
-        expect(res.body).toMatchObject({ room_charges: '0.00', consumptions: '15.00', total: '15.00' });
+        expect(res.body).toMatchObject({ room_charges: '400.00', consumptions: '15.00', total: '415.00' });
+    });
+
+    it('multiquarto com uma conta só: ela leva o total da reserva (D-40, 🔴-1 do qa-redteam)', async () => {
+        const main = await newRoom(luxo);
+        const extra = await newRoom(standard);
+        const res = await request(app).post('/reservations').set(auth(jwt)).send({
+            guest_id: guest.id, room_id: main.id, extra_room_ids: [extra.id], ...nextDates(3)
+        });
+        expect(res.body.total_amount).toBe('1500.00');
+        // A rota antiga cria uma conta por reserva, no quarto principal — como a migração da T-04.2.
+        await request(app).post(`/reservations/${res.body.id}/consumptions`)
+            .set(auth(jwt)).send({ description: 'Água', amount: 10 });
+        const only = await AccountModel.findOne({ where: { reservation_id: res.body.id } });
+
+        const bill = await getBill(only.id);
+        expect(bill.body).toMatchObject({ room_charges: '1500.00', total: '1510.00' });
+        const reservationBill = await request(app).get(`/reservations/${res.body.id}/bill`).set(auth(jwt));
+        expect(reservationBill.body.grand_total).toBe(1510);
+    });
+
+    it('duas contas cobrando diária depois de uma troca (N-1 da T-04.2): dividem o total, nunca o dobram', async () => {
+        const oldRoom = await newRoom();
+        const newRoomOfStay = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, oldRoom.id, nextDates(2)); // 400
+        await checkIn(reservation.id);
+        const stale = await openAccount({ type: 'ROOM', reservation_id: reservation.id, room_id: oldRoom.id, guest_id: guest.id, label: 'Antiga' });
+        const swap = await request(app).put(`/reservations/${reservation.id}`).set(auth(jwt)).send({ room_id: newRoomOfStay.id });
+        expect(swap.status).toBe(200);
+        // Estado que o repasse ao Gabriel descreve: a conta antiga não acompanhou a troca, e uma
+        // segunda conta de diária nasceu no quarto novo (gravada direto, sem o realinhamento da D-32).
+        const fresh = await AccountModel.create({
+            tenant_id: tenantId, type: 'ROOM', reservation_id: reservation.id, room_id: newRoomOfStay.id,
+            guest_id: guest.id, label: 'Nova', charges_lodging: true
+        });
+
+        const charges = [(await getBill(stale.id)).body.room_charges, (await getBill(fresh.id)).body.room_charges];
+        expect(charges.map(Number).reduce((a, b) => a + b)).toBe(400);
     });
 
     it('reserva cancelada: sem diária, o consumo segue cobrado (D-35)', async () => {
