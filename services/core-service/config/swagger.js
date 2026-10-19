@@ -80,6 +80,7 @@ const options = {
                         charges_lodging: { type: 'boolean', description: 'Esta conta carrega a diária do quarto (RN-005). Sempre false fora de ROOM' },
                         opened_at:       { type: 'string', format: 'date-time' },
                         closed_at:       { type: 'string', format: 'date-time', nullable: true },
+                        closed_room_charges: { type: 'string', nullable: true, example: '600.00', description: 'Diária gravada no fechamento (D-39). Nula na conta aberta' },
                         created_at:      { type: 'string', format: 'date-time' },
                         updated_at:      { type: 'string', format: 'date-time' },
                         deleted_at:      { type: 'string', format: 'date-time', nullable: true }
@@ -119,6 +120,43 @@ const options = {
                             }
                         }
                     ]
+                },
+                AccountBill: {
+                    type: 'object',
+                    description: 'Bill da conta (T-04.3). Valores em texto (DECIMAL serializado). Sem dado do hóspede.',
+                    properties: {
+                        account_id:     { type: 'string', format: 'uuid' },
+                        type:           { type: 'string', enum: ACCOUNT_TYPES },
+                        status:         { type: 'string', enum: ACCOUNT_STATUSES },
+                        label:          { type: 'string', example: 'Suíte 201' },
+                        reservation_id: { type: 'string', format: 'uuid', nullable: true },
+                        room_id:        { type: 'string', format: 'uuid', nullable: true },
+                        opened_at:      { type: 'string', format: 'date-time' },
+                        closed_at:      { type: 'string', format: 'date-time', nullable: true },
+                        room_charges:   { type: 'string', example: '800.00', description: 'Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging, ou com a reserva cancelada/excluída quando a conta ainda estava aberta (D-35); a conta fechada mantém o valor gravado' },
+                        consumptions:   { type: 'string', example: '25.00', description: 'Soma dos itens faturáveis e não excluídos (CA-04.3.c)' },
+                        total:          { type: 'string', example: '825.00', description: 'room_charges + consumptions. Conta INTERNAL: sempre 0 (CA-04.3.f)' },
+                        payments_made:  { type: 'string', example: '0.00', description: 'Sempre 0 até a T-04.4 ligar pagamento a conta (D-34). O saldo da estadia está em GET /reservations/{id}/bill' },
+                        balance:        { type: 'string', example: '825.00', description: 'total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b)' },
+                        items: {
+                            type: 'array',
+                            description: 'Itens não excluídos, inclusive cortesia (billable false, com reason) — CA-04.3.d. Em ordem de consumo',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id:          { type: 'string', format: 'uuid' },
+                                    product_id:  { type: 'string', format: 'uuid', nullable: true },
+                                    description: { type: 'string' },
+                                    quantity:    { type: 'integer' },
+                                    unit_price:  { type: 'string', example: '12.50' },
+                                    total:       { type: 'string', example: '25.00' },
+                                    billable:    { type: 'boolean' },
+                                    reason:      { type: 'string', enum: ITEM_REASONS, nullable: true },
+                                    consumed_at: { type: 'string', format: 'date-time' }
+                                }
+                            }
+                        }
+                    }
                 },
                 AccountItemResult: {
                     type: 'object',
@@ -864,13 +902,14 @@ const options = {
                         409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } }
                     }
                 },
-                delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', responses: { 204: { description: 'OK' } } }
+                delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', description: 'Fecha as contas abertas da reserva na mesma transação (D-36).', responses: { 204: { description: 'OK' } } }
             },
             '/reservations/{id}/cancel': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 put: {
                     tags: ['Reservas'],
                     summary: 'Cancela reserva (apenas PENDING ou CONFIRMED)',
+                    description: 'Fecha as contas abertas da reserva na mesma transação (D-36). O consumo já lançado segue cobrado; a diária da conta passa a 0 (D-35).',
                     responses: {
                         200: { description: 'Reserva cancelada — status alterado para CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         409: { description: 'Reserva-bloco B2B — cancele pelo contrato (PUT /contracts/{id}/cancel)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -894,6 +933,7 @@ const options = {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 put: {
                     tags: ['Reservas'], summary: 'Realiza check-out (CHECKED_IN → CHECKED_OUT; quarto(s) vão para CLEANING)',
+                    description: 'Fecha as contas abertas da reserva na mesma transação (D-36).',
                     responses: {
                         200: { description: 'Status alterado para CHECKED_OUT', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -1439,7 +1479,39 @@ const options = {
                         403: { description: 'Garçom lançando cortesia ou item avulso (sem product_id)' },
                         404: { description: 'Conta ou produto não encontrado no hotel' },
                         409: { description: 'client_item_id já usado em outra conta' },
-                        422: { description: 'Conta fora de OPEN, conta ROOM com check-out feito, produto inativo, cortesia sem reason ou reason em item faturável' },
+                        422: { description: 'Conta fora de OPEN (o check-out já a fecha), conta ROOM com check-out feito, produto inativo, cortesia sem reason ou reason em item faturável' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/bill': {
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Bill da conta: diária, consumos, total, pagamentos e saldo (ADMIN, RECEPTIONIST)',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        200: { description: 'Bill calculado na hora', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountBill' } } } },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom não vê o bill' },
+                        404: { description: 'Conta não encontrada no hotel' },
+                        503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/close': {
+                put: {
+                    tags: ['Comandas'],
+                    summary: 'Fecha a conta: OPEN → CLOSED (ADMIN, RECEPTIONIST)',
+                    description: 'Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        200: { description: 'Conta fechada; devolve o bill', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountBill' } } } },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom não fecha conta' },
+                        404: { description: 'Conta não encontrada no hotel' },
+                        422: { description: 'Conta já CLOSED ou PAID, ou conta que cobra diária com a estadia ainda em andamento' },
+                        503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)' },
                         500: { description: 'Erro interno' }
                     }
                 }

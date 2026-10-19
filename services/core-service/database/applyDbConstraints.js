@@ -265,6 +265,16 @@ async function applyAccountConstraints(sequelize) {
                 ALTER TABLE accounts ADD  CONSTRAINT accounts_no_guest_table_internal
                     CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL);
 
+                -- D-39: a diária gravada é do fechamento; conta aberta calcula na hora.
+                -- Não exige o contrário (fechada => gravada): as contas fechadas antes da
+                -- T-04.3 só recebem o valor no fim do migrate (closeEndedStayAccounts).
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_closed_room_charges_only_closed;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_closed_room_charges_only_closed
+                    CHECK (status <> 'OPEN' OR closed_room_charges IS NULL);
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_closed_room_charges_non_negative;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_closed_room_charges_non_negative
+                    CHECK (closed_room_charges IS NULL OR closed_room_charges >= 0);
+
                 CREATE INDEX IF NOT EXISTS idx_accounts_tenant_status ON accounts (tenant_id, status);
                 CREATE INDEX IF NOT EXISTS idx_accounts_reservation   ON accounts (reservation_id);
             END IF;

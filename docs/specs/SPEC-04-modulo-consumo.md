@@ -1,7 +1,7 @@
 # SPEC-04 — Módulo de Consumo (Comanda)
 
 **Prioridade:** 🟠 Alta — diferencial de produto
-**Estado:** 🟡 Parcialmente implementado — **4 de 9 fatias concluídas** (T-04.1 e T-04.2 em 19/10/2026)
+**Estado:** 🟡 Parcialmente implementado — **5 de 9 fatias concluídas** (T-04.1, T-04.2 e T-04.3 em 19/10/2026)
 **Criado em:** 26/08/2026
 **Bloqueia:** SPEC-05 Fase 2 (comanda no frontend)
 
@@ -21,7 +21,7 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 | 1 — Catálogo de Produtos | 🔲 Pendente | ✅ **Mergeada** — `ProductModel`, `ProductApi`, `/products`, `services/core-service/tests/products.test.js` |
 | 2a — `Account` + `AccountItem` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `/accounts`, `AccountApi/`, `tests/accounts.test.js`, `tests/account-items.test.js` |
 | 2b — Migração do `Consumption` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `database/migrateConsumptions.js`, rotas antigas via conta |
-| 3a — Bill da conta + close | 🔲 Pendente | 🔲 Pendente |
+| 3a — Bill da conta + close | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `/accounts/:id/bill`, `/accounts/:id/close`, contas fecham no encerramento da estadia |
 | 3b — `Payment` ↔ `Account` | 🔲 Pendente | 🔲 Pendente |
 | 3c — Delegação do bill da reserva | 🔲 Pendente | 🔲 Pendente |
 | 4 — Check-in + Split Bill + Day-use | 🔲 Pendente | 🔲 Pendente |
@@ -29,7 +29,7 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 
 **Evidência do que existe:** `services/core-service/app/Models/ProductModel.js`, `services/core-service/app/Controllers/ProductApi/` (5 controllers), rota `/products` registrada, `services/core-service/tests/products.test.js` com 36 testes, tabela `products` em `services/core-service/db/schema.sql` com índice único parcial.
 
-**Evidência do que falta (19/10):** bill e fechamento da conta (`/accounts/:id/bill`, `/close`) não existem; `Payment` ainda não aceita `account_id`.
+**Evidência do que falta (19/10):** `Payment` ainda não aceita `account_id` (T-04.4); `payments_made` do bill da conta é 0 até lá (D-34).
 
 ---
 
@@ -131,18 +131,18 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 
 ---
 
-### T-04.3 — Bill da conta e fechamento 🔲 *(fatia 3a · ~2 dias)* — ✅ ponto de parada seguro
+### T-04.3 — Bill da conta e fechamento ✅ *(fatia 3a · ~2 dias — concluída em 19/10/2026; decisões em `anexos/SPEC-04-decisoes-T-04.3.md`)* — ✅ ponto de parada seguro
 
 **DEP:** T-04.2
 
 **Critérios de aceitação**
-- [ ] **CA-04.3.a** — `GET /accounts/:id/bill` devolve `room_charges`, `consumptions`, `total`, `payments_made`, `balance`, `items`
-- [ ] **CA-04.3.b** — `balance = total − payments_made`, calculado em runtime, **nunca persistido**
-- [ ] **CA-04.3.c** — `consumptions` soma **apenas** itens `billable: true`
-- [ ] **CA-04.3.d** — Itens não faturáveis vêm na lista com `billable` e `reason` — o frontend precisa deles para exibir cortesia riscada
-- [ ] **CA-04.3.e** — `room_charges` é 0 quando `charges_lodging: false`
-- [ ] **CA-04.3.f** — Conta `INTERNAL` fecha com `room_charges: 0` e `total: 0`
-- [ ] **CA-04.3.g** — `PUT /accounts/:id/close` faz `OPEN → CLOSED`
+- [x] **CA-04.3.a** — `GET /accounts/:id/bill` devolve `room_charges`, `consumptions`, `total`, `payments_made`, `balance`, `items`
+- [x] **CA-04.3.b** — `balance = total − payments_made`, calculado em runtime, **nunca persistido**
+- [x] **CA-04.3.c** — `consumptions` soma **apenas** itens `billable: true`
+- [x] **CA-04.3.d** — Itens não faturáveis vêm na lista com `billable` e `reason` — o frontend precisa deles para exibir cortesia riscada
+- [x] **CA-04.3.e** — `room_charges` é 0 quando `charges_lodging: false`
+- [x] **CA-04.3.f** — Conta `INTERNAL` fecha com `room_charges: 0` e `total: 0`
+- [x] **CA-04.3.g** — `PUT /accounts/:id/close` faz `OPEN → CLOSED`
 
 > **Parar aqui ainda entrega um módulo coerente:** catálogo, comanda, lançamento e conta com total — que é tudo o que o app do garçom precisa. As fatias seguintes agregam day-use, split bill e unificação do pagamento.
 
@@ -187,6 +187,8 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 - [ ] **CA-04.6.d** — `GET /reservations/:id/accounts` lista as contas
 - [ ] **CA-04.6.e** — `POST /accounts` com `type: DAY_USE` e `reservation_id: null` funciona
 - [ ] **CA-04.6.f** — Bill de day-use traz `room_charges: 0`
+
+> **Herdado da T-04.3 (D-40):** a diária da reserva é dividida entre as contas que cobram diária. A conta única do CA-04.6.a leva o total, o que está certo. No CA-04.6.b, ao menos uma das contas precisa ter `charges_lodging: true`, senão o total da reserva fica sem conta. Ver `anexos/SPEC-04-decisoes-T-04.3.md`, ponto em aberto 5.
 
 ---
 

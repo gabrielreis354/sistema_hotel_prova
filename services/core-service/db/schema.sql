@@ -279,6 +279,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   charges_lodging BOOLEAN NOT NULL DEFAULT true,
   opened_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   closed_at       TIMESTAMPTZ,
+  closed_room_charges NUMERIC(12, 2),
   deleted_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ DEFAULT now(),
   updated_at      TIMESTAMPTZ DEFAULT now(),
@@ -289,8 +290,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- D-5: vínculos exigidos por tipo
   CONSTRAINT accounts_room_requires_stay CHECK (type <> 'ROOM' OR (reservation_id IS NOT NULL AND room_id IS NOT NULL AND guest_id IS NOT NULL)),
   CONSTRAINT accounts_reservation_only_room CHECK (type = 'ROOM' OR reservation_id IS NULL),
-  CONSTRAINT accounts_no_guest_table_internal CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL)
+  CONSTRAINT accounts_no_guest_table_internal CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL),
+  -- D-39: diária gravada no fechamento; conta aberta calcula na hora
+  CONSTRAINT accounts_closed_room_charges_only_closed CHECK (status <> 'OPEN' OR closed_room_charges IS NULL),
+  CONSTRAINT accounts_closed_room_charges_non_negative CHECK (closed_room_charges IS NULL OR closed_room_charges >= 0)
 );
+-- T-04.3: banco criado antes desta coluna
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS closed_room_charges NUMERIC(12, 2);
 
 -- RN-005 (D-3): uma conta cobrando diária por quarto DA ESTADIA. Parcial: conta
 -- excluída não disputa; a próxima estadia no mesmo quarto cobra a sua.

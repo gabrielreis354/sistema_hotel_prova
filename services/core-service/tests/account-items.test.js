@@ -360,9 +360,18 @@ describe('Conta ROOM só recebe item durante a estadia (qa-redteam 19/10)', () =
         expect(res.status).toBe(201);
     });
 
-    it('depois do check-out → 422', async () => {
+    it('depois do check-out → 422 (o check-out fechou a conta, T-04.3 D-36)', async () => {
         const out = await request(app).put(`/reservations/${reservationId}/check-out`).set(auth(jwt));
         expect(out.status).toBe(200);
+
+        const res = await postItem(waiterJwt, roomAccount.id, { product_id: beer.id });
+
+        expect(res.status).toBe(422);
+        expect(res.body.error).toMatch(/CLOSED/);
+    });
+
+    it('conta que ficou aberta depois do check-out (corrida) → 422 pela estadia (D-22)', async () => {
+        await AccountModel.update({ status: 'OPEN', closed_at: null, closed_room_charges: null }, { where: { id: roomAccount.id } });
 
         const res = await postItem(waiterJwt, roomAccount.id, { product_id: beer.id });
 

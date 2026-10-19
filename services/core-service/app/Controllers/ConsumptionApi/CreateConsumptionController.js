@@ -76,6 +76,15 @@ export default async function CreateConsumptionController(request, response) {
                 await transaction.rollback();
                 return response.status(422).json({ error: `Conta ${locked.status} não aceita consumo novo` });
             }
+            // De novo, com a conta travada: um encerramento entre a primeira leitura e a criação
+            // da conta não fecharia esta conta, criada depois dele (🟢-1 da T-04.3, D-36).
+            const current = await ReservationModel.findOne({
+                where: { id: reservationId, tenant_id: tenantId }, attributes: ['status'], transaction
+            });
+            if (!current || CLOSED_STAY_STATUSES.includes(current.status)) {
+                await transaction.rollback();
+                return response.status(422).json({ error: `Reserva ${current?.status ?? 'excluída'} não recebe consumo novo` });
+            }
 
             item = await AccountItemModel.create({
                 tenant_id: tenantId,
