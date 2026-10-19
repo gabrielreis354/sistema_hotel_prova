@@ -1,6 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import { settlePaymentAccount } from '../../utils/accountBill.js';
+import { toCents } from '../../utils/calculateStayTotal.js';
 
 /**
  * PUT /payments/:id
@@ -10,6 +11,12 @@ import { settlePaymentAccount } from '../../utils/accountBill.js';
  */
 export default async function UpdatePaymentController(request, response) {
     try {
+        const { amount, method, paid_at } = request.body;
+        // Valor positivo, com até 2 casas — o mesmo do POST.
+        if (amount !== undefined && toCents(amount) <= 0) {
+            return response.status(400).json({ error: 'amount deve ser um valor positivo com até 2 casas decimais.' });
+        }
+
         const transaction = await sequelize.transaction();
         try {
             const payment = await PaymentModel.findOne({
@@ -21,8 +28,6 @@ export default async function UpdatePaymentController(request, response) {
                 await transaction.rollback();
                 return response.status(404).json({ error: 'Pagamento não encontrado.' });
             }
-
-            const { amount, method, paid_at } = request.body;
 
             await payment.update({ amount, method, paid_at }, { transaction });
             await settlePaymentAccount(payment, transaction);

@@ -306,7 +306,7 @@ ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
 ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
   CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
--- Pagamento com conta tem a reserva e o tenant da conta
+-- Pagamento com conta tem a reserva e o tenant da conta, e nunca é de conta INTERNAL
 CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
 DECLARE
   conta accounts%ROWTYPE;
@@ -318,6 +318,10 @@ BEGIN
   IF conta.tenant_id IS DISTINCT FROM NEW.tenant_id
      OR conta.reservation_id IS DISTINCT FROM NEW.reservation_id THEN
     RAISE EXCEPTION 'payments_account_consistency: o pagamento precisa ter a reserva e o tenant da conta %', NEW.account_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF conta.type = 'INTERNAL' THEN
+    RAISE EXCEPTION 'payments_account_consistency: conta INTERNAL não recebe pagamento (%)', NEW.account_id
       USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;

@@ -221,6 +221,42 @@ describe('POST /payments com account_id (CA-04.4.a)', () => {
         expect(res.status).toBe(422);
     });
 
+    it('400 com valor negativo, zero ou com mais de 2 casas (🟡-4)', async () => {
+        const account = await openAccount({ type: 'DIRECT', label: 'Balcão valor' });
+        for (const amount of ['-50', -50, '0', 0, '10.001', 'abc']) {
+            const res = await pay({ account_id: account.id, amount });
+            expect(res.status, `amount ${amount}`).toBe(400);
+        }
+        const { reservation } = await stayWithAccount({ nights: 1 });
+        expect((await pay({ reservation_id: reservation.id, amount: '-1.00' })).status).toBe(400);
+        expect(await PaymentModel.count({ where: { account_id: account.id } })).toBe(0);
+    });
+
+    it('PUT com valor negativo → 400, e o pagamento não muda (🟡-4)', async () => {
+        const account = await openAccount({ type: 'DIRECT', label: 'Balcão put' });
+        const payment = await payOk({ account_id: account.id, amount: '10.00' });
+        const res = await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ amount: '-10.00' });
+
+        expect(res.status).toBe(400);
+        expect((await PaymentModel.findByPk(payment.id)).amount).toBe('10.00');
+    });
+
+    it('o banco recusa valor negativo (CHECK payments_amount_check)', async () => {
+        const account = await openAccount({ type: 'DIRECT', label: 'Balcão check' });
+        await expect(PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '-1.00', method: 'DINHEIRO' }))
+            .rejects.toThrow(/payments_amount_check/);
+    });
+
+    it('reservation_id que não é UUID → 404; em maiúsculas é a mesma reserva (🟢-3)', async () => {
+        const { reservation, account } = await stayWithAccount({ nights: 1 });
+        expect((await pay({ reservation_id: 'nao-e-uuid', amount: '10.00' })).status).toBe(404);
+        expect((await pay({ account_id: account.id, reservation_id: 'nao-e-uuid', amount: '10.00' })).status).toBe(404);
+
+        const res = await pay({ account_id: account.id, reservation_id: reservation.id.toUpperCase(), amount: '10.00' });
+        expect(res.status).toBe(201);
+        expect(res.body.reservation_id).toBe(reservation.id);
+    });
+
     it('400 sem reserva e sem conta', async () => {
         const res = await pay({ amount: '10.00' });
         expect(res.status).toBe(400);
@@ -308,13 +344,13 @@ describe('Bill da conta com pagamentos e transição para PAID (CA-04.4.c)', () 
         expect(res.status).toBe(422);
     });
 
-    it('conta INTERNAL nunca vira PAID, nem com pagamento gravado direto no banco', async () => {
+    it('conta INTERNAL: o banco recusa pagamento direto, e ela fecha CLOSED (🟢-4)', async () => {
         const account = await openAccount({ type: 'INTERNAL', label: 'Perda de estoque' });
-        await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '10.00', method: 'DINHEIRO' });
+        await expect(PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '10.00', method: 'DINHEIRO' }))
+            .rejects.toThrow(/payments_account_consistency/);
         const closed = await close(account.id);
 
         expect(closed).toMatchObject({ status: 'CLOSED', total: '0.00', payments_made: '0.00' });
-        expect((await reload(account.id)).status).toBe('CLOSED');
     });
 
     it('conta fechada com total 0 e sem pagamento continua CLOSED', async () => {
@@ -464,6 +500,17 @@ describe('Pagamento da reserva entra na conta titular (decisão 1)', () => {
         await expectAccountsMatchReservation(reservation.id);
     });
 
+    it('alterar o pagamento feito na reserva acerta a titular', async () => {
+        const { reservation, account } = await stayWithAccount({ nights: 1 }); // 200
+        const payment = await payOk({ reservation_id: reservation.id, amount: '150.00' });
+        await checkOut(reservation.id);
+        expect((await reload(account.id)).status).toBe('CLOSED');
+
+        await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ amount: '200.00' }).expect(200);
+        expect((await reload(account.id)).status).toBe('PAID');
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
     it('excluir o pagamento da reserva devolve a titular a CLOSED', async () => {
         const { reservation, account } = await stayWithAccount({ nights: 1 });
         const payment = await payOk({ reservation_id: reservation.id, amount: '200.00' });
@@ -475,7 +522,61 @@ describe('Pagamento da reserva entra na conta titular (decisão 1)', () => {
     });
 });
 
+describe('Concorrência: pagamento da conta × encerramento da estadia (🟡-3)', () => {
+    it('pagar a conta junto com o check-out não dá deadlock, e a conta termina acertada', async () => {
+        for (let round = 0; round < 5; round += 1) {
+            const { reservation, account } = await stayWithAccount({ nights: 1 }); // 200
+            const [payment, checkout] = await Promise.all([
+                pay({ account_id: account.id, amount: '200.00' }),
+                request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt))
+            ]);
+            expect(payment.status, JSON.stringify(payment.body)).toBe(201);
+            expect(checkout.status, JSON.stringify(checkout.body)).toBe(200);
+            expect((await reload(account.id)).status).toBe('PAID');
+        }
+    });
+
+    it('pagar a conta junto com o cancelamento da reserva não dá deadlock', async () => {
+        for (let round = 0; round < 5; round += 1) {
+            const room = await newRoom();
+            const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1));
+            // Rota antiga: cria a conta da suíte antes do check-in (D-28), e a reserva segue cancelável.
+            const legacy = await request(app).post(`/reservations/${reservation.id}/consumptions`).set(auth(jwt))
+                .send({ description: 'Água', amount: 5 });
+            expect(legacy.status).toBe(201);
+            const account = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+
+            const [payment, cancel] = await Promise.all([
+                pay({ account_id: account.id, amount: '5.00' }),
+                request(app).put(`/reservations/${reservation.id}/cancel`).set(auth(jwt))
+            ]);
+            expect(payment.status, JSON.stringify(payment.body)).toBe(201);
+            expect(cancel.status, JSON.stringify(cancel.body)).toBe(200);
+        }
+    });
+});
+
 describe('Webhook PIX acerta a conta titular (CA-04.4.d)', () => {
+    it('sinal confirmado com a conta ainda aberta: entra no pago, conta segue OPEN', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1));
+        await request(app).post(`/reservations/${reservation.id}/consumptions`).set(auth(jwt))
+            .send({ description: 'Água', amount: 5 }).expect(201);
+        const account = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+
+        const chargeId = `charge_${randomUUID()}`;
+        await PaymentModel.create({
+            tenant_id: tenantId, reservation_id: reservation.id, amount: '60.00', method: 'PIX',
+            status: 'PENDING', kind: 'DEPOSIT', provider: 'fake', provider_charge_id: chargeId, paid_at: null
+        });
+        const rawBody = JSON.stringify({ provider_charge_id: chargeId });
+        const res = await request(app).post('/webhooks/pix').set('Content-Type', 'application/json')
+            .set('x-pix-signature', getPixProvider().signNotification(rawBody)).send(rawBody);
+
+        expect(res.body).toMatchObject({ status: 'confirmed', reservation_status: 'CONFIRMED' });
+        expect(await bill(account.id)).toMatchObject({ status: 'OPEN', payments_made: '60.00' });
+    });
+
     it('sinal confirmado depois do check-out quita a conta titular', async () => {
         const { reservation, account } = await stayWithAccount({ nights: 1 }); // 200
         await checkOut(reservation.id);
@@ -545,5 +646,19 @@ describe('migrate acerta as contas fechadas que já estão pagas', () => {
 
         await closeEndedStayAccounts(sequelize);
         expect((await reload(account.id)).status).toBe('PAID');
+    });
+
+    it('conta PAID cujo pagamento sumiu (pod antigo no rolling update) volta a CLOSED (🟢-1)', async () => {
+        const { reservation, account } = await stayWithAccount({ nights: 1 });
+        const payment = await payOk({ reservation_id: reservation.id, amount: '200.00' });
+        await checkOut(reservation.id);
+        expect((await reload(account.id)).status).toBe('PAID');
+        // Exclusão sem acerto, como faria o código anterior à T-04.4.
+        await PaymentModel.destroy({ where: { id: payment.id } });
+
+        const { default: closeEndedStayAccounts } = await import('../database/closeEndedStayAccounts.js');
+        const result = await closeEndedStayAccounts(sequelize);
+        expect(result.settled).toBeGreaterThanOrEqual(1);
+        expect((await reload(account.id)).status).toBe('CLOSED');
     });
 });

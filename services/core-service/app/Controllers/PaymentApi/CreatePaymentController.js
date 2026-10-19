@@ -3,6 +3,7 @@ import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import AccountModel from '../../Models/AccountModel.js';
 import isUuid from '../../utils/isUuid.js';
+import { toCents } from '../../utils/calculateStayTotal.js';
 import { settlePaymentAccount } from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
@@ -16,6 +17,10 @@ import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
  *   recebem pagamento. Pagamento a maior é aceito: o saldo fica negativo (decisão 3).
  *
  * Na mesma transação, a conta afetada é acertada (CLOSED ↔ PAID).
+ *
+ * Ordem de trava: reserva → conta, a mesma do check-out, do cancelamento e do webhook.
+ * O INSERT do pagamento pega KEY SHARE na reserva (FK); travar a conta antes dele cruzava
+ * com quem trava a reserva e depois a conta — deadlock (🟡-3 do qa-redteam da T-04.4).
  */
 export default async function CreatePaymentController(request, response) {
     try {
@@ -25,28 +30,46 @@ export default async function CreatePaymentController(request, response) {
         if ((!reservation_id && !account_id) || !amount || !method) {
             return response.status(400).json({ error: 'Campos obrigatórios: reservation_id ou account_id, amount, method.' });
         }
-        // :id não-UUID chega ao Postgres como cast inválido e viraria 500.
+        // Valor positivo, com até 2 casas. toCents devolve 0 para negativo, zero ou inválido.
+        if (toCents(amount) <= 0) {
+            return response.status(400).json({ error: 'amount deve ser um valor positivo com até 2 casas decimais.' });
+        }
+        // Id não-UUID chega ao Postgres como cast inválido e viraria 500.
         if (account_id && !isUuid(account_id)) return response.status(404).json({ error: 'Conta não encontrada.' });
+        if (reservation_id && !isUuid(reservation_id)) return response.status(404).json({ error: 'Reserva não encontrada.' });
 
         const transaction = await sequelize.transaction();
         try {
             let reservationId = reservation_id ?? null;
 
             if (account_id) {
-                // Trava a conta: um fechamento ou outro pagamento simultâneo acertam em ordem.
+                const refuse = async (status, error) => {
+                    await transaction.rollback();
+                    return response.status(status).json({ error });
+                };
+                // Primeiro sem trava, só para saber a reserva da conta (ela nunca muda).
+                const found = await AccountModel.findOne({
+                    where: { id: account_id, tenant_id: tenantId }, attributes: ['id', 'reservation_id'], transaction
+                });
+                if (!found) return refuse(404, 'Conta não encontrada.');
+                if (found.reservation_id) {
+                    await ReservationModel.findOne({
+                        where: { id: found.reservation_id, tenant_id: tenantId },
+                        attributes: ['id'],
+                        lock: transaction.LOCK.UPDATE,
+                        transaction
+                    });
+                }
+                // Depois a conta, travada: um fechamento ou outro pagamento simultâneo acertam em ordem.
                 const account = await AccountModel.findOne({
                     where: { id: account_id, tenant_id: tenantId },
                     lock: transaction.LOCK.UPDATE,
                     transaction
                 });
-                const refuse = async (status, error) => {
-                    await transaction.rollback();
-                    return response.status(status).json({ error });
-                };
                 if (!account) return refuse(404, 'Conta não encontrada.');
                 if (account.type === 'INTERNAL') return refuse(422, 'Conta INTERNAL não recebe pagamento: consumo interno nunca é receita.');
                 if (account.status === 'PAID') return refuse(422, 'Conta PAID já está quitada.');
-                if (reservation_id && reservation_id !== account.reservation_id) {
+                if (reservation_id && reservation_id.toLowerCase() !== account.reservation_id) {
                     return refuse(422, 'reservation_id não é a reserva desta conta.');
                 }
                 // Consumo antigo fora da conta: o saldo sairia menor (D-31).

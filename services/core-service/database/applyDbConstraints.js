@@ -227,7 +227,7 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
  *   FK e deixa o NOT NULL de um banco anterior.
  * - Todo pagamento tem reserva ou conta.
  * - Trigger payments_account_consistency: pagamento com conta tem a reserva e o tenant
- *   da conta. O banco recusa um pagamento que aponte para a conta de uma reserva e para
+ *   da conta, e nunca é de conta INTERNAL. O banco recusa um pagamento que aponte para a conta de uma reserva e para
  *   outra reserva, ou que deixe a reserva nula na conta da suíte. Trigger, não FK
  *   composta: a FK precisaria de um UNIQUE (id, reservation_id) total em accounts, que a
  *   regra dos paranoid proíbe (tests/db-constraints.test.js), e com MATCH SIMPLE não
@@ -248,6 +248,13 @@ async function applyPaymentAccountConstraints(sequelize) {
 
                 CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
             END IF;
+
+            -- Valor não negativo. O schema.sql já tinha (nome automático payments_amount_check);
+            -- o banco do sync não. NOT VALID: vale para o que entra daqui em diante, sem
+            -- travar o migrate por uma linha antiga (🟡-4 do qa-redteam da T-04.4).
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_amount_check') THEN
+                ALTER TABLE payments ADD CONSTRAINT payments_amount_check CHECK (amount >= 0) NOT VALID;
+            END IF;
         END $$;
 
         CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
@@ -261,6 +268,11 @@ async function applyPaymentAccountConstraints(sequelize) {
             IF conta.tenant_id IS DISTINCT FROM NEW.tenant_id
                OR conta.reservation_id IS DISTINCT FROM NEW.reservation_id THEN
                 RAISE EXCEPTION 'payments_account_consistency: o pagamento precisa ter a reserva e o tenant da conta %', NEW.account_id
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            -- Consumo interno nunca é receita (RN-006)
+            IF conta.type = 'INTERNAL' THEN
+                RAISE EXCEPTION 'payments_account_consistency: conta INTERNAL não recebe pagamento (%)', NEW.account_id
                     USING ERRCODE = 'check_violation';
             END IF;
             RETURN NEW;
