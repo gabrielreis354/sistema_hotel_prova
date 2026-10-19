@@ -57,11 +57,14 @@ async function migrate() {
         // migrado ou sem a tabela `consumptions`, não faz nada. Só depois do sync e das
         // constraints, porque precisa das colunas e dos CHECKs novos de account_items.
         const { default: migrateConsumptions } = await import('./database/migrateConsumptions.js');
-        await migrateConsumptions(sequelize, { log: console.log });
-
-        // De novo, depois da migração: as contas que ela cria já CLOSED (D-30) ganham a
-        // diária gravada (D-39) nesta mesma rodada, não só no próximo migrate (N-3).
-        await closeEndedStayAccounts(sequelize, { log: console.log });
+        try {
+            await migrateConsumptions(sequelize, { log: console.log });
+        } finally {
+            // De novo, depois da migração: as contas que ela cria já CLOSED (D-30) ganham a
+            // diária gravada (D-39) nesta mesma rodada (N-3). No finally: a migração que deixa
+            // reservas para trás (D-31) grava as válidas e só então lança (N-7).
+            await closeEndedStayAccounts(sequelize, { log: console.log });
+        }
     } catch (error) {
         console.error('❌ Erro ao executar migrations:', error.message);
         process.exit(1);
