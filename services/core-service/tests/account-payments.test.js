@@ -145,6 +145,17 @@ describe('Banco: payments com account_id (CA-04.4.a e b)', () => {
         { replacements: { id: randomUUID(), tenant_id: tenantId, reservation_id: null, account_id: null, ...over } }
     );
 
+    // Primeiro do bloco: o SET NOT NULL falha se algum pagamento sem reserva já existir.
+    it('applyDbConstraints tira o NOT NULL de reservation_id que o sync deixa num banco antigo', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        await sequelize.query('ALTER TABLE payments ALTER COLUMN reservation_id SET NOT NULL');
+        await applyDbConstraints(sequelize);
+        const [[{ is_nullable }]] = await sequelize.query(
+            `SELECT is_nullable FROM information_schema.columns WHERE table_name = 'payments' AND column_name = 'reservation_id'`
+        );
+        expect(is_nullable).toBe('YES');
+    });
+
     it('CA-04.4.b: recusa pagamento sem reserva e sem conta', async () => {
         await expect(insertPayment({})).rejects.toThrow(/payments_reservation_or_account/);
     });
@@ -157,16 +168,6 @@ describe('Banco: payments com account_id (CA-04.4.a e b)', () => {
         const other = await stayWithAccount();
         await expect(insertPayment({ account_id: stay.account.id, reservation_id: other.reservation.id }))
             .rejects.toThrow(/payments_account_reservation_fk/);
-    });
-
-    it('applyDbConstraints tira o NOT NULL de reservation_id que o sync deixa num banco antigo', async () => {
-        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
-        await sequelize.query('ALTER TABLE payments ALTER COLUMN reservation_id SET NOT NULL');
-        await applyDbConstraints(sequelize);
-        const [[{ is_nullable }]] = await sequelize.query(
-            `SELECT is_nullable FROM information_schema.columns WHERE table_name = 'payments' AND column_name = 'reservation_id'`
-        );
-        expect(is_nullable).toBe('YES');
     });
 });
 
