@@ -4,6 +4,7 @@ import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import GuestModel from '../../Models/GuestModel.js';
 import { ACCOUNT_TYPES } from '../../utils/accountEnums.js';
+import { realignStaleLodgingAccount } from '../../utils/reservationRoomAccount.js';
 import accountRuleViolation from '../../utils/accountRuleViolation.js';
 import isUuid from '../../utils/isUuid.js';
 
@@ -127,6 +128,10 @@ export default async function CreateAccountController(request, response) {
             // RN-005 (D-3): uma conta cobrando a diária por quarto da estadia. Checagem
             // prévia para a mensagem; a corrida que passar daqui o índice único barra.
             if (chargesLodging) {
+                // Uma troca de quarto pode ter deixado a conta da diária no quarto antigo:
+                // realinhada antes, a checagem abaixo a enxerga (D-32, reauditoria N-1).
+                await realignStaleLodgingAccount(reservation);
+
                 const lodging = await AccountModel.findOne({
                     where: { tenant_id: tenantId, reservation_id, room_id, charges_lodging: true }
                 });

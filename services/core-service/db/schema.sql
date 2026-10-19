@@ -211,7 +211,11 @@ CREATE TABLE IF NOT EXISTS payments (
 
 -- =============================================================================
 -- 9b) Consumos extras (frigobar, restaurante, bar, spa) lançados na reserva
--- Model: app/Models/ConsumptionModel.js  |  tableName: 'consumptions'
+-- LEGADO (T-04.2): o model saiu do código e o consumo vive em account_items. A
+-- tabela fica, sem escrita, como trilha para auditoria e rollback; o
+-- `node command.js migrate` copia o conteúdo dela (database/migrateConsumptions.js).
+-- O DROP é pendência registrada no anexo de decisões da SPEC-04.
+-- Era: app/Models/ConsumptionModel.js  |  tableName: 'consumptions'
 -- Compõem o fechamento de conta: (diária + consumos) − pagamentos.
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS consumptions (
@@ -227,6 +231,8 @@ CREATE TABLE IF NOT EXISTS consumptions (
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0)
 );
+-- Checagem do 503 durante a migração (T-04.2) roda a cada bill.
+CREATE INDEX IF NOT EXISTS idx_consumptions_reservation ON consumptions (reservation_id);
 
 -- =============================================================================
 -- 9b) Catálogo de produtos (cardápio) — base do módulo de consumo
@@ -304,11 +310,17 @@ CREATE TABLE IF NOT EXISTS account_items (
   billable       BOOLEAN NOT NULL DEFAULT true,
   reason         TEXT,
   client_item_id UUID,
-  created_by     UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  -- Nulo só no consumo antigo migrado (D-25): autoria desconhecida não é inventada
+  created_by     UUID REFERENCES users(id) ON DELETE RESTRICT,
   deleted_by     UUID REFERENCES users(id) ON DELETE RESTRICT,
+  origin         TEXT NOT NULL DEFAULT 'ACCOUNT',
+  -- Quando o hóspede consumiu (D-26); created_at é quando o servidor gravou
+  consumed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT account_items_origin_allowlist        CHECK (origin IN ('ACCOUNT', 'LEGACY_CONSUMPTION')),
+  CONSTRAINT account_items_created_by_required     CHECK (created_by IS NOT NULL OR origin = 'LEGACY_CONSUMPTION'),
   CONSTRAINT account_items_quantity_positive       CHECK (quantity > 0),
   CONSTRAINT account_items_unit_price_non_negative CHECK (unit_price >= 0),
   -- CA-04.1.c: total sempre quantity × unit_price (implica total >= 0)
@@ -317,6 +329,12 @@ CREATE TABLE IF NOT EXISTS account_items (
   -- RN-007: cortesia exige motivo
   CONSTRAINT account_items_reason_required         CHECK (billable OR reason IS NOT NULL)
 );
+
+-- T-04.2: banco provisionado antes das colunas novas. As constraints delas chegam
+-- pelo `node command.js migrate` (applyAccountConstraints).
+ALTER TABLE account_items ALTER COLUMN created_by DROP NOT NULL;
+ALTER TABLE account_items ADD COLUMN IF NOT EXISTS origin      TEXT NOT NULL DEFAULT 'ACCOUNT';
+ALTER TABLE account_items ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 -- RN-008 (D-6): índice TOTAL de propósito — exceção à regra dos paranoid. O item
 -- excluído continua barrando o reenvio do mesmo client_item_id da fila offline.

@@ -47,6 +47,12 @@ async function migrate() {
         }
 
         if (erroSync) throw erroSync;
+
+        // Dados da T-04.2: consumo antigo → itens de conta. Idempotente; num banco já
+        // migrado ou sem a tabela `consumptions`, não faz nada. Só depois do sync e das
+        // constraints, porque precisa das colunas e dos CHECKs novos de account_items.
+        const { default: migrateConsumptions } = await import('./database/migrateConsumptions.js');
+        await migrateConsumptions(sequelize, { log: console.log });
     } catch (error) {
         console.error('❌ Erro ao executar migrations:', error.message);
         process.exit(1);

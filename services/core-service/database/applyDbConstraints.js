@@ -1,6 +1,6 @@
 import { QueryTypes } from 'sequelize';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
-import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
+import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
 
 /**
  * Objetos de banco que o `sequelize.sync()` NÃO gera: extensões, constraints
@@ -291,6 +291,28 @@ async function applyAccountConstraints(sequelize) {
                 ALTER TABLE account_items ADD  CONSTRAINT account_items_reason_required
                     CHECK (billable OR reason IS NOT NULL);
 
+                -- D-25: origem do item; só o consumo antigo migrado fica sem autor.
+                -- O DROP NOT NULL é explícito porque, com FK na coluna, o sync({ alter })
+                -- só refaz a FK e deixa o NOT NULL de um banco anterior à T-04.2.
+                ALTER TABLE account_items ALTER COLUMN created_by DROP NOT NULL;
+                -- D-26: ninguém consome depois de o lançamento ser gravado. Item anterior à
+                -- coluna recebeu o horário do migrate; volta para o created_at. A folga de 1
+                -- minuto ignora a diferença de relógio entre a aplicação e o banco, e é a
+                -- mesma que a rota antiga aceita no futuro — lançamento válido nunca é tocado.
+                -- Só origin ACCOUNT: o consumo antigo migrado guarda o horário que tinha,
+                -- inclusive agendado (qa-redteam 19/10, 🟡-1).
+                UPDATE account_items SET consumed_at = created_at
+                 WHERE origin = 'ACCOUNT' AND created_at IS NOT NULL
+                   AND consumed_at > created_at + interval '1 minute';
+
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_origin_allowlist;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_origin_allowlist
+                    CHECK (origin IN (${lista(ITEM_ORIGINS)}));
+
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_created_by_required;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_created_by_required
+                    CHECK (created_by IS NOT NULL OR origin = 'LEGACY_CONSUMPTION');
+
                 -- RN-008 com a D-6: índice TOTAL, exceção deliberada à regra dos paranoid.
                 -- O item excluído continua barrando o reenvio do mesmo client_item_id —
                 -- se o índice fosse parcial, a fila offline do garçom recriaria o item
@@ -299,6 +321,12 @@ async function applyAccountConstraints(sequelize) {
                     ON account_items (tenant_id, client_item_id);
 
                 CREATE INDEX IF NOT EXISTS idx_account_items_account ON account_items (account_id);
+            END IF;
+
+            -- Tabela legada (T-04.2, D-27): a checagem do 503 (pendingLegacyConsumption)
+            -- roda a cada bill e lista; sem índice era seq scan (reauditoria N-3).
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'consumptions') THEN
+                CREATE INDEX IF NOT EXISTS idx_consumptions_reservation ON consumptions (reservation_id);
             END IF;
         END $$;
     `);

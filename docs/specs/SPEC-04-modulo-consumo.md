@@ -1,7 +1,7 @@
 # SPEC-04 — Módulo de Consumo (Comanda)
 
 **Prioridade:** 🟠 Alta — diferencial de produto
-**Estado:** 🟡 Parcialmente implementado — **3 de 9 fatias concluídas** (T-04.1 em 19/10/2026)
+**Estado:** 🟡 Parcialmente implementado — **4 de 9 fatias concluídas** (T-04.1 e T-04.2 em 19/10/2026)
 **Criado em:** 26/08/2026
 **Bloqueia:** SPEC-05 Fase 2 (comanda no frontend)
 
@@ -19,8 +19,8 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 |-------|-------------|--------------------------|
 | 0 — Pré-requisitos (CORS, filtro de datas, `WAITER`) | 🔲 Pendente | ✅ **Mergeada** em `313ed71` |
 | 1 — Catálogo de Produtos | 🔲 Pendente | ✅ **Mergeada** — `ProductModel`, `ProductApi`, `/products`, `services/core-service/tests/products.test.js` |
-| 2a — `Account` + `AccountItem` | 🔲 Pendente | 🔲 Pendente — `AccountModel.js` não existe |
-| 2b — Migração do `Consumption` | 🔲 Pendente | 🔲 Pendente |
+| 2a — `Account` + `AccountItem` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `/accounts`, `AccountApi/`, `tests/accounts.test.js`, `tests/account-items.test.js` |
+| 2b — Migração do `Consumption` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `database/migrateConsumptions.js`, rotas antigas via conta |
 | 3a — Bill da conta + close | 🔲 Pendente | 🔲 Pendente |
 | 3b — `Payment` ↔ `Account` | 🔲 Pendente | 🔲 Pendente |
 | 3c — Delegação do bill da reserva | 🔲 Pendente | 🔲 Pendente |
@@ -29,7 +29,7 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 
 **Evidência do que existe:** `services/core-service/app/Models/ProductModel.js`, `services/core-service/app/Controllers/ProductApi/` (5 controllers), rota `/products` registrada, `services/core-service/tests/products.test.js` com 36 testes, tabela `products` em `services/core-service/db/schema.sql` com índice único parcial.
 
-**Evidência do que falta:** `ls services/core-service/app/Models/AccountModel.js` → não existe.
+**Evidência do que falta (19/10):** bill e fechamento da conta (`/accounts/:id/bill`, `/close`) não existem; `Payment` ainda não aceita `account_id`.
 
 ---
 
@@ -116,16 +116,16 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 
 ---
 
-### T-04.2 — Migração `Consumption` → `AccountItem` 🔲 *(fatia 2b · ~2-3 dias)*
+### T-04.2 — Migração `Consumption` → `AccountItem` ✅ *(fatia 2b · ~2-3 dias — concluída em 19/10/2026; decisões em `anexos/SPEC-04-decisoes-T-04.2.md`)*
 
 **DEP:** T-04.1 · ⚠️ migração de dados
 
 **Critérios de aceitação**
-- [ ] **CA-04.2.a** — Todo `consumption` existente vira `AccountItem` sem perda de valor
-- [ ] **CA-04.2.b** — `created_at` original preservado
-- [ ] **CA-04.2.c** — Soft-deletados preservam `deleted_at` e `deleted_by` — trilha financeira
-- [ ] **CA-04.2.d** — `POST /reservations/:id/consumptions` continua respondendo, gravando via `Account`
-- [ ] **CA-04.2.e** — **`services/core-service/tests/bill-consumptions.test.js` passa sem nenhuma alteração no arquivo**
+- [x] **CA-04.2.a** — Todo `consumption` existente vira `AccountItem` sem perda de valor *(19/10)*
+- [x] **CA-04.2.b** — `created_at` original preservado *(19/10)*
+- [x] **CA-04.2.c** — Soft-deletados preservam `deleted_at` e `deleted_by` — trilha financeira *(19/10)*
+- [x] **CA-04.2.d** — `POST /reservations/:id/consumptions` continua respondendo, gravando via `Account` *(19/10)*
+- [x] **CA-04.2.e** — **`services/core-service/tests/bill-consumptions.test.js` passa sem nenhuma alteração no arquivo** *(19/10)*
 
 > Se precisar editar `services/core-service/tests/bill-consumptions.test.js` para passar, um contrato foi quebrado. **Parar e escalar.**
 
