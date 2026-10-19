@@ -231,6 +231,26 @@ describe('Rotas antigas gravam e leem via conta (CA-04.2.d)', () => {
         expect(bill.body.consumptions_total).toBe(30);
     });
 
+    it('troca de quarto e depois POST /accounts no quarto novo: realinha e recusa a segunda diária (reauditoria N-1)', async () => {
+        const { reservation, guest } = await newReservation();
+        await postConsumption(reservation.id, { description: 'Antes', amount: 10 });
+
+        roomNumber += 1;
+        const newRoom = await createRoom(app, jwt, category.id, { number: String(roomNumber) });
+        expect((await request(app).put(`/reservations/${reservation.id}`).set(auth(jwt)).send({ room_id: newRoom.id })).status).toBe(200);
+        expect((await request(app).put(`/reservations/${reservation.id}/check-in`).set(auth(jwt))).status).toBe(200);
+
+        const res = await request(app).post('/accounts').set(auth(jwt)).send({
+            type: 'ROOM', reservation_id: reservation.id, room_id: newRoom.id, guest_id: guest.id, label: 'Suíte nova'
+        });
+
+        expect(res.status).toBe(422);
+        expect(res.body.error).toMatch(/RN-005/);
+        const lodging = await AccountModel.findAll({ where: { reservation_id: reservation.id, charges_lodging: true } });
+        expect(lodging).toHaveLength(1);
+        expect(lodging[0].room_id).toBe(newRoom.id);
+    });
+
     it('DELETEs simultâneos do mesmo consumo: um 204, os outros 404 (qa-redteam 🟢-1)', async () => {
         // Várias rodadas: a intercalação não é garantida numa rodada só.
         const { reservation } = await newReservation();
@@ -359,6 +379,30 @@ describe('Migração de consumptions para account_items (CA-04.2.a–c)', () => 
         expect((await getBill(r.reservation.id)).status).toBe(200);
 
         await sequelize.query('DELETE FROM consumptions WHERE id = :removed', { replacements: { removed } });
+    });
+
+    it('DELETE de consumo ainda não migrado → 503, como o bill; de outro hotel → 404 (reauditoria N-6)', async () => {
+        const r = await newReservation();
+        const pending = await insertLegacy({ reservation_id: r.reservation.id });
+
+        const res = await request(app).delete(`/reservations/${r.reservation.id}/consumptions/${pending}`).set(auth(jwt));
+        expect(res.status).toBe(503);
+
+        const { jwt: strangerJwt } = await registerAndLogin(app, { tenantName: 'Hotel Curioso' });
+        const stranger = await request(app).delete(`/reservations/${r.reservation.id}/consumptions/${pending}`).set(auth(strangerJwt));
+        expect(stranger.status).toBe(404);
+
+        await sequelize.query('DELETE FROM consumptions WHERE id = :pending', { replacements: { pending } });
+    });
+
+    it('a tabela antiga ganha índice em reservation_id — a checagem do 503 roda a cada bill (reauditoria N-3)', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        await applyDbConstraints(sequelize);
+
+        const [rows] = await sequelize.query(
+            `SELECT indexdef FROM pg_indexes WHERE tablename = 'consumptions' AND indexdef LIKE '%(reservation_id)%'`
+        );
+        expect(rows.length).toBeGreaterThan(0);
     });
 
     it('consumo com hotel diferente do da reserva deixa a reserva para trás', async () => {
