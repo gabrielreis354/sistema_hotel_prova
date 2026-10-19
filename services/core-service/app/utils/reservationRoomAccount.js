@@ -68,6 +68,9 @@ export async function realignStaleLodgingAccount(reservation) {
             reservation_id: reservation.id,
             type: 'ROOM',
             charges_lodging: true,
+            // Conta fechada não muda mais (D-23, D-39): mover o quarto dela mudaria o que foi
+            // apresentado, e por uma requisição que nem chegava a criar conta (🟡-1 da T-04.3).
+            status: 'OPEN',
             room_id: { [Op.notIn]: roomsOfStay }
         }
     });
