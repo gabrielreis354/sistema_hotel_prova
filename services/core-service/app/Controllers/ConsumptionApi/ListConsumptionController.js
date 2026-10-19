@@ -1,5 +1,6 @@
 import ReservationModel from '../../Models/ReservationModel.js';
 import itemAsConsumption, { reservationConsumptionItems } from '../../utils/itemAsConsumption.js';
+import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
 /**
  * GET /reservations/:id/consumptions
@@ -15,6 +16,11 @@ export default async function ListConsumptionController(request, response) {
             where: { id: reservationId, tenant_id: tenantId }
         });
         if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
+
+        // Lista sem os consumos ainda não migrados seria incompleta (D-31).
+        if (await pendingLegacyConsumption(reservationId)) {
+            return response.status(503).json({ error: 'Consumos desta reserva em migração — lista temporariamente indisponível' });
+        }
 
         const items = await reservationConsumptionItems(reservationId, tenantId);
         return response.status(200).json(items.map((item) => itemAsConsumption(item, reservationId)));

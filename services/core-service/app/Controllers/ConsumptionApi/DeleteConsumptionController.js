@@ -21,30 +21,39 @@ export default async function DeleteConsumptionController(request, response) {
             return response.status(404).json({ error: 'Consumo não encontrado' });
         }
 
+        // Mesmo escopo da listagem: item faturável de uma conta desta reserva.
+        const findItem = (transaction) => AccountItemModel.findOne({
+            where: { id: consumptionId, tenant_id: tenantId, billable: true },
+            include: [{
+                model: AccountModel,
+                as: 'account',
+                where: { reservation_id: reservationId, tenant_id: tenantId },
+                attributes: ['id']
+            }],
+            transaction
+        });
+
+        // Primeira leitura só para saber qual conta travar.
+        const found = await findItem();
+        if (!found) return response.status(404).json({ error: 'Consumo não encontrado' });
+
         const transaction = await sequelize.transaction();
         try {
-            // Mesmo escopo da listagem: item faturável de uma conta desta reserva.
-            const item = await AccountItemModel.findOne({
-                where: { id: consumptionId, tenant_id: tenantId, billable: true },
-                include: [{
-                    model: AccountModel,
-                    as: 'account',
-                    where: { reservation_id: reservationId, tenant_id: tenantId },
-                    attributes: ['id']
-                }],
+            // Trava a conta ANTES de reler o item, como no DELETE de /accounts. Lendo antes
+            // de travar, DELETEs simultâneos viam o item vivo e todos respondiam 204,
+            // regravando deleted_by (qa-redteam 19/10, 🟢-1).
+            const account = await AccountModel.findOne({
+                where: { id: found.account_id, tenant_id: tenantId },
+                lock: transaction.LOCK.UPDATE,
                 transaction
             });
+
+            const item = await findItem(transaction);
             if (!item) {
                 await transaction.rollback();
                 return response.status(404).json({ error: 'Consumo não encontrado' });
             }
 
-            // Trava a conta como no DELETE de /accounts: conta fechada não perde item.
-            const account = await AccountModel.findOne({
-                where: { id: item.account_id, tenant_id: tenantId },
-                lock: transaction.LOCK.UPDATE,
-                transaction
-            });
             if (account.status !== 'OPEN') {
                 await transaction.rollback();
                 return response.status(422).json({ error: `Conta ${account.status} não permite excluir consumo` });

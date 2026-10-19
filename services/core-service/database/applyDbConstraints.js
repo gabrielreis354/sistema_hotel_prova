@@ -297,9 +297,13 @@ async function applyAccountConstraints(sequelize) {
                 ALTER TABLE account_items ALTER COLUMN created_by DROP NOT NULL;
                 -- D-26: ninguém consome depois de o lançamento ser gravado. Item anterior à
                 -- coluna recebeu o horário do migrate; volta para o created_at. A folga de 1
-                -- minuto ignora a diferença de relógio entre a aplicação e o banco.
+                -- minuto ignora a diferença de relógio entre a aplicação e o banco, e é a
+                -- mesma que a rota antiga aceita no futuro — lançamento válido nunca é tocado.
+                -- Só origin ACCOUNT: o consumo antigo migrado guarda o horário que tinha,
+                -- inclusive agendado (qa-redteam 19/10, 🟡-1).
                 UPDATE account_items SET consumed_at = created_at
-                 WHERE created_at IS NOT NULL AND consumed_at > created_at + interval '1 minute';
+                 WHERE origin = 'ACCOUNT' AND created_at IS NOT NULL
+                   AND consumed_at > created_at + interval '1 minute';
 
                 ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_origin_allowlist;
                 ALTER TABLE account_items ADD  CONSTRAINT account_items_origin_allowlist

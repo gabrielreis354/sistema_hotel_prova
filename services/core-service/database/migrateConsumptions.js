@@ -11,13 +11,20 @@
  *   - origin LEGACY_CONSUMPTION e created_by nulo: o consumo antigo não registrava autor,
  *     e autoria não é inventada (D-25).
  *   - O item vai para a conta ROOM que cobra a diária do quarto principal da reserva —
- *     reaproveitada se já existir, senão criada OPEN, rótulo sem nome de hóspede (D-28).
+ *     reaproveitada se já existir, senão criada com rótulo sem nome de hóspede (D-28).
+ *     Reserva encerrada (check-out, cancelada ou excluída) ganha a conta já CLOSED:
+ *     ninguém mais vai fechá-la, e aberta lotaria as comandas do garçom (D-30).
  *
- * Tudo numa transação. Pré-checagens com mensagem clara e uma verificação linha a linha
- * no fim: qualquer divergência desfaz tudo, nunca migra pela metade.
+ * Por reserva, não tudo-ou-nada (D-31): reserva com dado inválido (valor que não cabe em
+ * NUMERIC(10,2), hotel do consumo diferente do da reserva) fica para trás INTEIRA — nunca
+ * pela metade — e as outras migram. No fim, se alguma ficou, lança erro listando-as: o
+ * `migrate` sai com código 1. Enquanto isso, o bill e a lista dessas reservas respondem
+ * 503 (app/utils/pendingLegacyConsumption.js) em vez de mostrar um valor sem os consumos.
  *
- * A tabela `consumptions` NÃO é apagada (D-27): fica como trilha até a confirmação em
- * produção.
+ * A cópia das reservas válidas é uma transação, com verificação linha a linha no fim:
+ * divergência ali é defeito da migração, e desfaz tudo.
+ *
+ * A tabela `consumptions` NÃO é apagada (D-27).
  *
  * @param {import('sequelize').Sequelize} sequelize
  * @param {{ log?: (msg: string) => void }} [options]
@@ -29,49 +36,44 @@ export default async function migrateConsumptions(sequelize, { log = () => {} } 
     );
     if (!existe) return { skipped: true, accounts: 0, items: 0 };
 
-    return sequelize.transaction(async (transaction) => {
+    const resultado = await sequelize.transaction(async (transaction) => {
         const query = (sql, replacements) => sequelize.query(sql, { transaction, replacements });
 
-        // Pendentes = consumos que ainda não têm item com o mesmo id. É o que torna a
-        // migração idempotente e o que a verificação final confere.
+        // Pendentes = consumos que ainda não têm item com o mesmo id (idempotência).
         const [pendentes] = await query(`
-            SELECT c.id FROM consumptions c
+            SELECT c.id, c.reservation_id,
+                   (c.amount < 0 OR c.amount > 99999999.99) AS valor_invalido,
+                   (r.id IS NULL OR c.tenant_id <> r.tenant_id) AS hotel_divergente
+            FROM consumptions c
+            LEFT JOIN reservations r ON r.id = c.reservation_id
             WHERE NOT EXISTS (SELECT 1 FROM account_items ai WHERE ai.id = c.id)`);
-        const ids = pendentes.map((p) => p.id);
-        if (ids.length === 0) return { skipped: false, accounts: 0, items: 0 };
+        if (pendentes.length === 0) return { accounts: 0, items: 0, paraTras: [] };
 
-        // account_items.total é NUMERIC(10,2); consumptions.amount é (12,2).
-        const [[{ fora }]] = await query(`
-            SELECT count(*)::int AS fora FROM consumptions
-            WHERE id IN (:ids) AND (amount < 0 OR amount > 99999999.99)`, { ids });
-        if (fora > 0) {
-            throw new Error(`migração de consumos: ${fora} consumo(s) com amount fora de 0 a 99999999.99, `
-                + 'que não cabe em account_items. Nada foi migrado.');
-        }
-
-        // O item herda o hotel do consumo e a conta herda o da reserva: precisam ser o mesmo.
-        const [[{ divergentes }]] = await query(`
-            SELECT count(*)::int AS divergentes FROM consumptions c
-            JOIN reservations r ON r.id = c.reservation_id
-            WHERE c.id IN (:ids) AND c.tenant_id <> r.tenant_id`, { ids });
-        if (divergentes > 0) {
-            throw new Error(`migração de consumos: ${divergentes} consumo(s) com hotel diferente do da reserva. `
-                + 'Nada foi migrado.');
-        }
+        // Uma linha inválida tira a reserva inteira desta execução.
+        const paraTras = [...new Set(pendentes
+            .filter((p) => p.valor_invalido || p.hotel_divergente)
+            .map((p) => p.reservation_id))];
+        const ids = pendentes.filter((p) => !paraTras.includes(p.reservation_id)).map((p) => p.id);
+        if (ids.length === 0) return { accounts: 0, items: 0, paraTras };
 
         // Conta da suíte para cada reserva com consumo pendente que ainda não tem uma
         // cobrando a diária do quarto principal. Mesmo rótulo de roomAccountLabel().
         const [contas] = await query(`
             INSERT INTO accounts (id, tenant_id, type, status, reservation_id, room_id, guest_id,
-                                  label, charges_lodging, opened_at, created_at, updated_at)
-            SELECT gen_random_uuid(), r.tenant_id, 'ROOM', 'OPEN', r.id, r.room_id, r.guest_id,
-                   'Suíte ' || ro.number, true, p.primeiro, now(), now()
+                                  label, charges_lodging, opened_at, closed_at, created_at, updated_at)
+            SELECT gen_random_uuid(), r.tenant_id, 'ROOM', e.status, r.id, r.room_id, r.guest_id,
+                   'Suíte ' || ro.number, true, p.primeiro,
+                   CASE WHEN e.status = 'CLOSED' THEN now() END, now(), now()
             FROM (
                 SELECT reservation_id, MIN(LEAST(consumed_at, COALESCE(created_at, consumed_at))) AS primeiro
                 FROM consumptions WHERE id IN (:ids) GROUP BY reservation_id
             ) p
             JOIN reservations r ON r.id = p.reservation_id
             JOIN rooms ro       ON ro.id = r.room_id
+            CROSS JOIN LATERAL (
+                SELECT CASE WHEN r.status IN ('CHECKED_OUT', 'CANCELLED') OR r.deleted_at IS NOT NULL
+                            THEN 'CLOSED' ELSE 'OPEN' END AS status
+            ) e
             WHERE NOT EXISTS (
                 SELECT 1 FROM accounts a
                 WHERE a.reservation_id = r.id AND a.room_id = r.room_id
@@ -101,11 +103,17 @@ export default async function migrateConsumptions(sequelize, { log = () => {} } 
         const [[{ erradas }]] = await query(`
             SELECT count(*)::int AS erradas FROM consumptions c
             LEFT JOIN account_items ai ON ai.id = c.id
+            LEFT JOIN accounts a       ON a.id = ai.account_id
             WHERE c.id IN (:ids) AND (
                    ai.id IS NULL
                 OR ai.origin <> 'LEGACY_CONSUMPTION'
                 OR ai.tenant_id <> c.tenant_id
+                OR a.reservation_id IS DISTINCT FROM c.reservation_id
+                OR ai.description <> c.description
+                OR ai.quantity <> 1
+                OR ai.unit_price <> c.amount
                 OR ai.total <> c.amount
+                OR ai.created_at IS DISTINCT FROM COALESCE(c.created_at, c.consumed_at)
                 OR ai.consumed_at <> c.consumed_at
                 OR ai.deleted_at IS DISTINCT FROM c.deleted_at
                 OR ai.deleted_by IS DISTINCT FROM c.deleted_by
@@ -115,7 +123,20 @@ export default async function migrateConsumptions(sequelize, { log = () => {} } 
                 + 'Nada foi migrado.');
         }
 
-        log(`✅ Consumos migrados: ${itens.length} item(ns), ${contas.length} conta(s) de suíte criada(s).`);
-        return { skipped: false, accounts: contas.length, items: itens.length };
+        return { accounts: contas.length, items: itens.length, paraTras };
     });
+
+    if (resultado.items > 0 || resultado.accounts > 0) {
+        log(`✅ Consumos migrados: ${resultado.items} item(ns), ${resultado.accounts} conta(s) de suíte criada(s).`);
+    }
+
+    // Depois do commit: as válidas ficam migradas, e o migrate falha alto pelas outras.
+    if (resultado.paraTras.length > 0) {
+        throw new Error(`migração de consumos: ${resultado.paraTras.length} reserva(s) ficaram para trás por dado `
+            + 'inválido (amount fora de 0 a 99999999.99, ou hotel do consumo diferente do da reserva). '
+            + 'O bill delas responde 503 até corrigir o dado e rodar o migrate de novo. '
+            + `Reservas: ${resultado.paraTras.join(', ')}`);
+    }
+
+    return { skipped: false, accounts: resultado.accounts, items: resultado.items };
 }

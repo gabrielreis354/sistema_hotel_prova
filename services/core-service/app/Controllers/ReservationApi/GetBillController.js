@@ -2,6 +2,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import GuestModel from '../../Models/GuestModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import { reservationConsumptionItems } from '../../utils/itemAsConsumption.js';
+import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
 /**
  * GET /reservations/:id/bill
@@ -28,6 +29,11 @@ export default async function GetBillController(request, response) {
             ]
         });
         if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
+
+        // Consumo antigo ainda não migrado: o total sairia menor. Recusar, nunca mentir (D-31).
+        if (await pendingLegacyConsumption(reservation.id)) {
+            return response.status(503).json({ error: 'Consumos desta reserva em migração — conta temporariamente indisponível' });
+        }
 
         const round = (n) => Number(n.toFixed(2));
 

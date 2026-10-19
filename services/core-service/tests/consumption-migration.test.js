@@ -352,6 +352,15 @@ describe('Migração de consumptions para account_items (CA-04.2.a–c)', () => 
         expect(bill.body.consumptions_total).toBe(5);
     });
 
+    it('consumo antigo já excluído e ainda não migrado não bloqueia o bill — não muda valor', async () => {
+        const r = await newReservation();
+        const removed = await insertLegacy({ reservation_id: r.reservation.id, deleted_at: '2026-08-02T10:00:00Z', deleted_by: userId });
+
+        expect((await getBill(r.reservation.id)).status).toBe(200);
+
+        await sequelize.query('DELETE FROM consumptions WHERE id = :removed', { replacements: { removed } });
+    });
+
     it('consumo com hotel diferente do da reserva deixa a reserva para trás', async () => {
         const r = await newReservation();
         const bad = await insertLegacy({ reservation_id: r.reservation.id, tenant_id: otherTenantId });
