@@ -1,7 +1,7 @@
 // T-04.1 Bloco C — abrir e consultar contas (comanda) pela API.
 // Regras de vínculo por tipo: D-5. Diária só em ROOM: D-4. Papéis: D-8.
 // RN-005 por estadia: D-3. Ver docs/specs/anexos/SPEC-04-decisoes-T-04.1.md.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
@@ -134,16 +134,25 @@ describe('POST /accounts — conta ROOM', () => {
         expect(res.body.charges_lodging).toBe(true);
     });
 
-    it('RN-005 na corrida: duas aberturas simultâneas, uma passa e a outra recebe 422 (nunca 500)', async () => {
+    it('RN-005 na corrida: a checagem prévia não vê a outra conta e o índice barra → 422 (nunca 500)', async () => {
         const reservation = await createReservation(app, jwt, guest.id, room104.id, {
             check_in_date: '2027-04-01', check_out_date: '2027-04-03'
         });
         await checkIn(jwt, reservation.id);
         const body = roomAccount({ reservation_id: reservation.id, room_id: room104.id, label: 'Suíte 104' });
+        expect((await post(jwt, body)).status).toBe(201);
 
-        const statuses = (await Promise.all([post(jwt, body), post(jwt, body)])).map(r => r.status).sort();
-
-        expect(statuses).toEqual([201, 422]);
+        // Simula a corrida de forma determinística: a outra requisição gravou depois que
+        // esta fez a checagem prévia. Disparar duas em paralelo não garante a intercalação.
+        const spy = vi.spyOn(AccountModel, 'findOne').mockResolvedValueOnce(null);
+        try {
+            const res = await post(jwt, body);
+            expect(spy).toHaveBeenCalled();
+            expect(res.status).toBe(422);
+            expect(res.body.error).toMatch(/RN-005/);
+        } finally {
+            spy.mockRestore();
+        }
     });
 
     it('ignora o status enviado pelo cliente — toda conta nasce OPEN', async () => {
