@@ -370,6 +370,21 @@ describe('consumed_at de item anterior à coluna', () => {
         expect(item.consumed_at.toISOString()).toBe('2026-10-19T12:00:00.000Z');
     });
 
+    it('não mexe no consumo antigo migrado, que pode ter horário agendado (qa-redteam 🟡-1)', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        const id = await inserirItem();
+        await sequelize.query(
+            `UPDATE account_items SET origin = 'LEGACY_CONSUMPTION', created_by = NULL,
+                    created_at = '2026-10-19T12:00:00Z', consumed_at = '2026-10-21T20:00:00Z' WHERE id = :id`,
+            { replacements: { id } }
+        );
+
+        await applyDbConstraints(sequelize);
+
+        const [[item]] = await sequelize.query('SELECT consumed_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.consumed_at.toISOString()).toBe('2026-10-21T20:00:00.000Z');
+    });
+
     it('não mexe no consumed_at anterior ao created_at (fila offline)', async () => {
         const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
         const id = await inserirItem();

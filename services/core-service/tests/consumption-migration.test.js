@@ -155,7 +155,13 @@ describe('Rotas antigas gravam e leem via conta (CA-04.2.d)', () => {
     it.each([
         ['consumed_at inválido', { description: 'X', amount: 10, consumed_at: 'ontem' }],
         ['amount acima da coluna', { description: 'X', amount: 100000000 }],
-        ['consumed_at no futuro', { description: 'X', amount: 10, consumed_at: '2099-01-01T00:00:00Z' }]
+        ['consumed_at no futuro', { description: 'X', amount: 10, consumed_at: '2099-01-01T00:00:00Z' }],
+        // qa-redteam 19/10 (🟢-2): a rota antiga aceitava o que /accounts recusa
+        ['amount com 3 casas', { description: 'X', amount: '0.001' }],
+        ['amount booleano', { description: 'X', amount: true }],
+        ['amount em lista', { description: 'X', amount: [5] }],
+        ['consumed_at numérico', { description: 'X', amount: 10, consumed_at: 0 }],
+        ['description acima de 200 caracteres', { description: 'x'.repeat(201), amount: 10 }]
     ])('%s → 400', async (_, body) => {
         const { reservation } = await newReservation();
         const res = await postConsumption(reservation.id, body);
@@ -184,6 +190,59 @@ describe('Rotas antigas gravam e leem via conta (CA-04.2.d)', () => {
 
         const bill = await getBill(reservation.id);
         expect(bill.body.consumptions_total).toBe(3);
+    });
+
+    it('consumed_at 2 minutos no futuro → 400 (folga igual à do reparo, D-26)', async () => {
+        const { reservation } = await newReservation();
+        const res = await postConsumption(reservation.id, {
+            description: 'X', amount: 10, consumed_at: new Date(Date.now() + 2 * 60 * 1000).toISOString()
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it.each([['check-out', 'check-out'], ['cancelamento', 'cancel']])('reserva encerrada (%s) não recebe consumo → 422 (qa-redteam 🟡-2)', async (_, action) => {
+        const { reservation } = await newReservation({ checkIn: action === 'check-out' });
+        const done = await request(app).put(`/reservations/${reservation.id}/${action}`).set(auth(jwt));
+        expect(done.status).toBe(200);
+
+        const res = await postConsumption(reservation.id, { description: 'Atrasado', amount: 10 });
+
+        expect(res.status).toBe(422);
+        expect(await AccountModel.count({ where: { reservation_id: reservation.id } })).toBe(0);
+    });
+
+    it('troca de quarto depois de um consumo: a conta da suíte acompanha, nunca duas cobrando diária (qa-redteam 🟡-3)', async () => {
+        const { reservation, room } = await newReservation();
+        await postConsumption(reservation.id, { description: 'Antes', amount: 10 });
+
+        roomNumber += 1;
+        const newRoom = await createRoom(app, jwt, category.id, { number: String(roomNumber) });
+        const moved = await request(app).put(`/reservations/${reservation.id}`).set(auth(jwt)).send({ room_id: newRoom.id });
+        expect(moved.status).toBe(200);
+
+        await postConsumption(reservation.id, { description: 'Depois', amount: 20 });
+
+        const lodging = await AccountModel.findAll({ where: { reservation_id: reservation.id, charges_lodging: true } });
+        expect(lodging).toHaveLength(1);
+        expect(lodging[0]).toMatchObject({ room_id: newRoom.id, label: `Suíte ${newRoom.number}` });
+        expect(room.id).not.toBe(newRoom.id);
+
+        const bill = await getBill(reservation.id);
+        expect(bill.body.consumptions_total).toBe(30);
+    });
+
+    it('DELETEs simultâneos do mesmo consumo: um 204, os outros 404 (qa-redteam 🟢-1)', async () => {
+        // Várias rodadas: a intercalação não é garantida numa rodada só.
+        const { reservation } = await newReservation();
+        for (let round = 0; round < 8; round++) {
+            const created = await postConsumption(reservation.id, { description: `Corrida ${round}`, amount: 10 });
+
+            const statuses = (await Promise.all([1, 2, 3, 4, 5].map(() =>
+                request(app).delete(`/reservations/${reservation.id}/consumptions/${created.body.id}`).set(auth(jwt))
+            ))).map(res => res.status);
+
+            expect(statuses.filter(st => st === 204)).toHaveLength(1);
+        }
     });
 
     it('DELETE de item de outra reserva → 404', async () => {
@@ -265,25 +324,59 @@ describe('Migração de consumptions para account_items (CA-04.2.a–c)', () => 
         expect(await AccountItemModel.count({ paranoid: false })).toBe(before);
     });
 
-    it('valor acima da coluna nova aborta tudo, sem migrar pela metade', async () => {
-        const r = await newReservation();
-        const ok = await insertLegacy({ reservation_id: r.reservation.id, amount: 5 });
-        const bad = await insertLegacy({ reservation_id: r.reservation.id, amount: 100000000 });
+    it('reserva com valor inválido fica para trás inteira; as outras migram e o migrate falha alto (qa-redteam 🔴-1)', async () => {
+        const bad = await newReservation();
+        const good = await newReservation();
+        const goodId = await insertLegacy({ reservation_id: good.reservation.id, amount: 5 });
+        const sameReservation = await insertLegacy({ reservation_id: bad.reservation.id, amount: 5 });
+        const invalid = await insertLegacy({ reservation_id: bad.reservation.id, amount: 100000000 });
 
-        await expect(migrateConsumptions(sequelize)).rejects.toThrow(/99999999\.99/);
-        expect(await AccountItemModel.findByPk(ok)).toBeNull();
-        expect(await AccountModel.count({ where: { reservation_id: r.reservation.id } })).toBe(0);
+        const error = await migrateConsumptions(sequelize).then(() => null, (e) => e);
+        expect(error?.message).toMatch(/ficaram para trás/);
+        expect(error.message).toContain(bad.reservation.id);
 
-        await sequelize.query('DELETE FROM consumptions WHERE id IN (:ids)', { replacements: { ids: [ok, bad] } });
+        // A boa migrou; da ruim, nada — nem a linha válida (reserva nunca pela metade).
+        expect(await AccountItemModel.findByPk(goodId)).not.toBeNull();
+        expect(await AccountItemModel.findByPk(sameReservation)).toBeNull();
+
+        // Enquanto houver consumo não migrado, o bill e a lista recusam em vez de mentir.
+        expect((await getBill(bad.reservation.id)).status).toBe(503);
+        expect((await request(app).get(`/reservations/${bad.reservation.id}/consumptions`).set(auth(jwt))).status).toBe(503);
+        expect((await getBill(good.reservation.id)).status).toBe(200);
+
+        // Corrigido o dado, o próximo migrate completa e o bill volta.
+        await sequelize.query('DELETE FROM consumptions WHERE id = :invalid', { replacements: { invalid } });
+        await expect(migrateConsumptions(sequelize)).resolves.toMatchObject({ items: 1 });
+        const bill = await getBill(bad.reservation.id);
+        expect(bill.status).toBe(200);
+        expect(bill.body.consumptions_total).toBe(5);
     });
 
-    it('consumo com hotel diferente do da reserva aborta', async () => {
+    it('consumo com hotel diferente do da reserva deixa a reserva para trás', async () => {
         const r = await newReservation();
         const bad = await insertLegacy({ reservation_id: r.reservation.id, tenant_id: otherTenantId });
 
-        await expect(migrateConsumptions(sequelize)).rejects.toThrow(/hotel diferente do da reserva/);
+        await expect(migrateConsumptions(sequelize)).rejects.toThrow(/ficaram para trás/);
+        expect(await AccountItemModel.findByPk(bad, { paranoid: false })).toBeNull();
 
         await sequelize.query('DELETE FROM consumptions WHERE id = :bad', { replacements: { bad } });
+    });
+
+    it('reserva encerrada ganha a conta já fechada — não lota as comandas abertas (qa-redteam 🟡-2)', async () => {
+        const out = await newReservation({ checkIn: true });
+        await request(app).put(`/reservations/${out.reservation.id}/check-out`).set(auth(jwt));
+        const cancelled = await newReservation();
+        await request(app).put(`/reservations/${cancelled.reservation.id}/cancel`).set(auth(jwt));
+        await insertLegacy({ reservation_id: out.reservation.id });
+        await insertLegacy({ reservation_id: cancelled.reservation.id });
+
+        await migrateConsumptions(sequelize);
+
+        for (const r of [out, cancelled]) {
+            const account = await AccountModel.findOne({ where: { reservation_id: r.reservation.id } });
+            expect(account.status).toBe('CLOSED');
+            expect(account.closed_at).not.toBeNull();
+        }
     });
 
     it('sem a tabela antiga, não faz nada', async () => {
