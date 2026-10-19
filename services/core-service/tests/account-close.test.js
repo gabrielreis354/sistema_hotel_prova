@@ -273,7 +273,8 @@ describe('Encerrar a estadia fecha as contas abertas dela (D-36)', () => {
         await close(account.id);
         const closedAt = (await reload(account.id)).closed_at.toISOString();
 
-        await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        const out = await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        expect(out.status).toBe(200);
         expect((await reload(account.id)).closed_at.toISOString()).toBe(closedAt);
     });
 
@@ -351,10 +352,11 @@ describe('Encerrar a estadia fecha as contas abertas dela (D-36)', () => {
             const account = await openAccount({
                 type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: `Corrida ${round}`, charges_lodging: false
             });
-            const [manual] = await Promise.all([
+            const [manual, out] = await Promise.all([
                 close(account.id),
                 request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt))
             ]);
+            expect(out.status).toBe(200);
             const saved = await reload(account.id);
             // Se o fechamento manual venceu, o check-out não regrava a conta por cima dele.
             if (manual.status === 200) expect(saved.closed_at.toISOString()).toBe(new Date(manual.body.closed_at).toISOString());
