@@ -1,17 +1,23 @@
 import AccountModel from '../Models/AccountModel.js';
+import { closeAccount } from './accountBill.js';
 
 /**
  * Fecha as contas ainda abertas de uma reserva que acabou de encerrar (D-36).
  *
  * Chamada na transação de quem encerra a estadia — check-out, cancelamento, cancelamento
- * do contrato B2B e exclusão da reserva. Se o fechamento falha, o encerramento volta
- * atrás junto: nunca fica reserva encerrada com conta aberta para o garçom lançar.
+ * do contrato B2B e exclusão da reserva — depois de gravar o novo status: a diária que
+ * cada conta grava (D-39) já sai 0 na reserva cancelada ou excluída (D-35). Se o
+ * fechamento falha, o encerramento volta atrás junto.
  *
- * Conta já fechada ou paga não é tocada (o closed_at dela continua o original).
+ * Conta já fechada ou paga não é tocada (o closed_at e a diária dela continuam os originais).
  *
- * O UPDATE trava cada conta: um lançamento em andamento termina antes, e o item dele
+ * Trava as contas antes de fechar: um lançamento em andamento termina antes, e o item dele
  * entra no que foi fechado. Quem lança trava a conta e lê a reserva sem trava, e quem
- * encerra trava a reserva e depois as contas — sem ordem cruzada, sem deadlock.
+ * encerra trava a reserva e depois as contas — sem ordem cruzada, sem deadlock. Em ordem
+ * de id, para dois encerramentos nunca travarem as mesmas contas em ordens diferentes.
+ *
+ * Uma a uma: cada conta fechada já entra como gravada no rateio da seguinte, e a soma
+ * das diárias fecha no total da reserva.
  *
  * @param {import('sequelize').Model} reservation já travada e validada no tenant
  * @param {import('sequelize').Transaction} transaction obrigatória
@@ -21,9 +27,12 @@ export default async function closeReservationAccounts(reservation, transaction)
     // Sem transação, um encerramento que falhasse depois deixaria as contas fechadas.
     if (!transaction) throw new Error('closeReservationAccounts exige a transação do encerramento');
 
-    const [closed] = await AccountModel.update(
-        { status: 'CLOSED', closed_at: new Date() },
-        { where: { reservation_id: reservation.id, tenant_id: reservation.tenant_id, status: 'OPEN' }, transaction }
-    );
-    return closed;
+    const open = await AccountModel.findAll({
+        where: { reservation_id: reservation.id, tenant_id: reservation.tenant_id, status: 'OPEN' },
+        order: [['id', 'ASC']],
+        lock: transaction.LOCK.UPDATE,
+        transaction
+    });
+    for (const account of open) await closeAccount(account, transaction);
+    return open.length;
 }

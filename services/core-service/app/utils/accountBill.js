@@ -1,6 +1,6 @@
+import AccountModel from '../Models/AccountModel.js';
 import AccountItemModel from '../Models/AccountItemModel.js';
 import ReservationModel from '../Models/ReservationModel.js';
-import ReservationRoomModel from '../Models/ReservationRoomModel.js';
 import RoomModel from '../Models/RoomModel.js';
 import RoomCategoryModel from '../Models/RoomCategoryModel.js';
 import accountTotal from './accountTotal.js';
@@ -14,23 +14,32 @@ const ITEM_ATTRIBUTES = [
 ];
 
 /**
- * Parte da diária da reserva que cabe a esta conta (D-33).
+ * Parte da diária da reserva que cabe a esta conta.
  *
  * A reserva guarda um total só para todos os quartos (`total_amount`). Esse total é
- * rateado entre os quartos na proporção do preço da categoria de cada um, e o quarto
- * principal fica com a sobra dos centavos. Assim a soma das contas é sempre o total da
- * reserva, inclusive na reserva-bloco B2B (cujo total é o do contrato, não preço ×
- * noites) e quando o preço da categoria muda depois da reserva: o preço atual só pesa
- * a divisão, nunca define o valor.
+ * dividido entre as **contas** da reserva que cobram diária (D-40), não entre os quartos:
+ *   - com uma conta só, ela leva o total inteiro, mesmo numa reserva de vários quartos
+ *     (a rota antiga e a migração da T-04.2 criam uma conta por reserva — 🔴-1 do qa-redteam);
+ *   - a conta que ficou num quarto trocado continua cobrando: sem isso a diária da estadia
+ *     não ficava em conta nenhuma (🟡-3). Duas contas depois de uma troca (N-1 da T-04.2)
+ *     dividem o total, nunca o dobram.
  *
- * Diária zero quando:
- *   - a conta não é ROOM ou não cobra diária (CA-04.3.e, D-4);
- *   - a reserva foi cancelada ou excluída (D-35) — o consumo dela segue cobrado;
- *   - o quarto da conta saiu da reserva (D-32): a conta do quarto atual é quem cobra.
+ * O peso de cada conta é o preço da categoria do quarto dela (D-33): o preço só define a
+ * proporção, nunca o valor. A conta do quarto principal fica com a sobra dos centavos.
  *
+ * Conta fechada guarda a diária que apresentou (D-39). As abertas dividem só o que sobra
+ * do total depois das gravadas: a soma nunca passa do total, nem se o preço da categoria
+ * ou o total da reserva mudarem depois. Se o total cair abaixo do já gravado, as abertas
+ * ficam com 0 — o que foi apresentado não é desfeito.
+ *
+ * Diária zero quando a conta não é ROOM ou não cobra diária (CA-04.3.e, D-4), ou quando
+ * a reserva foi cancelada ou excluída (D-35) — o consumo dela segue cobrado.
+ *
+ * @param {import('sequelize').Model} account
+ * @param {import('sequelize').Transaction} [transaction]
  * @returns {Promise<string>} valor em texto, '0.00'
  */
-async function lodgingShare(account, transaction) {
+export async function lodgingShare(account, transaction) {
     if (account.type !== 'ROOM' || !account.charges_lodging || !account.reservation_id) return ZERO;
 
     // Sem paranoid: false de propósito — reserva excluída não cobra diária.
@@ -41,39 +50,64 @@ async function lodgingShare(account, transaction) {
     });
     if (!reservation || reservation.status === 'CANCELLED') return ZERO;
 
-    const pivot = await ReservationRoomModel.findAll({
-        where: { reservation_id: reservation.id },
-        attributes: ['room_id'],
+    // Contas da estadia que cobram diária. Paranoid: conta excluída não disputa.
+    const lodging = await AccountModel.findAll({
+        where: { reservation_id: reservation.id, tenant_id: account.tenant_id, charges_lodging: true },
+        attributes: ['id', 'room_id', 'status', 'closed_room_charges', 'opened_at'],
         transaction
     });
-    const roomIds = [...new Set(pivot.map((row) => row.room_id))];
-    if (!roomIds.includes(account.room_id)) return ZERO;
+    const recorded = lodging.filter((a) => a.id !== account.id && a.status !== 'OPEN' && a.closed_room_charges !== null);
+    const pending = [account, ...lodging.filter((a) => a.id !== account.id && !recorded.includes(a))];
 
+    const recordedCents = recorded.reduce((sum, a) => sum + BigInt(toCents(a.closed_room_charges)), 0n);
     const totalCents = BigInt(toCents(reservation.total_amount));
-    if (roomIds.length === 1) return fromCents(Number(totalCents));
+    const remaining = totalCents > recordedCents ? totalCents - recordedCents : 0n;
+    if (pending.length === 1) return fromCents(Number(remaining));
 
     // paranoid: false — quarto ou categoria desativados depois seguem pesando na estadia.
     const rooms = await RoomModel.findAll({
-        where: { id: roomIds, tenant_id: account.tenant_id },
+        where: { id: [...new Set(pending.map((a) => a.room_id))], tenant_id: account.tenant_id },
         attributes: ['id'],
         include: [{ model: RoomCategoryModel, as: 'category', attributes: ['price_per_night'], paranoid: false }],
         paranoid: false,
         transaction
     });
-    const weights = new Map(rooms.map((room) => [room.id, BigInt(toCents(room.category?.price_per_night))]));
+    const prices = new Map(rooms.map((room) => [room.id, BigInt(toCents(room.category?.price_per_night))]));
     // Sem preço em algum quarto (não deveria existir: a reserva recusa), divide por igual.
-    const usable = roomIds.every((id) => (weights.get(id) ?? 0n) > 0n);
-    const weightOf = (id) => (usable ? weights.get(id) : 1n);
-    const weightSum = roomIds.reduce((sum, id) => sum + weightOf(id), 0n);
+    const usable = pending.every((a) => (prices.get(a.room_id) ?? 0n) > 0n);
+    const weightOf = (a) => (usable ? prices.get(a.room_id) : 1n);
+    const weightSum = pending.reduce((sum, a) => sum + weightOf(a), 0n);
+
+    // A sobra dos centavos vai para a conta do quarto principal; sem ela, para a mais antiga.
+    const byAge = [...pending].sort((x, y) => (x.opened_at - y.opened_at) || (x.id < y.id ? -1 : 1));
+    const anchor = pending.find((a) => a.room_id === reservation.room_id) ?? byAge[0];
 
     // BigInt: total em centavos × preço em centavos passa de 2^53 numa reserva grande.
-    const shareOf = (id) => (totalCents * weightOf(id)) / weightSum; // trunca
-    if (account.room_id !== reservation.room_id) return fromCents(Number(shareOf(account.room_id)));
+    const shareOf = (a) => (remaining * weightOf(a)) / weightSum; // trunca
+    if (account.id !== anchor.id) return fromCents(Number(shareOf(account)));
 
-    const others = roomIds
-        .filter((id) => id !== reservation.room_id)
-        .reduce((sum, id) => sum + shareOf(id), 0n);
-    return fromCents(Number(totalCents - others));
+    const others = pending.filter((a) => a.id !== anchor.id).reduce((sum, a) => sum + shareOf(a), 0n);
+    return fromCents(Number(remaining - others));
+}
+
+/**
+ * Fecha a conta e grava a diária que ela apresenta (D-39). Usada pelo fechamento manual
+ * e pelo encerramento da estadia. Calcula com a conta ainda OPEN, dentro da transação de
+ * quem chama: contas fechadas na mesma transação já entram como gravadas na seguinte.
+ *
+ * AccountModel.update, não save(): um UPDATE só, com os três campos juntos.
+ *
+ * @param {import('sequelize').Model} account travada pela transação
+ * @param {import('sequelize').Transaction} transaction
+ */
+export async function closeAccount(account, transaction) {
+    const values = {
+        status: 'CLOSED',
+        closed_at: new Date(),
+        closed_room_charges: account.type === 'INTERNAL' ? ZERO : await lodgingShare(account, transaction)
+    };
+    await AccountModel.update(values, { where: { id: account.id, tenant_id: account.tenant_id }, transaction });
+    account.set(values);
 }
 
 /**
@@ -85,7 +119,8 @@ async function lodgingShare(account, transaction) {
  * - Conta INTERNAL: diária, consumos e total 0 (CA-04.3.f, RN-006). Os itens seguem com
  *   o valor gravado — o custo continua visível (D-24).
  * - `payments_made` é 0 até a T-04.4, que liga pagamento a conta (D-34).
- * - `balance` é calculado aqui, a cada leitura, e nunca gravado (CA-04.3.b).
+ * - `balance` é calculado aqui, a cada leitura, e nunca gravado (CA-04.3.b). A diária da
+ *   conta fechada é gravada (D-39) — o saldo não.
  *
  * Valores em texto ('24.00'), como no resto de /accounts. Sem dado do hóspede (D-15).
  *
@@ -103,7 +138,10 @@ export default async function accountBill(account, transaction) {
         transaction
     });
     const consumptions = internal ? ZERO : await accountTotal(account.id, account.tenant_id, transaction);
-    const roomCharges = internal ? ZERO : await lodgingShare(account, transaction);
+    // Conta fechada mostra a diária que apresentou (D-39); só a fechada antes da T-04.3,
+    // ainda sem o valor gravado pelo migrate, calcula na hora.
+    const recorded = account.status !== 'OPEN' && account.closed_room_charges != null;
+    const roomCharges = internal ? ZERO : (recorded ? account.closed_room_charges : await lodgingShare(account, transaction));
 
     // Centavos inteiros, como em calculateStayTotal: somar texto de dinheiro em float erra centavo.
     const totalCents = toCents(roomCharges) + toCents(consumptions);

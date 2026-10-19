@@ -1,7 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import AccountModel from '../../Models/AccountModel.js';
 import isUuid from '../../utils/isUuid.js';
-import accountBill from '../../utils/accountBill.js';
+import accountBill, { closeAccount } from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
 /**
@@ -42,14 +42,14 @@ export default async function CloseAccountController(request, response) {
             }
 
             // Fechar com consumo antigo fora da conta apresentaria um total menor (D-31).
-            if (account.reservation_id && await pendingLegacyConsumption(account.reservation_id)) {
+            // Na transação: segurar esta conexão e pedir outra esgotava o pool (🟡-2).
+            if (account.reservation_id && await pendingLegacyConsumption(account.reservation_id, transaction)) {
                 await transaction.rollback();
                 return response.status(503).json({ error: 'Consumos desta reserva em migração — conta temporariamente indisponível' });
             }
 
-            account.status = 'CLOSED';
-            account.closed_at = new Date();
-            await account.save({ transaction });
+            // Grava a diária apresentada: conta fechada não muda de valor depois (D-39).
+            await closeAccount(account, transaction);
 
             const bill = await accountBill(account, transaction);
             await transaction.commit();

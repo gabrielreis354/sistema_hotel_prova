@@ -387,7 +387,7 @@ describe('Diária gravada no fechamento (D-39)', () => {
 
 describe('migrate fecha as contas abertas de estadias já encerradas (D-37)', () => {
     it('fecha as de check-out, cancelamento e reserva excluída; mantém as vivas; é idempotente', async () => {
-        const reopen = (id) => AccountModel.update({ status: 'OPEN', closed_at: null }, { where: { id } });
+        const reopen = (id) => AccountModel.update({ status: 'OPEN', closed_at: null, closed_room_charges: null }, { where: { id } });
 
         // Contas que ficaram abertas antes da T-04.3: o encerramento aconteceu, e ninguém fechou.
         const checkedOut = await newStay({ checkIn: true });
