@@ -906,9 +906,11 @@ const options = {
                 get: {
                     tags: ['Financeiro'],
                     summary: 'Fechamento de conta: (diária + consumos) − pagamentos confirmados',
+                    description: 'Desde a T-04.2, os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.',
                     responses: {
                         200: { description: 'Conta com room_total, consumptions_total, grand_total, total_paid, balance_due', content: { 'application/json': { schema: { $ref: '#/components/schemas/Bill' } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'A reserva tem consumo antigo ainda não migrado — o total sairia menor. Some quando o `migrate` concluir (T-04.2)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -919,26 +921,27 @@ const options = {
                     description: 'Desde a T-04.2, os itens faturáveis e não excluídos de todas as contas da reserva, no formato antigo e em ordem de consumo. Cortesia não aparece.',
                     responses: {
                         200: { description: 'Lista de consumos', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Consumption' } } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'A reserva tem consumo antigo ainda não migrado — a lista sairia incompleta. Some quando o `migrate` concluir', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
                 post: {
                     tags: ['Financeiro'],
                     summary: 'Lança consumo extra (frigobar, restaurante, spa)',
-                    description: 'Contrato antigo, mantido. Desde a T-04.2 o consumo vira item da conta da suíte da reserva (criada se não existir) e aceita reserva de qualquer status. Para lançar com cardápio, cortesia ou idempotência, use `POST /accounts/{id}/items`.',
+                    description: 'Contrato antigo, mantido. Desde a T-04.2 o consumo vira item da conta da suíte da reserva (criada se não existir). Aceita reserva sem check-in, como antes; reserva com check-out feito ou cancelada não recebe consumo (422). Para lançar com cardápio, cortesia ou idempotência, use `POST /accounts/{id}/items`.',
                     requestBody: {
                         required: true,
                         content: { 'application/json': { schema: { type: 'object', required: ['description', 'amount'], properties: {
                             description: { type: 'string', example: 'Frigobar' },
                             amount:      { type: 'number', example: 50.00, maximum: 99999999.99 },
-                            consumed_at: { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu. Omitido = agora. Não pode estar no futuro' }
+                            consumed_at: { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu. Omitido = agora. Não pode estar mais de 1 minuto no futuro' }
                         }}}}
                     },
                     responses: {
                         201: { description: 'Consumo lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Consumption' } } } },
-                        400: { description: 'description ausente, amount <= 0 ou acima de 99999999.99, consumed_at inválido ou no futuro', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        400: { description: 'description ausente ou acima de 200 caracteres; amount que não é número, <= 0, com mais de 2 casas ou acima de 99999999.99; consumed_at que não é data ISO ou está mais de 1 minuto no futuro', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
                         404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        422: { description: 'A conta da suíte já foi fechada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        422: { description: 'Reserva com check-out feito ou cancelada, ou a conta da suíte já foi fechada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -947,7 +950,7 @@ const options = {
                     { in: 'path', name: 'id',            required: true, schema: { type: 'string', format: 'uuid' } },
                     { in: 'path', name: 'consumptionId', required: true, schema: { type: 'string', format: 'uuid' } }
                 ],
-                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete, ADMIN)', description: 'O id é o do item da conta — igual ao id do consumo antigo para os migrados na T-04.2.', responses: { 204: { description: 'Removido' }, 403: { description: 'Requer papel ADMIN' }, 404: { description: 'Não encontrado' }, 422: { description: 'A conta da suíte já foi fechada' } } }
+                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete, ADMIN)', description: 'O id é o do item da conta — igual ao id do consumo antigo para os migrados na T-04.2.', responses: { 204: { description: 'Removido' }, 403: { description: 'Requer papel ADMIN' }, 404: { description: 'Não encontrado' }, 422: { description: 'A conta da suíte já foi fechada' }, 503: { description: 'Consumo antigo da reserva ainda não migrado' } } }
             },
             '/reservations/{id}/rooms': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
