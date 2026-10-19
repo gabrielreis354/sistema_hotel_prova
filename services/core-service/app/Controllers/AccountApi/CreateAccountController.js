@@ -26,6 +26,9 @@ const WAITER_ACCOUNT_TYPES = ['TABLE', 'DIRECT'];
 
 const provided = (value) => value !== undefined && value !== null;
 
+// Rótulo de tela ("Mesa 5", "Suíte 201 — João"): sem teto, 50 mil caracteres passavam.
+const MAX_LABEL = 100;
+
 function validateInput(body) {
     const errors = [];
 
@@ -34,6 +37,8 @@ function validateInput(body) {
     }
     if (typeof body.label !== 'string' || !body.label.trim()) {
         errors.push('label é obrigatório');
+    } else if (body.label.trim().length > MAX_LABEL) {
+        errors.push(`label não pode passar de ${MAX_LABEL} caracteres`);
     }
     for (const field of LINK_FIELDS) {
         if (provided(body[field]) && !isUuid(body[field])) errors.push(`${field} deve ser um UUID`);

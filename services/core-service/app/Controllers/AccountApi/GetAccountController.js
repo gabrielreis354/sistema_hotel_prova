@@ -24,7 +24,7 @@ export default async function GetAccountController(request, response) {
         });
         if (!account) return response.status(404).json({ error: 'Conta não encontrada' });
 
-        return response.json({ ...account.toJSON(), total: await accountTotal(account.id) });
+        return response.json({ ...account.toJSON(), total: await accountTotal(account.id, tenantId) });
     } catch (error) {
         console.error('GetAccountController:', error.message);
         return response.status(500).json({ error: 'Erro interno do servidor' });

@@ -3,6 +3,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import AccountModel from '../../Models/AccountModel.js';
 import AccountItemModel from '../../Models/AccountItemModel.js';
 import ProductModel from '../../Models/ProductModel.js';
+import ReservationModel from '../../Models/ReservationModel.js';
 import { ITEM_REASONS } from '../../utils/accountEnums.js';
 import accountRuleViolation from '../../utils/accountRuleViolation.js';
 import accountTotal from '../../utils/accountTotal.js';
@@ -15,8 +16,18 @@ const CLIENT_ITEM_INDEX = 'account_items_client_item_tenant_unique';
 // Teto do total de um item: a coluna é DECIMAL(10,2). Em centavos.
 const MAX_TOTAL_CENTS = Math.round(MAX_PRICE * 100);
 
-// D-8 / CA-04.1.l: quem decide o que o hotel dá de graça.
-const COURTESY_ROLES = ['ADMIN', 'RECEPTIONIST'];
+// D-8 / CA-04.1.l: quem decide o que o hotel dá de graça. Os mesmos papéis lançam
+// avulso (D-21): quem define o preço de um item define também se ele sai de graça.
+const PRICE_SETTING_ROLES = ['ADMIN', 'RECEPTIONIST'];
+
+// Teto operacional de quantidade por lançamento (D-20). Muito abaixo do INTEGER do banco,
+// que estourava em 500; quantidade maior que isso num lançamento só é erro de digitação.
+const MAX_QUANTITY = 9999;
+
+const MAX_DESCRIPTION = 200;
+
+// Dinheiro tem 2 casas. 3 casas eram arredondadas sem aviso ('1.999' × 3 virava 6.00).
+const TWO_DECIMALS = /^\d+(\.\d{1,2})?$/;
 
 const provided = (value) => value !== undefined && value !== null;
 
@@ -27,8 +38,8 @@ function validateInput(body) {
     if (provided(body.product_id) && !isUuid(body.product_id)) errors.push('product_id deve ser um UUID');
 
     // typeof number: '2' viraria 2 no Number(), mas o app manda número; texto é bug do cliente.
-    if (provided(body.quantity) && !(Number.isInteger(body.quantity) && body.quantity > 0)) {
-        errors.push('quantity deve ser um inteiro maior que zero');
+    if (provided(body.quantity) && !(Number.isInteger(body.quantity) && body.quantity > 0 && body.quantity <= MAX_QUANTITY)) {
+        errors.push(`quantity deve ser um inteiro entre 1 e ${MAX_QUANTITY}`);
     }
     if (provided(body.billable) && typeof body.billable !== 'boolean') errors.push('billable deve ser booleano');
     if (provided(body.reason) && !ITEM_REASONS.includes(body.reason)) {
@@ -38,6 +49,7 @@ function validateInput(body) {
     // Com product_id, descrição e preço vêm do cardápio e o que o cliente mandou é ignorado.
     if (!provided(body.product_id)) {
         if (typeof body.description !== 'string' || !body.description.trim()) errors.push('description é obrigatório sem product_id');
+        else if (body.description.trim().length > MAX_DESCRIPTION) errors.push(`description não pode passar de ${MAX_DESCRIPTION} caracteres`);
         if (!provided(body.unit_price)) {
             errors.push('unit_price é obrigatório sem product_id');
         } else {
@@ -45,6 +57,7 @@ function validateInput(body) {
             if (price === null) errors.push('unit_price deve ser um número (use ponto como separador decimal)');
             else if (price < 0) errors.push('unit_price não pode ser negativo');
             else if (price > MAX_PRICE) errors.push(`unit_price não pode exceder ${MAX_PRICE}`);
+            else if (!TWO_DECIMALS.test(String(body.unit_price).trim())) errors.push('unit_price aceita no máximo 2 casas decimais');
         }
     }
 
@@ -65,7 +78,7 @@ async function replay(existing, accountId, response) {
     if (existing.account_id !== accountId) {
         return response.status(409).json({ error: 'client_item_id já usado em outra conta' });
     }
-    return response.status(200).json({ item: existing, account_total: await accountTotal(accountId) });
+    return response.status(200).json({ item: existing, account_total: await accountTotal(accountId, existing.tenant_id) });
 }
 
 const findByClientItemId = (tenantId, clientItemId) =>
@@ -97,7 +110,9 @@ export default async function CreateAccountItemController(request, response) {
         }
 
         const billable = body.billable ?? true;
-        if (!billable && !COURTESY_ROLES.includes(request.user.role)) {
+        if (!PRICE_SETTING_ROLES.includes(request.user.role) && (!billable || !provided(body.product_id))) {
+            // Garçom: só item do cardápio e faturável. Avulso a preço 0 era cortesia sem
+            // motivo, fora do relatório de cortesias (qa-redteam 19/10, D-21).
             return response.status(403).json({ error: 'Acesso não autorizado' });
         }
 
@@ -139,6 +154,19 @@ export default async function CreateAccountItemController(request, response) {
                 return response.status(422).json({ error: `Conta ${locked.status} não aceita item novo` });
             }
 
+            // Conta da suíte só recebe consumo durante a estadia (D-22). Depois do check-out
+            // o hóspede já saiu; fechar a conta no check-out é a T-04.3.
+            if (locked.type === 'ROOM') {
+                const reservation = await ReservationModel.findOne({
+                    where: { id: locked.reservation_id, tenant_id: tenantId },
+                    transaction
+                });
+                if (reservation?.status !== 'CHECKED_IN') {
+                    await transaction.rollback();
+                    return response.status(422).json({ error: 'Estadia encerrada (check-out feito): a conta da suíte não aceita item novo' });
+                }
+            }
+
             item = await AccountItemModel.create({
                 tenant_id: tenantId,
                 account_id: account.id,
@@ -153,7 +181,7 @@ export default async function CreateAccountItemController(request, response) {
                 created_by: request.user.userId
             }, { transaction });
 
-            total = await accountTotal(account.id, transaction);
+            total = await accountTotal(account.id, tenantId, transaction);
             await transaction.commit();
         } catch (error) {
             await transaction.rollback();
@@ -167,7 +195,8 @@ export default async function CreateAccountItemController(request, response) {
         // Reenvio na corrida: a outra requisição gravou depois da busca acima.
         if (error instanceof UniqueConstraintError && error.parent?.constraint === CLIENT_ITEM_INDEX) {
             const existing = await findByClientItemId(tenantId, body.client_item_id);
-            if (existing) return await replay(existing, accountId, response);
+            // Id da conta como o banco grava (minúsculo): o da URL pode vir em maiúsculas.
+            if (existing) return await replay(existing, accountId.toLowerCase(), response);
         }
         const violation = accountRuleViolation(error, response);
         if (violation) return violation;

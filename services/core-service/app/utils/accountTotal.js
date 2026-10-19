@@ -14,14 +14,16 @@ import AccountItemModel from '../Models/AccountItemModel.js';
  * Usada no lançamento (CA-04.1.e), no GET da conta e, depois, no /bill (T-04.3).
  *
  * @param {string} accountId
+ * @param {string} tenantId filtro redundante com a conta já validada, de propósito: a
+ *   T-04.3 reusa esta função e não pode depender de quem chama ter checado o hotel
  * @param {import('sequelize').Transaction} [transaction] para ler o que a própria
  *   transação acabou de gravar
  * @returns {Promise<string>}
  */
-export default async function accountTotal(accountId, transaction) {
+export default async function accountTotal(accountId, tenantId, transaction) {
     const [row] = await AccountItemModel.findAll({
         attributes: [[literal('COALESCE(SUM("total"), 0)::numeric(14,2)::text'), 'total']],
-        where: { account_id: accountId, billable: true },
+        where: { account_id: accountId, tenant_id: tenantId, billable: true },
         raw: true,
         transaction
     });
