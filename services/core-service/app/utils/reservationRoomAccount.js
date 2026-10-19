@@ -31,6 +31,63 @@ export const roomAccountLabel = (roomNumber) => `Suíte ${roomNumber}`;
  * @param {import('sequelize').Model} reservation já validada no tenant
  * @returns {Promise<import('sequelize').Model>}
  */
+const isLodgingRace = (error) =>
+    error instanceof UniqueConstraintError && error.parent?.constraint === 'accounts_lodging_unique';
+
+// paranoid: false — um quarto desativado depois não apaga o histórico da estadia.
+const roomOf = (id, tenantId) => RoomModel.findOne({ where: { id, tenant_id: tenantId }, paranoid: false });
+
+/**
+ * Realinha a conta que cobra diária num quarto que já não é da reserva (D-32).
+ *
+ * Depois de uma troca de quarto, essa conta aponta para o quarto antigo — que saiu de
+ * reservation_rooms. Ela passa a apontar para o quarto principal atual, desde que ele
+ * ainda não tenha conta cobrando diária. Chamada antes de qualquer criação de conta da
+ * suíte, nas rotas antigas e no POST /accounts (reauditoria N-1): assim a criação
+ * enxerga a conta realinhada e a RN-005 recusa a segunda diária.
+ *
+ * Realinha no máximo uma: o quarto principal só cabe uma. Sobras (remoção de quarto extra
+ * que tinha conta) ficam para o repasse ao Gabriel e para a regra da T-04.3.
+ *
+ * @returns {Promise<import('sequelize').Model|null>} a conta realinhada, ou null
+ */
+export async function realignStaleLodgingAccount(reservation) {
+    const tenantId = reservation.tenant_id;
+    const onMainRoom = await AccountModel.findOne({
+        where: { tenant_id: tenantId, reservation_id: reservation.id, room_id: reservation.room_id, charges_lodging: true }
+    });
+    if (onMainRoom) return null;
+
+    const roomsOfStay = (await ReservationRoomModel.findAll({
+        where: { reservation_id: reservation.id }, attributes: ['room_id']
+    })).map((r) => r.room_id);
+
+    const stale = await AccountModel.findOne({
+        where: {
+            tenant_id: tenantId,
+            reservation_id: reservation.id,
+            type: 'ROOM',
+            charges_lodging: true,
+            room_id: { [Op.notIn]: roomsOfStay }
+        }
+    });
+    if (!stale) return null;
+
+    // O rótulo só acompanha se for o que o sistema gerou; um escolhido pela recepção
+    // fica como está (reauditoria N-4: sobrescrever o que ela escreveu seria pior).
+    const [oldRoom, room] = await Promise.all([roomOf(stale.room_id, tenantId), roomOf(reservation.room_id, tenantId)]);
+    const changes = { room_id: reservation.room_id };
+    if (oldRoom && room && stale.label === roomAccountLabel(oldRoom.number)) changes.label = roomAccountLabel(room.number);
+
+    try {
+        return await stale.update(changes);
+    } catch (error) {
+        // Outra requisição criou a conta do quarto atual no meio-tempo: a dela vale.
+        if (isLodgingRace(error)) return null;
+        throw error;
+    }
+}
+
 export default async function reservationRoomAccount(reservation) {
     const where = {
         tenant_id: reservation.tenant_id,
@@ -42,33 +99,11 @@ export default async function reservationRoomAccount(reservation) {
     const existing = await AccountModel.findOne({ where });
     if (existing) return existing;
 
-    // paranoid: false — um quarto desativado depois não apaga o histórico da estadia.
-    const roomOf = (id) => RoomModel.findOne({ where: { id, tenant_id: reservation.tenant_id }, paranoid: false });
-    const room = await roomOf(reservation.room_id);
+    const realigned = await realignStaleLodgingAccount(reservation);
+    if (realigned) return realigned;
 
+    const room = await roomOf(reservation.room_id, reservation.tenant_id);
     try {
-        const roomsOfStay = (await ReservationRoomModel.findAll({
-            where: { reservation_id: reservation.id }, attributes: ['room_id']
-        })).map((r) => r.room_id);
-
-        const stale = await AccountModel.findOne({
-            where: {
-                tenant_id: reservation.tenant_id,
-                reservation_id: reservation.id,
-                type: 'ROOM',
-                charges_lodging: true,
-                room_id: { [Op.notIn]: roomsOfStay }
-            }
-        });
-        if (stale) {
-            // O rótulo só acompanha se for o que o sistema gerou; um escolhido pela
-            // recepção fica como está.
-            const oldRoom = await roomOf(stale.room_id);
-            const changes = { room_id: reservation.room_id };
-            if (oldRoom && stale.label === roomAccountLabel(oldRoom.number)) changes.label = roomAccountLabel(room.number);
-            return await stale.update(changes);
-        }
-
         return await AccountModel.create({
             ...where,
             type: 'ROOM',
@@ -78,9 +113,7 @@ export default async function reservationRoomAccount(reservation) {
         });
     } catch (error) {
         // Outra requisição criou no meio-tempo: usa a dela.
-        if (error instanceof UniqueConstraintError && error.parent?.constraint === 'accounts_lodging_unique') {
-            return AccountModel.findOne({ where });
-        }
+        if (isLodgingRace(error)) return AccountModel.findOne({ where });
         throw error;
     }
 }

@@ -2,6 +2,8 @@ import sequelize from '../../../database/connections/sequelize.js';
 import AccountModel from '../../Models/AccountModel.js';
 import AccountItemModel from '../../Models/AccountItemModel.js';
 import isUuid from '../../utils/isUuid.js';
+import ReservationModel from '../../Models/ReservationModel.js';
+import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
 /**
  * DELETE /reservations/:id/consumptions/:consumptionId
@@ -35,7 +37,16 @@ export default async function DeleteConsumptionController(request, response) {
 
         // Primeira leitura só para saber qual conta travar.
         const found = await findItem();
-        if (!found) return response.status(404).json({ error: 'Consumo não encontrado' });
+        if (!found) {
+            // Consumo antigo ainda não migrado: 503, como o bill e a lista (reauditoria N-6).
+            // A reserva é conferida no hotel ANTES: senão o 503 diria a outro hotel que
+            // aquela reserva existe e tem consumo pendente.
+            const reservation = await ReservationModel.findOne({ where: { id: reservationId, tenant_id: tenantId } });
+            if (reservation && await pendingLegacyConsumption(reservationId)) {
+                return response.status(503).json({ error: 'Consumos desta reserva em migração — tente de novo depois' });
+            }
+            return response.status(404).json({ error: 'Consumo não encontrado' });
+        }
 
         const transaction = await sequelize.transaction();
         try {

@@ -322,6 +322,12 @@ async function applyAccountConstraints(sequelize) {
 
                 CREATE INDEX IF NOT EXISTS idx_account_items_account ON account_items (account_id);
             END IF;
+
+            -- Tabela legada (T-04.2, D-27): a checagem do 503 (pendingLegacyConsumption)
+            -- roda a cada bill e lista; sem índice era seq scan (reauditoria N-3).
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'consumptions') THEN
+                CREATE INDEX IF NOT EXISTS idx_consumptions_reservation ON consumptions (reservation_id);
+            END IF;
         END $$;
     `);
 }

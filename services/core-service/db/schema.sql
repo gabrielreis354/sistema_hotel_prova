@@ -231,6 +231,8 @@ CREATE TABLE IF NOT EXISTS consumptions (
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0)
 );
+-- Checagem do 503 durante a migração (T-04.2) roda a cada bill.
+CREATE INDEX IF NOT EXISTS idx_consumptions_reservation ON consumptions (reservation_id);
 
 -- =============================================================================
 -- 9b) Catálogo de produtos (cardápio) — base do módulo de consumo
