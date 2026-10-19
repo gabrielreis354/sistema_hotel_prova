@@ -233,6 +233,21 @@ describe('Diária rateada entre os quartos da reserva (D-33)', () => {
     });
 });
 
+describe('Reserva excluída (D-35)', () => {
+    it('sem diária, o consumo segue cobrado', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2));
+        await request(app).post(`/reservations/${reservation.id}/consumptions`)
+            .set(auth(jwt)).send({ description: 'Água', amount: 6 });
+        const del = await request(app).delete(`/reservations/${reservation.id}`).set(auth(jwt));
+        expect(del.status).toBe(204);
+        const account = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+
+        const res = await getBill(account.id);
+        expect(res.body).toMatchObject({ room_charges: '0.00', consumptions: '6.00', total: '6.00' });
+    });
+});
+
 describe('Contas sem hospedagem', () => {
     it('CA-04.3.f: conta INTERNAL tem diária, consumos e total 0, com os itens e seus valores na lista', async () => {
         const internal = await openAccount({ type: 'INTERNAL', label: 'Refeição equipe' });
@@ -310,5 +325,11 @@ describe('Consumo antigo não migrado (D-31)', () => {
     it('o bill da conta responde 503 em vez de um total menor', async () => {
         const res = await getBill(account.id);
         expect(res.status).toBe(503);
+    });
+
+    it('o fechamento também responde 503, e a conta continua aberta', async () => {
+        const res = await request(app).put(`/accounts/${account.id}/close`).set(auth(jwt));
+        expect(res.status).toBe(503);
+        expect((await AccountModel.findByPk(account.id)).status).toBe('OPEN');
     });
 });
