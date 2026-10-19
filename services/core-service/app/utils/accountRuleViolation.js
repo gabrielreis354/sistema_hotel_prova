@@ -13,6 +13,9 @@
  * O mapa usa os nomes das constraints de `applyAccountConstraints`
  * (database/applyDbConstraints.js) e de db/schema.sql. Constraint nova da comanda
  * entra aqui; sem entrada, o erro segue para o 500 do controller.
+ *
+ * O índice de `client_item_id` não está no mapa de propósito: a violação dele é o
+ * reenvio da fila offline (RN-008) e vira 200 com o item original, no controller.
  */
 const MENSAGEM_POR_CONSTRAINT = {
     accounts_lodging_unique:
@@ -28,7 +31,17 @@ const MENSAGEM_POR_CONSTRAINT = {
     accounts_type_allowlist:
         'Tipo de conta inválido',
     accounts_status_allowlist:
-        'Status de conta inválido'
+        'Status de conta inválido',
+    account_items_quantity_positive:
+        'Quantidade deve ser maior que zero',
+    account_items_unit_price_non_negative:
+        'Preço unitário não pode ser negativo',
+    account_items_total_matches:
+        'O total do item precisa ser quantidade × preço unitário',
+    account_items_reason_allowlist:
+        'Motivo de item não faturável inválido',
+    account_items_reason_required:
+        'Item não faturável exige motivo (reason)'
 };
 
 /**
