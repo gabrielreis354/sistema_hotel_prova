@@ -1,6 +1,6 @@
 import { Op } from 'sequelize';
 import AccountModel from '../app/Models/AccountModel.js';
-import { closeAccount, lodgingShare } from '../app/utils/accountBill.js';
+import { closeAccount, lodgingShare, settleAccount } from '../app/utils/accountBill.js';
 
 /**
  * Correção de dados da T-04.3, rodada a cada `node command.js migrate`. Idempotente.
@@ -17,11 +17,17 @@ import { closeAccount, lodgingShare } from '../app/utils/accountBill.js';
  *    reserva: cada conta gravada entra como gravada no rateio da seguinte, e a soma fecha
  *    no total da reserva.
  *
+ * 3. Acerta CLOSED → PAID nas contas fechadas que já estão pagas (T-04.4). Até a T-04.4,
+ *    nada passava conta para PAID: a conta titular de uma estadia paga na reserva ficou
+ *    CLOSED. Só olha conta fechada com algum pagamento PAID que possa ser dela — a própria
+ *    conta, ou a reserva sem conta —; settleAccount decide. Depois do passo 2: o acerto usa
+ *    a diária gravada.
+ *
  * Numa transação só: ou tudo, ou nada.
  *
  * @param {import('sequelize').Sequelize} sequelize
  * @param {{ log?: (msg: string) => void }} [options]
- * @returns {Promise<{ closed: number, recorded: number }>}
+ * @returns {Promise<{ closed: number, recorded: number, settled: number }>}
  */
 export default async function closeEndedStayAccounts(sequelize, { log = () => {} } = {}) {
     const result = await sequelize.transaction(async (transaction) => {
@@ -53,10 +59,29 @@ export default async function closeEndedStayAccounts(sequelize, { log = () => {}
             await AccountModel.update({ closed_room_charges: charges }, { where: { id: account.id }, transaction });
         }
 
-        return { closed: toClose.length, recorded: missing.length };
+        const [paid] = await sequelize.query(`
+            SELECT a.id
+              FROM accounts a
+             WHERE a.status = 'CLOSED' AND a.type <> 'INTERNAL' AND a.deleted_at IS NULL
+               AND EXISTS (
+                   SELECT 1 FROM payments p
+                    WHERE p.tenant_id = a.tenant_id AND p.status = 'PAID' AND p.deleted_at IS NULL
+                      AND (p.account_id = a.id
+                           OR (a.charges_lodging AND p.account_id IS NULL AND p.reservation_id = a.reservation_id)))
+             ORDER BY a.id
+               FOR UPDATE OF a`, { transaction });
+        const toSettle = await AccountModel.findAll({ where: { id: paid.map((row) => row.id) }, transaction });
+        let settled = 0;
+        for (const account of toSettle) {
+            await settleAccount(account, transaction);
+            if (account.status === 'PAID') settled += 1;
+        }
+
+        return { closed: toClose.length, recorded: missing.length, settled };
     });
 
     if (result.closed > 0) log(`✅ Contas de estadias encerradas fechadas: ${result.closed}`);
     if (result.recorded > 0) log(`✅ Diária gravada em contas fechadas antes da T-04.3: ${result.recorded}`);
+    if (result.settled > 0) log(`✅ Contas fechadas já pagas marcadas PAID: ${result.settled}`);
     return result;
 }
