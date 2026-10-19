@@ -1,6 +1,7 @@
 // T-04.3 — GET /accounts/:id/bill (CA-04.3.a a f).
 // Diária por conta = rateio do total da reserva entre os quartos, pelo preço da categoria
-// (D-33). payments_made = 0 até a T-04.4 (D-34). Reserva cancelada não cobra diária (D-35).
+// (D-33). Desde a T-04.4, o pagamento da reserva sem conta entra na conta titular (substitui
+// a D-34). Reserva cancelada não cobra diária (D-35).
 // Ver docs/specs/anexos/SPEC-04-decisoes-T-04.3.md.
 import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -87,7 +88,7 @@ describe('GET /accounts/:id/bill — conta da suíte (CA-04.3.a a d)', () => {
         await addItem(account.id, { description: 'Cerveja', quantity: 2, unit_price: '12.50' });
         courtesy = await addItem(account.id, { description: 'Vinho', unit_price: '30.00', billable: false, reason: 'COURTESY' });
 
-        // Um pagamento da reserva não é da conta antes da T-04.4 (D-34).
+        // Pagamento da reserva sem conta: entra na conta titular, a de diária mais antiga (T-04.4).
         const payment = await request(app).post('/payments').set(auth(jwt))
             .send({ reservation_id: reservation.id, amount: 100, method: 'PIX' });
         if (payment.status !== 201) throw new Error(`pagamento falhou: ${JSON.stringify(payment.body)}`);
@@ -105,8 +106,8 @@ describe('GET /accounts/:id/bill — conta da suíte (CA-04.3.a a d)', () => {
             room_charges: '800.00',
             consumptions: '25.00',
             total: '825.00',
-            payments_made: '0.00',
-            balance: '825.00'
+            payments_made: '100.00',
+            balance: '725.00'
         });
         expect(res.body.items).toHaveLength(2);
     });
