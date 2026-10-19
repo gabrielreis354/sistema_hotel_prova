@@ -8,6 +8,7 @@ import GetAccountController from '../../app/Controllers/AccountApi/GetAccountCon
 import CreateAccountController from '../../app/Controllers/AccountApi/CreateAccountController.js';
 import CreateAccountItemController from '../../app/Controllers/AccountApi/CreateAccountItemController.js';
 import DeleteAccountItemController from '../../app/Controllers/AccountApi/DeleteAccountItemController.js';
+import GetAccountBillController from '../../app/Controllers/AccountApi/GetAccountBillController.js';
 
 // Comanda (SPEC-04, T-04.1). Os três papéis entram aqui; o que o garçom alcança é
 // decidido pela allowlist de app/utils/roles.js. O que depende do corpo — qual tipo de
@@ -19,6 +20,9 @@ export default (() => {
 
     router.get('/', ListAccountController);
     router.get('/:id', GetAccountController);
+    // Bill é da recepção e da gerência (T-04.3). O garçom já é barrado pela allowlist; o
+    // requireRole repete a regra aqui para ela não depender só de um arquivo distante.
+    router.get('/:id/bill', requireRole('ADMIN', 'RECEPTIONIST'), GetAccountBillController);
     router.post('/', CreateAccountController);
     router.post('/:id/items', CreateAccountItemController);
     // Excluir lançamento é ato financeiro: só ADMIN (D-7, D-8).
