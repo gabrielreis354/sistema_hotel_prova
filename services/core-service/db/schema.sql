@@ -191,7 +191,8 @@ CREATE TABLE IF NOT EXISTS reservation_rooms (
 CREATE TABLE IF NOT EXISTS payments (
   id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id          UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  reservation_id     UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+  -- Reserva OU conta (T-04.4): account_id entra depois de accounts, na seção 9d
+  reservation_id     UUID REFERENCES reservations(id) ON DELETE CASCADE,
   amount             NUMERIC(12, 2) NOT NULL,
   method             TEXT NOT NULL,
   status             TEXT NOT NULL DEFAULT 'PAID',
@@ -297,6 +298,18 @@ CREATE TABLE IF NOT EXISTS accounts (
 );
 -- T-04.3: banco criado antes desta coluna
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS closed_room_charges NUMERIC(12, 2);
+
+-- T-04.4: pagamento da conta. Mesmos nomes de applyPaymentAccountConstraints.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES accounts(id) ON DELETE RESTRICT;
+ALTER TABLE payments ALTER COLUMN reservation_id DROP NOT NULL;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
+ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
+  CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_id_reservation_unique CASCADE;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_id_reservation_unique UNIQUE (id, reservation_id);
+ALTER TABLE payments ADD  CONSTRAINT payments_account_reservation_fk
+  FOREIGN KEY (account_id, reservation_id) REFERENCES accounts (id, reservation_id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
 
 -- RN-005 (D-3): uma conta cobrando diária por quarto DA ESTADIA. Parcial: conta
 -- excluída não disputa; a próxima estadia no mesmo quarto cobra a sua.

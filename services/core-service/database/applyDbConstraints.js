@@ -69,6 +69,7 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     `);
 
     await applyAccountConstraints(sequelize);
+    await applyPaymentAccountConstraints(sequelize);
 
     // Índices únicos PARCIAIS em models paranoid — mesmo mecanismo da EXCLUDE acima,
     // agora para os 8 índices auditados na SPEC-06 (users, room_categories, rooms,
@@ -216,6 +217,47 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     if (falhaOcupacao || falhaOutbox) throw falhaOcupacao ?? falhaOutbox;
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
+}
+
+/**
+ * Pagamento ligado à conta (T-04.4, CA-04.4.b).
+ *
+ * - `reservation_id` deixa de ser obrigatório. O DROP NOT NULL é explícito pelo mesmo
+ *   motivo do `account_items.created_by`: com FK na coluna, o sync({ alter }) só refaz a
+ *   FK e deixa o NOT NULL de um banco anterior.
+ * - Todo pagamento tem reserva ou conta.
+ * - FK composta (account_id, reservation_id) → accounts(id, reservation_id): o banco
+ *   recusa um pagamento que aponte para a conta de uma reserva e para outra reserva.
+ *   MATCH SIMPLE: com reservation_id nulo (day-use, mesa) só vale a FK de account_id.
+ *   Precisa de um UNIQUE (id, reservation_id) em accounts, redundante com a PK, que só
+ *   existe para a FK apontar.
+ */
+async function applyPaymentAccountConstraints(sequelize) {
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'account_id')
+               AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'accounts') THEN
+                ALTER TABLE payments ALTER COLUMN reservation_id DROP NOT NULL;
+
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
+                ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
+                    CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
+
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'accounts_id_reservation_unique') THEN
+                    ALTER TABLE accounts ADD CONSTRAINT accounts_id_reservation_unique UNIQUE (id, reservation_id);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_account_reservation_fk') THEN
+                    ALTER TABLE payments ADD CONSTRAINT payments_account_reservation_fk
+                        FOREIGN KEY (account_id, reservation_id) REFERENCES accounts (id, reservation_id)
+                        ON DELETE RESTRICT;
+                END IF;
+
+                CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+            END IF;
+        END $$;
+    `);
 }
 
 /**
