@@ -261,6 +261,101 @@ describe('Encerrar a estadia fecha as contas abertas dela (D-36)', () => {
     });
 });
 
+describe('Diária gravada no fechamento (D-39)', () => {
+    const bill = (id) => request(app).get(`/accounts/${id}/bill`).set(auth(jwt));
+
+    /** Reserva Luxo (principal) + Standard, 2 noites, com check-in e uma conta por quarto. */
+    async function twoRoomStay() {
+        const lux = await createCategory(app, jwt, { name: `Lux ${randomUUID()}`, price_per_night: 300 });
+        const std = await createCategory(app, jwt, { name: `Std ${randomUUID()}`, price_per_night: 200 });
+        roomNumber += 1; const main = await createRoom(app, jwt, lux.id, { number: String(roomNumber) });
+        roomNumber += 1; const extra = await createRoom(app, jwt, std.id, { number: String(roomNumber) });
+        const res = await request(app).post('/reservations').set(auth(jwt)).send({
+            guest_id: guest.id, room_id: main.id, extra_room_ids: [extra.id], ...nextDates()
+        });
+        expect(res.body.total_amount).toBe('1000.00'); // 2 × (300 + 200)
+        await request(app).put(`/reservations/${res.body.id}/check-in`).set(auth(jwt));
+        const a = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: res.body.id, room_id: main.id, label: 'Lux' });
+        const b = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: res.body.id, room_id: extra.id, label: 'Std' });
+        return { reservation: res.body, std, a, b };
+    }
+
+    it('o fechamento grava a diária apresentada', async () => {
+        const { a } = await twoRoomStay();
+        const closed = await close(a.id);
+
+        expect(closed.body.room_charges).toBe('600.00');
+        expect((await reload(a.id)).closed_room_charges).toBe('600.00');
+    });
+
+    it('preço da categoria muda depois: a conta fechada não muda, e a aberta leva o resto do total', async () => {
+        const { std, a, b } = await twoRoomStay();
+        await close(a.id); // 600 gravado
+        const update = await request(app).put(`/room-categories/${std.id}`).set(auth(jwt)).send({ price_per_night: 900 });
+        expect(update.status).toBe(200);
+
+        expect((await bill(a.id)).body.room_charges).toBe('600.00');
+        expect((await bill(b.id)).body.room_charges).toBe('400.00'); // 1000 − 600, nunca mais que o total
+    });
+
+    it('total da reserva muda depois: a aberta absorve a diferença', async () => {
+        const { reservation, a, b } = await twoRoomStay();
+        await close(a.id);
+        await ReservationModel.update({ total_amount: '1250.00' }, { where: { id: reservation.id } });
+
+        expect((await bill(a.id)).body.room_charges).toBe('600.00');
+        expect((await bill(b.id)).body.room_charges).toBe('650.00');
+    });
+
+    it('total da reserva cai abaixo do que já foi fechado: a aberta fica com 0, nunca negativo', async () => {
+        const { reservation, a, b } = await twoRoomStay();
+        await close(a.id);
+        await ReservationModel.update({ total_amount: '500.00' }, { where: { id: reservation.id } });
+
+        expect((await bill(b.id)).body.room_charges).toBe('0.00');
+    });
+
+    it('o check-out grava a diária das contas que fecha, e a soma é o total', async () => {
+        const { reservation, a, b } = await twoRoomStay();
+        await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+
+        const charges = [(await reload(a.id)).closed_room_charges, (await reload(b.id)).closed_room_charges];
+        expect(charges).toEqual(['600.00', '400.00']);
+    });
+
+    it('o cancelamento grava diária 0', async () => {
+        const { reservation } = await newStay();
+        await request(app).post(`/reservations/${reservation.id}/consumptions`)
+            .set(auth(jwt)).send({ description: 'Café', amount: 3 });
+        await request(app).put(`/reservations/${reservation.id}/cancel`).set(auth(jwt));
+
+        const account = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+        expect(account.closed_room_charges).toBe('0.00');
+    });
+
+    it('conta aberta não tem diária gravada (CHECK no banco)', async () => {
+        const table = await openAccount({ type: 'TABLE', label: 'Mesa CHECK' });
+        const error = await sequelize.query(
+            `UPDATE accounts SET closed_room_charges = 10 WHERE id = :id`, { replacements: { id: table.id } }
+        ).then(() => null, (e) => e);
+        expect(error?.parent?.constraint).toBe('accounts_closed_room_charges_only_closed');
+    });
+
+    it('migrate grava a diária das contas fechadas sem ela, sem passar do total; idempotente', async () => {
+        const { reservation, a, b } = await twoRoomStay();
+        await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        // Como as contas fechadas antes da T-04.3 (migração da T-04.2, D-30): sem diária gravada.
+        await AccountModel.update({ closed_room_charges: null }, { where: { id: [a.id, b.id] } });
+
+        const first = await closeEndedStayAccounts(sequelize);
+        expect(first.recorded).toBeGreaterThanOrEqual(2);
+        const charges = [(await reload(a.id)).closed_room_charges, (await reload(b.id)).closed_room_charges];
+        expect(charges).toEqual(['600.00', '400.00']);
+
+        await expect(closeEndedStayAccounts(sequelize)).resolves.toMatchObject({ closed: 0, recorded: 0 });
+    });
+});
+
 describe('migrate fecha as contas abertas de estadias já encerradas (D-37)', () => {
     it('fecha as de check-out, cancelamento e reserva excluída; mantém as vivas; é idempotente', async () => {
         const reopen = (id) => AccountModel.update({ status: 'OPEN', closed_at: null }, { where: { id } });
@@ -304,6 +399,6 @@ describe('migrate fecha as contas abertas de estadias já encerradas (D-37)', ()
         expect((await reload(alive.id)).status).toBe('OPEN');
         expect((await reload(table.id)).status).toBe('OPEN');
 
-        await expect(closeEndedStayAccounts(sequelize)).resolves.toMatchObject({ closed: 0 });
+        await expect(closeEndedStayAccounts(sequelize)).resolves.toMatchObject({ closed: 0, recorded: 0 });
     });
 });
