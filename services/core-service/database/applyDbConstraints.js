@@ -1,6 +1,6 @@
 import { QueryTypes } from 'sequelize';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
-import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
+import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
 
 /**
  * Objetos de banco que o `sequelize.sync()` NÃO gera: extensões, constraints
@@ -290,6 +290,15 @@ async function applyAccountConstraints(sequelize) {
                 ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_reason_required;
                 ALTER TABLE account_items ADD  CONSTRAINT account_items_reason_required
                     CHECK (billable OR reason IS NOT NULL);
+
+                -- D-25: origem do item; só o consumo antigo migrado fica sem autor.
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_origin_allowlist;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_origin_allowlist
+                    CHECK (origin IN (${lista(ITEM_ORIGINS)}));
+
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_created_by_required;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_created_by_required
+                    CHECK (created_by IS NOT NULL OR origin = 'LEGACY_CONSUMPTION');
 
                 -- RN-008 com a D-6: índice TOTAL, exceção deliberada à regra dos paranoid.
                 -- O item excluído continua barrando o reenvio do mesmo client_item_id —
