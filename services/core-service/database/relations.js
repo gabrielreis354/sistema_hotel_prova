@@ -6,7 +6,6 @@ import GuestModel from "../app/Models/GuestModel.js";
 import ReservationModel from "../app/Models/ReservationModel.js";
 import ReservationRoomModel from "../app/Models/ReservationRoomModel.js";
 import PaymentModel from "../app/Models/PaymentModel.js";
-import ConsumptionModel from "../app/Models/ConsumptionModel.js";
 import CorporateClientModel from "../app/Models/CorporateClientModel.js";
 import EventQuoteModel from "../app/Models/EventQuoteModel.js";
 import QuoteServiceModel from "../app/Models/QuoteServiceModel.js";
@@ -56,11 +55,8 @@ export default function initRelations() {
     ReservationModel.hasMany(PaymentModel, { foreignKey: "reservation_id", as: "payments" });
     PaymentModel.belongsTo(ReservationModel, { foreignKey: "reservation_id", as: "reservation" });
 
-    // Consumos extras (frigobar, restaurante, spa) lançados na reserva
-    TenantModel.hasMany(ConsumptionModel, { foreignKey: "tenant_id", as: "consumptions" });
-    ConsumptionModel.belongsTo(TenantModel, { foreignKey: "tenant_id", as: "tenant" });
-    ReservationModel.hasMany(ConsumptionModel, { foreignKey: "reservation_id", as: "consumptions" });
-    ConsumptionModel.belongsTo(ReservationModel, { foreignKey: "reservation_id", as: "reservation" });
+    // Consumos extras: desde a T-04.2 vivem em account_items (seção 12); a tabela
+    // `consumptions` é legado, sem model (SPEC-04, D-27).
 
     // 5) Relação N:N — Reserva <-> Quarto (Tabela Pivô: reservation_rooms)
     ReservationModel.belongsToMany(RoomModel, {
