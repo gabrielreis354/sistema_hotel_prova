@@ -1,7 +1,7 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { VALID_ROLES } from '../app/utils/roles.js';
-import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
+import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
 
 const options = {
     definition: {
@@ -99,8 +99,10 @@ const options = {
                         billable:       { type: 'boolean', description: 'false = cortesia: valor gravado, fora da soma da conta (RN-007)' },
                         reason:         { type: 'string', enum: ITEM_REASONS, nullable: true, description: 'Obrigatório se billable = false; proibido se true' },
                         client_item_id: { type: 'string', format: 'uuid', nullable: true, description: 'Gerado pelo app do garçom — idempotência da fila offline (RN-008)' },
-                        created_by:     { type: 'string', format: 'uuid' },
+                        created_by:     { type: 'string', format: 'uuid', nullable: true, description: 'Nulo só em consumo antigo migrado (origin LEGACY_CONSUMPTION)' },
                         deleted_by:     { type: 'string', format: 'uuid', nullable: true },
+                        origin:         { type: 'string', enum: ITEM_ORIGINS, description: 'LEGACY_CONSUMPTION = migrado de consumptions na T-04.2' },
+                        consumed_at:    { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu; created_at é quando o servidor gravou' },
                         created_at:     { type: 'string', format: 'date-time' },
                         updated_at:     { type: 'string', format: 'date-time' },
                         deleted_at:     { type: 'string', format: 'date-time', nullable: true, description: 'Preenchido só na resposta de reenvio de um item já excluído' }
@@ -261,7 +263,11 @@ const options = {
                         reservation_id: { type: 'string', format: 'uuid' },
                         description:    { type: 'string', example: 'Frigobar' },
                         amount:         { type: 'string', example: '50.00', description: 'DECIMAL(10,2) serializado como string' },
-                        consumed_at:    { type: 'string', format: 'date-time' }
+                        consumed_at:    { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu' },
+                        deleted_by:     { type: 'string', format: 'uuid', nullable: true },
+                        created_at:     { type: 'string', format: 'date-time', description: 'Quando o lançamento foi gravado' },
+                        updated_at:     { type: 'string', format: 'date-time' },
+                        deleted_at:     { type: 'string', format: 'date-time', nullable: true }
                     }
                 },
                 Bill: {
@@ -910,6 +916,7 @@ const options = {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 get: {
                     tags: ['Financeiro'], summary: 'Lista consumos extras da reserva',
+                    description: 'Desde a T-04.2, os itens faturáveis e não excluídos de todas as contas da reserva, no formato antigo e em ordem de consumo. Cortesia não aparece.',
                     responses: {
                         200: { description: 'Lista de consumos', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Consumption' } } } } },
                         404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -918,18 +925,20 @@ const options = {
                 post: {
                     tags: ['Financeiro'],
                     summary: 'Lança consumo extra (frigobar, restaurante, spa)',
+                    description: 'Contrato antigo, mantido. Desde a T-04.2 o consumo vira item da conta da suíte da reserva (criada se não existir) e aceita reserva de qualquer status. Para lançar com cardápio, cortesia ou idempotência, use `POST /accounts/{id}/items`.',
                     requestBody: {
                         required: true,
                         content: { 'application/json': { schema: { type: 'object', required: ['description', 'amount'], properties: {
                             description: { type: 'string', example: 'Frigobar' },
-                            amount:      { type: 'number', example: 50.00 },
-                            consumed_at: { type: 'string', format: 'date-time' }
+                            amount:      { type: 'number', example: 50.00, maximum: 99999999.99 },
+                            consumed_at: { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu. Omitido = agora. Não pode estar no futuro' }
                         }}}}
                     },
                     responses: {
                         201: { description: 'Consumo lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Consumption' } } } },
-                        400: { description: 'description ausente ou amount <= 0', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'description ausente, amount <= 0 ou acima de 99999999.99, consumed_at inválido ou no futuro', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'A conta da suíte já foi fechada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -938,7 +947,7 @@ const options = {
                     { in: 'path', name: 'id',            required: true, schema: { type: 'string', format: 'uuid' } },
                     { in: 'path', name: 'consumptionId', required: true, schema: { type: 'string', format: 'uuid' } }
                 ],
-                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete, ADMIN)', responses: { 204: { description: 'Removido' }, 404: { description: 'Não encontrado' } } }
+                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete, ADMIN)', description: 'O id é o do item da conta — igual ao id do consumo antigo para os migrados na T-04.2.', responses: { 204: { description: 'Removido' }, 403: { description: 'Requer papel ADMIN' }, 404: { description: 'Não encontrado' }, 422: { description: 'A conta da suíte já foi fechada' } } }
             },
             '/reservations/{id}/rooms': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
