@@ -141,6 +141,22 @@ describe('PUT /accounts/:id/close (CA-04.3.g)', () => {
         expect(res.body.room_charges).toBe('300.00'); // 2 × 150
     });
 
+    it.each([
+        ['cancelada', (id) => request(app).put(`/reservations/${id}/cancel`).set(auth(jwt))],
+        ['excluída', (id) => request(app).delete(`/reservations/${id}`).set(auth(jwt))]
+    ])('conta de diária que sobrou aberta em reserva %s fecha, com diária 0 (N-5)', async (_, end) => {
+        const { reservation } = await newStay();
+        await request(app).post(`/reservations/${reservation.id}/consumptions`).set(auth(jwt)).send({ description: 'Café', amount: 4 });
+        const account = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+        expect((await end(reservation.id)).status).toBeLessThan(300);
+        // Sobra da corrida da D-36: a conta ficou aberta depois do encerramento.
+        await AccountModel.update({ status: 'OPEN', closed_at: null, closed_room_charges: null }, { where: { id: account.id } });
+
+        const res = await close(account.id);
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ room_charges: '0.00', total: '4.00' });
+    });
+
     it('closeAccount recusa conta que não está aberta (N-4)', async () => {
         const { closeAccount } = await import('../app/utils/accountBill.js');
         const table = await openAccount({ type: 'TABLE', label: 'Mesa N-4' });
@@ -413,11 +429,13 @@ describe('Diária gravada no fechamento (D-39)', () => {
         expect((await reload(b.id)).closed_room_charges).toBe('400.00');
     });
 
-    it('preço da categoria muda depois do check-out: as contas fechadas não mudam', async () => {
+    it('preço e total mudam depois do check-out: as contas fechadas não mudam', async () => {
         const { reservation, std, a, b } = await twoRoomStay();
         await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
         const update = await request(app).put(`/room-categories/${std.id}`).set(auth(jwt)).send({ price_per_night: 900 });
         expect(update.status).toBe(200);
+        // Sem o valor gravado, o rateio na hora daria outra coisa (N-6 da 3ª rodada).
+        await ReservationModel.update({ total_amount: '1250.00' }, { where: { id: reservation.id } });
 
         expect((await bill(a.id)).body.room_charges).toBe('600.00');
         expect((await bill(b.id)).body.room_charges).toBe('400.00');
@@ -454,6 +472,17 @@ describe('Diária gravada no fechamento (D-39)', () => {
 
         const charges = [(await reload(a.id)).closed_room_charges, (await reload(b.id)).closed_room_charges];
         expect(charges).toEqual(['600.00', '400.00']);
+    });
+
+    it('excluir a reserva depois do check-out não muda a diária gravada (D-35 ajustada, N-6)', async () => {
+        const { reservation, a, b } = await twoRoomStay();
+        await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+
+        const del = await request(app).delete(`/reservations/${reservation.id}`).set(auth(jwt));
+        expect(del.status).toBe(204);
+
+        expect((await bill(a.id)).body.room_charges).toBe('600.00');
+        expect((await bill(b.id)).body.room_charges).toBe('400.00');
     });
 
     it('o cancelamento grava diária 0', async () => {
