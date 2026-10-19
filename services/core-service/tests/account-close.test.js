@@ -11,6 +11,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
+import AccountItemModel from '../app/Models/AccountItemModel.js';
 
 // Import tardio: sem o módulo, só os testes do migrate falham — não o arquivo inteiro.
 async function closeEndedStayAccounts(db) {
@@ -275,6 +276,38 @@ describe('Encerrar a estadia fecha as contas abertas dela (D-36)', () => {
         const res = await request(app).put(`/contracts/${contract.body.id}/cancel`).set(auth(jwt));
         expect(res.status).toBe(200);
         expect((await reload(account.id)).status).toBe('CLOSED');
+    });
+
+    it('rota antiga: estadia encerrada entre a primeira leitura e a trava da conta → 422 (🟢-1 do qa-redteam)', async () => {
+        const { reservation } = await newStay({ checkIn: true });
+        const out = await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        expect(out.status).toBe(200);
+        // A primeira leitura vê a estadia como era antes do check-out, como numa corrida.
+        const before = await ReservationModel.findByPk(reservation.id);
+        vi.spyOn(ReservationModel, 'findOne').mockResolvedValueOnce(
+            ReservationModel.build({ ...before.get({ plain: true }), status: 'CHECKED_IN' }, { isNewRecord: false })
+        );
+
+        const res = await request(app).post(`/reservations/${reservation.id}/consumptions`)
+            .set(auth(jwt)).send({ description: 'Atrasado', amount: 9 });
+
+        expect(res.status).toBe(422);
+        expect(await AccountItemModel.count({ where: { description: 'Atrasado' } })).toBe(0);
+    });
+
+    it('fechamento manual e check-out simultâneos: a conta fecha uma vez só', async () => {
+        for (let round = 0; round < 8; round += 1) {
+            const { reservation, room } = await newStay({ checkIn: true });
+            const account = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: room.id, label: `Corrida ${round}` });
+            const [manual] = await Promise.all([
+                close(account.id),
+                request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt))
+            ]);
+            const saved = await reload(account.id);
+            // Se o fechamento manual venceu, o check-out não regrava a conta por cima dele.
+            if (manual.status === 200) expect(saved.closed_at.toISOString()).toBe(new Date(manual.body.closed_at).toISOString());
+            expect(saved.status).toBe('CLOSED');
+        }
     });
 
     it('se fechar as contas falha, o check-out inteiro volta atrás', async () => {

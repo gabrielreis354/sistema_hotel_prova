@@ -11,6 +11,7 @@ import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
+import ReservationModel from '../app/Models/ReservationModel.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -185,6 +186,23 @@ describe('Diária rateada entre os quartos da reserva (D-33)', () => {
         const charges = await Promise.all(accounts.map(async (acc) => (await getBill(acc.id)).body.room_charges));
 
         expect(charges).toEqual(['333.34', '333.33', '333.33']); // rooms[0] é o principal
+    });
+
+    it('a sobra dos centavos fica na conta do quarto principal, mesmo aberta por último', async () => {
+        const rooms = [await newRoom(luxo), await newRoom(luxo), await newRoom(luxo)];
+        const res = await request(app).post('/reservations').set(auth(jwt)).send({
+            guest_id: guest.id, room_id: rooms[0].id, extra_room_ids: [rooms[1].id, rooms[2].id], ...nextDates(1)
+        });
+        expect(res.status).toBe(201);
+        await checkIn(res.body.id);
+        await ReservationModel.update({ total_amount: '1000.00' }, { where: { id: res.body.id } });
+        // Extras primeiro: a conta mais antiga não é a do quarto principal.
+        const b = await openAccount({ type: 'ROOM', reservation_id: res.body.id, room_id: rooms[1].id, guest_id: guest.id, label: 'Extra 1' });
+        const c = await openAccount({ type: 'ROOM', reservation_id: res.body.id, room_id: rooms[2].id, guest_id: guest.id, label: 'Extra 2' });
+        const a = await openAccount({ type: 'ROOM', reservation_id: res.body.id, room_id: rooms[0].id, guest_id: guest.id, label: 'Principal' });
+
+        const charges = await Promise.all([a, b, c].map(async (acc) => (await getBill(acc.id)).body.room_charges));
+        expect(charges).toEqual(['333.34', '333.33', '333.33']);
     });
 
     it('conta que não cobra diária (acompanhante) → room_charges 0 (CA-04.3.e)', async () => {
