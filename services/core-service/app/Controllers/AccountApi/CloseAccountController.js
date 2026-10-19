@@ -14,7 +14,7 @@ import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
  * - A conta que cobra a diária só fecha com a estadia encerrada (N-1). As outras fecham
  *   com o hóspede ainda hospedado: acertar o bar antes de sair é rotina. O encerramento
  *   da estadia fecha o que sobrar (closeReservationAccounts, D-36).
- * - CLOSED → PAID é da T-04.4.
+ * - Conta já paga sai do fechamento PAID (T-04.4, settleAccount dentro de closeAccount).
  */
 const ENDED_STAY_STATUSES = ['CHECKED_OUT', 'CANCELLED'];
 

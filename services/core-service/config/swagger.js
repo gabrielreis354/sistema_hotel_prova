@@ -136,8 +136,8 @@ const options = {
                         room_charges:   { type: 'string', example: '800.00', description: 'Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging, ou com a reserva cancelada/excluída quando a conta ainda estava aberta (D-35); a conta fechada mantém o valor gravado' },
                         consumptions:   { type: 'string', example: '25.00', description: 'Soma dos itens faturáveis e não excluídos (CA-04.3.c)' },
                         total:          { type: 'string', example: '825.00', description: 'room_charges + consumptions. Conta INTERNAL: sempre 0 (CA-04.3.f)' },
-                        payments_made:  { type: 'string', example: '0.00', description: 'Sempre 0 até a T-04.4 ligar pagamento a conta (D-34). O saldo da estadia está em GET /reservations/{id}/bill' },
-                        balance:        { type: 'string', example: '825.00', description: 'total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b)' },
+                        payments_made:  { type: 'string', example: '100.00', description: 'Pagamentos PAID da conta (T-04.4). Na conta titular — a conta de diária mais antiga da reserva — entram também os pagamentos feitos na reserva sem conta, como o sinal PIX (D-42). Cobrança PENDING, FAILED ou EXPIRED e pagamento excluído não contam' },
+                        balance:        { type: 'string', example: '725.00', description: 'total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b). Negativo quando o pagamento passou do total: o hotel deve devolver (D-44)' },
                         items: {
                             type: 'array',
                             description: 'Itens não excluídos, inclusive cortesia (billable false, com reason) — CA-04.3.d. Em ordem de consumo',
@@ -342,7 +342,8 @@ const options = {
                     properties: {
                         id:             { type: 'string', format: 'uuid' },
                         tenant_id:      { type: 'string', format: 'uuid' },
-                        reservation_id: { type: 'string', format: 'uuid' },
+                        reservation_id: { type: 'string', format: 'uuid', nullable: true, description: 'Nulo só em pagamento de conta sem reserva (day-use, mesa, balcão)' },
+                        account_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Conta paga (T-04.4). Nulo = pagamento da reserva, que entra na conta titular (D-42)' },
                         amount:         { type: 'string', example: '300.00', description: 'DECIMAL(12,2) serializado como string' },
                         method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] },
                         status:         { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
@@ -558,7 +559,7 @@ const options = {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento entra na conta titular da reserva; se ele a quita e ela está fechada, vira PAID (T-04.4). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
                     security: [],
                     parameters: [
                         { in: 'header', name: 'x-pix-signature', required: true, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>' }
@@ -1022,11 +1023,14 @@ const options = {
                     responses: { 200: { description: 'OK — nunca inclui pix_qr_code/provider/provider_charge_id (PaymentModel.defaultScope)', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Payment' } } } } } }
                 },
                 post: {
-                    tags: ['Pagamentos'], summary: 'Registra novo pagamento (recepção — manual, não PIX online)',
+                    tags: ['Pagamentos'], summary: 'Registra novo pagamento da reserva ou de uma conta (recepção — manual, não PIX online)',
+                    description: 'Informe reservation_id ou account_id (T-04.4). Pagamento da reserva sem conta entra na conta titular (D-42). Com account_id, a reserva vem da conta. Se o pagamento quita uma conta fechada, ela vira PAID na mesma transação; conta aberta paga vira PAID ao fechar (D-43). Pagamento a maior é aceito e deixa o saldo negativo (D-44).',
                     requestBody: { required: true, content: { 'application/json': { schema: {
-                        type: 'object', required: ['reservation_id', 'amount', 'method'],
+                        type: 'object', required: ['amount', 'method'],
+                        description: 'reservation_id ou account_id obrigatório',
                         properties: {
-                            reservation_id: { type: 'string', format: 'uuid' },
+                            reservation_id: { type: 'string', format: 'uuid', description: 'Com account_id, opcional; se vier, tem de ser a reserva da conta' },
+                            account_id:     { type: 'string', format: 'uuid', description: 'Conta a pagar (T-04.4)' },
                             amount:         { type: 'number', example: 300.00 },
                             method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'], example: 'PIX' },
                             paid_at:        { type: 'string', format: 'date-time' }
@@ -1034,8 +1038,10 @@ const options = {
                     }}}},
                     responses: {
                         201: { description: 'Pagamento registrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        400: { description: 'reservation_id, amount ou method ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'reservation_id e account_id ausentes, ou amount ou method ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva ou conta não encontrada no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Conta INTERNAL (nunca é receita), conta já PAID, ou reservation_id diferente da reserva da conta', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -1050,12 +1056,13 @@ const options = {
                 },
                 put: {
                     tags: ['Pagamentos'], summary: 'Atualiza pagamento (amount, method, paid_at)',
+                    description: 'Reserva e conta do pagamento não mudam. Mudar o valor acerta a conta afetada: quita (CLOSED → PAID) ou reabre o saldo (PAID → CLOSED).',
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
-                delete: { tags: ['Pagamentos'], summary: 'Remove pagamento (soft delete)', responses: { 204: { description: 'OK' } } }
+                delete: { tags: ['Pagamentos'], summary: 'Remove pagamento (soft delete)', description: 'A conta que o pagamento quitava volta a CLOSED com saldo (T-04.4).', responses: { 204: { description: 'OK' } } }
             },
             '/analytics/revenue': {
                 get: {
@@ -1502,8 +1509,8 @@ const options = {
             '/accounts/{id}/close': {
                 put: {
                     tags: ['Comandas'],
-                    summary: 'Fecha a conta: OPEN → CLOSED (ADMIN, RECEPTIONIST)',
-                    description: 'Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
+                    summary: 'Fecha a conta: OPEN → CLOSED, ou PAID se já está paga (ADMIN, RECEPTIONIST)',
+                    description: 'Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. Se a conta já tem pagamento e o saldo é ≤ 0, sai do fechamento PAID (D-43). O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
                     parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                     responses: {
                         200: { description: 'Conta fechada; devolve o bill', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountBill' } } } },
