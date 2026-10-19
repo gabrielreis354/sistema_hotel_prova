@@ -290,3 +290,42 @@ describe('isolamento multi-tenant no banco (CA-04.1.m)', () => {
         expect(rows.map(r => r.confdeltype)).toEqual([acao]);
     });
 });
+
+// T-04.2 — origem do item e horário do consumo (decisões D-25 e D-26).
+describe('account_items — origem e consumed_at (T-04.2)', () => {
+    async function inserirComOrigem({ origin, created_by }) {
+        return sequelize.query(
+            `INSERT INTO account_items (id, tenant_id, account_id, description, quantity, unit_price, total,
+                                        billable, created_by, origin, created_at, updated_at)
+             VALUES (gen_random_uuid(), :tenant, :conta, 'Frigobar', 1, 10, 10, true, :created_by, :origin, now(), now())`,
+            { replacements: { tenant: ctx.tenantId, conta: contaBase, created_by, origin } }
+        );
+    }
+
+    it.each(['account_items_origin_allowlist', 'account_items_created_by_required'])('CHECK %s existe', async (nome) => {
+        const [rows] = await sequelize.query(
+            `SELECT 1 FROM pg_constraint WHERE conrelid = 'account_items'::regclass AND conname = :nome`,
+            { replacements: { nome } }
+        );
+        expect(rows).toHaveLength(1);
+    });
+
+    it('item sem origem informada nasce ACCOUNT e com consumed_at preenchido', async () => {
+        const id = await inserirItem();
+        const [[item]] = await sequelize.query('SELECT origin, consumed_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.origin).toBe('ACCOUNT');
+        expect(item.consumed_at).not.toBeNull();
+    });
+
+    it('item migrado do consumo antigo aceita created_by nulo (autoria desconhecida, não inventada)', async () => {
+        await inserirComOrigem({ origin: 'LEGACY_CONSUMPTION', created_by: null });
+    });
+
+    it('recusa item da API sem autor', async () => {
+        await recusadoPor(inserirComOrigem({ origin: 'ACCOUNT', created_by: null }), 'account_items_created_by_required');
+    });
+
+    it('recusa origem fora da allowlist', async () => {
+        await recusadoPor(inserirComOrigem({ origin: 'IMPORT', created_by: ctx.userId }), 'account_items_origin_allowlist');
+    });
+});
