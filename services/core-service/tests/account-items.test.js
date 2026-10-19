@@ -8,6 +8,7 @@ import request from 'supertest';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
+import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
 
@@ -139,7 +140,14 @@ describe('POST /accounts/:id/items — lançamento', () => {
         ['product_id que não é UUID', { product_id: 'abc', description: undefined, unit_price: undefined }],
         ['client_item_id que não é UUID', { client_item_id: 'abc' }],
         ['billable que não é booleano', { billable: 'nao' }],
-        ['reason fora da allowlist', { billable: false, reason: 'GIFT' }]
+        ['reason fora da allowlist', { billable: false, reason: 'GIFT' }],
+        // qa-redteam 19/10: acima do INTEGER do banco virava 500
+        ['quantity acima do teto', { quantity: 10000 }],
+        ['quantity acima do INTEGER', { unit_price: 0, quantity: 3000000000 }],
+        // qa-redteam 19/10: 3 casas eram arredondadas sem aviso
+        ['preço com 3 casas (texto)', { unit_price: '10.005' }],
+        ['preço com 3 casas (número)', { unit_price: 1.999, quantity: 3 }],
+        ['description acima de 200 caracteres', { description: 'x'.repeat(201) }]
     ])('%s → 400', async (_, override) => {
         const account = await openAccount();
         const res = await postItem(jwt, account.id, { description: 'Item', unit_price: 5, quantity: 1, ...override });
@@ -192,6 +200,21 @@ describe('POST /accounts/:id/items — idempotência da fila offline (CA-04.1.d)
 
         const count = await AccountItemModel.count({ where: { account_id: account.id } });
         expect(count).toBe(1);
+    });
+
+    it('reenvio na corrida com o id da conta em maiúsculas → 200, não 409 (qa-redteam 19/10)', async () => {
+        const account = await openAccount();
+        const clientItemId = randomUUID();
+        const first = await postItem(jwt, account.id, { product_id: beer.id, client_item_id: clientItemId });
+
+        const spy = vi.spyOn(AccountItemModel, 'findOne').mockResolvedValueOnce(null);
+        try {
+            const res = await postItem(jwt, account.id.toUpperCase(), { product_id: beer.id, client_item_id: clientItemId });
+            expect(res.status).toBe(200);
+            expect(res.body.item.id).toBe(first.body.item.id);
+        } finally {
+            spy.mockRestore();
+        }
     });
 
     it('reenvio na corrida: a busca não vê o item e o índice barra → 200 com o original', async () => {
@@ -296,6 +319,55 @@ describe('POST /accounts/:id/items — cortesia (RN-007)', () => {
         });
 
         expect(res.status).toBe(403);
+    });
+});
+
+describe('Garçom só lança do cardápio (qa-redteam 19/10)', () => {
+    it('lançamento avulso do garçom → 403: ele não define preço', async () => {
+        const account = await openAccount(waiterJwt);
+        const res = await postItem(waiterJwt, account.id, { description: 'Cerveja', unit_price: 0, quantity: 10 });
+
+        expect(res.status).toBe(403);
+    });
+
+    it('recepção continua lançando avulso', async () => {
+        const account = await openAccount();
+        const res = await postItem(receptionistJwt, account.id, { description: 'Taxa de rolha', unit_price: 30 });
+
+        expect(res.status).toBe(201);
+    });
+});
+
+describe('Conta ROOM só recebe item durante a estadia (qa-redteam 19/10)', () => {
+    let roomAccount, reservationId;
+
+    beforeAll(async () => {
+        const category = await createCategory(app, jwt, { name: 'Suíte Itens' });
+        const room = await createRoom(app, jwt, category.id, { number: '501' });
+        const guest = await createGuest(app, jwt, { email: `suite_itens_${Date.now()}@test.com` });
+        const reservation = await createReservation(app, jwt, guest.id, room.id);
+        reservationId = reservation.id;
+        await request(app).put(`/reservations/${reservationId}/check-in`).set(auth(jwt));
+
+        const res = await request(app).post('/accounts').set(auth(jwt)).send({
+            type: 'ROOM', reservation_id: reservationId, room_id: room.id, guest_id: guest.id, label: 'Suíte 501'
+        });
+        roomAccount = res.body;
+    });
+
+    it('com check-in feito, lança', async () => {
+        const res = await postItem(waiterJwt, roomAccount.id, { product_id: beer.id });
+        expect(res.status).toBe(201);
+    });
+
+    it('depois do check-out → 422', async () => {
+        const out = await request(app).put(`/reservations/${reservationId}/check-out`).set(auth(jwt));
+        expect(out.status).toBe(200);
+
+        const res = await postItem(waiterJwt, roomAccount.id, { product_id: beer.id });
+
+        expect(res.status).toBe(422);
+        expect(res.body.error).toMatch(/check-out|estadia/i);
     });
 });
 

@@ -261,6 +261,11 @@ describe('POST /accounts — validação de entrada (400)', () => {
         expect(res.status).toBe(400);
     });
 
+    it('label acima de 100 caracteres (qa-redteam 19/10)', async () => {
+        const res = await post(jwt, { type: 'TABLE', label: 'x'.repeat(101) });
+        expect(res.status).toBe(400);
+    });
+
     it('id que não é UUID', async () => {
         const res = await post(jwt, { type: 'DIRECT', label: 'X', guest_id: 'abc' });
         expect(res.status).toBe(400);
