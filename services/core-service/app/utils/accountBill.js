@@ -4,6 +4,8 @@ import ReservationModel from '../Models/ReservationModel.js';
 import RoomModel from '../Models/RoomModel.js';
 import RoomCategoryModel from '../Models/RoomCategoryModel.js';
 import accountTotal from './accountTotal.js';
+import { paymentsMadeCents, titularAccountId } from './accountPayments.js';
+import pendingLegacyConsumption from './pendingLegacyConsumption.js';
 import { toCents, fromCents } from './calculateStayTotal.js';
 
 const ZERO = '0.00';
@@ -112,6 +114,85 @@ export async function closeAccount(account, transaction) {
     });
     if (updated !== 1) throw new Error(`closeAccount: a conta ${account.id} não está aberta`);
     account.set(values);
+
+    // Conta paga antes de fechar sai do fechamento já PAID (T-04.4, decisão 2).
+    await settleAccount(account, transaction);
+}
+
+/**
+ * Diária, consumos, total e pagamentos de uma conta — o que o bill mostra e o que o acerto
+ * (settleAccount) compara. Um cálculo só para os dois nunca divergirem.
+ *
+ * @returns {Promise<{ roomCharges: string, consumptions: string, totalCents: number, paymentsCents: number }>}
+ */
+async function accountAmounts(account, transaction) {
+    if (account.type === 'INTERNAL') return { roomCharges: ZERO, consumptions: ZERO, totalCents: 0, paymentsCents: 0 };
+
+    const consumptions = await accountTotal(account.id, account.tenant_id, transaction);
+    // Conta fechada mostra a diária que apresentou (D-39); só a fechada antes da T-04.3,
+    // ainda sem o valor gravado pelo migrate, calcula na hora.
+    const recorded = account.status !== 'OPEN' && account.closed_room_charges != null;
+    const roomCharges = recorded ? account.closed_room_charges : await lodgingShare(account, transaction);
+
+    // Centavos inteiros, como em calculateStayTotal: somar texto de dinheiro em float erra centavo.
+    const totalCents = toCents(roomCharges) + toCents(consumptions);
+    const paymentsCents = await paymentsMadeCents(account, transaction);
+    return { roomCharges, consumptions, totalCents, paymentsCents };
+}
+
+/**
+ * Acerta CLOSED ↔ PAID depois de um fechamento ou de um pagamento (T-04.4, decisão 2).
+ *
+ * PAID = conta fechada, com pagamento, e saldo ≤ 0 (pagamento a maior deixa o saldo
+ * negativo: o hotel deve devolver — decisão 3). Se o saldo volta a ficar positivo
+ * (pagamento excluído ou reduzido), volta a CLOSED.
+ *
+ * Não mexe em:
+ *   - conta OPEN: ainda recebe item, e a de diária nem fecha durante a estadia (N-1);
+ *     paga por inteiro, vira PAID quando fechar;
+ *   - conta INTERNAL: nunca é receita (RN-006) e não recebe pagamento;
+ *   - conta fechada com total 0 e sem pagamento: não há o que pagar, continua CLOSED;
+ *   - conta com consumo antigo ainda não migrado: o total sairia menor (D-31). O próximo
+ *     pagamento, fechamento ou migrate acerta.
+ *
+ * @param {import('sequelize').Model} account travada pela transação de quem chama
+ * @param {import('sequelize').Transaction} transaction
+ */
+export async function settleAccount(account, transaction) {
+    if (account.type === 'INTERNAL' || !['CLOSED', 'PAID'].includes(account.status)) return;
+    if (account.reservation_id && await pendingLegacyConsumption(account.reservation_id, transaction)) return;
+
+    const { totalCents, paymentsCents } = await accountAmounts(account, transaction);
+    const next = paymentsCents > 0 && totalCents - paymentsCents <= 0 ? 'PAID' : 'CLOSED';
+    if (next === account.status) return;
+
+    const [updated] = await AccountModel.update({ status: next }, {
+        where: { id: account.id, tenant_id: account.tenant_id, status: account.status }, transaction
+    });
+    if (updated !== 1) throw new Error(`settleAccount: a conta ${account.id} mudou de status no meio do acerto`);
+    account.set('status', next);
+}
+
+/**
+ * Acerta a conta que um pagamento afeta: a dele ou, se foi feito na reserva sem conta, a
+ * titular (decisão 1). Chamada na transação que criou, alterou, excluiu ou confirmou o
+ * pagamento. Trava a conta: dois pagamentos simultâneos acertam um depois do outro, e o
+ * segundo já vê o primeiro.
+ *
+ * @param {import('sequelize').Model} payment
+ * @param {import('sequelize').Transaction} transaction
+ */
+export async function settlePaymentAccount(payment, transaction) {
+    const accountId = payment.account_id
+        ?? (payment.reservation_id ? await titularAccountId(payment.reservation_id, payment.tenant_id, transaction) : null);
+    if (!accountId) return;
+
+    const account = await AccountModel.findOne({
+        where: { id: accountId, tenant_id: payment.tenant_id },
+        lock: transaction.LOCK.UPDATE,
+        transaction
+    });
+    if (account) await settleAccount(account, transaction);
 }
 
 /**
@@ -122,7 +203,8 @@ export async function closeAccount(account, transaction) {
  * - Os itens vêm todos, inclusive cortesia, com `billable` e `reason` (CA-04.3.d).
  * - Conta INTERNAL: diária, consumos e total 0 (CA-04.3.f, RN-006). Os itens seguem com
  *   o valor gravado — o custo continua visível (D-24).
- * - `payments_made` é 0 até a T-04.4, que liga pagamento a conta (D-34).
+ * - `payments_made` soma os pagamentos PAID da conta e, na titular, os da reserva sem
+ *   conta (T-04.4, decisão 1). Pode passar do total: o saldo fica negativo (decisão 3).
  * - `balance` é calculado aqui, a cada leitura, e nunca gravado (CA-04.3.b). A diária da
  *   conta fechada é gravada (D-39) — o saldo não.
  *
@@ -132,8 +214,6 @@ export async function closeAccount(account, transaction) {
  * @param {import('sequelize').Transaction} [transaction] para ler o que a transação gravou
  */
 export default async function accountBill(account, transaction) {
-    const internal = account.type === 'INTERNAL';
-
     // Em sequência, não Promise.all: dentro de uma transação as consultas dividem a mesma conexão.
     const items = await AccountItemModel.findAll({
         where: { account_id: account.id, tenant_id: account.tenant_id },
@@ -141,15 +221,7 @@ export default async function accountBill(account, transaction) {
         order: [['consumed_at', 'ASC'], ['created_at', 'ASC']],
         transaction
     });
-    const consumptions = internal ? ZERO : await accountTotal(account.id, account.tenant_id, transaction);
-    // Conta fechada mostra a diária que apresentou (D-39); só a fechada antes da T-04.3,
-    // ainda sem o valor gravado pelo migrate, calcula na hora.
-    const recorded = account.status !== 'OPEN' && account.closed_room_charges != null;
-    const roomCharges = internal ? ZERO : (recorded ? account.closed_room_charges : await lodgingShare(account, transaction));
-
-    // Centavos inteiros, como em calculateStayTotal: somar texto de dinheiro em float erra centavo.
-    const totalCents = toCents(roomCharges) + toCents(consumptions);
-    const paymentsCents = 0;
+    const { roomCharges, consumptions, totalCents, paymentsCents } = await accountAmounts(account, transaction);
 
     return {
         account_id: account.id,
