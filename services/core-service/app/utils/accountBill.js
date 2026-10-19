@@ -150,7 +150,8 @@ async function accountAmounts(account, transaction) {
  * Não mexe em:
  *   - conta OPEN: ainda recebe item, e a de diária nem fecha durante a estadia (N-1);
  *     paga por inteiro, vira PAID quando fechar;
- *   - conta INTERNAL: nunca é receita (RN-006) e não recebe pagamento;
+ *   - conta INTERNAL: nunca é receita (RN-006); accountAmounts devolve pagamento 0 para
+ *     ela, então nunca chega a PAID;
  *   - conta fechada com total 0 e sem pagamento: não há o que pagar, continua CLOSED;
  *   - conta com consumo antigo ainda não migrado: o total sairia menor (D-31). O próximo
  *     pagamento, fechamento ou migrate acerta.
@@ -159,7 +160,7 @@ async function accountAmounts(account, transaction) {
  * @param {import('sequelize').Transaction} transaction
  */
 export async function settleAccount(account, transaction) {
-    if (account.type === 'INTERNAL' || !['CLOSED', 'PAID'].includes(account.status)) return;
+    if (!['CLOSED', 'PAID'].includes(account.status)) return;
     if (account.reservation_id && await pendingLegacyConsumption(account.reservation_id, transaction)) return;
 
     const { totalCents, paymentsCents } = await accountAmounts(account, transaction);

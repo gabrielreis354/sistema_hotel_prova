@@ -308,6 +308,15 @@ describe('Bill da conta com pagamentos e transição para PAID (CA-04.4.c)', () 
         expect(res.status).toBe(422);
     });
 
+    it('conta INTERNAL nunca vira PAID, nem com pagamento gravado direto no banco', async () => {
+        const account = await openAccount({ type: 'INTERNAL', label: 'Perda de estoque' });
+        await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '10.00', method: 'DINHEIRO' });
+        const closed = await close(account.id);
+
+        expect(closed).toMatchObject({ status: 'CLOSED', total: '0.00', payments_made: '0.00' });
+        expect((await reload(account.id)).status).toBe('CLOSED');
+    });
+
     it('conta fechada com total 0 e sem pagamento continua CLOSED', async () => {
         const account = await openAccount({ type: 'TABLE', label: 'Mesa vazia' });
         const closed = await close(account.id);
@@ -369,6 +378,24 @@ describe('Pagamento da reserva entra na conta titular (decisão 1)', () => {
 
         expect(await bill(account.id)).toMatchObject({ room_charges: '400.00', payments_made: '100.00', balance: '300.00' });
         expect(await bill(bar.id)).toMatchObject({ payments_made: '0.00', balance: '25.00' });
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('a conta sem diária aberta antes não vira titular', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1)); // 200
+        await checkIn(reservation.id);
+        const bar = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id,
+            label: 'Bar aberto antes', charges_lodging: false
+        });
+        const suite = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Suíte depois'
+        });
+        await payOk({ reservation_id: reservation.id, amount: '50.00' });
+
+        expect((await bill(suite.id)).payments_made).toBe('50.00');
+        expect((await bill(bar.id)).payments_made).toBe('0.00');
         await expectAccountsMatchReservation(reservation.id);
     });
 
