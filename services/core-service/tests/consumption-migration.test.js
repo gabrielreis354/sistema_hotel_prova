@@ -141,7 +141,7 @@ describe('Rotas antigas gravam e leem via conta (CA-04.2.d)', () => {
 
     it('consumed_at enviado é preservado no POST, na lista e no bill (D-26)', async () => {
         const { reservation } = await newReservation();
-        const consumedAt = '2028-01-01T20:00:00.000Z';
+        const consumedAt = '2026-01-01T20:00:00.000Z';
 
         const res = await postConsumption(reservation.id, { description: 'Jantar', amount: 80, consumed_at: consumedAt });
         const list = await request(app).get(`/reservations/${reservation.id}/consumptions`).set(auth(jwt));
@@ -154,8 +154,9 @@ describe('Rotas antigas gravam e leem via conta (CA-04.2.d)', () => {
 
     it.each([
         ['consumed_at inválido', { description: 'X', amount: 10, consumed_at: 'ontem' }],
-        ['amount acima da coluna', { description: 'X', amount: 100000000 }]
-    ])('%s → 400 (antes virava 500)', async (_, body) => {
+        ['amount acima da coluna', { description: 'X', amount: 100000000 }],
+        ['consumed_at no futuro', { description: 'X', amount: 10, consumed_at: '2099-01-01T00:00:00Z' }]
+    ])('%s → 400', async (_, body) => {
         const { reservation } = await newReservation();
         const res = await postConsumption(reservation.id, body);
         expect(res.status).toBe(400);
@@ -163,8 +164,8 @@ describe('Rotas antigas gravam e leem via conta (CA-04.2.d)', () => {
 
     it('GET lista no formato antigo, em ordem de consumo, sem cortesia', async () => {
         const { reservation } = await newReservation();
-        await postConsumption(reservation.id, { description: 'Segundo', amount: 2, consumed_at: '2028-01-02T10:00:00Z' });
-        const first = await postConsumption(reservation.id, { description: 'Primeiro', amount: 1, consumed_at: '2028-01-01T10:00:00Z' });
+        await postConsumption(reservation.id, { description: 'Segundo', amount: 2, consumed_at: '2026-01-02T10:00:00Z' });
+        const first = await postConsumption(reservation.id, { description: 'Primeiro', amount: 1, consumed_at: '2026-01-01T10:00:00Z' });
 
         // Cortesia lançada pela API nova na mesma conta: não é consumo cobrado.
         const accountId = (await AccountItemModel.findByPk(first.body.id)).account_id;

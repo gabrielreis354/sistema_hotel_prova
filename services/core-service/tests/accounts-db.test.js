@@ -329,3 +329,58 @@ describe('account_items — origem e consumed_at (T-04.2)', () => {
         await recusadoPor(inserirComOrigem({ origin: 'IMPORT', created_by: ctx.userId }), 'account_items_origin_allowlist');
     });
 });
+
+// Achado ao migrar um banco no estado do develop (19/10): com FK na coluna, o
+// sync({ alter: true }) só refaz a FK e NÃO tira o NOT NULL de created_by — a migração
+// do consumo antigo morria. O applyDbConstraints é quem garante.
+describe('account_items.created_by em banco provisionado antes da T-04.2', () => {
+    it('applyDbConstraints tira o NOT NULL que o sync deixa para trás', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        await sequelize.query(`DELETE FROM account_items WHERE created_by IS NULL`);
+        await sequelize.query(`ALTER TABLE account_items ALTER COLUMN created_by SET NOT NULL`);
+
+        try {
+            await applyDbConstraints(sequelize);
+
+            const [[col]] = await sequelize.query(
+                `SELECT is_nullable FROM information_schema.columns WHERE table_name = 'account_items' AND column_name = 'created_by'`
+            );
+            expect(col.is_nullable).toBe('YES');
+        } finally {
+            // Se falhar, não deixa o banco de teste mais restrito para os outros arquivos.
+            await sequelize.query(`ALTER TABLE account_items ALTER COLUMN created_by DROP NOT NULL`);
+        }
+    });
+});
+
+// Achado no mesmo ensaio: ao ganhar a coluna, os itens que já existiam recebem como
+// consumed_at o horário do migrate — DEPOIS de terem sido gravados, o que é impossível.
+describe('consumed_at de item anterior à coluna', () => {
+    it('applyDbConstraints traz para o created_at o consumed_at posterior a ele', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        const id = await inserirItem();
+        await sequelize.query(
+            `UPDATE account_items SET created_at = '2026-10-19T12:00:00Z', consumed_at = '2026-10-19T15:39:00Z' WHERE id = :id`,
+            { replacements: { id } }
+        );
+
+        await applyDbConstraints(sequelize);
+
+        const [[item]] = await sequelize.query('SELECT consumed_at, created_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.consumed_at.toISOString()).toBe('2026-10-19T12:00:00.000Z');
+    });
+
+    it('não mexe no consumed_at anterior ao created_at (fila offline)', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        const id = await inserirItem();
+        await sequelize.query(
+            `UPDATE account_items SET created_at = '2026-10-19T22:00:00Z', consumed_at = '2026-10-19T20:00:00Z' WHERE id = :id`,
+            { replacements: { id } }
+        );
+
+        await applyDbConstraints(sequelize);
+
+        const [[item]] = await sequelize.query('SELECT consumed_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.consumed_at.toISOString()).toBe('2026-10-19T20:00:00.000Z');
+    });
+});

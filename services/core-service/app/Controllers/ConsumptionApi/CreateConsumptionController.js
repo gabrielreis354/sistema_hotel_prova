@@ -26,8 +26,11 @@ export default async function CreateConsumptionController(request, response) {
         if (amount === undefined || !Number.isFinite(value) || value <= 0) errors.push('amount deve ser maior que zero');
         // A coluna nova é NUMERIC(10,2); acima disso o banco recusaria com 500.
         else if (value > MAX_PRICE) errors.push(`amount não pode exceder ${MAX_PRICE}`);
-        if (consumed_at !== undefined && consumed_at !== null && Number.isNaN(new Date(consumed_at).getTime())) {
-            errors.push('consumed_at deve ser uma data válida');
+        if (consumed_at !== undefined && consumed_at !== null) {
+            const when = new Date(consumed_at).getTime();
+            if (Number.isNaN(when)) errors.push('consumed_at deve ser uma data válida');
+            // Consumo é passado; 5 minutos de folga para o relógio do dispositivo (D-26).
+            else if (when > Date.now() + 5 * 60 * 1000) errors.push('consumed_at não pode estar no futuro');
         }
         if (errors.length) return response.status(400).json({ errors });
 
