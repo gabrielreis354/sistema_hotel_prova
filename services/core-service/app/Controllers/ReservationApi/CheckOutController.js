@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
+import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
 
 export default async function CheckOutController(request, response) {
     const { id } = request.params;
@@ -46,6 +47,9 @@ export default async function CheckOutController(request, response) {
                 { where: { id: extraRoomIds, tenant_id: tenantId }, transaction }
             );
         }
+
+        // O hóspede saiu: as contas da estadia fecham junto (SPEC-04, T-04.3, D-36).
+        await closeReservationAccounts(reservation, transaction);
 
         await transaction.commit();
         return response.json(reservation);

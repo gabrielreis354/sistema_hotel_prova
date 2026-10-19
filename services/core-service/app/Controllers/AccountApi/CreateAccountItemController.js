@@ -154,8 +154,8 @@ export default async function CreateAccountItemController(request, response) {
                 return response.status(422).json({ error: `Conta ${locked.status} não aceita item novo` });
             }
 
-            // Conta da suíte só recebe consumo durante a estadia (D-22). Depois do check-out
-            // o hóspede já saiu; fechar a conta no check-out é a T-04.3.
+            // Conta da suíte só recebe consumo durante a estadia (D-22). O check-out já fecha
+            // a conta (D-36); esta checagem cobre a conta aberta depois dele, por corrida.
             if (locked.type === 'ROOM') {
                 const reservation = await ReservationModel.findOne({
                     where: { id: locked.reservation_id, tenant_id: tenantId },

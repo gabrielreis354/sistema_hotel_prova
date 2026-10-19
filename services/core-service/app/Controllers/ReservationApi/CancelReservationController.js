@@ -1,5 +1,6 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
+import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
 
 // Allowlist explícita: apenas esses status podem ser cancelados.
 // Qualquer outro status (incluindo futuros) é bloqueado por padrão — fail-safe.
@@ -41,6 +42,8 @@ export default async function CancelReservationController(request, response) {
 
         reservation.status = 'CANCELLED';
         await reservation.save({ transaction });
+        // Estadia cancelada não recebe consumo: as contas dela fecham junto (SPEC-04, T-04.3, D-36).
+        await closeReservationAccounts(reservation, transaction);
         await transaction.commit();
 
         return response.json(reservation);
