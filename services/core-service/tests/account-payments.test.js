@@ -223,7 +223,7 @@ describe('POST /payments com account_id (CA-04.4.a)', () => {
 
     it('400 com valor negativo, zero ou com mais de 2 casas (🟡-4)', async () => {
         const account = await openAccount({ type: 'DIRECT', label: 'Balcão valor' });
-        for (const amount of ['-50', -50, '0', 0, '10.001', 'abc']) {
+        for (const amount of ['-50', -50, '0', 0, '10.001', 'abc', '10000000000.00']) {
             const res = await pay({ account_id: account.id, amount });
             expect(res.status, `amount ${amount}`).toBe(400);
         }
@@ -586,15 +586,51 @@ describe('Crédito da reserva rateado entre as contas (D-45, 🟡-1 do qa-redtea
             await addItem(acc.id, { description: label, unit_price: price });
             return acc;
         };
-        const first = await barFor('Bar 1', '30.00');
-        const second = await barFor('Bar 2', '40.00');
-        await close(second.id); // abriu depois, fechou antes
-        await close(first.id);
-        await payOk({ reservation_id: reservation.id, amount: '50.00' });
+        const x = await barFor('Bar 1', '30.00');
+        const y = await barFor('Bar 2', '30.00');
+        // Fecha primeiro a de id maior: a ordem de fechamento é o contrário da ordem de id,
+        // e a de abertura também não decide (🟢-6 da reauditoria).
+        const [early, late] = x.id > y.id ? [x, y] : [y, x];
+        await close(early.id);
+        await close(late.id);
+        await payOk({ reservation_id: reservation.id, amount: '40.00' });
 
-        expect(await bill(second.id)).toMatchObject({ status: 'PAID', payments_made: '40.00' });
-        expect(await bill(first.id)).toMatchObject({ status: 'CLOSED', payments_made: '10.00', balance: '20.00' });
+        expect(await bill(early.id)).toMatchObject({ status: 'PAID', payments_made: '30.00' });
+        expect(await bill(late.id)).toMatchObject({ status: 'CLOSED', payments_made: '10.00', balance: '20.00' });
         await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('a sobra fica na primeira conta com total; conta de total 0 nunca fica PAID por ela (🟢-1)', async () => {
+        const { reservation, room, account } = await stayWithAccount({ nights: 1 }); // 200
+        const zero = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Vazia', charges_lodging: false
+        });
+        await close(zero.id);
+        const bar = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Bar sobra', charges_lodging: false
+        });
+        await addItem(bar.id, { description: 'Drink', unit_price: '30.00' });
+        await close(bar.id);
+        await checkOut(reservation.id);
+        await payOk({ reservation_id: reservation.id, amount: '250.00' }); // 230 + 20 a maior
+
+        expect(await bill(zero.id)).toMatchObject({ status: 'CLOSED', payments_made: '0.00' });
+        expect(await bill(bar.id)).toMatchObject({ status: 'PAID', payments_made: '50.00', balance: '-20.00' });
+        expect(await bill(account.id)).toMatchObject({ status: 'PAID', payments_made: '200.00', balance: '0.00' });
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('pagamento negativo antigo entra com sinal na soma (🟢-4)', async () => {
+        const account = await openAccount({ type: 'TABLE', label: 'Mesa legado' });
+        await addItem(account.id, { description: 'Jantar', unit_price: '50.00' });
+        // Linha antiga, anterior ao CHECK (NOT VALID não valida o que já existe).
+        await sequelize.query('ALTER TABLE payments DROP CONSTRAINT payments_amount_check');
+        try {
+            await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '-15.00', method: 'DINHEIRO' });
+        } finally {
+            await sequelize.query('ALTER TABLE payments ADD CONSTRAINT payments_amount_check CHECK (amount >= 0) NOT VALID');
+        }
+        expect(await bill(account.id)).toMatchObject({ payments_made: '-15.00', balance: '65.00' });
     });
 
     it('lançar item na conta aberta não muda o que cabe à conta fechada', async () => {
@@ -676,6 +712,46 @@ describe('Concorrência: pagamento da conta × encerramento da estadia (🟡-3)'
             ]);
             expect(payment.status, JSON.stringify(payment.body)).toBe(201);
             expect(checkout.status, JSON.stringify(checkout.body)).toBe(200);
+            expect((await reload(account.id)).status).toBe('PAID');
+        }
+    });
+
+    it('fechar duas contas da reserva ao mesmo tempo: o status bate com o bill (🔴-1 da reauditoria)', async () => {
+        for (let round = 0; round < 5; round += 1) {
+            const { reservation, room } = await stayWithAccount({ nights: 1 });
+            const bars = [];
+            for (const label of ['X', 'Y']) {
+                const acc = await openAccount({
+                    type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label, charges_lodging: false
+                });
+                await addItem(acc.id, { description: label, unit_price: '30.00' });
+                bars.push(acc);
+            }
+            await payOk({ reservation_id: reservation.id, amount: '30.00' });
+
+            const closes = await Promise.all(bars.map((b) => request(app).put(`/accounts/${b.id}/close`).set(auth(jwt))));
+            closes.forEach((r) => expect(r.status, JSON.stringify(r.body)).toBe(200));
+
+            const statuses = [];
+            for (const b of bars) {
+                const view = await bill(b.id);
+                const settled = view.payments_made !== '0.00' && !view.balance.match(/^[1-9]|^0\.(0[1-9]|[1-9])/);
+                expect(view.status, JSON.stringify(view)).toBe(settled ? 'PAID' : 'CLOSED');
+                statuses.push(view.status);
+            }
+            expect(statuses.sort()).toEqual(['CLOSED', 'PAID']);
+        }
+    });
+
+    it('dois pagamentos pela reserva ao mesmo tempo não dão deadlock (🟡-1 da reauditoria)', async () => {
+        for (let round = 0; round < 5; round += 1) {
+            const { reservation, account } = await stayWithAccount({ nights: 1 }); // 200
+            await checkOut(reservation.id);
+            const results = await Promise.all([
+                pay({ reservation_id: reservation.id, amount: '100.00' }),
+                pay({ reservation_id: reservation.id, amount: '100.00' })
+            ]);
+            results.forEach((r) => expect(r.status, JSON.stringify(r.body)).toBe(201));
             expect((await reload(account.id)).status).toBe('PAID');
         }
     });
