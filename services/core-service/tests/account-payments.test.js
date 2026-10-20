@@ -620,6 +620,32 @@ describe('Crédito da reserva rateado entre as contas (D-45, 🟡-1 do qa-redtea
         await expectAccountsMatchReservation(reservation.id);
     });
 
+    it('conta de total 0 com só a sobra do crédito fica CLOSED, e continua assim (🟢-1 da 3ª rodada)', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1));
+        await checkIn(reservation.id);
+        const zero = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Bar0', charges_lodging: false
+        });
+        await close(zero.id);
+        await payOk({ reservation_id: reservation.id, amount: '100.00' }); // nenhuma conta com total: a sobra cai na Bar0
+
+        expect(await bill(zero.id)).toMatchObject({ status: 'CLOSED', total: '0.00', payments_made: '100.00', balance: '-100.00' });
+
+        const other = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Outra', charges_lodging: false
+        });
+        await addItem(other.id, { description: 'Drink', unit_price: '30.00' });
+        expect(await bill(zero.id)).toMatchObject({ status: 'CLOSED', payments_made: '0.00' });
+    });
+
+    it('conta de total 0 com pagamento direto vira PAID (o pagamento é dela)', async () => {
+        const account = await openAccount({ type: 'TABLE', label: 'Mesa sinal' });
+        await close(account.id);
+        await payOk({ account_id: account.id, amount: '10.00' });
+        expect(await bill(account.id)).toMatchObject({ status: 'PAID', balance: '-10.00' });
+    });
+
     it('pagamento negativo antigo entra com sinal na soma (🟢-4)', async () => {
         const account = await openAccount({ type: 'TABLE', label: 'Mesa legado' });
         await addItem(account.id, { description: 'Jantar', unit_price: '50.00' });
@@ -753,6 +779,24 @@ describe('Concorrência: pagamento da conta × encerramento da estadia (🟡-3)'
             ]);
             results.forEach((r) => expect(r.status, JSON.stringify(r.body)).toBe(201));
             expect((await reload(account.id)).status).toBe('PAID');
+        }
+    });
+
+    it('pagar duas contas de uma reserva excluída ao mesmo tempo não dá deadlock (🟡-1 da 3ª rodada)', async () => {
+        for (let round = 0; round < 6; round += 1) {
+            const { reservation, room, account } = await stayWithAccount({ nights: 1 });
+            const bar = await openAccount({
+                type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Bar', charges_lodging: false
+            });
+            await addItem(bar.id, { description: 'Drink', unit_price: '20.00' });
+            await request(app).delete(`/reservations/${reservation.id}`).set(auth(jwt)).expect(204);
+
+            const results = await Promise.all([
+                pay({ account_id: account.id, amount: '10.00' }),
+                pay({ account_id: bar.id, amount: '20.00' })
+            ]);
+            results.forEach((r) => expect(r.status, JSON.stringify(r.body)).toBe(201));
+            expect((await reload(bar.id)).status).toBe('PAID');
         }
     });
 
