@@ -455,9 +455,9 @@ Pontos a decidir se for aceita: onde mora o pagamento (proposta: no agrupador, c
 
 ### ADR-008: Integrações Externas atrás de Interface
 
-**Data:** 27/06/2026 — Mercado Pago acrescentado em 07/10/2026
+**Data:** 27/06/2026 — Mercado Pago acrescentado em 07/10/2026 e Asaas em 16/10/2026
 **Status:** Aceita
-**Autores:** Gabriel Reis Cunha (contrato PIX), Weslley Lucas (ViaCEP e Mercado Pago)
+**Autores:** Gabriel Reis Cunha (contrato PIX), Weslley Lucas (ViaCEP, Mercado Pago e Asaas)
 
 #### Contexto
 
@@ -467,7 +467,7 @@ O Gesway depende de dois serviços externos: o **PSP** (provedor de pagamento PI
 
 Cada integração fica **atrás de uma interface própria**, com a implementação escolhida por variável de ambiente:
 
-- **`PixProvider`** — criar cobrança, validar a assinatura do *webhook* e consultar o status da cobrança. Implementações: um **provedor simulado**, padrão em desenvolvimento e testes, e o **Mercado Pago** (`PIX_PROVIDER=mercadopago`).
+- **`PixProvider`** — criar cobrança, validar a assinatura do *webhook* e consultar o status da cobrança. Implementações: um **provedor simulado**, padrão em desenvolvimento e testes, e dois provedores reais, **Mercado Pago** (`PIX_PROVIDER=mercadopago`) e **Asaas** (`PIX_PROVIDER=asaas`). Cada provedor traduz o status da sua cobrança para um conjunto único de status do contrato, para que os fluxos não dependam do vocabulário de nenhum PSP.
 - **`AddressProvider`** — consultar CEP. Implementação: **ViaCEP**.
 
 Regras comuns:
@@ -491,7 +491,7 @@ Regras comuns:
 
 - **Positivas:**
   - A suíte inteira roda no CI sem rede.
-  - O Mercado Pago entrou sem mudar o contrato que os fluxos de reserva direta já usavam com o provedor simulado.
+  - O Mercado Pago e, depois, o Asaas entraram sem mudar o contrato que os fluxos de reserva direta já usavam com o provedor simulado.
   - Falha do serviço externo é tratada de forma degradada: o sistema responde `503`, sem estado parcial.
 - **Negativas:**
   - O provedor simulado precisa acompanhar o contrato; se divergir do real, um teste verde pode esconder um defeito.
