@@ -14,10 +14,21 @@ const PaymentModel = sequelize.define(
             allowNull: false,
             references: { model: 'tenants', key: 'id' }
         },
+        // Reserva OU conta (CA-04.4.b, CHECK payments_reservation_or_account). Day-use, mesa e
+        // balcão pagam a conta, sem reserva. Pagamento de conta da suíte grava as duas: a
+        // reserva vem da conta (o servidor preenche) e o bill da reserva segue somando.
         reservation_id: {
             type: DataTypes.UUID,
-            allowNull: false,
+            allowNull: true,
             references: { model: 'reservations', key: 'id' }
+        },
+        // Conta paga (T-04.4). Nulo = pagamento da reserva, que entra na conta titular
+        // (app/utils/accountPayments.js). RESTRICT: pagamento é registro financeiro.
+        account_id: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: { model: 'accounts', key: 'id' },
+            onDelete: 'RESTRICT'
         },
         amount: {
             type: DataTypes.DECIMAL(12, 2),

@@ -25,3 +25,16 @@ Origem: `docs/qa/redteam_t042-consumption-migration_delta_19out2026.md`, achado 
 **Cenário (reproduzido):** reserva CHECKED_IN de 1 quarto (400.00) com conta da suíte. `PUT /reservations/:id { room_id: <novo> }` → 200. O `GET /accounts/:id/bill` da única conta da estadia mostra agora `room_charges: 0.00`, e ela pode ser fechada assim (`PUT /accounts/:id/close` → 200, total só com o consumo). O aviso acima diz que "o risco de cobrar a diária duas vezes acabou". Acabou, mas no lugar dele ficou a diária **não** cobrada pela conta.
 **Regra violada:** RN-005 / D-3, e D-33 (soma das contas = total da reserva).
 **Correção sugerida:** a mesma do repasse acima: re-apontar a conta de diária **OPEN** para o quarto novo na transação da troca. A prioridade sobe, porque agora há valor apresentado errado. O Sirlande também vai tratar no bill (🔴-1/🟡-3 do relatório), mas a conta apontando para o quarto errado continua sendo do módulo de reservas.
+
+---
+*Acréscimo do qa-redteam da T-04.4 (`docs/qa/redteam_t044-payment-account_19out2026.md`, branch `feature/t044-payment-account`, dev Sirlande):*
+
+### 🟢 [contrato de evento] `payment.*` agora pode sair com `reservation_id: null`
+**Onde:** `docs/specs/anexos/SPEC-01-catalogo-eventos.md:186` (o tipo diz `UUID`).
+**Cenário:** desde a T-04.4, pagamento de conta sem reserva (day-use, mesa, balcão) grava `reservation_id` nulo e `account_id` preenchido. O payload do outbox não mudou (decisão aprovada), mas o campo passa a vir `null`. Um consumidor do `analytics-service` que agrupe `revenue.unpaid` ou `no_show_risk` por `reservation_id` sem tratar nulo cria um grupo "reserva null", ou quebra se a projeção tiver NOT NULL.
+**Correção sugerida:** no catálogo, o tipo passa a ser `UUID | null`, com a nota "nulo = pagamento de conta sem reserva; entra em `revenue.realized` e `payment-mix`, não nas consultas por reserva". A projeção da T-01.4 aceita nulo.
+
+### 🟢 [PIX] Estorno ou chargeback depois de PAID é ignorado
+**Onde:** `services/core-service/app/Controllers/WebhookApi/PixWebhookController.js:70` (estado terminal → `already_processed`).
+**Cenário:** uma cobrança confirmada (PAID) recebe depois uma notificação REFUNDED ou CHARGEBACK do PSP (o Asaas já traduz para FAILED). O webhook responde "already_processed" e o pagamento continua PAID. Com a T-04.4, a conta titular também continua PAID e o bill mostra um dinheiro que voltou ao hóspede.
+**Correção sugerida:** tratar PAID → estorno como transição própria (status `VOIDED` da T-06.13, ou o estorno com trilha da D-2 de 04/10). Na mesma transação, chamar `settlePaymentAccount(payment, transaction)` para a conta voltar a CLOSED.

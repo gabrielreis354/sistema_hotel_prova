@@ -12,6 +12,7 @@ import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
  * de resposta é o mesmo (tests/bill-consumptions.test.js é o guardião).
  *
  * Considera PAGO apenas o que tem status PAID (um sinal PIX PENDING ainda não quita).
+ * Reserva cancelada: diária 0, como nas contas (D-46).
  */
 export default async function GetBillController(request, response) {
     try {
@@ -37,7 +38,10 @@ export default async function GetBillController(request, response) {
 
         const round = (n) => Number(n.toFixed(2));
 
-        const roomTotal    = Number(reservation.total_amount);
+        // Reserva cancelada não cobra diária (D-35, D-46): a mesma regra das contas. Sem isso,
+        // a conta mandava devolver o sinal e este bill mandava cobrar a estadia (🟡-2 do
+        // qa-redteam da T-04.4). Multa de cancelamento não existe na SPEC.
+        const roomTotal    = reservation.status === 'CANCELLED' ? 0 : Number(reservation.total_amount);
         const payments      = reservation.payments ?? [];
         const consumptions  = await reservationConsumptionItems(reservation.id, tenantId);
 

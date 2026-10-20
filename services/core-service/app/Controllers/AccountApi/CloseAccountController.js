@@ -1,8 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
-import AccountModel from '../../Models/AccountModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import isUuid from '../../utils/isUuid.js';
-import accountBill, { closeAccount } from '../../utils/accountBill.js';
+import accountBill, { closeAccount, lockAccount } from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
 /**
@@ -14,7 +13,7 @@ import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
  * - A conta que cobra a diária só fecha com a estadia encerrada (N-1). As outras fecham
  *   com o hóspede ainda hospedado: acertar o bar antes de sair é rotina. O encerramento
  *   da estadia fecha o que sobrar (closeReservationAccounts, D-36).
- * - CLOSED → PAID é da T-04.4.
+ * - Conta já paga sai do fechamento PAID (T-04.4, settleAccount dentro de closeAccount).
  */
 const ENDED_STAY_STATUSES = ['CHECKED_OUT', 'CANCELLED'];
 
@@ -28,13 +27,12 @@ export default async function CloseAccountController(request, response) {
 
         const transaction = await sequelize.transaction();
         try {
-            // Trava a conta: o lançamento e a exclusão de item travam a mesma linha, então
-            // nenhum item entra ou sai entre o fechamento e o bill que ele devolve.
-            const account = await AccountModel.findOne({
-                where: { id, tenant_id: tenantId },
-                lock: transaction.LOCK.UPDATE,
-                transaction
-            });
+            // Trava a reserva e depois a conta (D-48). A conta: o lançamento e a exclusão de
+            // item travam a mesma linha, então nenhum item entra ou sai entre o fechamento e o
+            // bill que ele devolve. A reserva: o crédito da reserva depende das outras contas
+            // dela, e dois fechamentos em paralelo liam cada um a outra conta ainda aberta e
+            // ficavam os dois com o mesmo crédito (🔴-1 da reauditoria da T-04.4).
+            const account = await lockAccount(id, tenantId, transaction);
             if (!account) {
                 await transaction.rollback();
                 return response.status(404).json({ error: 'Conta não encontrada' });

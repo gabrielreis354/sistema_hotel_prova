@@ -4,6 +4,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import getPixProvider from '../../services/pix/index.js';
 import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../../services/pix/errors.js';
 import { CHARGE_STATUS } from '../../services/pix/chargeStatus.js';
+import { settlePaymentAccount } from '../../utils/accountBill.js';
 
 /**
  * POST /webhooks/pix
@@ -23,6 +24,11 @@ import { CHARGE_STATUS } from '../../services/pix/chargeStatus.js';
  * CHECKED_IN etc.). Cancelado/rejeitado marca o pagamento como FAILED. Qualquer outro status
  * (pending, in_process...) não tem efeito — aguarda nova notificação. Idempotente: reprocessar
  * um pagamento já em estado terminal não repete efeito.
+ *
+ * O pagamento confirmado entra no saldo das contas (T-04.4): o sinal, feito na reserva sem
+ * conta, é crédito rateado entre as contas da reserva (D-45). A conta fechada que ele
+ * quita vira PAID na mesma transação. Trava depois da reserva — a mesma ordem do check-out
+ * (reserva → contas).
  *
  * A validação da assinatura e a extração do id da cobrança são responsabilidade do provider
  * ativo (provider.verifyWebhook): o fake confere o HMAC de `x-pix-signature` com
@@ -143,6 +149,8 @@ export default async function PixWebhookController(request, response) {
                 console.warn('PixWebhookController: sinal pago para reserva fora de PENDING — reconciliar/estornar',
                     { payment_id: payment.id, reservation_id: payment.reservation_id, reservation_status: reservation?.status ?? null });
             }
+
+            await settlePaymentAccount(lockedPayment, transaction);
 
             await transaction.commit();
 

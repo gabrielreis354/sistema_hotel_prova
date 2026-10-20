@@ -69,6 +69,7 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     `);
 
     await applyAccountConstraints(sequelize);
+    await applyPaymentAccountConstraints(sequelize);
 
     // Índices únicos PARCIAIS em models paranoid — mesmo mecanismo da EXCLUDE acima,
     // agora para os 8 índices auditados na SPEC-06 (users, room_categories, rooms,
@@ -216,6 +217,82 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     if (falhaOcupacao || falhaOutbox) throw falhaOcupacao ?? falhaOutbox;
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
+}
+
+/**
+ * Pagamento ligado à conta (T-04.4, CA-04.4.b).
+ *
+ * - `reservation_id` deixa de ser obrigatório. O DROP NOT NULL é explícito pelo mesmo
+ *   motivo do `account_items.created_by`: com FK na coluna, o sync({ alter }) só refaz a
+ *   FK e deixa o NOT NULL de um banco anterior.
+ * - Todo pagamento tem reserva ou conta.
+ * - Trigger payments_account_consistency: pagamento com conta tem a reserva e o tenant
+ *   da conta, e nunca é de conta INTERNAL. O banco recusa um pagamento que aponte para a conta de uma reserva e para
+ *   outra reserva, ou que deixe a reserva nula na conta da suíte. Trigger, não FK
+ *   composta: a FK precisaria de um UNIQUE (id, reservation_id) total em accounts, que a
+ *   regra dos paranoid proíbe (tests/db-constraints.test.js), e com MATCH SIMPLE não
+ *   pegaria a reserva nula.
+ */
+async function applyPaymentAccountConstraints(sequelize) {
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'account_id')
+               AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'accounts') THEN
+                ALTER TABLE payments ALTER COLUMN reservation_id DROP NOT NULL;
+
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
+                ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
+                    CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
+
+                CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+            END IF;
+
+            -- Valor não negativo. O schema.sql já tinha (nome automático payments_amount_check);
+            -- o banco do sync não. NOT VALID: vale para o que entra daqui em diante, sem
+            -- travar o migrate por uma linha antiga (🟡-4 do qa-redteam da T-04.4).
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_amount_check') THEN
+                ALTER TABLE payments ADD CONSTRAINT payments_amount_check CHECK (amount >= 0) NOT VALID;
+            END IF;
+        END $$;
+
+        CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
+        DECLARE
+            conta accounts%ROWTYPE;
+        BEGIN
+            IF NEW.account_id IS NULL THEN
+                RETURN NEW;
+            END IF;
+            SELECT * INTO conta FROM accounts WHERE id = NEW.account_id;
+            IF conta.tenant_id IS DISTINCT FROM NEW.tenant_id
+               OR conta.reservation_id IS DISTINCT FROM NEW.reservation_id THEN
+                RAISE EXCEPTION 'payments_account_consistency: o pagamento precisa ter a reserva e o tenant da conta %', NEW.account_id
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            -- Consumo interno nunca é receita (RN-006)
+            IF conta.type = 'INTERNAL' THEN
+                RAISE EXCEPTION 'payments_account_consistency: conta INTERNAL não recebe pagamento (%)', NEW.account_id
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            RETURN NEW;
+        END $$ LANGUAGE plpgsql;
+    `);
+
+    // Sem lista de colunas ("UPDATE OF ..."): mesma lição do outbox — o sync({ alter })
+    // reemite ALTER TYPE e o PostgreSQL recusa em coluna citada num trigger.
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'account_id') THEN
+                DROP TRIGGER IF EXISTS payments_account_consistency ON payments;
+                CREATE TRIGGER payments_account_consistency
+                    BEFORE INSERT OR UPDATE ON payments
+                    FOR EACH ROW EXECUTE FUNCTION payments_account_consistency();
+            END IF;
+        END $$;
+    `);
 }
 
 /**
