@@ -25,9 +25,10 @@ import { settlePaymentAccount } from '../../utils/accountBill.js';
  * (pending, in_process...) não tem efeito — aguarda nova notificação. Idempotente: reprocessar
  * um pagamento já em estado terminal não repete efeito.
  *
- * O pagamento confirmado entra no saldo da conta (T-04.4): a dele ou, se foi feito na
- * reserva sem conta (o sinal), a titular. Se ele quita uma conta fechada, ela vira PAID na
- * mesma transação. Trava depois da reserva — a mesma ordem do check-out (reserva → contas).
+ * O pagamento confirmado entra no saldo das contas (T-04.4): o sinal, feito na reserva sem
+ * conta, é crédito rateado entre as contas da reserva (D-45). A conta fechada que ele
+ * quita vira PAID na mesma transação. Trava depois da reserva — a mesma ordem do check-out
+ * (reserva → contas).
  *
  * A validação da assinatura e a extração do id da cobrança são responsabilidade do provider
  * ativo (provider.verifyWebhook): o fake confere o HMAC de `x-pix-signature` com

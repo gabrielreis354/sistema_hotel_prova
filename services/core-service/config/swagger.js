@@ -136,7 +136,7 @@ const options = {
                         room_charges:   { type: 'string', example: '800.00', description: 'Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging, ou com a reserva cancelada/excluída quando a conta ainda estava aberta (D-35); a conta fechada mantém o valor gravado' },
                         consumptions:   { type: 'string', example: '25.00', description: 'Soma dos itens faturáveis e não excluídos (CA-04.3.c)' },
                         total:          { type: 'string', example: '825.00', description: 'room_charges + consumptions. Conta INTERNAL: sempre 0 (CA-04.3.f)' },
-                        payments_made:  { type: 'string', example: '100.00', description: 'Pagamentos PAID da conta (T-04.4). Na conta titular — a conta de diária mais antiga da reserva — entram também os pagamentos feitos na reserva sem conta, como o sinal PIX (D-42). Cobrança PENDING, FAILED ou EXPIRED e pagamento excluído não contam' },
+                        payments_made:  { type: 'string', example: '100.00', description: 'Pagamentos PAID da conta (T-04.4) mais a parte que lhe cabe do crédito da reserva. Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Cobrança PENDING, FAILED ou EXPIRED e pagamento excluído não contam' },
                         balance:        { type: 'string', example: '725.00', description: 'total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b). Negativo quando o pagamento passou do total: o hotel deve devolver (D-44)' },
                         items: {
                             type: 'array',
@@ -343,7 +343,7 @@ const options = {
                         id:             { type: 'string', format: 'uuid' },
                         tenant_id:      { type: 'string', format: 'uuid' },
                         reservation_id: { type: 'string', format: 'uuid', nullable: true, description: 'Nulo só em pagamento de conta sem reserva (day-use, mesa, balcão)' },
-                        account_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Conta paga (T-04.4). Nulo = pagamento da reserva, que entra na conta titular (D-42)' },
+                        account_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Conta paga (T-04.4). Nulo = pagamento da reserva: vira crédito rateado entre as contas dela (D-42, D-45)' },
                         amount:         { type: 'string', example: '300.00', description: 'DECIMAL(12,2) serializado como string' },
                         method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] },
                         status:         { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
@@ -559,7 +559,7 @@ const options = {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento entra na conta titular da reserva; se ele a quita e ela está fechada, vira PAID (T-04.4). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
                     security: [],
                     parameters: [
                         { in: 'header', name: 'x-pix-signature', required: true, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>' }
@@ -1024,7 +1024,7 @@ const options = {
                 },
                 post: {
                     tags: ['Pagamentos'], summary: 'Registra novo pagamento da reserva ou de uma conta (recepção — manual, não PIX online)',
-                    description: 'Informe reservation_id ou account_id (T-04.4). Pagamento da reserva sem conta entra na conta titular (D-42). Com account_id, a reserva vem da conta. Se o pagamento quita uma conta fechada, ela vira PAID na mesma transação; conta aberta paga vira PAID ao fechar (D-43). Pagamento a maior é aceito e deixa o saldo negativo (D-44).',
+                    description: 'Informe reservation_id ou account_id (T-04.4). Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Com account_id, a reserva vem da conta. Se o pagamento quita uma conta fechada, ela vira PAID na mesma transação; conta aberta paga vira PAID ao fechar (D-43). Pagamento a maior é aceito e deixa o saldo negativo (D-44).',
                     requestBody: { required: true, content: { 'application/json': { schema: {
                         type: 'object', required: ['amount', 'method'],
                         description: 'reservation_id ou account_id obrigatório',

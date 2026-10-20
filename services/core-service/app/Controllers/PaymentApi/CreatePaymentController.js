@@ -11,12 +11,13 @@ import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
  * POST /payments
  * Registra um pagamento da reserva ou de uma conta (T-04.4, CA-04.4.a).
  *
- * - Só `reservation_id`: contrato de sempre. Entra no saldo da conta titular (decisão 1).
+ * - Só `reservation_id`: contrato de sempre. Vira crédito da reserva, rateado entre as
+ *   contas dela (D-42, D-45).
  * - `account_id`: paga a conta. Na conta da suíte, `reservation_id` vem da conta — se o
  *   cliente mandar outro, 422. Conta INTERNAL (nunca é receita, RN-006) e conta PAID não
- *   recebem pagamento. Pagamento a maior é aceito: o saldo fica negativo (decisão 3).
+ *   recebem pagamento. Pagamento a maior é aceito: o saldo fica negativo (D-44).
  *
- * Na mesma transação, a conta afetada é acertada (CLOSED ↔ PAID).
+ * Na mesma transação, as contas afetadas são acertadas (CLOSED ↔ PAID).
  *
  * Ordem de trava: reserva → conta, a mesma do check-out, do cancelamento e do webhook.
  * O INSERT do pagamento pega KEY SHARE na reserva (FK); travar a conta antes dele cruzava

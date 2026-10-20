@@ -425,6 +425,7 @@ describe('Pagamento da reserva entra na conta titular (decisão 1)', () => {
             type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id,
             label: 'Bar aberto antes', charges_lodging: false
         });
+        await addItem(bar.id, { description: 'Drink', unit_price: '20.00' }); // deve, e mesmo assim não vem antes da titular
         const suite = await openAccount({
             type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Suíte depois'
         });
@@ -519,6 +520,149 @@ describe('Pagamento da reserva entra na conta titular (decisão 1)', () => {
 
         await request(app).delete(`/payments/${payment.id}`).set(auth(jwt)).expect(204);
         expect((await reload(account.id)).status).toBe('CLOSED');
+    });
+});
+
+describe('Crédito da reserva rateado entre as contas (D-45, 🟡-1 do qa-redteam)', () => {
+    async function twoRoomStay() {
+        const first = await newRoom(standard);
+        const second = await newRoom(luxo);
+        const created = await request(app).post('/reservations').set(auth(jwt)).send({
+            guest_id: guest.id, room_id: first.id, extra_room_ids: [second.id], ...nextDates(1)
+        });
+        expect(created.status).toBe(201);
+        await checkIn(created.body.id);
+        const a = await openAccount({ type: 'ROOM', reservation_id: created.body.id, room_id: first.id, guest_id: guest.id, label: 'Std' });
+        const b = await openAccount({ type: 'ROOM', reservation_id: created.body.id, room_id: second.id, guest_id: guest.id, label: 'Luxo' });
+        return { reservation: created.body, a, b };
+    }
+
+    it('pagar a reserva inteira quita as duas contas de diária, sem saldo negativo', async () => {
+        const { reservation, a, b } = await twoRoomStay(); // 200 + 300
+        await payOk({ reservation_id: reservation.id, amount: '500.00' });
+        await checkOut(reservation.id);
+
+        expect(await bill(a.id)).toMatchObject({ status: 'PAID', balance: '0.00' });
+        expect(await bill(b.id)).toMatchObject({ status: 'PAID', balance: '0.00' });
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('um quarto com conta de bar: pagar a reserva quita a suíte e o bar', async () => {
+        const { reservation, room, account } = await stayWithAccount({ nights: 1 }); // 200
+        const bar = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id,
+            label: 'Bar', charges_lodging: false
+        });
+        await addItem(bar.id, { description: 'Vinho', unit_price: '80.00' });
+        await payOk({ reservation_id: reservation.id, amount: '280.00' });
+        await checkOut(reservation.id);
+
+        expect(await bill(account.id)).toMatchObject({ status: 'PAID', balance: '0.00' });
+        expect(await bill(bar.id)).toMatchObject({ status: 'PAID', balance: '0.00' });
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('a conta fechada recebe o crédito primeiro; a titular aberta fica com o resto', async () => {
+        const { reservation, room, account } = await stayWithAccount({ nights: 1 }); // 200
+        const bar = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id,
+            label: 'Bar acertado', charges_lodging: false
+        });
+        await addItem(bar.id, { description: 'Drink', unit_price: '30.00' });
+        await close(bar.id);
+        await payOk({ reservation_id: reservation.id, amount: '100.00' });
+
+        expect(await bill(bar.id)).toMatchObject({ status: 'PAID', payments_made: '30.00', balance: '0.00' });
+        expect(await bill(account.id)).toMatchObject({ status: 'OPEN', payments_made: '70.00', balance: '130.00' });
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('entre as fechadas, quem fechou primeiro recebe primeiro', async () => {
+        const { reservation, room } = await stayWithAccount({ nights: 1 });
+        const barFor = async (label, price) => {
+            const acc = await openAccount({
+                type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label, charges_lodging: false
+            });
+            await addItem(acc.id, { description: label, unit_price: price });
+            return acc;
+        };
+        const first = await barFor('Bar 1', '30.00');
+        const second = await barFor('Bar 2', '40.00');
+        await close(second.id); // abriu depois, fechou antes
+        await close(first.id);
+        await payOk({ reservation_id: reservation.id, amount: '50.00' });
+
+        expect(await bill(second.id)).toMatchObject({ status: 'PAID', payments_made: '40.00' });
+        expect(await bill(first.id)).toMatchObject({ status: 'CLOSED', payments_made: '10.00', balance: '20.00' });
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('lançar item na conta aberta não muda o que cabe à conta fechada', async () => {
+        const { reservation, room, account } = await stayWithAccount({ nights: 1 });
+        const bar = await openAccount({
+            type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id,
+            label: 'Bar estável', charges_lodging: false
+        });
+        await addItem(bar.id, { description: 'Drink', unit_price: '30.00' });
+        await close(bar.id);
+        await payOk({ reservation_id: reservation.id, amount: '30.00' });
+        expect((await reload(bar.id)).status).toBe('PAID');
+
+        await addItem(account.id, { description: 'Jantar', unit_price: '90.00' });
+        expect(await bill(bar.id)).toMatchObject({ status: 'PAID', payments_made: '30.00', balance: '0.00' });
+        expect((await bill(account.id)).payments_made).toBe('0.00');
+    });
+
+    it('pagamento a maior: a sobra fica numa conta só, e as duas ficam PAID', async () => {
+        const { reservation, a, b } = await twoRoomStay(); // 500
+        await payOk({ reservation_id: reservation.id, amount: '520.00' });
+        await checkOut(reservation.id);
+
+        const balances = [(await bill(a.id)).balance, (await bill(b.id)).balance].sort();
+        expect(balances).toEqual(['-20.00', '0.00']);
+        expect((await reload(a.id)).status).toBe('PAID');
+        expect((await reload(b.id)).status).toBe('PAID');
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('excluir o pagamento da reserva devolve as duas contas a CLOSED', async () => {
+        const { reservation, a, b } = await twoRoomStay();
+        const payment = await payOk({ reservation_id: reservation.id, amount: '500.00' });
+        await checkOut(reservation.id);
+        await request(app).delete(`/payments/${payment.id}`).set(auth(jwt)).expect(204);
+
+        expect((await reload(a.id)).status).toBe('CLOSED');
+        expect((await reload(b.id)).status).toBe('CLOSED');
+        await expectAccountsMatchReservation(reservation.id);
+    });
+
+    it('pagamento direto numa conta tira essa conta do rateio: o crédito vai para a outra', async () => {
+        const { reservation, a, b } = await twoRoomStay(); // a 200, b 300
+        await checkOut(reservation.id);
+        await payOk({ account_id: a.id, amount: '200.00' });
+        await payOk({ reservation_id: reservation.id, amount: '300.00' });
+
+        expect(await bill(a.id)).toMatchObject({ status: 'PAID', payments_made: '200.00', balance: '0.00' });
+        expect(await bill(b.id)).toMatchObject({ status: 'PAID', payments_made: '300.00', balance: '0.00' });
+        await expectAccountsMatchReservation(reservation.id);
+    });
+});
+
+describe('Reserva cancelada com sinal (D-46, 🟡-2 do qa-redteam)', () => {
+    it('o bill da reserva cancelada não cobra diária e bate com a conta', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2)); // 400
+        await request(app).post(`/reservations/${reservation.id}/consumptions`).set(auth(jwt))
+            .send({ description: 'Água', amount: 30 }).expect(201);
+        await payOk({ reservation_id: reservation.id, amount: '100.00' });
+        await request(app).put(`/reservations/${reservation.id}/cancel`).set(auth(jwt)).expect(200);
+
+        const account = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+        expect(await bill(account.id)).toMatchObject({ status: 'PAID', room_charges: '0.00', balance: '-70.00' });
+
+        const res = await request(app).get(`/reservations/${reservation.id}/bill`).set(auth(jwt));
+        expect(res.body).toMatchObject({ status: 'CANCELLED', room_total: 0, grand_total: 30, total_paid: 100, balance_due: -70 });
+        await expectAccountsMatchReservation(reservation.id);
     });
 });
 

@@ -68,7 +68,7 @@ export default async function closeEndedStayAccounts(sequelize, { log = () => {}
                    SELECT 1 FROM payments p
                     WHERE p.tenant_id = a.tenant_id AND p.status = 'PAID' AND p.deleted_at IS NULL
                       AND (p.account_id = a.id
-                           OR (a.charges_lodging AND p.account_id IS NULL AND p.reservation_id = a.reservation_id)))))
+                           OR (p.account_id IS NULL AND p.reservation_id = a.reservation_id)))))
              ORDER BY a.id
                FOR UPDATE OF a`, { transaction });
         const toSettle = await AccountModel.findAll({ where: { id: paid.map((row) => row.id) }, transaction });
