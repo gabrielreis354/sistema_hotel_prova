@@ -1,10 +1,9 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
-import AccountModel from '../../Models/AccountModel.js';
 import isUuid from '../../utils/isUuid.js';
-import { toCents } from '../../utils/calculateStayTotal.js';
-import { settlePaymentAccount } from '../../utils/accountBill.js';
+import { isValidPaymentAmount, INVALID_AMOUNT_MESSAGE } from '../../utils/paymentAmount.js';
+import { lockAccount, settlePaymentAccount } from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
 /**
@@ -31,10 +30,7 @@ export default async function CreatePaymentController(request, response) {
         if ((!reservation_id && !account_id) || !amount || !method) {
             return response.status(400).json({ error: 'Campos obrigatórios: reservation_id ou account_id, amount, method.' });
         }
-        // Valor positivo, com até 2 casas. toCents devolve 0 para negativo, zero ou inválido.
-        if (toCents(amount) <= 0) {
-            return response.status(400).json({ error: 'amount deve ser um valor positivo com até 2 casas decimais.' });
-        }
+        if (!isValidPaymentAmount(amount)) return response.status(400).json({ error: INVALID_AMOUNT_MESSAGE });
         // Id não-UUID chega ao Postgres como cast inválido e viraria 500.
         if (account_id && !isUuid(account_id)) return response.status(404).json({ error: 'Conta não encontrada.' });
         if (reservation_id && !isUuid(reservation_id)) return response.status(404).json({ error: 'Reserva não encontrada.' });
@@ -48,25 +44,8 @@ export default async function CreatePaymentController(request, response) {
                     await transaction.rollback();
                     return response.status(status).json({ error });
                 };
-                // Primeiro sem trava, só para saber a reserva da conta (ela nunca muda).
-                const found = await AccountModel.findOne({
-                    where: { id: account_id, tenant_id: tenantId }, attributes: ['id', 'reservation_id'], transaction
-                });
-                if (!found) return refuse(404, 'Conta não encontrada.');
-                if (found.reservation_id) {
-                    await ReservationModel.findOne({
-                        where: { id: found.reservation_id, tenant_id: tenantId },
-                        attributes: ['id'],
-                        lock: transaction.LOCK.UPDATE,
-                        transaction
-                    });
-                }
-                // Depois a conta, travada: um fechamento ou outro pagamento simultâneo acertam em ordem.
-                const account = await AccountModel.findOne({
-                    where: { id: account_id, tenant_id: tenantId },
-                    lock: transaction.LOCK.UPDATE,
-                    transaction
-                });
+                // Reserva → conta (D-48): um fechamento ou outro pagamento simultâneo acertam em ordem.
+                const account = await lockAccount(account_id, tenantId, transaction);
                 if (!account) return refuse(404, 'Conta não encontrada.');
                 if (account.type === 'INTERNAL') return refuse(422, 'Conta INTERNAL não recebe pagamento: consumo interno nunca é receita.');
                 if (account.status === 'PAID') return refuse(422, 'Conta PAID já está quitada.');
@@ -79,9 +58,12 @@ export default async function CreatePaymentController(request, response) {
                 }
                 reservationId = account.reservation_id;
             } else {
-                // Valida que a reserva pertence ao tenant
+                // Valida que a reserva pertence ao tenant, já travada: o INSERT pega KEY SHARE
+                // nela (FK) e o acerto pede FOR UPDATE — dois pagamentos em paralelo ficavam
+                // cada um esperando o outro subir a trava (🟡-1 da reauditoria).
                 const reservation = await ReservationModel.findOne({
                     where: { id: reservation_id, tenant_id: tenantId },
+                    lock: transaction.LOCK.UPDATE,
                     transaction
                 });
                 if (!reservation) {

@@ -1,7 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import { settlePaymentAccount } from '../../utils/accountBill.js';
-import { toCents } from '../../utils/calculateStayTotal.js';
+import { isValidPaymentAmount, INVALID_AMOUNT_MESSAGE } from '../../utils/paymentAmount.js';
 
 /**
  * PUT /payments/:id
@@ -12,9 +12,9 @@ import { toCents } from '../../utils/calculateStayTotal.js';
 export default async function UpdatePaymentController(request, response) {
     try {
         const { amount, method, paid_at } = request.body;
-        // Valor positivo, com até 2 casas — o mesmo do POST.
-        if (amount !== undefined && toCents(amount) <= 0) {
-            return response.status(400).json({ error: 'amount deve ser um valor positivo com até 2 casas decimais.' });
+        // Mesma regra do POST (D-49).
+        if (amount !== undefined && !isValidPaymentAmount(amount)) {
+            return response.status(400).json({ error: INVALID_AMOUNT_MESSAGE });
         }
 
         const transaction = await sequelize.transaction();

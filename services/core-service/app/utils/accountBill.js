@@ -2,7 +2,8 @@ import AccountModel from '../Models/AccountModel.js';
 import AccountItemModel from '../Models/AccountItemModel.js';
 import ReservationModel from '../Models/ReservationModel.js';
 import { accountCharges, lodgingShare } from './accountCharges.js';
-import { paymentsMadeCents } from './accountPayments.js';
+import { accountBalance, reservationLedger } from './accountPayments.js';
+import sequelize from '../../database/connections/sequelize.js';
 import pendingLegacyConsumption from './pendingLegacyConsumption.js';
 import { fromCents } from './calculateStayTotal.js';
 
@@ -27,9 +28,14 @@ const ITEM_ATTRIBUTES = [
  * @param {import('sequelize').Transaction} transaction
  */
 export async function closeAccount(account, transaction) {
+    // Relógio do banco, não da aplicação: a ordem das fechadas decide o crédito da reserva
+    // (D-45), e réplicas com relógios defasados a inverteriam (🟢-2 da reauditoria).
+    // clock_timestamp(), não now(): now() é o início da transação, e quem esperou a trava
+    // da reserva começou antes de quem fechou primeiro.
+    const [[{ closedAt }]] = await sequelize.query('SELECT clock_timestamp() AS "closedAt"', { transaction });
     const values = {
         status: 'CLOSED',
-        closed_at: new Date(),
+        closed_at: closedAt,
         closed_room_charges: account.type === 'INTERNAL' ? ZERO : await lodgingShare(account, transaction)
     };
     // Só conta aberta (N-4): regravar uma fechada mudaria o que foi apresentado (D-23, D-39).
@@ -59,15 +65,19 @@ export async function closeAccount(account, transaction) {
  *   - conta com consumo antigo ainda não migrado: o total sairia menor (D-31). O próximo
  *     pagamento, fechamento ou migrate acerta.
  *
+ * Quem chama trava a reserva antes da conta (D-48): o que cabe a uma conta depende das
+ * outras contas da reserva, e dois acertos em paralelo leriam cada um a outra ainda aberta
+ * (🔴-1 da reauditoria).
+ *
  * @param {import('sequelize').Model} account travada pela transação de quem chama
  * @param {import('sequelize').Transaction} transaction
+ * @param {Map} [ledger] razão da reserva já calculado nesta transação (reservationLedger)
  */
-export async function settleAccount(account, transaction) {
+export async function settleAccount(account, transaction, ledger) {
     if (!['CLOSED', 'PAID'].includes(account.status)) return;
     if (account.reservation_id && await pendingLegacyConsumption(account.reservation_id, transaction)) return;
 
-    const { totalCents } = await accountCharges(account, transaction);
-    const paymentsCents = await paymentsMadeCents(account, transaction);
+    const { totalCents, paidCents: paymentsCents } = await accountBalance(account, transaction, ledger);
     const next = paymentsCents > 0 && totalCents - paymentsCents <= 0 ? 'PAID' : 'CLOSED';
     if (next === account.status) return;
 
@@ -119,7 +129,32 @@ export async function settlePaymentAccount(payment, transaction) {
     } else {
         return;
     }
-    for (const account of accounts) await settleAccount(account, transaction);
+    // Razão calculado uma vez: o acerto só troca CLOSED ↔ PAID, que não muda a ordem do
+    // crédito (as duas são "fechadas") nem o total de nenhuma conta.
+    const ledger = payment.reservation_id ? await reservationLedger(payment.reservation_id, tenantId, transaction) : undefined;
+    for (const account of accounts) await settleAccount(account, transaction, ledger);
+}
+
+/**
+ * Trava a conta pela ordem do projeto: reserva → conta (D-48). Lê a conta sem trava só
+ * para saber a reserva dela, que nunca muda; trava a reserva; e relê a conta travada.
+ *
+ * @returns {Promise<import('sequelize').Model|null>} a conta travada, ou null
+ */
+export async function lockAccount(accountId, tenantId, transaction) {
+    const found = await AccountModel.findOne({
+        where: { id: accountId, tenant_id: tenantId }, attributes: ['id', 'reservation_id'], transaction
+    });
+    if (!found) return null;
+    if (found.reservation_id) {
+        await ReservationModel.findOne({
+            where: { id: found.reservation_id, tenant_id: tenantId },
+            attributes: ['id'],
+            lock: transaction.LOCK.UPDATE,
+            transaction
+        });
+    }
+    return AccountModel.findOne({ where: { id: accountId, tenant_id: tenantId }, lock: transaction.LOCK.UPDATE, transaction });
 }
 
 /**
@@ -130,8 +165,8 @@ export async function settlePaymentAccount(payment, transaction) {
  * - Os itens vêm todos, inclusive cortesia, com `billable` e `reason` (CA-04.3.d).
  * - Conta INTERNAL: diária, consumos e total 0 (CA-04.3.f, RN-006). Os itens seguem com
  *   o valor gravado — o custo continua visível (D-24).
- * - `payments_made` soma os pagamentos PAID da conta e, na titular, os da reserva sem
- *   conta (T-04.4, D-42 e D-45). Pode passar do total: o saldo fica negativo (D-44).
+ * - `payments_made` soma os pagamentos PAID da conta e a parte dela no crédito da
+ *   reserva (T-04.4, D-42 e D-45). Pode passar do total: o saldo fica negativo (D-44).
  * - `balance` é calculado aqui, a cada leitura, e nunca gravado (CA-04.3.b). A diária da
  *   conta fechada é gravada (D-39) — o saldo não.
  *
@@ -148,8 +183,8 @@ export default async function accountBill(account, transaction) {
         order: [['consumed_at', 'ASC'], ['created_at', 'ASC']],
         transaction
     });
-    const { roomCharges, consumptions, totalCents } = await accountCharges(account, transaction);
-    const paymentsCents = await paymentsMadeCents(account, transaction);
+    const { roomCharges, consumptions } = await accountCharges(account, transaction);
+    const { totalCents, paidCents: paymentsCents } = await accountBalance(account, transaction);
 
     return {
         account_id: account.id,
