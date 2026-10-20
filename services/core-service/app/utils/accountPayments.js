@@ -39,15 +39,16 @@ const SUM_CENTS = `(COALESCE(SUM(amount), 0) * 100)::bigint::text`;
  * recepção pela reserva). Ele preenche as contas na ordem de creditOrder, cada uma até o
  * que ela ainda deve (D-45).
  *
- * A sobra — pagamento a maior — fica na **primeira** conta da ordem com total > 0 (sem
- * nenhuma, na primeira). A primeira é estável: conta nova entra depois dela. Na última, a
- * sobra pulava para cada conta aberta depois e deixava PAID uma conta de total 0 que já não
- * tinha pagamento nenhum (🟢-1 da reauditoria).
+ * A sobra — pagamento a maior — fica na **primeira** conta da ordem com total > 0. A
+ * primeira é estável: conta nova entra depois dela. Na última, a sobra pulava para cada
+ * conta aberta depois (🟢-1 da 2ª rodada). Sem nenhuma conta com total, a sobra fica na
+ * primeira, de total 0 — e aí pode pular quando outra conta passar a ter total. Por isso
+ * conta de total 0 só vira PAID com pagamento direto dela (settleAccount, 🟢-1 da 3ª).
  *
  * Só PAID conta — cobrança PIX PENDING, FAILED ou EXPIRED ainda não pagou nada —, e
  * pagamento ou conta excluídos não contam.
  *
- * @returns {Promise<Map<string, { totalCents: number, paidCents: number }>>}
+ * @returns {Promise<Map<string, { totalCents: number, paidCents: number, directCents: number }>>}
  */
 export async function reservationLedger(reservationId, tenantId, transaction) {
     const accounts = await AccountModel.findAll({ where: { reservation_id: reservationId, tenant_id: tenantId }, transaction });
@@ -70,7 +71,7 @@ export async function reservationLedger(reservationId, tenantId, transaction) {
         const direct = paid.get(account.id) ?? 0;
         const share = Math.max(0, Math.min(totalCents - direct, remaining));
         remaining -= share;
-        ledger.set(account.id, { totalCents, paidCents: direct + share });
+        ledger.set(account.id, { totalCents, paidCents: direct + share, directCents: direct });
     }
     if (remaining !== 0 && ordered.length > 0) {
         const target = ordered.find((a) => ledger.get(a.id).totalCents > 0) ?? ordered[0];
@@ -86,7 +87,7 @@ export async function reservationLedger(reservationId, tenantId, transaction) {
  * @param {import('sequelize').Model} account
  * @param {import('sequelize').Transaction} [transaction]
  * @param {Map} [ledger] razão da reserva já calculado na mesma transação
- * @returns {Promise<{ totalCents: number, paidCents: number }>}
+ * @returns {Promise<{ totalCents: number, paidCents: number, directCents: number }>}
  */
 export async function accountBalance(account, transaction, ledger) {
     if (account.reservation_id) {
@@ -99,5 +100,5 @@ export async function accountBalance(account, transaction, ledger) {
         SELECT ${SUM_CENTS} AS cents FROM payments
          WHERE tenant_id = :tenantId AND account_id = :accountId AND status = 'PAID' AND deleted_at IS NULL`,
     { replacements: { tenantId: account.tenant_id, accountId: account.id }, transaction });
-    return { totalCents, paidCents: Number(cents) };
+    return { totalCents, paidCents: Number(cents), directCents: Number(cents) };
 }

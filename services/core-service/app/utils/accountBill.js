@@ -5,7 +5,7 @@ import { accountCharges, lodgingShare } from './accountCharges.js';
 import { accountBalance, reservationLedger } from './accountPayments.js';
 import sequelize from '../../database/connections/sequelize.js';
 import pendingLegacyConsumption from './pendingLegacyConsumption.js';
-import { fromCents } from './calculateStayTotal.js';
+import { toCents, fromCents } from './calculateStayTotal.js';
 
 // lodgingShare mora em accountCharges.js; reexportado para quem já importava daqui.
 export { lodgingShare };
@@ -61,7 +61,8 @@ export async function closeAccount(account, transaction) {
  *     paga por inteiro, vira PAID quando fechar;
  *   - conta INTERNAL: nunca é receita (RN-006); não tem reserva e o banco recusa
  *     pagamento nela, então nunca chega a PAID;
- *   - conta fechada com total 0 e sem pagamento: não há o que pagar, continua CLOSED;
+ *   - conta fechada com total 0 e sem pagamento direto: não há o que pagar, continua
+ *     CLOSED — mesmo que a sobra do crédito da reserva caia nela (saldo negativo);
  *   - conta com consumo antigo ainda não migrado: o total sairia menor (D-31). O próximo
  *     pagamento, fechamento ou migrate acerta.
  *
@@ -77,8 +78,11 @@ export async function settleAccount(account, transaction, ledger) {
     if (!['CLOSED', 'PAID'].includes(account.status)) return;
     if (account.reservation_id && await pendingLegacyConsumption(account.reservation_id, transaction)) return;
 
-    const { totalCents, paidCents: paymentsCents } = await accountBalance(account, transaction, ledger);
-    const next = paymentsCents > 0 && totalCents - paymentsCents <= 0 ? 'PAID' : 'CLOSED';
+    const { totalCents, paidCents: paymentsCents, directCents } = await accountBalance(account, transaction, ledger);
+    // Conta de total 0 só fica PAID com pagamento dela: a sobra do crédito da reserva pode
+    // sair dela quando outra conta passa a ter total, sem acerto (🟢-1 da 3ª rodada).
+    const owns = totalCents > 0 || directCents > 0;
+    const next = owns && paymentsCents > 0 && totalCents - paymentsCents <= 0 ? 'PAID' : 'CLOSED';
     if (next === account.status) return;
 
     const [updated] = await AccountModel.update({ status: next }, {
@@ -108,10 +112,13 @@ export async function settlePaymentAccount(payment, transaction) {
     const tenantId = payment.tenant_id;
     let accounts;
     if (payment.reservation_id) {
+        // paranoid: false — reserva excluída ainda serializa quem mexe nas contas dela;
+        // sem isso a trava não pegava linha nenhuma (🟡-1 da 3ª rodada).
         await ReservationModel.findOne({
             where: { id: payment.reservation_id, tenant_id: tenantId },
             attributes: ['id'],
             lock: transaction.LOCK.UPDATE,
+            paranoid: false,
             transaction
         });
         accounts = await AccountModel.findAll({
@@ -147,10 +154,13 @@ export async function lockAccount(accountId, tenantId, transaction) {
     });
     if (!found) return null;
     if (found.reservation_id) {
+        // paranoid: false — a conta de reserva excluída continua recebendo pagamento, e a trava
+        // precisa pegar a linha (🟡-1 da 3ª rodada).
         await ReservationModel.findOne({
             where: { id: found.reservation_id, tenant_id: tenantId },
             attributes: ['id'],
             lock: transaction.LOCK.UPDATE,
+            paranoid: false,
             transaction
         });
     }
@@ -184,7 +194,10 @@ export default async function accountBill(account, transaction) {
         transaction
     });
     const { roomCharges, consumptions } = await accountCharges(account, transaction);
-    const { totalCents, paidCents: paymentsCents } = await accountBalance(account, transaction);
+    // Total das partes já lidas: o GET roda sem transação, e outra leitura poderia ver um
+    // item lançado no meio (🟢-2 da 3ª rodada).
+    const totalCents = toCents(roomCharges) + toCents(consumptions);
+    const { paidCents: paymentsCents } = await accountBalance(account, transaction);
 
     return {
         account_id: account.id,
