@@ -289,7 +289,7 @@ export interface paths {
         put?: never;
         /**
          * Confirmação de pagamento PIX (callback do PSP)
-         * @description Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.
+         * @description Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.
          */
         post: {
             parameters: {
@@ -1642,7 +1642,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Cria reserva (vincula quarto principal na tabela pivô reservation_rooms) */
+        /** Cria reserva — total = soma de cada quarto (principal e extras) × noites; todos os quartos conferidos contra os ocupados */
         post: {
             parameters: {
                 query?: never;
@@ -1676,7 +1676,7 @@ export interface paths {
                         "application/json": components["schemas"]["Reservation"];
                     };
                 };
-                /** @description Campos obrigatórios ausentes */
+                /** @description Campos obrigatórios ausentes ou check_out_date não posterior a check_in_date */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1694,13 +1694,13 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Quarto indisponível no período solicitado */
+                /** @description Algum quarto (principal ou extra) ocupado no período */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomOccupied"];
                     };
                 };
                 /** @description Categoria do quarto sem preço definido */
@@ -1761,7 +1761,7 @@ export interface paths {
                 };
             };
         };
-        /** Atualiza reserva (guest_id, room_id, datas — não altera status nem total_amount) */
+        /** Atualiza reserva (guest_id, room_id, datas — não altera status; total_amount recalculado se quarto ou datas mudarem) */
         put: {
             parameters: {
                 query?: never;
@@ -1782,7 +1782,16 @@ export interface paths {
                         "application/json": components["schemas"]["Reservation"];
                     };
                 };
-                /** @description Não encontrada */
+                /** @description check_out_date não posterior a check_in_date */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reserva, hóspede ou quarto não encontrado (no hotel do token) */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -1791,19 +1800,22 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Quarto indisponível no novo período */
+                /** @description Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomOccupied"];
                     };
                 };
             };
         };
         post?: never;
-        /** Remove reserva (ADMIN) */
+        /**
+         * Remove reserva (ADMIN)
+         * @description Fecha as contas abertas da reserva na mesma transação (D-36).
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -1839,7 +1851,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Cancela reserva (apenas PENDING ou CONFIRMED) */
+        /**
+         * Cancela reserva (apenas PENDING ou CONFIRMED)
+         * @description Fecha as contas abertas da reserva na mesma transação (D-36). O consumo já lançado segue cobrado; a diária da conta passa a 0 (D-35).
+         */
         put: {
             parameters: {
                 query?: never;
@@ -1862,6 +1877,15 @@ export interface paths {
                 };
                 /** @description Reserva não encontrada */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reserva-bloco B2B — cancele pelo contrato (PUT /contracts/{id}/cancel) */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1955,7 +1979,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Realiza check-out (CHECKED_IN → CHECKED_OUT; quarto(s) vão para CLEANING) */
+        /**
+         * Realiza check-out (CHECKED_IN → CHECKED_OUT; quarto(s) vão para CLEANING)
+         * @description Fecha as contas abertas da reserva na mesma transação (D-36).
+         */
         put: {
             parameters: {
                 query?: never;
@@ -2012,7 +2039,10 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Fechamento de conta: (diária + consumos) − pagamentos confirmados */
+        /**
+         * Fechamento de conta: (diária + consumos) − pagamentos confirmados
+         * @description Desde a T-04.2, os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2042,6 +2072,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description A reserva tem consumo antigo ainda não migrado — o total sairia menor. Some quando o `migrate` concluir (T-04.2) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -2061,7 +2100,10 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Lista consumos extras da reserva */
+        /**
+         * Lista consumos extras da reserva
+         * @description Desde a T-04.2, os itens faturáveis e não excluídos de todas as contas da reserva, no formato antigo e em ordem de consumo. Cortesia não aparece.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2091,10 +2133,22 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description A reserva tem consumo antigo ainda não migrado — a lista sairia incompleta. Some quando o `migrate` concluir */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
-        /** Lança consumo extra (frigobar, restaurante, spa) */
+        /**
+         * Lança consumo extra (frigobar, restaurante, spa)
+         * @description Contrato antigo, mantido. Desde a T-04.2 o consumo vira item da conta da suíte da reserva (criada se não existir). Aceita reserva sem check-in, como antes; reserva com check-out feito ou cancelada não recebe consumo (422). Para lançar com cardápio, cortesia ou idempotência, use `POST /accounts/{id}/items`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2111,7 +2165,10 @@ export interface paths {
                         description: string;
                         /** @example 50 */
                         amount: number;
-                        /** Format: date-time */
+                        /**
+                         * Format: date-time
+                         * @description Quando o hóspede consumiu. Omitido = agora. Não pode estar mais de 1 minuto no futuro
+                         */
                         consumed_at?: string;
                     };
                 };
@@ -2126,7 +2183,7 @@ export interface paths {
                         "application/json": components["schemas"]["Consumption"];
                     };
                 };
-                /** @description description ausente ou amount <= 0 */
+                /** @description description ausente ou acima de 200 caracteres; amount que não é número, <= 0, com mais de 2 casas ou acima de 99999999.99; consumed_at que não é data ISO ou está mais de 1 minuto no futuro */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2137,6 +2194,15 @@ export interface paths {
                 };
                 /** @description Reserva não encontrada */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reserva com check-out feito ou cancelada, ou a conta da suíte já foi fechada */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2165,7 +2231,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove consumo extra (soft delete, ADMIN) */
+        /**
+         * Remove consumo extra (soft delete, ADMIN)
+         * @description O id é o do item da conta — igual ao id do consumo antigo para os migrados na T-04.2.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -2185,8 +2254,29 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description Requer papel ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
                 /** @description Não encontrado */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description A conta da suíte já foi fechada */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Consumo antigo da reserva ainda não migrado */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2256,13 +2346,13 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Já vinculado */
+                /** @description Já vinculado; quarto ocupado no período (com room_ids); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomOccupied"];
                     };
                 };
             };
@@ -2286,7 +2376,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove quarto da reserva (tabela pivô) */
+        /** Remove quarto extra da reserva (recalcula o total) */
         delete: {
             parameters: {
                 query?: never;
@@ -2305,6 +2395,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Reserva não encontrada ou quarto não vinculado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -2342,7 +2450,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Registra novo pagamento (recepção — manual, não PIX online) */
+        /**
+         * Registra novo pagamento da reserva ou de uma conta (recepção — manual, não PIX online)
+         * @description Informe reservation_id ou account_id (T-04.4). Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Com account_id, a reserva vem da conta. Se o pagamento quita uma conta fechada, ela vira PAID na mesma transação; conta aberta paga vira PAID ao fechar (D-43). Pagamento a maior é aceito e deixa o saldo negativo (D-44).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2353,8 +2464,16 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** Format: uuid */
-                        reservation_id: string;
+                        /**
+                         * Format: uuid
+                         * @description Com account_id, opcional; se vier, tem de ser a reserva da conta
+                         */
+                        reservation_id?: string;
+                        /**
+                         * Format: uuid
+                         * @description Conta a pagar (T-04.4)
+                         */
+                        account_id?: string;
                         /** @example 300 */
                         amount: number;
                         /**
@@ -2377,7 +2496,7 @@ export interface paths {
                         "application/json": components["schemas"]["Payment"];
                     };
                 };
-                /** @description reservation_id, amount ou method ausentes */
+                /** @description reservation_id e account_id ausentes, ou amount ou method ausentes */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2386,8 +2505,26 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Reserva não encontrada */
+                /** @description Reserva ou conta não encontrada no hotel */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Conta INTERNAL (nunca é receita), conta já PAID, ou reservation_id diferente da reserva da conta */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description A reserva da conta tem consumo antigo ainda não migrado (D-31) */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2444,7 +2581,10 @@ export interface paths {
                 };
             };
         };
-        /** Atualiza pagamento (amount, method, paid_at) */
+        /**
+         * Atualiza pagamento (amount, method, paid_at)
+         * @description Reserva e conta do pagamento não mudam. Mudar o valor acerta a conta afetada: quita (CLOSED → PAID) ou reabre o saldo (PAID → CLOSED).
+         */
         put: {
             parameters: {
                 query?: never;
@@ -2477,7 +2617,10 @@ export interface paths {
             };
         };
         post?: never;
-        /** Remove pagamento (soft delete) */
+        /**
+         * Remove pagamento (soft delete)
+         * @description A conta que o pagamento quitava volta a CLOSED com saldo (T-04.4).
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -3377,6 +3520,571 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as contas do hotel
+         * @description Todos os papéis. O app do garçom usa `?status=OPEN`. A resposta não traz dados do hóspede.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "OPEN" | "CLOSED" | "PAID";
+                    type?: "ROOM" | "DAY_USE" | "TABLE" | "DIRECT" | "INTERNAL";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Contas, da mais recente para a mais antiga */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Account"][];
+                    };
+                };
+                /** @description status ou type fora da allowlist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Abre uma conta
+         * @description Toda conta nasce `OPEN`; o `status` enviado é ignorado.
+         *
+         *     Vínculos por tipo: `ROOM` exige `reservation_id` (com check-in feito), `room_id` (quarto da reserva) e `guest_id` (qualquer hóspede do hotel). Os demais tipos não aceitam `reservation_id`; `TABLE` e `INTERNAL` também não aceitam `guest_id`.
+         *
+         *     `charges_lodging` vale `true` por padrão em `ROOM` (mande `false` para dividir a suíte) e é sempre `false` nos demais tipos.
+         *
+         *     O garçom (`WAITER`) abre só `TABLE` e `DIRECT`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        type: "ROOM" | "DAY_USE" | "TABLE" | "DIRECT" | "INTERNAL";
+                        /** @example Mesa 5 */
+                        label: string;
+                        /** Format: uuid */
+                        reservation_id?: string;
+                        /** Format: uuid */
+                        room_id?: string;
+                        /** Format: uuid */
+                        guest_id?: string;
+                        charges_lodging?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Conta aberta */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Account"];
+                    };
+                };
+                /** @description type fora da allowlist, label vazio, id que não é UUID ou charges_lodging não booleano */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Garçom abrindo conta ROOM, DAY_USE ou INTERNAL */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Reserva, quarto ou hóspede não encontrado no hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Vínculo proibido ou ausente para o tipo, reserva sem check-in, quarto fora da reserva, diária fora de ROOM ou segunda conta cobrando a diária do quarto na estadia (RN-005) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Busca uma conta com os itens e o total */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Conta encontrada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountDetail"];
+                    };
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta não encontrada no hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lança um item na conta
+         * @description Com `product_id`, descrição e preço vêm do cardápio (o que o cliente mandar é ignorado). Sem `product_id`, `description` e `unit_price` são obrigatórios. `total` é sempre calculado no servidor.
+         *
+         *     **Idempotência:** o reenvio do mesmo `client_item_id` responde **200** com o item original e não duplica — inclusive se o item já foi excluído (vem com `deleted_at`) ou se a conta fechou depois. O mesmo `client_item_id` em outra conta do hotel dá 409.
+         *
+         *     **Cortesia e avulso:** `billable: false` exige `reason`. Cortesia e lançamento sem `product_id` exigem papel ADMIN ou RECEPTIONIST — o garçom só lança item do cardápio, faturável.
+         *
+         *     Conta `ROOM` só recebe item enquanto a reserva estiver `CHECKED_IN`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        product_id?: string;
+                        /** @example Taxa de rolha */
+                        description?: string;
+                        /**
+                         * Format: float
+                         * @description No máximo 2 casas decimais
+                         * @example 30
+                         */
+                        unit_price?: number;
+                        /** @default 1 */
+                        quantity?: number;
+                        /** @default true */
+                        billable?: boolean;
+                        /** @enum {string} */
+                        reason?: "COURTESY" | "STAFF" | "LOSS" | "INTERNAL_USE";
+                        /** Format: uuid */
+                        client_item_id?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reenvio: item original, sem duplicar */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountItemResult"];
+                    };
+                };
+                /** @description Item lançado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountItemResult"];
+                    };
+                };
+                /** @description Campo inválido, description/unit_price ausentes sem product_id, preço com mais de 2 casas, quantity fora de 1–9999, reason fora da allowlist ou total acima do limite */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Garçom lançando cortesia ou item avulso (sem product_id) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta ou produto não encontrado no hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description client_item_id já usado em outra conta */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta fora de OPEN (o check-out já a fecha), conta ROOM com check-out feito, produto inativo, cortesia sem reason ou reason em item faturável */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/bill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bill da conta: diária, consumos, total, pagamentos e saldo (ADMIN, RECEPTIONIST) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Bill calculado na hora */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountBill"];
+                    };
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Garçom não vê o bill */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta não encontrada no hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description A reserva da conta tem consumo antigo ainda não migrado (D-31) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Fecha a conta: OPEN → CLOSED, ou PAID se já está paga (ADMIN, RECEPTIONIST)
+         * @description Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. Se a conta já tem pagamento e o saldo é ≤ 0, sai do fechamento PAID (D-43). O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Conta fechada; devolve o bill */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountBill"];
+                    };
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Garçom não fecha conta */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta não encontrada no hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta já CLOSED ou PAID, ou conta que cobra diária com a estadia ainda em andamento */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description A reserva da conta tem consumo antigo ainda não migrado (D-31) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/items/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Exclui um item — soft delete com auditoria (ADMIN) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    itemId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Item excluído; quem excluiu fica registrado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Requer papel ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta ou item não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conta fora de OPEN */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3446,6 +4154,197 @@ export interface components {
             category?: "FOOD" | "DRINK" | "SERVICE" | "OTHER";
             /** @example true */
             active?: boolean;
+        };
+        Account: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            tenant_id?: string;
+            /**
+             * @example TABLE
+             * @enum {string}
+             */
+            type?: "ROOM" | "DAY_USE" | "TABLE" | "DIRECT" | "INTERNAL";
+            /**
+             * @example OPEN
+             * @enum {string}
+             */
+            status?: "OPEN" | "CLOSED" | "PAID";
+            /**
+             * Format: uuid
+             * @description Só em conta ROOM
+             */
+            reservation_id?: string | null;
+            /** Format: uuid */
+            room_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Nulo em TABLE e INTERNAL
+             */
+            guest_id?: string | null;
+            /** @example Mesa 5 */
+            label?: string;
+            /** @description Esta conta carrega a diária do quarto (RN-005). Sempre false fora de ROOM */
+            charges_lodging?: boolean;
+            /** Format: date-time */
+            opened_at?: string;
+            /** Format: date-time */
+            closed_at?: string | null;
+            /**
+             * @description Diária gravada no fechamento (D-39). Nula na conta aberta
+             * @example 600.00
+             */
+            closed_room_charges?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+            /** Format: date-time */
+            deleted_at?: string | null;
+        };
+        AccountItem: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            tenant_id?: string;
+            /** Format: uuid */
+            account_id?: string;
+            /**
+             * Format: uuid
+             * @description Nulo em lançamento avulso
+             */
+            product_id?: string | null;
+            /** @example Cerveja 600ml */
+            description?: string;
+            /** @example 2 */
+            quantity?: number;
+            /**
+             * @description DECIMAL(10,2) serializado como string. Preço no momento do lançamento
+             * @example 12.00
+             */
+            unit_price?: string;
+            /**
+             * @description quantity × unit_price, sempre calculado no servidor
+             * @example 24.00
+             */
+            total?: string;
+            /** @description false = cortesia: valor gravado, fora da soma da conta (RN-007) */
+            billable?: boolean;
+            /**
+             * @description Obrigatório se billable = false; proibido se true
+             * @enum {string|null}
+             */
+            reason?: "COURTESY" | "STAFF" | "LOSS" | "INTERNAL_USE" | null;
+            /**
+             * Format: uuid
+             * @description Gerado pelo app do garçom — idempotência da fila offline (RN-008)
+             */
+            client_item_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Nulo só em consumo antigo migrado (origin LEGACY_CONSUMPTION)
+             */
+            created_by?: string | null;
+            /** Format: uuid */
+            deleted_by?: string | null;
+            /**
+             * @description LEGACY_CONSUMPTION = migrado de consumptions na T-04.2
+             * @enum {string}
+             */
+            origin?: "ACCOUNT" | "LEGACY_CONSUMPTION";
+            /**
+             * Format: date-time
+             * @description Quando o hóspede consumiu; created_at é quando o servidor gravou
+             */
+            consumed_at?: string;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+            /**
+             * Format: date-time
+             * @description Preenchido só na resposta de reenvio de um item já excluído
+             */
+            deleted_at?: string | null;
+        };
+        AccountDetail: components["schemas"]["Account"] & {
+            /** @description Itens não excluídos, em ordem de lançamento */
+            items?: components["schemas"]["AccountItem"][];
+            /**
+             * @description Soma dos itens faturáveis e não excluídos
+             * @example 24.00
+             */
+            total?: string;
+        };
+        /** @description Bill da conta (T-04.3). Valores em texto (DECIMAL serializado). Sem dado do hóspede. */
+        AccountBill: {
+            /** Format: uuid */
+            account_id?: string;
+            /** @enum {string} */
+            type?: "ROOM" | "DAY_USE" | "TABLE" | "DIRECT" | "INTERNAL";
+            /** @enum {string} */
+            status?: "OPEN" | "CLOSED" | "PAID";
+            /** @example Suíte 201 */
+            label?: string;
+            /** Format: uuid */
+            reservation_id?: string | null;
+            /** Format: uuid */
+            room_id?: string | null;
+            /** Format: date-time */
+            opened_at?: string;
+            /** Format: date-time */
+            closed_at?: string | null;
+            /**
+             * @description Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging, ou com a reserva cancelada/excluída quando a conta ainda estava aberta (D-35); a conta fechada mantém o valor gravado
+             * @example 800.00
+             */
+            room_charges?: string;
+            /**
+             * @description Soma dos itens faturáveis e não excluídos (CA-04.3.c)
+             * @example 25.00
+             */
+            consumptions?: string;
+            /**
+             * @description room_charges + consumptions. Conta INTERNAL: sempre 0 (CA-04.3.f)
+             * @example 825.00
+             */
+            total?: string;
+            /**
+             * @description Pagamentos PAID da conta (T-04.4) mais a parte que lhe cabe do crédito da reserva. Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Cobrança PENDING, FAILED ou EXPIRED e pagamento excluído não contam
+             * @example 100.00
+             */
+            payments_made?: string;
+            /**
+             * @description total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b). Negativo quando o pagamento passou do total: o hotel deve devolver (D-44)
+             * @example 725.00
+             */
+            balance?: string;
+            /** @description Itens não excluídos, inclusive cortesia (billable false, com reason) — CA-04.3.d. Em ordem de consumo */
+            items?: {
+                /** Format: uuid */
+                id?: string;
+                /** Format: uuid */
+                product_id?: string | null;
+                description?: string;
+                quantity?: number;
+                /** @example 12.50 */
+                unit_price?: string;
+                /** @example 25.00 */
+                total?: string;
+                billable?: boolean;
+                /** @enum {string|null} */
+                reason?: "COURTESY" | "STAFF" | "LOSS" | "INTERNAL_USE" | null;
+                /** Format: date-time */
+                consumed_at?: string;
+            }[];
+        };
+        AccountItemResult: {
+            item?: components["schemas"]["AccountItem"];
+            /**
+             * @description Total atualizado da conta (CA-04.1.e)
+             * @example 24.00
+             */
+            account_total?: string;
         };
         RoomCategory: {
             /** Format: uuid */
@@ -3540,6 +4439,13 @@ export interface components {
         Error: {
             error?: string;
         };
+        /** @description Quarto ocupado no período. room_ids vem quando a checagem da aplicação acha o conflito; numa corrida barrada pelo banco (EXCLUDE), só error. */
+        RoomOccupied: {
+            /** @example Quarto indisponível no período solicitado */
+            error?: string;
+            /** @description Quartos da requisição que estão ocupados */
+            room_ids?: string[];
+        };
         /** @description Formato de GET /reservations — Reservation com guest/room/user resumidos (mesmo include de ListReservationController) */
         ReservationListItem: components["schemas"]["Reservation"] & {
             guest?: {
@@ -3590,6 +4496,18 @@ export interface components {
             reservation_id?: string;
             /** Format: uuid */
             room_id?: string;
+            /**
+             * Format: date
+             * @description Cópia da reserva, mantida pelo banco (fonte da ocupação)
+             */
+            check_in_date?: string;
+            /**
+             * Format: date
+             * @description Cópia da reserva, mantida pelo banco
+             */
+            check_out_date?: string;
+            /** @description false quando a reserva está cancelada ou excluída */
+            blocks_room?: boolean;
         };
         Consumption: {
             /** Format: uuid */
@@ -3605,8 +4523,22 @@ export interface components {
              * @example 50.00
              */
             amount?: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Quando o hóspede consumiu
+             */
             consumed_at?: string;
+            /** Format: uuid */
+            deleted_by?: string | null;
+            /**
+             * Format: date-time
+             * @description Quando o lançamento foi gravado
+             */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+            /** Format: date-time */
+            deleted_at?: string | null;
         };
         /** @description Fechamento de conta — GET /reservations/{id}/bill */
         Bill: {
@@ -3661,8 +4593,16 @@ export interface components {
             id?: string;
             /** Format: uuid */
             tenant_id?: string;
-            /** Format: uuid */
-            reservation_id?: string;
+            /**
+             * Format: uuid
+             * @description Nulo só em pagamento de conta sem reserva (day-use, mesa, balcão)
+             */
+            reservation_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Conta paga (T-04.4). Nulo = pagamento da reserva: vira crédito rateado entre as contas dela (D-42, D-45)
+             */
+            account_id?: string | null;
             /**
              * @description DECIMAL(12,2) serializado como string
              * @example 300.00
