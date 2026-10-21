@@ -405,8 +405,8 @@ Um terceiro ponto: a política do projeto de versionar alguns segredos por conve
 
 ### ADR-007: Uma Reserva por Quarto, dentro de um Agrupador
 
-**Data:** 12/10/2026
-**Status:** Proposta
+**Data:** 12/10/2026 — decisão de adiamento em 21/10/2026
+**Status:** Proposta — **adiada para o 5º semestre**
 **Autores:** Gabriel Reis Cunha
 
 #### Contexto
@@ -428,6 +428,8 @@ Proposta: **agrupador (`bookings`) contendo uma reserva por quarto (`reservation
 Pontos a decidir se for aceita: onde mora o pagamento (proposta: no agrupador, com a reserva opcional), se o status do agrupador é derivado das reservas (proposta: sim, nunca gravado) e como dividir o total das reservas antigas na migração (proposta: proporcional ao preço de cada categoria).
 
 **Gatilho de decisão:** antes de começar o módulo de reservas do frontend, o motor de tarifas por período ou o consumidor de eventos do `analytics-service`. Depois de qualquer um deles, a mudança fica mais cara.
+
+**Decisão de 21/10/2026 — adiada para o 5º semestre.** As frentes que o gatilho protege são, neste momento, condições de aprovação do 4º semestre: o segundo microsserviço (`analytics-service`) e o frontend de operação. Remodelar a reserva antes delas custaria de quatro a seis dias que o prazo não comporta. O custo de adiar é conhecido e foi aceito: o `analytics-service` e o frontend de reservas são construídos sobre o modelo atual, e a adoção futura passa por uma versão nova dos eventos de reserva (o catálogo de eventos prevê versionamento) e por uma revisão das telas de reserva. O modelo atual já está corrigido quanto à venda dupla e ao total de reservas com vários quartos.
 
 #### Alternativas Consideradas
 
@@ -648,7 +650,7 @@ O sistema tem públicos diferentes: a equipe do hotel, que usa o PMS durante o t
 | ADR-004 | Provedor de Nuvem e Serviços | Aceita | 16/09/2026 (revista em 10/10/2026) |
 | ADR-005 | Containerização e Orquestração | Aceita | 10/06/2026 |
 | ADR-006 | Propagação de Identidade entre Serviços | Aceita | 24/09/2026 |
-| ADR-007 | Uma Reserva por Quarto, dentro de um Agrupador | Proposta | 12/10/2026 |
+| ADR-007 | Uma Reserva por Quarto, dentro de um Agrupador | Proposta — adiada para o 5º semestre | 12/10/2026 (adiada em 21/10/2026) |
 | ADR-008 | Integrações Externas atrás de Interface | Aceita | 27/06/2026 |
 | ADR-009 | Módulo de Consumo por Contas | Aceita | 07/08/2026 |
 | ADR-010 | Lançamento Financeiro Estornado, nunca Apagado | Aceita | 04/10/2026 |
