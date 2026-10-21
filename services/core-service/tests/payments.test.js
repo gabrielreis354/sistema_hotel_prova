@@ -159,7 +159,9 @@ describe('GET /payments e GET /payments/:id não vazam dados do provedor PIX', (
 });
 
 describe('DELETE /payments/:id', () => {
-    it('remove pagamento (soft delete) e retorna 204', async () => {
+    // T-06.13 (CA-06.13.a): lançamento financeiro não se apaga — se estorna. A rota
+    // responde 405 apontando o POST /payments/:id/void, e o pagamento fica.
+    it('responde 405 com a indicação do estorno e não apaga o pagamento', async () => {
         const createRes = await request(app)
             .post('/payments')
             .set('Authorization', `Bearer ${jwt}`)
@@ -169,6 +171,11 @@ describe('DELETE /payments/:id', () => {
             .delete(`/payments/${createRes.body.id}`)
             .set('Authorization', `Bearer ${jwt}`);
 
-        expect(res.status).toBe(204);
+        expect(res.status).toBe(405);
+        expect(res.body.error).toMatch(/\/void/);
+        const get = await request(app)
+            .get(`/payments/${createRes.body.id}`)
+            .set('Authorization', `Bearer ${jwt}`);
+        expect(get.status).toBe(200);
     });
 });

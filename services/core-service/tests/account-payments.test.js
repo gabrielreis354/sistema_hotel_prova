@@ -373,7 +373,12 @@ describe('Bill da conta com pagamentos e transição para PAID (CA-04.4.c)', () 
     });
 });
 
-describe('Pagamento excluído ou alterado devolve a conta a CLOSED', () => {
+// T-06.13: o DELETE virou estorno (POST /payments/:id/void) e o PUT não altera mais o valor
+// de pagamento PAID — corrigir valor é estornar e lançar de novo.
+const voidOk = (paymentId) => request(app).post(`/payments/${paymentId}/void`).set(auth(jwt))
+    .send({ reason: 'Lançamento corrigido' }).expect(200);
+
+describe('Pagamento estornado devolve a conta a CLOSED', () => {
     let account, payment;
 
     beforeAll(async () => {
@@ -383,21 +388,16 @@ describe('Pagamento excluído ou alterado devolve a conta a CLOSED', () => {
         payment = await payOk({ account_id: account.id, amount: '70.00' });
     });
 
-    it('alterar o valor para menos volta para CLOSED; para o total, PAID de novo', async () => {
+    it('alterar o valor de pagamento PAID → 409, e a conta segue PAID', async () => {
         expect((await reload(account.id)).status).toBe('PAID');
 
-        let res = await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ amount: '50.00' });
-        expect(res.status).toBe(200);
-        expect(await bill(account.id)).toMatchObject({ status: 'CLOSED', balance: '20.00' });
-
-        res = await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ amount: '70.00' });
-        expect(res.status).toBe(200);
-        expect((await reload(account.id)).status).toBe('PAID');
+        const res = await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ amount: '50.00' });
+        expect(res.status).toBe(409);
+        expect(await bill(account.id)).toMatchObject({ status: 'PAID', balance: '0.00' });
     });
 
-    it('excluir o pagamento volta para CLOSED', async () => {
-        const res = await request(app).delete(`/payments/${payment.id}`).set(auth(jwt));
-        expect(res.status).toBe(204);
+    it('estornar o pagamento volta para CLOSED', async () => {
+        await voidOk(payment.id);
         expect(await bill(account.id)).toMatchObject({ status: 'CLOSED', payments_made: '0.00', balance: '70.00' });
     });
 });
@@ -501,25 +501,27 @@ describe('Pagamento da reserva entra na conta titular (decisão 1)', () => {
         await expectAccountsMatchReservation(reservation.id);
     });
 
-    it('alterar o pagamento feito na reserva acerta a titular', async () => {
+    it('corrigir o valor do pagamento feito na reserva (estorno + novo lançamento) acerta a titular', async () => {
         const { reservation, account } = await stayWithAccount({ nights: 1 }); // 200
         const payment = await payOk({ reservation_id: reservation.id, amount: '150.00' });
         await checkOut(reservation.id);
         expect((await reload(account.id)).status).toBe('CLOSED');
 
-        await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ amount: '200.00' }).expect(200);
+        await voidOk(payment.id);
+        await payOk({ reservation_id: reservation.id, amount: '200.00' });
         expect((await reload(account.id)).status).toBe('PAID');
         await expectAccountsMatchReservation(reservation.id);
     });
 
-    it('excluir o pagamento da reserva devolve a titular a CLOSED', async () => {
+    it('estornar o pagamento da reserva devolve a titular a CLOSED', async () => {
         const { reservation, account } = await stayWithAccount({ nights: 1 });
         const payment = await payOk({ reservation_id: reservation.id, amount: '200.00' });
         await checkOut(reservation.id);
         expect((await reload(account.id)).status).toBe('PAID');
 
-        await request(app).delete(`/payments/${payment.id}`).set(auth(jwt)).expect(204);
+        await voidOk(payment.id);
         expect((await reload(account.id)).status).toBe('CLOSED');
+        await expectAccountsMatchReservation(reservation.id);
     });
 });
 
@@ -687,11 +689,11 @@ describe('Crédito da reserva rateado entre as contas (D-45, 🟡-1 do qa-redtea
         await expectAccountsMatchReservation(reservation.id);
     });
 
-    it('excluir o pagamento da reserva devolve as duas contas a CLOSED', async () => {
+    it('estornar o pagamento da reserva devolve as duas contas a CLOSED', async () => {
         const { reservation, a, b } = await twoRoomStay();
         const payment = await payOk({ reservation_id: reservation.id, amount: '500.00' });
         await checkOut(reservation.id);
-        await request(app).delete(`/payments/${payment.id}`).set(auth(jwt)).expect(204);
+        await voidOk(payment.id);
 
         expect((await reload(a.id)).status).toBe('CLOSED');
         expect((await reload(b.id)).status).toBe('CLOSED');
