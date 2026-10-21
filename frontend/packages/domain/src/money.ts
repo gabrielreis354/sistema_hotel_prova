@@ -71,3 +71,36 @@ export function centsToDecimalString(cents: Cents): string {
   const rem = String(abs % 100).padStart(2, '0');
   return `${negative ? '-' : ''}${reais}.${rem}`;
 }
+
+// pt-BR: vírgula decimal, ponto opcional de milhar ("1.234,56", "150,5", "150,").
+const BR_COMMA = /^(\d{1,3}(\.\d{3})+|\d+),\d{0,2}$/;
+// Só ponto de milhar, sem decimal ("1.234", "12.500").
+const BR_THOUSANDS = /^\d{1,3}(\.\d{3})+$/;
+// Inteiro ou ponto decimal com até duas casas ("150", "150.5", "150.00").
+const PLAIN = /^\d+(\.\d{1,2})?$/;
+
+/**
+ * Lê o valor que o operador digita no balcão e devolve centavos — sem passar por float.
+ *
+ * Aceita o jeito brasileiro ("1.234,56", "150,5", "R$ 150,00") e o formato do backend
+ * ("150.00"). Ponto seguido de exatamente três dígitos é milhar ("1.500" = mil e quinhentos),
+ * porque é assim que se escreve preço no Brasil. Negativo e lixo devolvem `null`: o
+ * formulário mostra o erro, em vez de gravar um valor que ninguém digitou.
+ */
+export function parseBRLInput(text: string): Cents | null {
+  const t = text.replace(/^\s*R\$/, '').replace(/\s/g, '');
+  if (!t) return null;
+
+  let decimal: string;
+  if (BR_COMMA.test(t)) decimal = t.replace(/\./g, '').replace(',', '.');
+  else if (BR_THOUSANDS.test(t)) decimal = t.replace(/\./g, '');
+  else if (PLAIN.test(t)) decimal = t;
+  else return null;
+
+  return decimalToCents(decimal.endsWith('.') ? decimal.slice(0, -1) : decimal);
+}
+
+/** Centavos no formato que o operador edita: 15000 -> "150,00" (sem símbolo, sem milhar). */
+export function centsToBRLInput(cents: Cents): string {
+  return centsToDecimalString(cents).replace('.', ',');
+}

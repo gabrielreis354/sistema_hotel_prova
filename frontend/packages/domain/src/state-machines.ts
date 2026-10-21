@@ -58,11 +58,19 @@ export function canTransitionRoom(from: RoomStatus, to: RoomStatus): boolean {
 }
 
 /**
+ * Chaves dos tokens de cor de status do design system (`status.<key>` em
+ * `packages/config/tailwind-preset.js`). Tipadas para que um token inexistente seja erro de
+ * compilação, e não um ponto sem cor no build.
+ */
+export const STATUS_TONES = ['free', 'booked', 'occupied', 'cleaning', 'maintenance'] as const;
+export type StatusTone = (typeof STATUS_TONES)[number];
+
+/**
  * Metadados de exibição de cada status de quarto: rótulo PT-BR e a chave do token de cor
  * do design system (`status.<key>` no preset do Tailwind). A cor NUNCA vai sozinha — o
  * componente sempre acompanha o `label`.
  */
-export const ROOM_STATUS_META: Record<RoomStatus, { label: string; token: string }> = {
+export const ROOM_STATUS_META: Record<RoomStatus, { label: string; token: StatusTone }> = {
   AVAILABLE: { label: 'Livre', token: 'free' },
   OCCUPIED: { label: 'Ocupado', token: 'occupied' },
   CLEANING: { label: 'Limpeza', token: 'cleaning' },

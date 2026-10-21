@@ -5,8 +5,58 @@ import {
   sumCents,
   formatBRL,
   centsToDecimalString,
+  parseBRLInput,
+  centsToBRLInput,
   MoneyParseError,
 } from './money.js';
+
+describe('parseBRLInput', () => {
+  it('le o valor do jeito que o balcao digita', () => {
+    expect(parseBRLInput('150')).toBe(15000);
+    expect(parseBRLInput('150,5')).toBe(15050);
+    expect(parseBRLInput('150,00')).toBe(15000);
+    expect(parseBRLInput('1.234,56')).toBe(123456);
+    expect(parseBRLInput('R$ 1.234,56')).toBe(123456);
+    expect(parseBRLInput('  99,9 ')).toBe(9990);
+  });
+
+  it('aceita o formato do backend (ponto decimal)', () => {
+    expect(parseBRLInput('150.00')).toBe(15000);
+    expect(parseBRLInput('150.5')).toBe(15050);
+  });
+
+  it('ponto seguido de tres digitos e milhar', () => {
+    expect(parseBRLInput('1.500')).toBe(150000);
+    expect(parseBRLInput('12.500')).toBe(1250000);
+  });
+
+  it('virgula sem casas conta como inteiro', () => {
+    expect(parseBRLInput('150,')).toBe(15000);
+  });
+
+  it('recusa vazio, negativo e lixo', () => {
+    expect(parseBRLInput('')).toBeNull();
+    expect(parseBRLInput('   ')).toBeNull();
+    expect(parseBRLInput('-10')).toBeNull();
+    expect(parseBRLInput('abc')).toBeNull();
+    expect(parseBRLInput('1,2,3')).toBeNull();
+    expect(parseBRLInput('150,123')).toBeNull();
+    expect(parseBRLInput('1.23.4')).toBeNull();
+  });
+});
+
+describe('centsToBRLInput', () => {
+  it('devolve o valor pronto para editar', () => {
+    expect(centsToBRLInput(15000)).toBe('150,00');
+    expect(centsToBRLInput(5)).toBe('0,05');
+  });
+
+  it('e o inverso de parseBRLInput', () => {
+    for (const c of [0, 5, 15000, 123456]) {
+      expect(parseBRLInput(centsToBRLInput(c))).toBe(c);
+    }
+  });
+});
 
 describe('decimalToCents', () => {
   it('parseia a string DECIMAL do pg sem passar por float', () => {
