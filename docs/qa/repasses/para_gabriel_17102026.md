@@ -11,3 +11,11 @@ reserva `CONFIRMED` com o sinal `FAILED`, e `GetBillController` passa a não aba
 **Regra violada:** mesma correção de 12/10 (🟡-2) aplicada só ao ramo PAID.
 **Correção sugerida:** no ramo FAILED, reler com `PaymentModel.findOne({ where: { id }, lock: transaction.LOCK.UPDATE, transaction })`
 e só gravar se o status ainda for `PENDING`.
+
+---
+
+## Tratamento — 21/10/2026 (Gabriel, branch `fix/repasses-gabriel-out`)
+
+**Tratado.** No ramo FAILED, o `PixWebhookController` relê o `Payment` com `lock: transaction.LOCK.UPDATE` dentro da transação e só grava `FAILED` se ainda estiver `PENDING` (allowlist). Em qualquer outro status, responde `already_processed`, como o ramo PAID.
+- Teste de concorrência em `tests/asaas-webhook.test.js` (PAID e FAILED simultâneos, nas duas ordens). RED em `0d31d72`: o resultado era `confirmed` + `not_approved`, ou seja, reserva CONFIRMED com sinal FAILED. GREEN em `59650de`.
+- Relatório: `docs/historico_sessao/gabriel/repasses_conta_quarto_webhook_21102026.md`.
