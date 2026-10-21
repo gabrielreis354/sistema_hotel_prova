@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../../database/connections/sequelize.js';
+import { PAYMENT_STATUSES } from '../utils/paymentEnums.js';
 
 const PaymentModel = sequelize.define(
     'PaymentModel',
@@ -38,14 +39,32 @@ const PaymentModel = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: false
         },
-        // Ciclo de vida do pagamento (conjunto canônico): PENDING, PAID, EXPIRED, FAILED.
-        // Pagamentos manuais (recepção) já nascem PAID; cobranças PIX online nascem PENDING
-        // e viram PAID quando o webhook confirma. EXPIRED (cobrança PIX vencida) e FAILED
-        // (recusada pelo PSP) ficam reservados para o provedor de pagamento real.
+        // Ciclo de vida do pagamento: allowlist em app/utils/paymentEnums.js (CHECK
+        // payments_status_allowlist no banco). Pagamentos manuais (recepção) já nascem
+        // PAID; cobranças PIX online nascem PENDING e viram PAID quando o webhook confirma.
+        // EXPIRED (cobrança PIX vencida) e FAILED (recusada pelo PSP) ficam reservados para
+        // o provedor real. VOIDED é o estorno do lançamento (T-06.13): só PAID vira VOIDED,
+        // pelo POST /payments/:id/void, e o pagamento fica no histórico.
         status: {
             type: DataTypes.TEXT,
             allowNull: false,
-            defaultValue: 'PAID'
+            defaultValue: 'PAID',
+            validate: { isIn: [PAYMENT_STATUSES] }
+        },
+        // Trilha do estorno (CA-06.13.b, e). Nulos em todo pagamento não anulado; os três
+        // obrigatórios no VOIDED — CHECKs payments_voided_has_trail e payments_trail_only_voided.
+        void_reason: {
+            type: DataTypes.TEXT,
+            allowNull: true
+        },
+        voided_by: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: { model: 'users', key: 'id' }
+        },
+        voided_at: {
+            type: DataTypes.DATE,
+            allowNull: true
         },
         // Natureza do valor: FULL (integral), DEPOSIT (sinal online) ou BALANCE (saldo no check-in).
         kind: {

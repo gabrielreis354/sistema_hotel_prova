@@ -1,6 +1,7 @@
 import { QueryTypes } from 'sequelize';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
+import { PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
 
 /**
  * Objetos de banco que o `sequelize.sync()` NÃO gera: extensões, constraints
@@ -70,6 +71,7 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
 
     await applyAccountConstraints(sequelize);
     await applyPaymentAccountConstraints(sequelize);
+    await applyPaymentStatusConstraints(sequelize);
 
     // Índices únicos PARCIAIS em models paranoid — mesmo mecanismo da EXCLUDE acima,
     // agora para os 8 índices auditados na SPEC-06 (users, room_categories, rooms,
@@ -290,6 +292,44 @@ async function applyPaymentAccountConstraints(sequelize) {
                 CREATE TRIGGER payments_account_consistency
                     BEFORE INSERT OR UPDATE ON payments
                     FOR EACH ROW EXECUTE FUNCTION payments_account_consistency();
+            END IF;
+        END $$;
+    `);
+}
+
+/**
+ * Status do pagamento e trilha do estorno (T-06.13, CA-06.13.e).
+ *
+ * - `payments_status_allowlist`: a lista de app/utils/paymentEnums.js, com VOIDED. DROP + ADD
+ *   pelo mesmo motivo dos CHECKs de products: a allowlist muda. O CHECK de nome automático
+ *   que o schema.sql antigo criava (`payments_status_check`, sem VOIDED) sai — senão o banco
+ *   provisionado por ele recusaria todo estorno só em produção.
+ * - `payments_voided_has_trail`: VOIDED tem motivo não vazio, autor e horário.
+ * - `payments_trail_only_voided`: os três ficam nulos em todo pagamento não anulado.
+ *
+ * NOT VALID: vale para o que entra daqui em diante, sem travar o migrate por uma linha antiga
+ * (mesmo critério do payments_amount_check). Nenhuma linha anterior tem as colunas novas.
+ */
+async function applyPaymentStatusConstraints(sequelize) {
+    const statuses = PAYMENT_STATUSES.map((s) => `'${s}'`).join(', ');
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'voided_at') THEN
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_allowlist;
+                ALTER TABLE payments ADD  CONSTRAINT payments_status_allowlist
+                    CHECK (status IN (${statuses})) NOT VALID;
+
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_voided_has_trail;
+                ALTER TABLE payments ADD  CONSTRAINT payments_voided_has_trail
+                    CHECK (status <> 'VOIDED' OR (void_reason IS NOT NULL AND btrim(void_reason) <> ''
+                                                  AND voided_by IS NOT NULL AND voided_at IS NOT NULL)) NOT VALID;
+
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_trail_only_voided;
+                ALTER TABLE payments ADD  CONSTRAINT payments_trail_only_voided
+                    CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL)) NOT VALID;
             END IF;
         END $$;
     `);

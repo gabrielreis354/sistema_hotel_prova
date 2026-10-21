@@ -15,6 +15,7 @@ export default async function GetAlertsController(request, response) {
             FROM reservations r
             JOIN guests g ON g.id = r.guest_id
             LEFT JOIN payments p ON p.reservation_id = r.id AND p.tenant_id = :tenantId
+                                 AND p.status = 'PAID' AND p.deleted_at IS NULL  -- só pagamento efetivado tira a reserva da lista (D-3; estorno, T-06.13)
             WHERE r.tenant_id = :tenantId
               AND r.status = 'CONFIRMED'
               AND r.check_in_date = CURRENT_DATE
