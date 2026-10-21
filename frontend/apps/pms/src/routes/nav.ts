@@ -15,6 +15,8 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Hoje', roles: ['ADMIN', 'RECEPTIONIST'] },
   { to: '/reservas', label: 'Reservas', roles: ['ADMIN', 'RECEPTIONIST'] },
   { to: '/hospedes', label: 'Hóspedes', roles: ['ADMIN', 'RECEPTIONIST'] },
+  // Categorias ficam dentro de Quartos (abas da própria tela) — uma aba a menos no celular.
+  { to: '/quartos', label: 'Quartos', roles: ['ADMIN', 'RECEPTIONIST'] },
   { to: '/comanda', label: 'Comanda', roles: ['ADMIN', 'RECEPTIONIST', 'WAITER'] },
   { to: '/config/usuarios', label: 'Usuários', roles: ['ADMIN'] },
 ];
