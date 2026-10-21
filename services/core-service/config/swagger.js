@@ -896,11 +896,12 @@ const options = {
                 },
                 put: {
                     tags: ['Reservas'], summary: 'Atualiza reserva (guest_id, room_id, datas — não altera status; total_amount recalculado se quarto ou datas mudarem)',
+                    description: 'Na troca do quarto principal, as contas ROOM abertas do quarto que sai passam para o quarto novo na mesma transação (RN-005 / D-3, D-5). O rótulo gerado pelo sistema ("Suíte 906") acompanha; o escolhido pela recepção fica. Conta fechada ou paga não muda (D-23).',
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         400: { description: 'check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Reserva, hóspede ou quarto não encontrado (no hotel do token)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } }
+                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } }
                     }
                 },
                 delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', description: 'Fecha as contas abertas da reserva na mesma transação (D-36).', responses: { 204: { description: 'OK' } } }
@@ -1011,11 +1012,18 @@ const options = {
                     { in: 'path', name: 'id',     required: true, schema: { type: 'string', format: 'uuid' } },
                     { in: 'path', name: 'roomId', required: true, schema: { type: 'string', format: 'uuid' } }
                 ],
-                delete: { tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)', responses: {
-                    204: { description: 'Desvinculado' },
-                    404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                    409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
-                } }
+                delete: {
+                    tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)',
+                    description: 'As contas ROOM abertas do quarto saem junto: a vazia (sem item e sem pagamento) é desligada (soft delete) e a diária passa às contas que ficam (D-40); a que tem item ou pagamento recusa a remoção (409, com account_ids). Conta fechada ou paga não é tocada (D-23).',
+                    responses: {
+                        204: { description: 'Desvinculado' },
+                        404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED; o quarto tem conta aberta com lançamento ou pagamento (com account_ids)', content: { 'application/json': { schema: { type: 'object', properties: {
+                            error:       { type: 'string' },
+                            account_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Só no caso da conta aberta com lançamento ou pagamento' }
+                        } } } } }
+                    }
+                }
             },
             '/payments': {
                 get: {

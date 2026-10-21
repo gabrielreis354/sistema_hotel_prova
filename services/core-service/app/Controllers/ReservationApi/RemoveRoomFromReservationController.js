@@ -3,6 +3,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
+import { releaseRemovedRoomAccounts } from '../../utils/roomChangeAccounts.js';
 
 export default async function RemoveRoomFromReservationController(request, response) {
     const { id, roomId } = request.params;
@@ -33,6 +34,14 @@ export default async function RemoveRoomFromReservationController(request, respo
         // mora em reservations.room_id; troca-se pelo PUT.
         if (pivot.room_id === reservation.room_id) {
             return await fail(409, { error: 'O quarto principal não pode ser removido — troque-o pelo PUT /reservations/:id' });
+        }
+
+        // As contas abertas do extra saem junto (repasse do qa-redteam de 19/10): a vazia é
+        // desligada; a com lançamento ou pagamento recusa a remoção (409), em vez de ficar
+        // apontando para um quarto fora da estadia.
+        const released = await releaseRemovedRoomAccounts(reservation, pivot.room_id, transaction);
+        if (released.error) {
+            return await fail(released.error.status, { error: released.error.message, account_ids: released.error.accountIds });
         }
 
         await pivot.destroy({ transaction });

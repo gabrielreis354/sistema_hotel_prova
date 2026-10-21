@@ -17,7 +17,7 @@ import ReservationRoomModel from '../app/Models/ReservationRoomModel.js';
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
 
-let jwt, otherJwt;
+let jwt, tenantId, otherJwt;
 let standard, luxo; // 200 e 300 por noite
 let guest;
 let roomNumber = 900;
@@ -72,7 +72,7 @@ const reload = (id) => AccountModel.findByPk(id, { paranoid: false });
 
 beforeAll(async () => {
     await truncateAll();
-    ({ jwt } = await registerAndLogin(app, { tenantName: 'Hotel Contas do Quarto' }));
+    ({ jwt, tenantId } = await registerAndLogin(app, { tenantName: 'Hotel Contas do Quarto' }));
     ({ jwt: otherJwt } = await registerAndLogin(app, { tenantName: 'Hotel Contas Vizinho' }));
     standard = await createCategory(app, jwt, { name: 'Standard RA', price_per_night: 200 });
     luxo = await createCategory(app, jwt, { name: 'Luxo RA', price_per_night: 300 });
@@ -158,6 +158,27 @@ describe('PUT /reservations/:id — troca do quarto principal leva a conta abert
         expect((await swapRoom(reservation.body.id, busy.id)).status).toBe(409);
 
         expect((await reload(account.id)).room_id).toBe(oldRoom.id);
+    });
+
+    it('dado legado: o quarto novo já tem conta de diária desta reserva → 409 (RN-005), nada muda', async () => {
+        const first = await newRoom();
+        const second = await newRoom();
+        const reservation = await reserve(first);
+        const current = await openAccount({ reservation_id: reservation.id, room_id: first.id, label: 'Atual' });
+        // Estado de antes da correção: uma troca 'second' → 'first' deixou a conta de diária
+        // antiga para trás, no quarto 'second' (gravada direto no banco).
+        const stale = await AccountModel.create({
+            tenant_id: tenantId, type: 'ROOM', reservation_id: reservation.id, room_id: second.id,
+            guest_id: guest.id, label: 'Legada', charges_lodging: true
+        });
+
+        const res = await swapRoom(reservation.id, second.id);
+
+        expect(res.status).toBe(409);
+        expect(res.body.error).toMatch(/RN-005/);
+        expect((await reload(current.id)).room_id).toBe(first.id);
+        expect((await reload(stale.id)).room_id).toBe(second.id);
+        expect((await request(app).get(`/reservations/${reservation.id}`).set(auth(jwt))).body.room_id).toBe(first.id);
     });
 
     it('tenant isolation: outro hotel não troca o quarto nem move a conta (404)', async () => {
