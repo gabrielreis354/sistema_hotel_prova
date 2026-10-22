@@ -3,9 +3,11 @@
 //
 // - Troca do quarto principal (PUT /reservations/:id): a conta ROOM ABERTA do quarto que sai
 //   passa a apontar para o quarto novo, na mesma transação (RN-005 / D-3, D-5).
-// - Remoção de quarto extra (DELETE /reservations/:id/rooms/:roomId): conta aberta vazia é
-//   desligada (soft delete); conta aberta com item ou pagamento recusa a remoção com 409.
-import { describe, it, expect, beforeAll } from 'vitest';
+// - Remoção de quarto extra (DELETE /reservations/:id/rooms/:roomId): as contas abertas do
+//   extra vão para o quarto principal; se ele já tem conta de diária, a movida deixa de cobrar
+//   diária (RN-005). Nenhuma conta é apagada e a remoção não é bloqueada por conta aberta
+//   (🟡-1 e 🟡-2 da auditoria qa-redteam de 21/10).
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
@@ -176,6 +178,9 @@ describe('PUT /reservations/:id — troca do quarto principal leva a conta abert
 
         expect(res.status).toBe(409);
         expect(res.body.error).toMatch(/RN-005/);
+        // 🟢-2 da auditoria de 21/10: diz qual conta bloqueia, e não manda "fechar" (D-41).
+        expect(res.body.account_ids).toEqual([stale.id]);
+        expect(res.body.error).not.toMatch(/feche/i);
         expect((await reload(current.id)).room_id).toBe(first.id);
         expect((await reload(stale.id)).room_id).toBe(second.id);
         expect((await request(app).get(`/reservations/${reservation.id}`).set(auth(jwt))).body.room_id).toBe(first.id);
@@ -194,39 +199,48 @@ describe('PUT /reservations/:id — troca do quarto principal leva a conta abert
 });
 
 describe('DELETE /reservations/:id/rooms/:roomId — quarto extra com conta (repasse 19/10)', () => {
-    it('conta aberta vazia no extra: remove o quarto e desliga a conta; a diária fica na conta do principal', async () => {
+    const lodgingCount = (reservationId) =>
+        AccountModel.count({ where: { reservation_id: reservationId, charges_lodging: true } });
+
+    it('🟡-1: a única conta de diária está no extra (vazia) → vai para o principal e segue cobrando a diária', async () => {
+        const main = await newRoom();
+        const extra = await newRoom();
+        const reservation = await reserve(main, [extra]); // (200 + 200) × 2 = 800, CHECKED_IN
+        const onlyAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: `Suíte ${extra.number}` });
+        expect((await getBill(onlyAccount.id)).body.room_charges).toBe('800.00');
+
+        expect((await removeRoom(reservation.id, extra.id)).status).toBe(204);
+
+        // Nenhuma conta apagada, e a diária da estadia (2 × 200) continua numa conta.
+        expect(await reload(onlyAccount.id)).toMatchObject({
+            room_id: main.id, charges_lodging: true, deleted_at: null, status: 'OPEN', label: `Suíte ${main.number}`
+        });
+        expect(await lodgingCount(reservation.id)).toBe(1);
+        expect((await getBill(onlyAccount.id)).body.room_charges).toBe('400.00');
+    });
+
+    it('🟡-2: conta com consumo no extra e o principal já tem conta de diária → a remoção passa, a conta vai para o principal sem diária', async () => {
         const main = await newRoom();
         const extra = await newRoom(luxo);
         const reservation = await reserve(main, [extra]); // (200 + 300) × 2 = 1000, CHECKED_IN
         const mainAccount = await openAccount({ reservation_id: reservation.id, room_id: main.id, label: 'Principal' });
-        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Extra vazia' });
+        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Família Souza' });
+        await addItem(extraAccount.id, { description: 'Frigobar', unit_price: '15.00' });
 
         expect((await removeRoom(reservation.id, extra.id)).status).toBe(204);
 
-        const gone = await reload(extraAccount.id);
-        expect(gone.deleted_at).not.toBeNull();
-        expect(await AccountModel.findByPk(extraAccount.id)).toBeNull();
-        // Total novo (2 × 200) inteiro na conta que ficou — nenhuma diária perdida nem dobrada.
+        // Vira conta dividida da suíte principal (D-5), com o consumo intacto; RN-005 preservada.
+        expect(await reload(extraAccount.id)).toMatchObject({
+            room_id: main.id, charges_lodging: false, deleted_at: null, label: 'Família Souza'
+        });
+        expect((await getBill(extraAccount.id)).body).toMatchObject({ room_charges: '0.00', consumptions: '15.00', total: '15.00' });
+        expect(await lodgingCount(reservation.id)).toBe(1);
+        // Total novo (2 × 200) inteiro na conta do principal — nenhuma diária perdida nem dobrada.
         expect((await getBill(mainAccount.id)).body.room_charges).toBe('400.00');
+        expect(await ReservationRoomModel.count({ where: { reservation_id: reservation.id, room_id: extra.id } })).toBe(0);
     });
 
-    it('conta aberta com item no extra: 409 com mensagem clara, nada muda', async () => {
-        const main = await newRoom();
-        const extra = await newRoom(luxo);
-        const reservation = await reserve(main, [extra]);
-        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Extra com consumo' });
-        await addItem(extraAccount.id, { description: 'Água', unit_price: '6.00' });
-
-        const res = await removeRoom(reservation.id, extra.id);
-
-        expect(res.status).toBe(409);
-        expect(res.body.error).toMatch(/conta aberta/i);
-        expect(res.body.account_ids).toEqual([extraAccount.id]);
-        expect(await ReservationRoomModel.count({ where: { reservation_id: reservation.id, room_id: extra.id } })).toBe(1);
-        expect(await reload(extraAccount.id)).toMatchObject({ room_id: extra.id, deleted_at: null });
-    });
-
-    it('conta aberta com pagamento no extra: 409 (pagamento é registro financeiro)', async () => {
+    it('conta com pagamento no extra: vai para o principal com o pagamento junto', async () => {
         const main = await newRoom();
         const extra = await newRoom();
         const reservation = await reserve(main, [extra]);
@@ -235,25 +249,13 @@ describe('DELETE /reservations/:id/rooms/:roomId — quarto extra com conta (rep
             .send({ account_id: extraAccount.id, amount: '50.00', method: 'DINHEIRO' });
         expect(payment.status).toBe(201);
 
-        const res = await removeRoom(reservation.id, extra.id);
-
-        expect(res.status).toBe(409);
-        expect((await reload(extraAccount.id)).deleted_at).toBeNull();
-    });
-
-    it('item excluído não conta como lançamento: a conta vazia é desligada', async () => {
-        const main = await newRoom();
-        const extra = await newRoom();
-        const reservation = await reserve(main, [extra]);
-        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Extra estornada' });
-        const item = await addItem(extraAccount.id, { description: 'Lançado por engano', unit_price: '9.00' });
-        expect((await request(app).delete(`/accounts/${extraAccount.id}/items/${item.id}`).set(auth(jwt))).status).toBe(204);
-
         expect((await removeRoom(reservation.id, extra.id)).status).toBe(204);
-        expect((await reload(extraAccount.id)).deleted_at).not.toBeNull();
+
+        expect(await reload(extraAccount.id)).toMatchObject({ room_id: main.id, charges_lodging: false, deleted_at: null });
+        expect((await getBill(extraAccount.id)).body.payments_made).toBe('50.00');
     });
 
-    it('conta fechada no extra não bloqueia nem é apagada (D-23)', async () => {
+    it('conta fechada no extra não muda, nem bloqueia a remoção (D-23)', async () => {
         const main = await newRoom();
         const extra = await newRoom();
         const reservation = await reserve(main, [extra]);
@@ -265,13 +267,35 @@ describe('DELETE /reservations/:id/rooms/:roomId — quarto extra com conta (rep
         expect(await reload(closed.id)).toMatchObject({ status: 'CLOSED', deleted_at: null, room_id: extra.id });
     });
 
-    it('tenant isolation: outro hotel não remove o quarto nem desliga a conta (404)', async () => {
+    it('tenant isolation: outro hotel não remove o quarto nem move a conta (404)', async () => {
         const main = await newRoom();
         const extra = await newRoom();
         const reservation = await reserve(main, [extra]);
         const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Extra isolada' });
 
         expect((await removeRoom(reservation.id, extra.id, otherJwt)).status).toBe(404);
-        expect((await reload(extraAccount.id)).deleted_at).toBeNull();
+        expect(await reload(extraAccount.id)).toMatchObject({ room_id: extra.id, deleted_at: null });
+    });
+});
+
+describe('POST /accounts/:id/items — conta que some entre a leitura e a trava (🟢-1 da auditoria de 21/10)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('a releitura com trava não acha a conta → 404, nunca 500, e nada é gravado', async () => {
+        const room = await newRoom();
+        const reservation = await reserve(room);
+        const account = await openAccount({ reservation_id: reservation.id, room_id: room.id, label: 'Some no meio' });
+        // Simula a conta excluída por outra transação depois da 1ª leitura: só a leitura com
+        // trava (a de dentro da transação) volta vazia.
+        const original = AccountModel.findOne.bind(AccountModel);
+        vi.spyOn(AccountModel, 'findOne').mockImplementation((options, ...rest) =>
+            (options?.lock ? Promise.resolve(null) : original(options, ...rest)));
+
+        const res = await request(app).post(`/accounts/${account.id}/items`).set(auth(jwt))
+            .send({ description: 'Água', unit_price: '6.00' });
+
+        expect(res.status).toBe(404);
+        vi.restoreAllMocks();
+        expect((await getBill(account.id)).body.items).toHaveLength(0);
     });
 });
