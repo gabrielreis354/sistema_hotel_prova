@@ -71,3 +71,93 @@ Linha de base no `develop` (`c6742b2`), antes das mudanças: 39 arquivos, 836 pa
 | 2 | Avisar o Sirlande (dono de `accounts`) | 🟡 Média | Três pontos: a troca agora move a conta; a conta vazia do extra removido é desligada por soft delete; ajustei um teste dele em `account-bill.test.js`. O `realignStaleLodgingAccount` continua como rede para dado legado |
 | 3 | Escape para conta com lançamento num extra que se quer remover | 🟢 Baixa | Hoje o ADMIN exclui o item e relança em outra conta. Uma rota de transferência de item entre contas resolveria melhor, se aparecer em uso real |
 | 4 | 🟢 do repasse de 19/10 ainda abertos | 🟢 Baixa | Catálogo de eventos com `reservation_id: UUID \| null` e estorno depois de PAID (T-06.13) |
+
+---
+
+### 2026-10-21 — Rodada 2: achados da auditoria qa-redteam
+
+- **Origem:** `docs/qa/redteam_repasses-gabriel-out_21out2026.md` (commit `c66e97b`). O veredito foi **APROVADO COM RESSALVAS**, com 0 🔴, 2 🟡 e 3 🟢. Todos foram corrigidos nesta rodada, na mesma branch, sempre RED antes do GREEN.
+- **A regra de remoção de quarto extra mudou.** A regra da rodada 1, descrita acima (desligar a conta vazia, 409 na conta com item ou pagamento), está **substituída**.
+
+#### O que mudou
+
+**🟡-1 e 🟡-2 — remoção de quarto extra.** As contas `ROOM` OPEN do quarto removido passam para o **quarto principal** da reserva, na mesma transação e com a mesma ordem de trava (D-48: reserva → contas por id).
+- **O principal já tem conta de diária da reserva:** a conta movida passa a `charges_lodging: false` e vira conta dividida da suíte (D-5). Isso preserva a RN-005.
+- **O principal não tem:** a conta mantém `charges_lodging` e passa a cobrar a diária.
+- **Rótulo:** o gerado pelo sistema acompanha o quarto; o da recepção fica.
+- **Conta fechada ou paga:** não muda (D-23).
+- **Resultado:**
+  - nenhuma conta é apagada (o soft delete de conta saiu do runtime);
+  - nenhum consumo ou pagamento se perde;
+  - a diária nunca fica sem conta;
+  - a remoção não é mais bloqueada por conta aberta. O 409 por conta aberta foi removido, e o Swagger foi atualizado.
+- **Cenário do 🟡-1 reproduzido:** principal A, extra C, e a única conta de diária, vazia, em C.
+  - Antes: a remoção apagava a conta, e não sobrava nenhuma conta de diária.
+  - Agora: a conta vai para A, com `count(charges_lodging) = 1` e `room_charges = 400.00`.
+
+**🟢-1 — `CreateAccountItemController`.** Se a releitura com trava volta vazia (a conta sumiu entre a leitura e a trava), a resposta é **404** com rollback, e não mais 500 (`TypeError`). O teste simula a releitura vazia com um spy no `findOne` que tem `lock`.
+
+**🟢-2 — 409 RN-005 da troca de quarto.** A resposta traz `account_ids` com as contas de diária do quarto novo. A mensagem não manda mais "fechar", porque a D-41 não deixa fechar a conta de diária com a estadia em andamento. Agora ela diz o que a recepção pode fazer: "escolha outro quarto ou peça ao administrador para ajustar essa conta". O schema do 409 do PUT declara `account_ids`.
+
+**🟢-3 — teste de corrida do webhook.** O `setTimeout(400)` foi trocado por um sinal: a segunda resposta do Asaas mockado só sai quando a primeira notificação grava o pagamento (spy no `PaymentModel.prototype.save`). Conferido por mutação:
+- com o `PixWebhookController` de antes da correção, o teste falha (`[ 'confirmed', 'not_approved' ]`);
+- com a correção, passa em 3 rodadas seguidas.
+
+O soft delete de conta, que era o outro ponto do 🟢-3, deixou de existir com a regra nova.
+
+#### ⚠ Toca `accounts` — precisa do conhecimento do Sirlande
+
+A regra nova de remoção **muda contas**, e `accounts` é do Sirlande. A remoção de quarto extra agora:
+- muda `room_id`, e às vezes `label`, de contas abertas;
+- pode passar `charges_lodging` de `true` para `false` numa conta aberta. Isso muda quem leva a diária no rateio (D-40) e qual é a conta titular do crédito da reserva (D-42).
+
+Nada que já foi apresentado é desfeito: conta fechada não muda, e a diária de conta aberta não é gravada (D-39). Mesmo assim, é uma regra nova sobre contas e precisa do aval dele.
+
+A guarda de 404 em `CreateAccountItemController.js` também está num arquivo dele (T-04.1). É só uma guarda, sem mudança de regra.
+
+**Sugestão:** registrar a regra como decisão no anexo de decisões da SPEC-04.
+
+#### Saída real da verificação (rodada 2)
+
+Banco próprio (`pg-repasses`, postgres:17, porta 5443). `npm run test:coverage`:
+
+```
+ Test Files  40 passed (40)
+      Tests  851 passed | 1 skipped (852)
+All files          |   83.51 |    79.18 |   88.79 |   85.89 |
+Statements   : 83.51% ( 2761/3306 )
+Branches     : 79.18% ( 1423/1797 )
+Functions    : 88.79% ( 325/366 )
+Lines        : 85.89% ( 2497/2907 )
+```
+
+O total de testes não mudou em relação à rodada 1. Em `reservation-room-accounts.test.js`, saíram 4 testes da regra antiga e entraram 4: 🟡-1, 🟡-2, conta com pagamento movida, e o 🟢-1. O teste do 409 da troca ganhou as asserções do 🟢-2.
+
+RED da rodada 2 (`0041651`): **5 falhas pelo motivo certo**, com 8 testes passando:
+- `expected undefined to deeply equal [ Array(1) ]` (🟢-2);
+- `expected AccountModel{…} to match object {…}` (🟡-1);
+- `expected 409 to be 204` duas vezes (🟡-2, pagamento);
+- `expected 500 to be 404` (🟢-1).
+
+`bash scripts/qa_checks.sh`: `⚠ 3 aviso(s). Nenhum erro bloqueante.` São os mesmos 3 avisos de antes, em arquivos que não toquei.
+
+#### Commits gerados (rodada 2)
+
+| Hash | Mensagem |
+|------|----------|
+| `0041651` | `test(reservations): RED dos achados da auditoria qa-redteam de 21/10` |
+| `4f0e2f7` | `fix(reservations): remocao de quarto extra move as contas para o principal` |
+| `c9c2017` | `fix(accounts): lancamento em conta que some antes da trava responde 404` |
+| `c91303f` | `test(webhooks): corrida PAID x FAILED sincronizada por sinal, sem setTimeout` |
+| (este) | `docs(historico): rodada 2 dos repasses - achados do qa-redteam` |
+
+#### Pendências (atualizadas)
+
+| # | Pendência | Prioridade | Observação |
+|---|-----------|-----------|------------|
+| 1 | Aval do Sirlande à regra nova de remoção, que mexe em `charges_lodging` de conta aberta, e à guarda de 404 no `CreateAccountItem` | 🟡 Média | Registrar como decisão no anexo da SPEC-04 |
+| 2 | Reauditoria do qa-redteam, com foco na rodada 2 | 🟡 Média | Antes do PR `develop → main` |
+| 3 | A pendência 3 da rodada 1 (escape para conta com lançamento) | — | **Resolvida** pela regra nova: a conta é movida, nunca bloqueia |
+| 4 | Corrida entre `POST /accounts` de diária no principal e a remoção que move a conta de diária para lá | 🟢 Baixa | O índice `accounts_lodging_unique` recusa a segunda, então não há dado errado, mas a remoção responderia 500. Tratar só se aparecer em uso real |
+| 5 | 🟢 do repasse de 19/10 ainda abertos | 🟢 Baixa | Catálogo de eventos com `reservation_id: UUID \| null` e estorno depois de PAID (T-06.13) |
+| 6 | Regenerar o cliente tipado (`pnpm --filter @hotel/api-client generate`) | 🟢 Baixa | A defasagem já existia antes desta branch (ver "Não foi possível verificar" da auditoria) |

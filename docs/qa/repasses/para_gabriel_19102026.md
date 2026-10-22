@@ -50,3 +50,12 @@ Origem: `docs/qa/redteam_t042-consumption-migration_delta_19out2026.md`, achado 
 - Utilitário: `services/core-service/app/utils/roomChangeAccounts.js`. Swagger atualizado.
 - Cenário do repasse reproduzido em `tests/reservation-room-accounts.test.js`: RED em `9402818`, GREEN em `568bc7a`.
 - Relatório: `docs/historico_sessao/gabriel/repasses_conta_quarto_webhook_21102026.md`.
+
+### Tratamento — complemento de 21/10 (auditoria `docs/qa/redteam_repasses-gabriel-out_21out2026.md`)
+A regra da **remoção de quarto extra** mudou. Ela substitui o "desliga a vazia / 409 na com item" descrito acima.
+- As contas `ROOM` OPEN do extra passam para o **quarto principal**, com itens e pagamentos.
+- Se o principal já tem conta de diária da reserva, a conta movida passa a `charges_lodging: false` (RN-005). Se não tem, ela segue cobrando a diária.
+- Nenhuma conta é apagada, e a remoção não é mais bloqueada por conta aberta.
+- RED em `0041651`, GREEN em `4f0e2f7`.
+
+O 409 RN-005 da troca de quarto passou a trazer `account_ids` (mesmos commits). Essa regra toca `accounts` (dono: Sirlande) e precisa do conhecimento dele.
