@@ -314,20 +314,33 @@ describe('POST /webhooks/pix — provider Asaas', () => {
 // Repasse do qa-redteam de 17/10 (docs/qa/repasses/para_gabriel_17102026.md): duas notificações
 // da mesma cobrança em paralelo, e o status no Asaas muda entre as duas consultas. As duas leem
 // o pagamento PENDING antes de qualquer trava; a consulta ao Asaas é segurada até as duas
-// chegarem nela, e a segunda resposta sai depois, para a ordem das gravações ser a do teste.
+// chegarem nela, e a segunda resposta só sai quando a primeira notificação GRAVOU o pagamento
+// (sinal no save, não tempo — 🟢-3 da auditoria de 21/10): a ordem não depende da velocidade
+// do CI. Gravou mas ainda não fez commit: a segunda fica na trava da linha (código corrigido)
+// ou no UPDATE da instância velha (código antigo), e o resultado é o da ordem do teste.
 describe('POST /webhooks/pix — PAID e FAILED simultâneos (repasse 17/10)', () => {
     function race(chargeId, firstStatus, laterStatus) {
         let arrived = 0;
         let releaseFirst;
+        let signalFirstWrote;
         const bothArrived = new Promise((resolve) => { releaseFirst = resolve; });
+        const firstWrote = new Promise((resolve) => { signalFirstWrote = resolve; });
+
+        // Durante a corrida, só as duas notificações gravam pagamento; restaurado no afterEach.
+        const originalSave = PaymentModel.prototype.save;
+        vi.spyOn(PaymentModel.prototype, 'save').mockImplementation(async function save(...args) {
+            const saved = await originalSave.apply(this, args);
+            signalFirstWrote();
+            return saved;
+        });
+
         statusGate = (id) => {
             if (id !== chargeId) return undefined;
             arrived += 1;
             const charge = asaasCharges.get(chargeId);
             if (arrived === 1) return bothArrived.then(() => ({ ...charge, status: firstStatus }));
             releaseFirst();
-            // A segunda resposta só sai depois que a primeira notificação gravou.
-            return new Promise((resolve) => setTimeout(() => resolve({ ...charge, status: laterStatus }), 400));
+            return firstWrote.then(() => ({ ...charge, status: laterStatus }));
         };
         return Promise.all([
             notify(chargeId),
