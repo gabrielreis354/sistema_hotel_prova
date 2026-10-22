@@ -109,3 +109,70 @@ diferença) — `⚠ 3 aviso(s). Nenhum erro bloqueante.`, exit 0. Os 3 avisos s
 | 3 | `REFUNDED` (devolução pelo PSP) e o estorno no PSP ignorado pelo webhook | 🟡 Média | Fora do escopo (SPEC-06 T-06.13); ver 🟡-4 de `docs/qa/redteam_mercadopago-pix_delta_12out2026.md` |
 | 4 | `revenue.unpaid` como "saldo > 0" (D-3 refinada) | 🟢 Baixa | Hoje é "sem nenhum PAID"; a forma definitiva vai na projeção do analytics (T-01.4) |
 | 5 | Fechamento de caixa por turno (RF-056) consumir os VOIDED | 🟢 Baixa | Fora do escopo |
+
+---
+
+### 2026-10-21 (2ª entrada) — Gabriel (orquestrando Claude Code): ressalvas do qa-redteam
+
+- **Branch:** `fix/t0613-estorno-pagamento` (mesma)
+- **Origem:** `docs/qa/redteam_t0613-estorno-pagamento_21out2026.md` (commit `c191eb6`), **APROVADO COM RESSALVAS**
+- **Banco de teste:** `pg-t0613`, porta 5442, recriado para esta rodada e removido no fim
+
+#### O que foi feito
+
+| Achado | Correção |
+|---|---|
+| 🟡-1 `PUT {paid_at: null}` tirava da receita um PAID sem estorno | `UpdatePaymentController` recusa `paid_at` nulo, vazio, inválido ou não-texto (400). Novo CHECK `payments_paid_has_paid_at` (`status <> 'PAID' OR paid_at IS NOT NULL`) em `applyDbConstraints.js` e `db/schema.sql`, criado **NOT VALID** como os outros: a linha antiga PAID sem data fica, só não entra nova (consulta para conferir no comentário do `applyDbConstraints`) |
+| 🟢-1 `method` livre e 500 em `paid_at`/`method` inválidos | `PAYMENT_METHODS` em `app/utils/paymentEnums.js` (a lista do Swagger) e validadores em `app/utils/paymentInput.js`, usados no PUT **e** no `CreatePaymentController` (fecha também o repasse de dono indefinido do relatório do qa, mesma área — não foi gravado arquivo de repasse). O Swagger passa a importar `PAYMENT_METHODS` e `PAYMENT_STATUSES` e descreve os novos 400 |
+| 🟢-2 sem teste de `no_show_risk` e das corridas | Testes de `no_show_risk` (PAID tira da lista; estornado, PIX PENDING e sem pagamento deixam) e corridas estorno ∥ check-out e estorno ∥ novo pagamento na mesma conta, 6 rodadas cada. São determinísticos porque conferem o estado final, que é o mesmo nas duas ordens |
+| 🟢-4 comentário "D-3" no `unpaid` | `GetRevenueController` diz o que a consulta faz (sem nenhum PAID) e que o "saldo > 0" da D-3 fica para a projeção da T-01.4 |
+| 🟢-3 cliente tipado do frontend | Fora, por decisão do coordenador: regenerado depois do merge, junto com as outras frentes |
+
+**Testes existentes ajustados (consequência prevista do novo CHECK e da allowlist):** fixtures de
+`account-payments.test.js` que gravavam `PAID` sem `paid_at` ganharam a data, e `payments.test.js`
+trocou `'CARTAO'` (fora da allowlist) por `'CARTAO_CREDITO'` no teste do 404.
+
+**RED:** `Tests 6 failed | 109 passed (115)` nos 3 arquivos, todas as falhas das regras novas. Os testes
+de `no_show_risk` e das corridas já passavam: protegem o comportamento atual.
+
+#### Verificação real
+
+`npx vitest run --coverage`, suíte completa:
+```
+ Test Files  40 passed (40)
+      Tests  881 passed | 1 skipped (882)
+   Duration  89.63s
+Statements   : 83.76% ( 2775/3313 )
+Branches     : 79.67% ( 1443/1811 )
+Functions    : 88.76% ( 324/365 )
+Lines        : 86.16% ( 2510/2913 )
+```
+
+`bash scripts/qa_checks.sh`: saída idêntica à de `origin/develop` (`diff` vazio) —
+`⚠ 3 aviso(s). Nenhum erro bloqueante.`, exit 0.
+
+#### Orientação de uso — LGPD do `void_reason`
+
+O motivo do estorno é **texto livre da gerência** e aparece na listagem (`GET /payments`) e no bill da
+reserva para todo papel com acesso a pagamentos. Ele não vai ao outbox nem é exportado. Orientação para o
+hotel e para o frontend: **descrever o lançamento, não o hóspede**. Exemplos: "valor digitado errado",
+"lançado na reserva errada", "duplicado". Não usar nome, CPF, telefone nem dado de cartão — a reserva e o
+pagamento já identificam o caso. Quando a tela de estorno existir, o campo deve trazer essa orientação
+como texto de apoio. Revisar junto com o fechamento de caixa (RF-056), que vai exibir os anulados.
+
+#### Commits gerados (2ª entrada)
+
+| Hash | Mensagem |
+|------|----------|
+| `71a108e` | `test(payments): RED das ressalvas do qa-redteam da T-06.13` |
+| `71c829d` | `fix(payments): ressalvas do qa-redteam da T-06.13` |
+| (este) | `docs(historico): ressalvas do qa-redteam da T-06.13 (gabriel)` |
+
+#### Pendências
+
+| # | Pendência | Prioridade | Observação |
+|---|-----------|-----------|------------|
+| 1 | Abrir o PR da branch | 🟡 Média | Não aberto, por instrução |
+| 2 | Regerar o cliente tipado do frontend (🟢-3) | 🟡 Média | Depois do merge, junto com as outras frentes |
+| 3 | O seed (`seed/seed_hotels.sql`) grava `method = 'CARTAO'`, fora da allowlist nova | 🟢 Baixa | A API não aceita mais esse valor, mas a linha antiga continua legível e entra no `payment-mix` como `CARTAO`. Decidir com o dono do seed se vira `CARTAO_CREDITO`; sem CHECK de método no banco por isso |
+| 4 | `REFUNDED`, `unpaid` como "saldo > 0" e RF-056 | 🟢 Baixa | As mesmas da 1ª entrada |

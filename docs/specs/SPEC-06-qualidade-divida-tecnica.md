@@ -291,7 +291,7 @@ confundiria o fechamento de caixa: anular um lançamento não tira dinheiro da g
 
 **Critérios de aceitação** *(implementados em 21/10/2026 na branch `fix/t0613-estorno-pagamento`,
 aguardando o `qa-redteam`; testes em `services/core-service/tests/payment-void.test.js`; relatório
-`docs/historico_sessao/gabriel/t0613_estorno_pagamento_21102026.md`)*
+`docs/historico_sessao/gabriel/t0613_estorno_pagamento_21102026.md`. qa-redteam de 21/10: APROVADO COM RESSALVAS — `docs/qa/redteam_t0613-estorno-pagamento_21out2026.md`; 🟡-1, 🟢-1, 🟢-2 e 🟢-4 corrigidos na mesma branch, 🟢-3 (cliente tipado) depois do merge)*
 - [x] **CA-06.13.a** — `DELETE /payments/:id` deixa de existir. A rota responde `405` com a indicação
   do estorno, para que um cliente antigo não falhe em silêncio *(405 com `Allow: GET, PUT` e o caminho
   do `void`; atrás do `requireRole('ADMIN')`, então RECEPTIONIST recebe 403)*
