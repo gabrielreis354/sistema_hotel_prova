@@ -3,7 +3,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
-import { releaseRemovedRoomAccounts } from '../../utils/roomChangeAccounts.js';
+import { moveRemovedRoomAccounts } from '../../utils/roomChangeAccounts.js';
 
 export default async function RemoveRoomFromReservationController(request, response) {
     const { id, roomId } = request.params;
@@ -36,13 +36,10 @@ export default async function RemoveRoomFromReservationController(request, respo
             return await fail(409, { error: 'O quarto principal não pode ser removido — troque-o pelo PUT /reservations/:id' });
         }
 
-        // As contas abertas do extra saem junto (repasse do qa-redteam de 19/10): a vazia é
-        // desligada; a com lançamento ou pagamento recusa a remoção (409), em vez de ficar
-        // apontando para um quarto fora da estadia.
-        const released = await releaseRemovedRoomAccounts(reservation, pivot.room_id, transaction);
-        if (released.error) {
-            return await fail(released.error.status, { error: released.error.message, account_ids: released.error.accountIds });
-        }
+        // As contas abertas do extra vão para o quarto principal, com consumo e pagamentos
+        // (repasse do qa-redteam de 19/10; 🟡-1 e 🟡-2 da auditoria de 21/10): nenhuma fica
+        // apontando para fora da estadia, nenhuma é apagada, e a diária nunca fica sem conta.
+        await moveRemovedRoomAccounts(reservation, pivot.room_id, transaction);
 
         await pivot.destroy({ transaction });
         const recalculated = await recalculateReservationTotal(reservation, tenantId, transaction);

@@ -95,7 +95,7 @@ export default async function UpdateReservationController(request, response) {
             // repasse do qa-redteam de 19/10): sem isso, a diária ficava numa conta de um
             // quarto que o hóspede deixou.
             const moved = await moveRoomAccounts(reservation, previousRoomId, newRoomId, transaction);
-            if (moved.error) return await fail(moved.error.status, { error: moved.error.message });
+            if (moved.error) return await fail(moved.error.status, { error: moved.error.message, account_ids: moved.error.accountIds });
         }
         if (roomChanged || datesChanged) {
             const recalculated = await recalculateReservationTotal(reservation, tenantId, transaction);

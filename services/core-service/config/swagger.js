@@ -901,7 +901,10 @@ const options = {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         400: { description: 'check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Reserva, hóspede ou quarto não encontrado (no hotel do token)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } }
+                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005, com account_ids — escolha outro quarto ou peça ao administrador para ajustar a conta); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { allOf: [
+                            { $ref: '#/components/schemas/RoomOccupied' },
+                            { type: 'object', properties: { account_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Só no 409 da RN-005: contas de diária desta reserva que já estão no quarto novo' } } }
+                        ] } } } }
                     }
                 },
                 delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', description: 'Fecha as contas abertas da reserva na mesma transação (D-36).', responses: { 204: { description: 'OK' } } }
@@ -1014,14 +1017,11 @@ const options = {
                 ],
                 delete: {
                     tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)',
-                    description: 'As contas ROOM abertas do quarto saem junto: a vazia (sem item e sem pagamento) é desligada (soft delete) e a diária passa às contas que ficam (D-40); a que tem item ou pagamento recusa a remoção (409, com account_ids). Conta fechada ou paga não é tocada (D-23).',
+                    description: 'As contas ROOM abertas do quarto removido passam para o quarto principal da reserva, com itens e pagamentos — nenhuma é apagada e a remoção não é bloqueada por conta aberta. Se o principal já tem conta cobrando diária, a conta movida passa a `charges_lodging: false` (RN-005); senão, ela segue cobrando a diária. O rótulo gerado pelo sistema acompanha o quarto; o da recepção fica. Conta fechada ou paga não muda (D-23).',
                     responses: {
                         204: { description: 'Desvinculado' },
                         404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED; o quarto tem conta aberta com lançamento ou pagamento (com account_ids)', content: { 'application/json': { schema: { type: 'object', properties: {
-                            error:       { type: 'string' },
-                            account_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Só no caso da conta aberta com lançamento ou pagamento' }
-                        } } } } }
+                        409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
