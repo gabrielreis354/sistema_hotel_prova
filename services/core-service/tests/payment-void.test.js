@@ -373,9 +373,9 @@ describe('CA-06.13.f — a receita é a soma dos efetivados', () => {
 
 describe('CA-06.13.e — banco: VOIDED no CHECK e trilha só no anulado', () => {
     const insert = (over) => sequelize.query(
-        `INSERT INTO payments (id, tenant_id, reservation_id, amount, method, status, kind, void_reason, voided_by, voided_at, created_at, updated_at)
-         VALUES (:id, :tenant_id, :reservation_id, 10, 'DINHEIRO', :status, 'FULL', :void_reason, :voided_by, :voided_at, now(), now())`,
-        { replacements: { id: randomUUID(), tenant_id: tenantId, status: 'PAID', void_reason: null, voided_by: null, voided_at: null, ...over } }
+        `INSERT INTO payments (id, tenant_id, reservation_id, amount, method, status, kind, paid_at, void_reason, voided_by, voided_at, created_at, updated_at)
+         VALUES (:id, :tenant_id, :reservation_id, 10, 'DINHEIRO', :status, 'FULL', :paid_at, :void_reason, :voided_by, :voided_at, now(), now())`,
+        { replacements: { id: randomUUID(), tenant_id: tenantId, status: 'PAID', paid_at: new Date(), void_reason: null, voided_by: null, voided_at: null, ...over } }
     );
     let reservationId;
 
@@ -423,5 +423,214 @@ describe('CA-06.13.e — banco: VOIDED no CHECK e trilha só no anulado', () => 
         const { reservation } = await newReservation();
         const payment = await pay({ reservation_id: reservation.id, amount: '10.00' });
         expect((await voidPayment(payment.id, { reason: 'Depois do migrate' })).status).toBe(200);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Ressalvas do qa-redteam de 21/10 (docs/qa/redteam_t0613-estorno-pagamento_21out2026.md)
+// ---------------------------------------------------------------------------
+
+describe('🟡-1 — PUT não tira da receita um pagamento PAID pela data', () => {
+    let pjJwt, pjCat, pjGuest;
+
+    beforeAll(async () => {
+        // Hotel próprio: o teste confere o total de receita do tenant.
+        ({ jwt: pjJwt } = await registerAndLogin(app, { tenantName: 'Hotel Data do Pagamento' }));
+        pjCat = await createCategory(app, pjJwt, { name: 'Std Data', price_per_night: 200 });
+        pjGuest = await createGuest(app, pjJwt, { full_name: 'Davi Data', email: `davi_data_${Date.now()}@test.com` });
+    });
+
+    it('paid_at nulo, vazio, inválido ou não-texto → 400; a data e a receita não mudam', async () => {
+        const { reservation } = await newReservation(pjJwt, pjCat, pjGuest);
+        const payment = await pay({ reservation_id: reservation.id, amount: '200.00' }, pjJwt);
+        const before = (await raw(payment.id)).paid_at;
+
+        for (const paid_at of [null, '', 'lixo', '2026-13-45', 12345, true, {}]) {
+            const res = await request(app).put(`/payments/${payment.id}`).set(auth(pjJwt)).send({ paid_at });
+            expect(res.status, `paid_at ${JSON.stringify(paid_at)}`).toBe(400);
+        }
+        expect((await raw(payment.id)).paid_at).toEqual(before);
+        const revenue = await request(app).get('/analytics/revenue').set(auth(pjJwt));
+        expect(revenue.body.realized.total).toBe(200);
+    });
+
+    it('paid_at válido → 200 e grava a data nova', async () => {
+        const { reservation } = await newReservation(pjJwt, pjCat, pjGuest);
+        const payment = await pay({ reservation_id: reservation.id, amount: '50.00' }, pjJwt);
+        const res = await request(app).put(`/payments/${payment.id}`).set(auth(pjJwt)).send({ paid_at: '2026-10-20T13:00:00.000Z' });
+        expect(res.status).toBe(200);
+        expect(new Date(res.body.paid_at).toISOString()).toBe('2026-10-20T13:00:00.000Z');
+    });
+
+    it('banco: PAID sem paid_at é recusado (payments_paid_has_paid_at); PENDING sem paid_at, não', async () => {
+        const { reservation } = await newReservation();
+        const insert = (status) => sequelize.query(
+            `INSERT INTO payments (id, tenant_id, reservation_id, amount, method, status, kind, paid_at, created_at, updated_at)
+             VALUES (:id, :tenantId, :rid, 10, 'PIX', :status, 'FULL', NULL, now(), now())`,
+            { replacements: { id: randomUUID(), tenantId, rid: reservation.id, status } }
+        );
+        await expect(insert('PAID')).rejects.toThrow(/payments_paid_has_paid_at/);
+        await expect(insert('PENDING')).resolves.toBeDefined();
+        await expect(sequelize.query(`UPDATE payments SET paid_at = NULL WHERE tenant_id = :tenantId AND status = 'PAID'`,
+            { replacements: { tenantId } })).rejects.toThrow(/payments_paid_has_paid_at/);
+    });
+
+    it('applyDbConstraints cria o CHECK como NOT VALID: linha antiga PAID sem data não trava o migrate', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        const { reservation } = await newReservation();
+        await sequelize.query('ALTER TABLE payments DROP CONSTRAINT payments_paid_has_paid_at');
+        await sequelize.query(
+            `INSERT INTO payments (id, tenant_id, reservation_id, amount, method, status, kind, paid_at, created_at, updated_at)
+             VALUES (:id, :tenantId, :rid, 10, 'PIX', 'PAID', 'FULL', NULL, now(), now())`,
+            { replacements: { id: randomUUID(), tenantId, rid: reservation.id } }
+        );
+
+        await applyDbConstraints(sequelize);
+
+        const [[constraint]] = await sequelize.query(
+            `SELECT convalidated FROM pg_constraint WHERE conname = 'payments_paid_has_paid_at'`
+        );
+        expect(constraint).toEqual({ convalidated: false });
+    });
+});
+
+describe('🟢-1 — method em allowlist e paid_at válido, no POST e no PUT', () => {
+    it('POST com method fora da lista, nulo ou não-texto → 400; nada é gravado', async () => {
+        const { reservation } = await newReservation();
+        for (const method of ['BITCOIN', 'CARTAO', 'pix', null, 7]) {
+            const res = await request(app).post('/payments').set(auth(jwt))
+                .send({ reservation_id: reservation.id, amount: '10.00', method });
+            expect(res.status, `method ${JSON.stringify(method)}`).toBe(400);
+        }
+        expect(await PaymentModel.count({ where: { reservation_id: reservation.id } })).toBe(0);
+    });
+
+    it('POST com paid_at inválido → 400 (antes era 500); válido grava a data; ausente usa agora', async () => {
+        const { reservation } = await newReservation();
+        for (const paid_at of ['lixo', '2026-02-30T99:00', 12345, {}]) {
+            const res = await request(app).post('/payments').set(auth(jwt))
+                .send({ reservation_id: reservation.id, amount: '10.00', method: 'PIX', paid_at });
+            expect(res.status, `paid_at ${JSON.stringify(paid_at)}`).toBe(400);
+        }
+        const dated = await pay({ reservation_id: reservation.id, amount: '10.00', paid_at: '2026-10-19T10:00:00.000Z' });
+        expect(new Date(dated.paid_at).toISOString()).toBe('2026-10-19T10:00:00.000Z');
+        const now = await pay({ reservation_id: reservation.id, amount: '10.00' });
+        expect(now.paid_at).toBeTruthy();
+    });
+
+    it.each(['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'])('POST e PUT aceitam %s', async (method) => {
+        const { reservation } = await newReservation();
+        const payment = await pay({ reservation_id: reservation.id, amount: '10.00', method });
+        expect(payment.method).toBe(method);
+        const res = await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ method });
+        expect(res.status).toBe(200);
+    });
+
+    it('PUT com method fora da lista, nulo ou não-texto → 400; o método não muda', async () => {
+        const { reservation } = await newReservation();
+        const payment = await pay({ reservation_id: reservation.id, amount: '10.00' });
+        for (const method of ['BITCOIN', null, '', 7]) {
+            const res = await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ method });
+            expect(res.status, `method ${JSON.stringify(method)}`).toBe(400);
+        }
+        expect((await raw(payment.id)).method).toBe('DINHEIRO');
+    });
+});
+
+describe('🟢-2 — no_show_risk considera só pagamento PAID', () => {
+    let nsJwt, nsTenantId, nsCat, nsGuest, today, tomorrow;
+
+    const confirmedToday = async () => {
+        roomNumber += 1;
+        const room = await createRoom(app, nsJwt, nsCat.id, { number: String(roomNumber) });
+        const reservation = await createReservation(app, nsJwt, nsGuest.id, room.id, { check_in_date: today, check_out_date: tomorrow });
+        if (!reservation.id) throw new Error(`reserva de hoje falhou: ${JSON.stringify(reservation)}`);
+        await sequelize.query(`UPDATE reservations SET status = 'CONFIRMED' WHERE id = :id`, { replacements: { id: reservation.id } });
+        return reservation;
+    };
+    const atRisk = async () => {
+        const res = await request(app).get('/analytics/alerts').set(auth(nsJwt));
+        expect(res.status).toBe(200);
+        return res.body.no_show_risk.map((r) => r.reservation_id);
+    };
+
+    beforeAll(async () => {
+        ({ jwt: nsJwt, tenantId: nsTenantId } = await registerAndLogin(app, { tenantName: 'Hotel No-show' }));
+        nsCat = await createCategory(app, nsJwt, { name: 'Std No-show', price_per_night: 150 });
+        nsGuest = await createGuest(app, nsJwt, { full_name: 'Eva Noshow', email: `eva_ns_${Date.now()}@test.com` });
+        // A data de hoje do banco, que é a que o alerta compara (CURRENT_DATE).
+        const [[dates]] = await sequelize.query(`SELECT CURRENT_DATE::text AS today, (CURRENT_DATE + 1)::text AS tomorrow`);
+        ({ today, tomorrow } = dates);
+    });
+
+    it('reserva de hoje com pagamento PAID não está em risco; estornado o pagamento, entra', async () => {
+        const reservation = await confirmedToday();
+        const payment = await pay({ reservation_id: reservation.id, amount: '150.00' }, nsJwt);
+        expect(await atRisk()).not.toContain(reservation.id);
+
+        await voidPayment(payment.id, { reason: 'Cartão recusado depois' }, nsJwt).expect(200);
+        expect(await atRisk()).toContain(reservation.id);
+    });
+
+    it('reserva de hoje só com cobrança PIX PENDING está em risco (D-3)', async () => {
+        const reservation = await confirmedToday();
+        await PaymentModel.create({
+            tenant_id: nsTenantId, reservation_id: reservation.id, amount: '50.00', method: 'PIX', status: 'PENDING',
+            kind: 'DEPOSIT', provider: 'fake', provider_charge_id: `charge_${randomUUID()}`, paid_at: null
+        });
+        expect(await atRisk()).toContain(reservation.id);
+    });
+
+    it('reserva de hoje sem pagamento nenhum está em risco', async () => {
+        const reservation = await confirmedToday();
+        expect(await atRisk()).toContain(reservation.id);
+    });
+});
+
+describe('🟢-2 — corridas do estorno com outros caminhos que travam a reserva e a conta', () => {
+    const openAccount = async (body) => {
+        const res = await request(app).post('/accounts').set(auth(jwt)).send(body);
+        if (res.status !== 201) throw new Error(`abrir conta falhou: ${res.status} ${JSON.stringify(res.body)}`);
+        return res.body;
+    };
+    const bill = async (accountId) => (await request(app).get(`/accounts/${accountId}/bill`).set(auth(jwt))).body;
+
+    // O resultado final não depende de quem pega a trava primeiro: os testes conferem o estado
+    // final, que é o mesmo nas duas ordens — por isso são determinísticos.
+    it('estorno ∥ check-out da mesma reserva: sem deadlock, e a conta termina CLOSED com o saldo', async () => {
+        for (let round = 0; round < 6; round += 1) {
+            const { room, reservation } = await newReservation();
+            await request(app).put(`/reservations/${reservation.id}/check-in`).set(auth(jwt)).expect(200);
+            const account = await openAccount({
+                type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: `Suíte corrida ${round}`
+            });
+            const payment = await pay({ reservation_id: reservation.id, amount: '200.00' });
+
+            const [voided, checkout] = await Promise.all([
+                voidPayment(payment.id, { reason: 'Corrida com o check-out' }),
+                request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt))
+            ]);
+            expect(voided.status, JSON.stringify(voided.body)).toBe(200);
+            expect(checkout.status, JSON.stringify(checkout.body)).toBe(200);
+            expect(await bill(account.id)).toMatchObject({ status: 'CLOSED', payments_made: '0.00', balance: '200.00' });
+        }
+    });
+
+    it('estorno ∥ novo pagamento na mesma conta: sem deadlock, e o saldo soma só o efetivado', async () => {
+        for (let round = 0; round < 6; round += 1) {
+            const account = await openAccount({ type: 'TABLE', label: `Mesa corrida ${round}` });
+            await request(app).post(`/accounts/${account.id}/items`).set(auth(jwt))
+                .send({ description: 'Jantar', unit_price: '70.00' }).expect(201);
+            await request(app).put(`/accounts/${account.id}/close`).set(auth(jwt)).expect(200);
+            const wrong = await pay({ account_id: account.id, amount: '30.00' });
+
+            const [voided, created] = await Promise.all([
+                voidPayment(wrong.id, { reason: 'Corrida com o novo lançamento' }),
+                request(app).post('/payments').set(auth(jwt)).send({ account_id: account.id, amount: '40.00', method: 'DINHEIRO' })
+            ]);
+            expect(voided.status, JSON.stringify(voided.body)).toBe(200);
+            expect(created.status, JSON.stringify(created.body)).toBe(201);
+            expect(await bill(account.id)).toMatchObject({ status: 'CLOSED', payments_made: '40.00', balance: '30.00' });
+        }
     });
 });

@@ -140,8 +140,8 @@ describe('Banco: payments com account_id (CA-04.4.a e b)', () => {
     });
 
     const insertPayment = (over) => sequelize.query(
-        `INSERT INTO payments (id, tenant_id, reservation_id, account_id, amount, method, status, kind, created_at, updated_at)
-         VALUES (:id, :tenant_id, :reservation_id, :account_id, 10, 'DINHEIRO', 'PAID', 'FULL', now(), now())`,
+        `INSERT INTO payments (id, tenant_id, reservation_id, account_id, amount, method, status, kind, paid_at, created_at, updated_at)
+         VALUES (:id, :tenant_id, :reservation_id, :account_id, 10, 'DINHEIRO', 'PAID', 'FULL', now(), now(), now())`,
         { replacements: { id: randomUUID(), tenant_id: tenantId, reservation_id: null, account_id: null, ...over } }
     );
 
@@ -243,7 +243,7 @@ describe('POST /payments com account_id (CA-04.4.a)', () => {
 
     it('o banco recusa valor negativo (CHECK payments_amount_check)', async () => {
         const account = await openAccount({ type: 'DIRECT', label: 'Balcão check' });
-        await expect(PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '-1.00', method: 'DINHEIRO' }))
+        await expect(PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '-1.00', method: 'DINHEIRO', paid_at: new Date() }))
             .rejects.toThrow(/payments_amount_check/);
     });
 
@@ -346,7 +346,7 @@ describe('Bill da conta com pagamentos e transição para PAID (CA-04.4.c)', () 
 
     it('conta INTERNAL: o banco recusa pagamento direto, e ela fecha CLOSED (🟢-4)', async () => {
         const account = await openAccount({ type: 'INTERNAL', label: 'Perda de estoque' });
-        await expect(PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '10.00', method: 'DINHEIRO' }))
+        await expect(PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '10.00', method: 'DINHEIRO', paid_at: new Date() }))
             .rejects.toThrow(/payments_account_consistency/);
         const closed = await close(account.id);
 
@@ -366,7 +366,7 @@ describe('Bill da conta com pagamentos e transição para PAID (CA-04.4.c)', () 
         for (const status of ['PENDING', 'FAILED', 'EXPIRED']) {
             await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '30.00', method: 'PIX', status });
         }
-        const deleted = await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '30.00', method: 'PIX' });
+        const deleted = await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '30.00', method: 'PIX', paid_at: new Date() });
         await deleted.destroy();
 
         expect(await bill(account.id)).toMatchObject({ status: 'CLOSED', payments_made: '0.00', balance: '30.00' });
@@ -654,7 +654,7 @@ describe('Crédito da reserva rateado entre as contas (D-45, 🟡-1 do qa-redtea
         // Linha antiga, anterior ao CHECK (NOT VALID não valida o que já existe).
         await sequelize.query('ALTER TABLE payments DROP CONSTRAINT payments_amount_check');
         try {
-            await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '-15.00', method: 'DINHEIRO' });
+            await PaymentModel.create({ tenant_id: tenantId, account_id: account.id, amount: '-15.00', method: 'DINHEIRO', paid_at: new Date() });
         } finally {
             await sequelize.query('ALTER TABLE payments ADD CONSTRAINT payments_amount_check CHECK (amount >= 0) NOT VALID');
         }
@@ -903,7 +903,7 @@ describe('migrate acerta as contas fechadas que já estão pagas', () => {
         const { reservation, account } = await stayWithAccount({ nights: 1 });
         await checkOut(reservation.id);
         // Pagamento gravado direto, como um banco anterior à T-04.4: nada acertou a conta.
-        await PaymentModel.create({ tenant_id: tenantId, reservation_id: reservation.id, amount: '200.00', method: 'PIX' });
+        await PaymentModel.create({ tenant_id: tenantId, reservation_id: reservation.id, amount: '200.00', method: 'PIX', paid_at: new Date() });
         expect((await reload(account.id)).status).toBe('CLOSED');
 
         const { default: closeEndedStayAccounts } = await import('../database/closeEndedStayAccounts.js');
