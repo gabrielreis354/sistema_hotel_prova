@@ -41,6 +41,10 @@ ter uma pessoa aprovando componente dos outros.
 Registrados porque já se sabe que vão ser precisos por mais de um módulo. Quem chegar
 primeiro cria local; o segundo promove.
 
+> **Primeira versão local já existe** para `ErrorState`, `Table`, `Money` e `Select` em
+> `apps/pms/src/features/rooms/components/` (T-05.1, 21/10). Quem precisar no segundo módulo
+> promove de lá, em vez de recriar.
+
 | Falta | Quem vai precisar | Observação |
 |---|---|---|
 | `ErrorState` | todos | Hoje cada tela improvisa. `GuestsListPage` resolve com um `<button className="underline">` cru — é exatamente o que a regra 9 do `qa_checks.sh` aponta |
@@ -48,6 +52,7 @@ primeiro cria local; o segundo promove.
 | `DateRangePicker` | reservas, rack, indicadores | Todo filtro por período do sistema |
 | `Money` | reserva, conta, financeiro, indicadores | `DECIMAL` chega do `pg` como **string**. Um componente central evita `Number()` espalhado |
 | `Skeleton` | listas e rack | Espera longa sem tela em branco |
+| `Select` | reservas, comanda, configurações | Lista de escolha com o visual do `Input`. Hoje só existe a versão local da T-05.1 |
 
 ---
 
