@@ -4,6 +4,7 @@ import isUuid from '../../utils/isUuid.js';
 import { toCents } from '../../utils/calculateStayTotal.js';
 import { isValidPaymentAmount, INVALID_AMOUNT_MESSAGE } from '../../utils/paymentAmount.js';
 import { EDITABLE_STATUSES } from '../../utils/paymentEnums.js';
+import { isValidPaymentMethod, isValidPaidAt, INVALID_METHOD_MESSAGE, INVALID_PAID_AT_MESSAGE } from '../../utils/paymentInput.js';
 
 /**
  * PUT /payments/:id
@@ -24,6 +25,14 @@ export default async function UpdatePaymentController(request, response) {
         // Mesma regra do POST (D-49).
         if (amount !== undefined && !isValidPaymentAmount(amount)) {
             return response.status(400).json({ error: INVALID_AMOUNT_MESSAGE });
+        }
+        if (method !== undefined && !isValidPaymentMethod(method)) {
+            return response.status(400).json({ error: INVALID_METHOD_MESSAGE });
+        }
+        // Pagamento PAID tem data (CHECK payments_paid_has_paid_at): paid_at nulo o tiraria da
+        // receita sem estorno nem motivo (🟡-1 do qa-redteam). Presente, precisa ser data válida.
+        if (paid_at !== undefined && !isValidPaidAt(paid_at)) {
+            return response.status(400).json({ error: INVALID_PAID_AT_MESSAGE });
         }
         if (!isUuid(request.params.id)) return response.status(404).json({ error: 'Pagamento não encontrado.' });
 

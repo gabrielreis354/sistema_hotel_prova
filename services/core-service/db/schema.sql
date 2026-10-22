@@ -215,6 +215,8 @@ CREATE TABLE IF NOT EXISTS payments (
   CONSTRAINT payments_voided_has_trail CHECK (status <> 'VOIDED' OR (void_reason IS NOT NULL AND btrim(void_reason) <> ''
                                               AND voided_by IS NOT NULL AND voided_at IS NOT NULL)),
   CONSTRAINT payments_trail_only_voided CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL)),
+  -- PAID tem data: a receita conta pelo paid_at e o saldo das contas pelo status
+  CONSTRAINT payments_paid_has_paid_at CHECK (status <> 'PAID' OR paid_at IS NOT NULL),
   CHECK (kind IN ('FULL', 'DEPOSIT', 'BALANCE'))
 );
 -- T-06.13: banco criado antes do estorno. O CHECK antigo (nome automático, sem VOIDED) sai.
@@ -232,6 +234,10 @@ ALTER TABLE payments ADD  CONSTRAINT payments_voided_has_trail
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_trail_only_voided;
 ALTER TABLE payments ADD  CONSTRAINT payments_trail_only_voided
   CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL));
+-- NOT VALID: banco antigo pode ter PAID sem data; a linha fica, só não entra nova
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_paid_has_paid_at;
+ALTER TABLE payments ADD  CONSTRAINT payments_paid_has_paid_at
+  CHECK (status <> 'PAID' OR paid_at IS NOT NULL) NOT VALID;
 
 -- =============================================================================
 -- 9b) Consumos extras (frigobar, restaurante, bar, spa) lançados na reserva

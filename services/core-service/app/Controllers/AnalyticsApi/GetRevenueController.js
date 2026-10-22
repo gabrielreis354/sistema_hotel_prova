@@ -60,8 +60,12 @@ export default async function GetRevenueController(request, response) {
                 r.check_out_date
             FROM reservations r
             JOIN guests g ON g.id = r.guest_id
+            -- Não paga = reserva ativa SEM NENHUM pagamento PAID: estornado, PIX PENDING/EXPIRED e
+            -- excluído não contam (T-06.13). É só a 1ª parte da D-3 do catálogo: uma reserva com
+            -- sinal PAID de 30% sai da lista mesmo devendo 70%. O "saldo > 0" completo fica para
+            -- a projeção do analytics (T-01.4).
             LEFT JOIN payments p ON p.reservation_id = r.id AND p.tenant_id = :tenantId
-                                 AND p.status = 'PAID' AND p.deleted_at IS NULL  -- só pagamento efetivado tira a reserva da lista (D-3; estorno, T-06.13)
+                                 AND p.status = 'PAID' AND p.deleted_at IS NULL
             WHERE r.tenant_id = :tenantId
               AND r.status IN ('CONFIRMED', 'CHECKED_IN')
               AND r.deleted_at IS NULL

@@ -2,6 +2,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { VALID_ROLES } from '../app/utils/roles.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
+import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
 
 const options = {
     definition: {
@@ -331,7 +332,7 @@ const options = {
                         payments: { type: 'array', items: { type: 'object', properties: {
                             id: { type: 'string', format: 'uuid' }, amount: { type: 'number' }, method: { type: 'string' },
                             kind: { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
-                            status: { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED', 'VOIDED'], description: 'Só PAID soma em total_paid. VOIDED (estornado, T-06.13) segue listado como histórico' },
+                            status: { type: 'string', enum: PAYMENT_STATUSES, description: 'Só PAID soma em total_paid. VOIDED (estornado, T-06.13) segue listado como histórico' },
                             paid_at: { type: 'string', format: 'date-time', nullable: true },
                             void_reason: { type: 'string', nullable: true, description: 'Motivo do estorno; nulo se não estornado' },
                             voided_at: { type: 'string', format: 'date-time', nullable: true }
@@ -347,8 +348,8 @@ const options = {
                         reservation_id: { type: 'string', format: 'uuid', nullable: true, description: 'Nulo só em pagamento de conta sem reserva (day-use, mesa, balcão)' },
                         account_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Conta paga (T-04.4). Nulo = pagamento da reserva: vira crédito rateado entre as contas dela (D-42, D-45)' },
                         amount:         { type: 'string', example: '300.00', description: 'DECIMAL(12,2) serializado como string' },
-                        method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] },
-                        status:         { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED', 'VOIDED'], description: 'Só PAID é receita e abate saldo. VOIDED = lançamento estornado (POST /payments/{id}/void, T-06.13): fica no histórico, fora da receita' },
+                        method:         { type: 'string', enum: PAYMENT_METHODS },
+                        status:         { type: 'string', enum: PAYMENT_STATUSES, description: 'Só PAID é receita e abate saldo. VOIDED = lançamento estornado (POST /payments/{id}/void, T-06.13): fica no histórico, fora da receita' },
                         kind:           { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
                         paid_at:        { type: 'string', format: 'date-time', nullable: true, description: 'Mantido no VOIDED: é histórico' },
                         void_reason:    { type: 'string', nullable: true, description: 'Motivo do estorno. Nulo em todo pagamento não estornado' },
@@ -1037,13 +1038,13 @@ const options = {
                             reservation_id: { type: 'string', format: 'uuid', description: 'Com account_id, opcional; se vier, tem de ser a reserva da conta' },
                             account_id:     { type: 'string', format: 'uuid', description: 'Conta a pagar (T-04.4)' },
                             amount:         { type: 'number', example: 300.00 },
-                            method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'], example: 'PIX' },
-                            paid_at:        { type: 'string', format: 'date-time' }
+                            method:         { type: 'string', enum: PAYMENT_METHODS, example: 'PIX' },
+                            paid_at:        { type: 'string', format: 'date-time', description: 'Opcional; ausente ou nulo = agora. Se vier, data ISO-8601 válida' }
                         }
                     }}}},
                     responses: {
                         201: { description: 'Pagamento registrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        400: { description: 'reservation_id e account_id ausentes, ou amount ou method ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'reservation_id e account_id ausentes; amount ou method ausentes; amount inválido; method fora de PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO; paid_at que não é data ISO-8601 válida', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Reserva ou conta não encontrada no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         422: { description: 'Conta INTERNAL (nunca é receita), conta já PAID, ou reservation_id diferente da reserva da conta', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -1065,14 +1066,14 @@ const options = {
                     requestBody: { required: true, content: { 'application/json': { schema: {
                         type: 'object',
                         properties: {
-                            method:  { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] },
-                            paid_at: { type: 'string', format: 'date-time' },
+                            method:  { type: 'string', enum: PAYMENT_METHODS },
+                            paid_at: { type: 'string', format: 'date-time', description: 'Se vier, data ISO-8601 válida — nulo é recusado: pagamento PAID tem data (CHECK payments_paid_has_paid_at)' },
                             amount:  { type: 'string', example: '300.00', description: 'Opcional; se vier, igual ao gravado' }
                         }
                     }}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        400: { description: 'amount inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'amount inválido; method fora da lista ou nulo; paid_at nulo ou que não é data ISO-8601 válida', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Não encontrado no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'amount diferente do gravado; pagamento VOIDED, PENDING, EXPIRED, FAILED ou de PSP', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
