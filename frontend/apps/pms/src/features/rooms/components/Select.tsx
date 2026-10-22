@@ -11,7 +11,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     <select // qa-allow: ui
       ref={ref}
       className={cn(
-        'min-h-touch w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base',
+        'min-h-touch w-full rounded-md md:min-h-0 border border-gray-300 bg-white px-3 py-2 text-base',
         'focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand',
         'aria-[invalid=true]:border-status-maintenance aria-[invalid=true]:ring-status-maintenance',
         className,
