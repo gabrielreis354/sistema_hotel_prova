@@ -186,6 +186,9 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CREDIT_CARD: 'Cartão de crédito',
   DEBIT_CARD: 'Cartão de débito',
   CASH: 'Dinheiro',
+  // `method` é TEXT livre no PaymentModel; o seed e lançamentos antigos usam o nome em português.
+  CARTAO: 'Cartão',
+  DINHEIRO: 'Dinheiro',
 };
 
 const PAYMENT_STATUS_NOTE: Record<string, string> = {
