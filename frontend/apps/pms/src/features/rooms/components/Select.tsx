@@ -4,7 +4,7 @@ import { cn } from '@hotel/ui';
 /**
  * Lista de escolha. O @hotel/ui não tem `Select`, então ele nasce local (regra de promoção do
  * CATALOGO.md) com o mesmo visual do `Input`: alvo de 48px no celular, foco visível e erro
- * por aria-invalid. O `<select>` cru fica só aqui dentro — as telas usam este componente.
+ * por aria-invalid. O elemento nativo cru fica só aqui dentro — as telas usam este componente.
  */
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, ...props }, ref) => (

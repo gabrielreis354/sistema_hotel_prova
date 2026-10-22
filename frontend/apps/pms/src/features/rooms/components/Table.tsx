@@ -18,7 +18,9 @@ export function Table({ caption, children }: { caption: string; children: ReactN
 
 export function THead({ children }: { children: ReactNode }) {
   return (
-    <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
+    // Mesmo visual do cabeçalho das tabelas de hóspedes, que ainda copiam a string à mão: quando
+    // hóspedes adotar este Table, a cópia some (pendência registrada no relatório da T-05.1).
+    <thead className={cn('border-b border-gray-200', 'bg-gray-50 text-gray-500')}>
       <tr>{children}</tr>
     </thead>
   );
@@ -55,7 +57,7 @@ export function Td({
   className?: string;
 }) {
   return (
-    <td className={cn('px-3 py-2 align-middle', align === 'right' && 'text-right tabular-nums', className)}>
+    <td className={cn('px-3 py-2 align-middle md:py-1.5', align === 'right' && 'text-right tabular-nums', className)}>
       {children}
     </td>
   );

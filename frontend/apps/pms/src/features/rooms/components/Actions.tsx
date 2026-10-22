@@ -6,7 +6,7 @@ import { READ_ONLY_NOTICE_ID } from './ReadOnlyNotice.js';
 
 // 48px no celular (o gerente consulta e o admin corrige andando), compacto na tabela do
 // desktop — os dois contextos físicos do DESIGN_PMS.md §5.
-const RESPONSIVE = 'md:h-9 md:min-h-0 md:px-3 md:text-sm';
+const RESPONSIVE = 'md:h-8 md:min-h-0 md:px-3 md:text-sm';
 
 /**
  * Botão de escrita. Sem permissão ele continua na tela, desabilitado, com o motivo em

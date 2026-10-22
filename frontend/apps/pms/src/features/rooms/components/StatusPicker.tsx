@@ -7,6 +7,7 @@ import type { StatusOption } from '../roomRules.js';
  * Escolha do status do quarto. Os quatro aparecem sempre; os que dependem de check-in ou
  * check-out ficam desabilitados com o motivo escrito embaixo — o admin entende por que não
  * pode, em vez de procurar a opção que sumiu. Cada opção mostra ponto colorido + rótulo.
+ * Botões com aria-pressed (navegação por Tab), não radiogroup: radiogroup promete setas.
  */
 export function StatusPicker({
   options,
@@ -25,14 +26,13 @@ export function StatusPicker({
       <span id={labelId} className="text-sm font-medium text-gray-700">
         Status
       </span>
-      <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div role="group" aria-labelledby={labelId} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {options.map((o) => {
           const selected = o.status === value;
           return (
             <Button
               key={o.status}
-              role="radio"
-              aria-checked={selected}
+              aria-pressed={selected}
               variant="secondary"
               disabled={!o.enabled}
               title={o.reason}
