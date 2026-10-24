@@ -1015,7 +1015,21 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example Standard */
+                        name?: string;
+                        /** @example 2 */
+                        capacity?: number;
+                        /**
+                         * @description DECIMAL(10,2) como string
+                         * @example 150.00
+                         */
+                        price_per_night?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1272,7 +1286,19 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        category_id?: string;
+                        /** @example 101 */
+                        number?: string;
+                        floor?: number | null;
+                        /** @enum {string} */
+                        status?: "AVAILABLE" | "OCCUPIED" | "MAINTENANCE" | "CLEANING";
+                    };
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1474,7 +1500,17 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example Maria Oliveira */
+                        full_name?: string;
+                        cpf?: string | null;
+                        phone?: string | null;
+                        email?: string | null;
+                    };
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {

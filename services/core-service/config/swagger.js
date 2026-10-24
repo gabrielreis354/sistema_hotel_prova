@@ -738,6 +738,10 @@ const options = {
                 },
                 put: {
                     tags: ['Categorias de Quarto'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam', properties: {
+                        name: { type: 'string', example: 'Standard' }, capacity: { type: 'integer', example: 2 },
+                        price_per_night: { type: 'string', example: '150.00', description: 'DECIMAL(10,2) como string' }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
                         404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -790,6 +794,10 @@ const options = {
                 },
                 put: {
                     tags: ['Quartos'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam. Envie status só quando ele mudou — reenviar o valor carregado desfaz check-in/check-out feito em paralelo', properties: {
+                        category_id: { type: 'string', format: 'uuid' }, number: { type: 'string', example: '101' },
+                        floor: { type: 'integer', nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'] }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
                         400: { description: 'status inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -828,6 +836,10 @@ const options = {
                 },
                 put: {
                     tags: ['Hóspedes'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam', properties: {
+                        full_name: { type: 'string', example: 'Maria Oliveira' }, cpf: { type: 'string', nullable: true },
+                        phone: { type: 'string', nullable: true }, email: { type: 'string', nullable: true }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },

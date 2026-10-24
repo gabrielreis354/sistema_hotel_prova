@@ -38,10 +38,8 @@ export async function createGuest(input: GuestInput): Promise<Guest> {
 export async function updateGuest(id: string, input: GuestInput): Promise<Guest> {
   const { data, error, response } = await api.PUT('/guests/{id}', {
     params: { path: { id } },
-    // O Swagger de PUT /guests/{id} não declara requestBody, então o cliente tipa o corpo
-    // como `never`. Cast pontual até o backend documentar o body (pendência registrada —
-    // fora do escopo da T-06.2, que cobre respostas, não corpos de requisição de PUT).
-    body: input as never,
+    // Corpo tipado pelo Swagger (requestBody do PUT /guests/{id} declarado na T-05.1).
+    body: input,
   });
   if (response.status === 409) {
     throw new ApiError('CPF ou e-mail já cadastrado para outro hóspede.', 409);
