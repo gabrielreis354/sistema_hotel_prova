@@ -14,7 +14,7 @@ import {
 } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
-import { BackLink, ButtonLink, CardHeading, ErrorState, InfoItem, Money } from './components/primitives.js';
+import { BackLink, ButtonLink, CardHeading, ErrorState, InfoItem, Money, Notice } from './components/primitives.js';
 
 type Tab = 'resumo' | 'conta';
 type Confirming = null | 'check-out' | 'cancel';
@@ -119,12 +119,15 @@ export function ReservationDetailPage() {
           {bill.isPending && <p className="text-sm text-gray-500">calculando…</p>}
           {bill.isError && <p className="text-sm text-status-maintenance">indisponível</p>}
           {balance !== null && (
-            <Money
-              cents={Math.abs(balance)}
-              className={cn('text-2xl font-semibold', balance > 0 ? 'text-gray-900' : 'text-status-occupied')}
-            />
+            <Money cents={Math.abs(balance)} className="text-2xl font-semibold text-gray-900" />
           )}
-          {balance === 0 && <p className="text-xs text-status-occupied">Conta quitada</p>}
+          {/* Verde só no ponto: o texto em gray-700 passa de 4,5:1 (o verde do preset dá 3,3). */}
+          {balance === 0 && (
+            <p className="flex items-center gap-1.5 text-xs font-medium text-gray-700 sm:justify-end">
+              <span className="h-2 w-2 rounded-full bg-status-occupied" aria-hidden="true" />
+              Conta quitada
+            </p>
+          )}
         </div>
       </Card>
 
@@ -194,19 +197,11 @@ export function ReservationDetailPage() {
         )}
 
         {feedback && (
-          <p
-            ref={feedbackRef}
-            tabIndex={-1}
-            role={feedback.kind === 'error' ? 'alert' : 'status'}
-            className={cn(
-              'mt-4 rounded-md p-2 text-sm focus:outline-none',
-              feedback.kind === 'error'
-                ? 'bg-status-maintenance/10 text-status-maintenance'
-                : 'bg-status-occupied/10 text-status-occupied',
-            )}
-          >
-            {feedback.text}
-          </p>
+          <div className="mt-4">
+            <Notice ref={feedbackRef} tone={feedback.kind === 'error' ? 'error' : 'success'}>
+              {feedback.text}
+            </Notice>
+          </div>
         )}
       </Card>
 

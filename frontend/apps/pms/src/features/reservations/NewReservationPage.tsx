@@ -9,7 +9,7 @@ import { RoomConflictError } from './reservationsApi.js';
 import { quoteStay, safeNights } from './reservationLogic.js';
 import { GuestPicker } from './components/GuestPicker.js';
 import { RoomPicker } from './components/RoomPicker.js';
-import { ButtonLink, Money, PageHeader } from './components/primitives.js';
+import { ButtonLink, Money, Notice, PageHeader } from './components/primitives.js';
 
 /**
  * Nova reserva no balcão (CA-05.2.c, l, m). Uma página só, em três blocos — período,
@@ -199,14 +199,9 @@ export function NewReservationPage() {
             )}
 
             {submitError && (
-              <p
-                ref={errorRef}
-                tabIndex={-1}
-                role="alert"
-                className="rounded-md bg-status-maintenance/10 p-2 text-sm text-status-maintenance focus:outline-none"
-              >
+              <Notice ref={errorRef} tone="error">
                 {submitError}
-              </p>
+              </Notice>
             )}
 
             <Button
