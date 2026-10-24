@@ -1,5 +1,7 @@
 import RoomModel from '../../Models/RoomModel.js';
+import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import findInTenant from '../../utils/findInTenant.js';
 
 const VALID_ROOM_STATUSES = ['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'];
 
@@ -17,6 +19,14 @@ export default async function UpdateRoomController(request, response) {
 
         const room = await RoomModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!room) return response.status(404).json({ error: 'Quarto não encontrado' });
+
+        // A categoria nova precisa ser deste hotel. A FK só confere que o id existe: antes,
+        // o quarto do hotel A passava a apontar para a categoria do hotel B — o GET devolvia
+        // nome, diária e tenant_id de B e a reserva era cobrada pela diária de B (R-1).
+        if (category_id !== undefined) {
+            const category = await findInTenant(RoomCategoryModel, category_id, tenantId);
+            if (!category) return response.status(404).json({ error: 'Categoria não encontrada' });
+        }
 
         if (category_id !== undefined) room.category_id = category_id;
         if (number !== undefined)      room.number = number;

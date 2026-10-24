@@ -1,6 +1,7 @@
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import findInTenant from '../../utils/findInTenant.js';
 
 export default async function CreateRoomController(request, response) {
     try {
@@ -12,11 +13,9 @@ export default async function CreateRoomController(request, response) {
         if (!number)      errors.push('number obrigatório');
         if (errors.length) return response.status(400).json({ errors });
 
-        // Valida a FK antes de inserir: sem isso, um category_id inexistente
-        // estoura a foreign key no banco e retorna 500 genérico.
-        const category = await RoomCategoryModel.findOne({
-            where: { id: category_id, tenant_id: tenantId }
-        });
+        // Valida a FK antes de inserir, no tenant: sem isso, um category_id inexistente
+        // estoura a foreign key no banco (500) e o de outro hotel seria aceito.
+        const category = await findInTenant(RoomCategoryModel, category_id, tenantId);
         if (!category) return response.status(404).json({ error: 'Categoria não encontrada' });
 
         const room = await RoomModel.create({
