@@ -15,8 +15,12 @@ describe('reserva — allowlist', () => {
     expect(canTransitionReservation('CHECKED_IN', 'CHECKED_OUT')).toBe(true);
   });
 
+  it('permite check-in direto de PENDING (walk-in, decisao de 24/10/2026)', () => {
+    expect(canTransitionReservation('PENDING', 'CHECKED_IN')).toBe(true);
+  });
+
   it('proibe pular etapas e reanimar estados finais', () => {
-    expect(canTransitionReservation('PENDING', 'CHECKED_IN')).toBe(false);
+    expect(canTransitionReservation('PENDING', 'CHECKED_OUT')).toBe(false);
     expect(canTransitionReservation('CHECKED_OUT', 'CHECKED_IN')).toBe(false);
     expect(canTransitionReservation('CANCELLED', 'CONFIRMED')).toBe(false);
   });
@@ -31,7 +35,10 @@ describe('reserva — allowlist', () => {
 
   it('atalhos de check-in/out refletem a maquina', () => {
     expect(canCheckIn('CONFIRMED')).toBe(true);
-    expect(canCheckIn('PENDING')).toBe(false);
+    expect(canCheckIn('PENDING')).toBe(true);
+    expect(canCheckIn('CHECKED_IN')).toBe(false);
+    expect(canCheckIn('CHECKED_OUT')).toBe(false);
+    expect(canCheckIn('CANCELLED')).toBe(false);
     expect(canCheckOut('CHECKED_IN')).toBe(true);
     expect(canCheckOut('CONFIRMED')).toBe(false);
   });
