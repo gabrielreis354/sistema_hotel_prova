@@ -3,6 +3,7 @@ import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import isUuid from '../../utils/isUuid.js';
 import { isValidPaymentAmount, INVALID_AMOUNT_MESSAGE } from '../../utils/paymentAmount.js';
+import { isValidPaymentMethod, isValidPaidAt, INVALID_METHOD_MESSAGE, INVALID_PAID_AT_MESSAGE } from '../../utils/paymentInput.js';
 import { lockAccount, settlePaymentAccount } from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
 
@@ -31,6 +32,9 @@ export default async function CreatePaymentController(request, response) {
             return response.status(400).json({ error: 'Campos obrigatórios: reservation_id ou account_id, amount, method.' });
         }
         if (!isValidPaymentAmount(amount)) return response.status(400).json({ error: INVALID_AMOUNT_MESSAGE });
+        if (!isValidPaymentMethod(method)) return response.status(400).json({ error: INVALID_METHOD_MESSAGE });
+        // Sem paid_at (ou nulo), o pagamento manual é de agora; com valor, precisa ser data válida.
+        if (paid_at != null && !isValidPaidAt(paid_at)) return response.status(400).json({ error: INVALID_PAID_AT_MESSAGE });
         // Id não-UUID chega ao Postgres como cast inválido e viraria 500.
         if (account_id && !isUuid(account_id)) return response.status(404).json({ error: 'Conta não encontrada.' });
         if (reservation_id && !isUuid(reservation_id)) return response.status(404).json({ error: 'Reserva não encontrada.' });

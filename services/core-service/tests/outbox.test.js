@@ -208,8 +208,27 @@ describe('Pagamento — payments (§4.6)', () => {
         expect(mudou.type).toBe('payment.status_changed');
         expect(mudou.payload).toMatchObject({ status: 'FAILED', previous_status: 'PAID' });
 
-        await request(app).delete(`/payments/${p.body.id}`).set(auth());
+        // Desde a T-06.13 nenhuma rota exclui pagamento; o trigger segue emitindo
+        // payment.deleted para a exclusão lógica feita por outro caminho.
+        await sequelize.query(`UPDATE payments SET deleted_at = now() WHERE id = :id`, { replacements: { id: p.body.id } });
         expect((await ultimo(p.body.id)).type).toBe('payment.deleted');
+    });
+
+    it('estorno (T-06.13) gera payment.status_changed PAID → VOIDED, sem motivo nem autor no payload', async () => {
+        const guest = await createGuest(app, jwt, { full_name: 'Hóspede Estorno' });
+        const r = await request(app).post('/reservations').set(auth()).send({
+            guest_id: guest.id, room_id: await novoQuarto(), check_in_date: '2029-04-10', check_out_date: '2029-04-11',
+        });
+        const p = await request(app).post('/payments').set(auth()).send({ reservation_id: r.body.id, amount: 70, method: 'DINHEIRO' });
+        expect(p.status).toBe(201);
+
+        const res = await request(app).post(`/payments/${p.body.id}/void`).set(auth()).send({ reason: 'Valor errado' });
+        expect(res.status).toBe(200);
+
+        expect(await tipos(p.body.id)).toEqual(['payment.created', 'payment.status_changed']);
+        const estorno = await ultimo(p.body.id);
+        expect(chaves(estorno.payload)).toEqual(['amount', 'method', 'paid_at', 'previous_status', 'reservation_id', 'status']);
+        expect(estorno.payload).toMatchObject({ status: 'VOIDED', previous_status: 'PAID', amount: '70.00' });
     });
 });
 

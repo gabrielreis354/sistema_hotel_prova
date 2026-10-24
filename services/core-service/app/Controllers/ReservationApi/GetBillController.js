@@ -11,7 +11,8 @@ import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
  * Desde a T-04.2 os consumos são os itens faturáveis das contas da reserva; o contrato
  * de resposta é o mesmo (tests/bill-consumptions.test.js é o guardião).
  *
- * Considera PAGO apenas o que tem status PAID (um sinal PIX PENDING ainda não quita).
+ * Considera PAGO apenas o que tem status PAID (um sinal PIX PENDING ainda não quita; um
+ * pagamento estornado, VOIDED, segue listado como histórico — T-06.13).
  * Reserva cancelada: diária 0, como nas contas (D-46).
  */
 export default async function GetBillController(request, response) {
@@ -26,7 +27,7 @@ export default async function GetBillController(request, response) {
                 // Sem attributes viriam pix_qr_code, provider e provider_charge_id — que a
                 // conta não usa e o `payments.map()` lá embaixo não devolve. Carregar só o
                 // necessário evita que um `payments` devolvido inteiro no futuro vaze o QR.
-                { model: PaymentModel,     as: 'payments',     attributes: ['id', 'amount', 'method', 'kind', 'status', 'paid_at'] }
+                { model: PaymentModel,     as: 'payments',     attributes: ['id', 'amount', 'method', 'kind', 'status', 'paid_at', 'void_reason', 'voided_at'] }
             ]
         });
         if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
@@ -74,7 +75,9 @@ export default async function GetBillController(request, response) {
             })),
             payments: payments.map((p) => ({
                 id: p.id, amount: Number(p.amount), method: p.method,
-                kind: p.kind, status: p.status, paid_at: p.paid_at
+                kind: p.kind, status: p.status, paid_at: p.paid_at,
+                // Estornado aparece marcado, com o motivo (CA-06.13.g) — e não soma em total_paid.
+                void_reason: p.void_reason, voided_at: p.voided_at
             }))
         });
     } catch (error) {
