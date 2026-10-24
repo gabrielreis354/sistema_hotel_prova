@@ -1017,11 +1017,11 @@ const options = {
                 ],
                 delete: {
                     tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)',
-                    description: 'As contas ROOM abertas do quarto removido passam para o quarto principal da reserva, com itens e pagamentos — nenhuma é apagada e a remoção não é bloqueada por conta aberta. Se o principal já tem conta cobrando diária, a conta movida passa a `charges_lodging: false` (RN-005); senão, ela segue cobrando a diária. O rótulo gerado pelo sistema acompanha o quarto; o da recepção fica. Conta fechada ou paga não muda (D-23).',
+                    description: 'As contas ROOM abertas do quarto removido passam para o quarto principal da reserva, com itens e pagamentos — nenhuma é apagada e a remoção não é bloqueada por conta aberta. Se o principal já tem conta cobrando diária, a conta movida passa a `charges_lodging: false` (RN-005); senão, ela segue cobrando a diária. O rótulo gerado pelo sistema acompanha o quarto ("Suíte 701"); a conta movida que não vira a conta de diária do principal leva a origem ("Suíte 701 · ex-702"); o rótulo da recepção fica. Conta fechada ou paga não muda (D-23).',
                     responses: {
                         204: { description: 'Desvinculado' },
                         404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED; outra operação alterando a reserva ao mesmo tempo (deadlock repetido — tente de novo)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },

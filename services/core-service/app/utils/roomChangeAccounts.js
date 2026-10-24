@@ -45,16 +45,28 @@ const roomOf = (id, tenantId, transaction) =>
  * Passa as contas para o quarto de destino. O rótulo só acompanha se for o que o sistema
  * gerou ("Suíte 906"); o escolhido pela recepção fica como está (D-32, reauditoria N-4).
  * Com `dropLodging`, a conta deixa de cobrar diária: o destino já tem a conta de diária.
+ *
+ * Com `keepOrigin`, a conta movida que NÃO vira a conta de diária do destino leva a origem no
+ * rótulo do sistema: "Suíte 701 · ex-702" (N-2 da reauditoria delta de 21/10). O garçom lista
+ * contas só pelo rótulo (D-15), e duas "Suíte 701" no mesmo quarto não se distinguem. A
+ * origem, e não o rótulo antigo ("Suíte 702"), porque o 702 saiu da estadia: o garçom iria ao
+ * quarto errado, que pode já ser de outro hóspede. Dois extras removidos dão "ex-702" e
+ * "ex-703", distintos entre si.
  */
-async function relocate(accounts, reservation, fromRoomId, toRoomId, transaction, { dropLodging = false } = {}) {
+async function relocate(accounts, reservation, fromRoomId, toRoomId, transaction, { dropLodging = false, keepOrigin = false } = {}) {
     // Em sequência, não Promise.all: dentro da transação as consultas dividem a conexão.
     const oldRoom = await roomOf(fromRoomId, reservation.tenant_id, transaction);
     const newRoom = await roomOf(toRoomId, reservation.tenant_id, transaction);
     const systemLabel = oldRoom ? roomAccountLabel(oldRoom.number) : null;
 
     for (const account of accounts) {
+        const becomesLodging = account.charges_lodging && !dropLodging;
         const changes = { room_id: toRoomId };
-        if (newRoom && account.label === systemLabel) changes.label = roomAccountLabel(newRoom.number);
+        if (newRoom && account.label === systemLabel) {
+            changes.label = keepOrigin && !becomesLodging
+                ? `${roomAccountLabel(newRoom.number)} · ex-${oldRoom.number}`
+                : roomAccountLabel(newRoom.number);
+        }
         if (dropLodging && account.charges_lodging) changes.charges_lodging = false;
         await account.update(changes, { transaction });
     }
@@ -122,5 +134,5 @@ export async function moveRemovedRoomAccounts(reservation, roomId, transaction) 
     if (accounts.length === 0) return;
 
     const mainHasLodging = (await lodgingAccountsOfRoom(reservation, reservation.room_id, transaction)).length > 0;
-    await relocate(accounts, reservation, roomId, reservation.room_id, transaction, { dropLodging: mainHasLodging });
+    await relocate(accounts, reservation, roomId, reservation.room_id, transaction, { dropLodging: mainHasLodging, keepOrigin: true });
 }
