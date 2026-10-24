@@ -25,8 +25,9 @@ export interface CategoryInput {
   price_per_night: string;
 }
 
-function fail(ctx: WriteContext, status: number): never {
-  throw new ApiError(writeErrorMessage(ctx, status), status);
+/** Corpo de erro (`error`) entra como unknown: o motivo sai do `code`, lido sem cast. */
+function fail(ctx: WriteContext, status: number, body: unknown): never {
+  throw new ApiError(writeErrorMessage(ctx, status, body), status);
 }
 
 // ─── Quartos ────────────────────────────────────────────────────────────────
@@ -46,7 +47,7 @@ export async function getRoom(id: string): Promise<Room> {
 export async function createRoom(input: RoomInput): Promise<Room> {
   const body: RoomCreateBody = input;
   const { data, error, response } = await api.POST('/rooms', { body });
-  if (error || !response.ok) fail({ entity: 'room', action: 'create', number: input.number }, response.status);
+  if (error || !response.ok) fail({ entity: 'room', action: 'create', number: input.number }, response.status, error);
   return data;
 }
 
@@ -55,13 +56,13 @@ export async function updateRoom(id: string, changes: RoomUpdateBody, number?: s
     params: { path: { id } },
     body: changes,
   });
-  if (error || !response.ok) fail({ entity: 'room', action: 'update', number }, response.status);
+  if (error || !response.ok) fail({ entity: 'room', action: 'update', number }, response.status, error);
   return data;
 }
 
 export async function deleteRoom(id: string): Promise<void> {
   const { error, response } = await api.DELETE('/rooms/{id}', { params: { path: { id } } });
-  if (error || !response.ok) fail({ entity: 'room', action: 'delete' }, response.status);
+  if (error || !response.ok) fail({ entity: 'room', action: 'delete' }, response.status, error);
 }
 
 // ─── Categorias ─────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ export async function getCategory(id: string): Promise<RoomCategory> {
 
 export async function createCategory(input: CategoryInput): Promise<RoomCategory> {
   const { data, error, response } = await api.POST('/room-categories', { body: input });
-  if (error || !response.ok) fail({ entity: 'category', action: 'create' }, response.status);
+  if (error || !response.ok) fail({ entity: 'category', action: 'create' }, response.status, error);
   return data;
 }
 
@@ -90,11 +91,11 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
     params: { path: { id } },
     body,
   });
-  if (error || !response.ok) fail({ entity: 'category', action: 'update' }, response.status);
+  if (error || !response.ok) fail({ entity: 'category', action: 'update' }, response.status, error);
   return data;
 }
 
 export async function deleteCategory(id: string): Promise<void> {
   const { error, response } = await api.DELETE('/room-categories/{id}', { params: { path: { id } } });
-  if (error || !response.ok) fail({ entity: 'category', action: 'delete' }, response.status);
+  if (error || !response.ok) fail({ entity: 'category', action: 'delete' }, response.status, error);
 }

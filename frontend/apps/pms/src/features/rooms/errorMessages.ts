@@ -1,9 +1,13 @@
 /**
  * Mensagem de balcão para falha de escrita em quarto ou categoria.
  *
- * O texto do backend é técnico ("category_id obrigatório") e às vezes ausente; o operador
- * precisa saber o que fazer agora. Cada status vira uma instrução: o que aconteceu e qual o
- * próximo passo. Lógica pura — testada em errorMessages.test.ts.
+ * A regra é: o MOTIVO vem do `code` que o backend devolve no corpo do erro (contrato com
+ * fix/tenant-fk-validation), nunca de um palpite pelo status. Um 409 pode ser número
+ * repetido, transição de status proibida ou registro em uso — adivinhar pelo status fez a
+ * tela dizer "use outro número" para quem nem mexeu no número (🟡-2 da reauditoria).
+ * Sem `code` conhecido, a mensagem é genérica e honesta, com o texto do servidor quando há.
+ *
+ * Lógica pura — testada em errorMessages.test.ts.
  */
 import { ApiError } from '../../lib/http.js';
 
@@ -20,51 +24,86 @@ export function isNotFound(err: unknown): boolean {
 export interface WriteContext {
   entity: 'room' | 'category';
   action: 'create' | 'update' | 'delete';
-  /** Número do quarto digitado — entra na mensagem de duplicidade. */
+  /** Número do quarto digitado — entra na mensagem de número repetido. */
   number?: string;
 }
 
+/** O que interessa do corpo de erro do backend: `{ error?, code?, field? }`. */
+export interface ErrorBody {
+  code?: string;
+  field?: string;
+  detail?: string;
+}
+
+function stringProp(body: object, key: string): string | undefined {
+  if (!(key in body)) return undefined;
+  const v: unknown = Reflect.get(body, key);
+  return typeof v === 'string' && v.trim() ? v : undefined;
+}
+
+/**
+ * Lê `code`, `field` e `error` do corpo sem cast: o api-client ainda tipa o erro só como
+ * `{ error?: string }` (regenera depois do merge da fk), então tudo entra como `unknown` e
+ * só sai o que for string de verdade.
+ */
+export function readErrorBody(body: unknown): ErrorBody {
+  if (typeof body !== 'object' || body === null) return {};
+  return { code: stringProp(body, 'code'), field: stringProp(body, 'field'), detail: stringProp(body, 'error') };
+}
+
 const NOUN = { room: 'o quarto', category: 'a categoria' } as const;
-const GONE = {
-  room: 'Este quarto não existe mais — pode ter sido excluído por outra pessoa.',
-  category: 'Esta categoria não existe mais — pode ter sido excluída por outra pessoa.',
-} as const;
 
-export function writeErrorMessage(ctx: WriteContext, status: number): string {
+/** Nome do campo como o operador vê na tela. */
+const FIELD_LABEL: Record<string, string> = {
+  number: 'Número',
+  floor: 'Andar',
+  category_id: 'Categoria',
+  status: 'Status',
+  name: 'Nome',
+  capacity: 'Capacidade',
+  price_per_night: 'Diária',
+};
+
+export function writeErrorMessage(ctx: WriteContext, status: number, body?: unknown): string {
   const { entity, action, number } = ctx;
+  const { code, field, detail } = readErrorBody(body);
 
-  if (status === 409) {
-    // Na exclusão, 409 é "em uso", não duplicidade: o backend recusa apagar categoria com
-    // quartos (e quarto em uso) — é ele quem enxerga o quarto que outra pessoa acabou de criar.
-    if (action === 'delete') {
-      return entity === 'category'
-        ? 'Esta categoria ainda tem quartos. Mude a categoria desses quartos e tente excluir de novo.'
-        : 'Este quarto está em uso e não pode ser excluído agora. Faça o check-out antes.';
-    }
-    if (entity === 'room') {
+  switch (code) {
+    case 'ROOM_NUMBER_TAKEN':
       return number
         ? `Já existe um quarto ${number} neste hotel. Use outro número.`
         : 'Já existe um quarto com esse número neste hotel. Use outro número.';
+    case 'CATEGORY_NAME_TAKEN':
+      return 'Já existe uma categoria com esse nome neste hotel. Use outro nome.';
+    case 'ROOM_STATUS_TRANSITION_NOT_ALLOWED':
+      return 'O status do quarto mudou enquanto você editava (check-in ou check-out na recepção). Recarregue a página para ver o status atual antes de alterar.';
+    case 'ROOM_IN_USE':
+      return 'Este quarto está em uso (hóspede ou reserva) e não pode ser excluído agora.';
+    case 'CATEGORY_IN_USE':
+      return 'Esta categoria ainda tem quartos. Mude a categoria desses quartos e tente excluir de novo.';
+    case 'CATEGORY_NOT_FOUND':
+      return entity === 'room'
+        ? 'A categoria escolhida não existe mais. Recarregue a página e escolha outra.'
+        : 'Esta categoria não existe mais — pode ter sido excluída por outra pessoa.';
+    case 'INVALID_INPUT': {
+      const label = field ? FIELD_LABEL[field] : undefined;
+      return label
+        ? `Confira o campo ${label}: valor faltando ou fora do formato.`
+        : 'Confira os campos: há informação faltando ou fora do formato.';
     }
-    return 'Já existe uma categoria com esse nome neste hotel. Use outro nome.';
   }
 
-  if (status === 400 || status === 422) {
-    return 'Confira os campos: há informação faltando ou fora do formato.';
-  }
-
+  // Sem code conhecido: só o que o status diz SEM ambiguidade.
   if (status === 403) return 'Só o administrador altera quartos e categorias.';
 
-  if (status === 404) {
-    // No cadastro de quarto, o único 404 possível é a categoria escolhida ter sumido.
-    if (entity === 'room' && action === 'create') {
-      return 'A categoria escolhida não existe mais. Recarregue a página e escolha outra.';
-    }
-    return GONE[entity];
-  }
-
-  // Aqui o servidor RESPONDEU (5xx ou status inesperado): a conexão está boa, então mandar
-  // "verificar a conexão" faria o operador insistir à toa. Falha de rede é o messageOf.
   const verb = action === 'delete' ? 'excluir' : 'salvar';
-  return `O sistema não conseguiu ${verb} ${NOUN[entity]}. Tente de novo; se continuar, avise o suporte.`;
+  if (status >= 500) {
+    // O servidor respondeu: a conexão está boa, "verifique a conexão" faria insistir à toa.
+    return `O sistema não conseguiu ${verb} ${NOUN[entity]}. Tente de novo; se continuar, avise o suporte.`;
+  }
+  // 4xx sem motivo identificado: diz que foi recusado e repassa o texto do servidor, sem
+  // inventar a causa.
+  return detail
+    ? `O sistema recusou ${verb} ${NOUN[entity]}: ${detail.replace(/[.!\s]+$/, '')}.`
+    : `O sistema recusou ${verb} ${NOUN[entity]}. Recarregue a página e confira os dados.`;
 }
