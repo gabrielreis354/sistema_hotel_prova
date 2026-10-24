@@ -320,6 +320,20 @@ export function pageCount(total: number, limit: number): number {
   return limit > 0 ? Math.max(1, Math.ceil(total / limit)) : 1;
 }
 
+// ─── Minimização no papel (LGPD art. 6º, III) ──────────────────────────────────────────
+
+/**
+ * CPF mascarado para o comprovante impresso: `***.456.789-**`. O papel serve para o hóspede
+ * conferir a conta; os seis dígitos do meio bastam para ele reconhecer o próprio documento, e
+ * o número inteiro não tem finalidade num documento sem valor fiscal. Fora do formato de CPF
+ * (11 dígitos), não mostra nada — melhor omitir que vazar um documento que não sabemos ler.
+ */
+export function maskCpf(cpf: string | null | undefined): string | null {
+  const digits = (cpf ?? '').replace(/\D/g, '');
+  if (digits.length !== 11) return null;
+  return `***.${digits.slice(3, 6)}.${digits.slice(6, 9)}-**`;
+}
+
 // ─── Cadastro rápido de hóspede a partir da busca (CA-05.2.l) ──────────────────────────
 
 export interface GuestDraft {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildBillTimeline,
   guestDraftFromTerm,
+  maskCpf,
   officialBalanceCents,
   pageCount,
   presetRange,
@@ -165,6 +166,20 @@ describe('filtro de período e paginação', () => {
   it('pageCount nunca devolve zero', () => {
     expect(pageCount(0, 20)).toBe(1);
     expect(pageCount(41, 20)).toBe(3);
+  });
+});
+
+describe('maskCpf — comprovante não imprime o CPF inteiro', () => {
+  it('mostra só os seis dígitos do meio, com ou sem máscara de entrada', () => {
+    expect(maskCpf('123.456.789-00')).toBe('***.456.789-**');
+    expect(maskCpf('12345678900')).toBe('***.456.789-**');
+  });
+
+  it('omite o que não é CPF de 11 dígitos', () => {
+    expect(maskCpf('1234')).toBeNull();
+    expect(maskCpf('')).toBeNull();
+    expect(maskCpf(null)).toBeNull();
+    expect(maskCpf(undefined)).toBeNull();
   });
 });
 

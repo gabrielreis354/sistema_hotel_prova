@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { RESERVATION_STATUS_LABEL, formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { Button, Spinner } from '@hotel/ui';
 import { useBill, useReservation } from './queries.js';
-import { buildBillTimeline, isReservationStatus, officialBalanceCents, safeNights } from './reservationLogic.js';
+import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, safeNights } from './reservationLogic.js';
 import { ErrorState, Money } from './components/primitives.js';
 
 /**
@@ -40,6 +40,7 @@ export function ReservationReceiptPage() {
   const balance = officialBalanceCents(bill.data);
   const nights = r.check_in_date && r.check_out_date ? safeNights(r.check_in_date, r.check_out_date) : null;
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
+  const cpfMasked = maskCpf(r.guest?.cpf);
 
   return (
     <div className="min-h-screen bg-white">
@@ -61,7 +62,8 @@ export function ReservationReceiptPage() {
           </p>
           <p className="text-sm text-gray-700">
             Situação: {isReservationStatus(r.status) ? RESERVATION_STATUS_LABEL[r.status] : r.status}
-            {r.guest?.cpf ? ` · CPF ${r.guest.cpf}` : ''}
+            {/* CPF mascarado: minimização (LGPD art. 6º, III) — o papel fica na mesa e no lixo. */}
+            {cpfMasked ? ` · CPF ${cpfMasked}` : ''}
           </p>
         </header>
 
