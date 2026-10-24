@@ -57,7 +57,17 @@ export default async function UpdatePaymentController(request, response) {
                 return refuse(409, 'O valor de um pagamento não se altera: estorne (POST /payments/:id/void) e lance de novo.');
             }
 
-            await PaymentModel.update({ method, paid_at }, { where: { id: payment.id, tenant_id: tenantId }, transaction });
+            // PAID antigo sem data (anterior ao CHECK NOT VALID payments_paid_has_paid_at): o banco
+            // confere toda linha atualizada, e um PUT só de método virava 500. A correção
+            // possível é informar a data (reauditoria delta, 🟢-2).
+            if (payment.paid_at === null && paid_at === undefined) {
+                return refuse(422, 'Pagamento PAID sem data: informe paid_at para corrigir o lançamento.');
+            }
+
+            // Pela instância, com a linha inteira: a validação do model (PAID exige paid_at)
+            // enxerga o status real, e só os campos enviados mudam.
+            const changes = Object.fromEntries(Object.entries({ method, paid_at }).filter(([, v]) => v !== undefined));
+            await payment.update(changes, { transaction });
             const updated = await PaymentModel.findOne({ where: { id: payment.id, tenant_id: tenantId }, transaction });
             await transaction.commit();
 

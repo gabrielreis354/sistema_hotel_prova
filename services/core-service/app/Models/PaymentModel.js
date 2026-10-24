@@ -97,6 +97,18 @@ const PaymentModel = sequelize.define(
         }
     },
     {
+        // Mesma regra do CHECK payments_paid_has_paid_at, antes do INSERT/UPDATE (reauditoria
+        // delta, 🟢-3): o status nasce PAID por padrão e paid_at não tem default, então um
+        // create manual sem data (migração, job, teste) falha aqui, com nome e mensagem.
+        // Cobre create e save/update de instância; o UPDATE estático por where não carrega a
+        // linha inteira — aí quem garante é o banco.
+        validate: {
+            paidHasPaidAt() {
+                if (this.status === 'PAID' && (this.paid_at === null || this.paid_at === undefined)) {
+                    throw new Error('payments_paid_has_paid_at: pagamento PAID exige paid_at');
+                }
+            }
+        },
         tableName: 'payments',
         timestamps: true,
         createdAt: 'created_at',

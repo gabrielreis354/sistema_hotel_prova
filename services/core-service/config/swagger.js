@@ -1044,7 +1044,7 @@ const options = {
                     }}}},
                     responses: {
                         201: { description: 'Pagamento registrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        400: { description: 'reservation_id e account_id ausentes; amount ou method ausentes; amount inválido; method fora de PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO; paid_at que não é data ISO-8601 válida', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'reservation_id e account_id ausentes; amount ou method ausentes; amount inválido; method fora de PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO; paid_at que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Reserva ou conta não encontrada no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         422: { description: 'Conta INTERNAL (nunca é receita), conta já PAID, ou reservation_id diferente da reserva da conta', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -1073,10 +1073,11 @@ const options = {
                     }}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        400: { description: 'amount inválido; method fora da lista ou nulo; paid_at nulo ou que não é data ISO-8601 válida', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'amount inválido; method fora da lista ou nulo; paid_at nulo ou que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Não encontrado no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'amount diferente do gravado; pagamento VOIDED, PENDING, EXPIRED, FAILED ou de PSP', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        409: { description: 'amount diferente do gravado; pagamento VOIDED, PENDING, EXPIRED, FAILED ou de PSP', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Pagamento PAID antigo sem data (anterior ao CHECK payments_paid_has_paid_at) e paid_at não enviado: informe paid_at para corrigir', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
                 delete: {

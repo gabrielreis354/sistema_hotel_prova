@@ -10,10 +10,10 @@ do qa-redteam (`docs/qa/redteam_t0613-estorno-pagamento_21out2026.md`) e da reau
 (`docs/qa/redteam_t0613-estorno-pagamento_delta_21out2026.md`). Sem PR nem merge: o Gabriel abre.
 
 ## Onde estou
-- Último commit: 93b1b36 docs(qa): reauditoria delta (com push: sim)
+- Último commit: ver `git log -1` (RED 63ab261 e GREEN da reauditoria delta, com push)
 - Passo atual: fechar os 3 🟢 da reauditoria delta (data inexistente/ano < 1 → 400; PUT em PAID legado
   sem `paid_at` → 422; validação de model PAID exige `paid_at`)
-- Próximo passo: GREEN dos 3 🟢 (RED commitado: 4 falhas — POST/PUT com dia inexistente e ano 0000, PUT legado → 422, model sem validação)
+- Próximo passo: suíte completa + qa_checks, nova entrada no relatório, remover pg-t0613
 
 ## Feito
 - [x] RED da T-06.13 — 07277f4
@@ -25,7 +25,7 @@ do qa-redteam (`docs/qa/redteam_t0613-estorno-pagamento_21out2026.md`) e da reau
 
 ## Falta
 - [x] RED dos 3 🟢 do delta — (ver git log: test(payments): RED da reauditoria delta)
-- [ ] GREEN dos 3 🟢 do delta
+- [x] GREEN dos 3 🟢 do delta — (ver git log: fix(payments): reauditoria delta)
 - [ ] suíte completa + qa_checks; relatório (nova entrada); remover pg-t0613
 
 ## Decisões tomadas nesta frente
