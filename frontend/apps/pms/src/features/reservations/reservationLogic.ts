@@ -86,8 +86,8 @@ export interface ReservationActions {
   cancel: ActionState;
 }
 
+// PENDING e CONFIRMED fazem check-in (PENDING é o walk-in, decisão de 24/10/2026).
 const CHECK_IN_BLOCKED: Partial<Record<ReservationStatus, string>> = {
-  PENDING: 'Reserva pendente de confirmação: o check-in libera quando ela for confirmada.',
   CHECKED_IN: 'O hóspede já fez check-in.',
   CHECKED_OUT: 'Estadia encerrada.',
   CANCELLED: 'Reserva cancelada.',

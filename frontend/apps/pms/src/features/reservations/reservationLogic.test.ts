@@ -69,15 +69,11 @@ describe('reservationActions — ação desabilitada sempre traz o motivo', () =
     }
   });
 
-  it('PENDING segue a allowlist ATUAL do @hotel/domain: check-in bloqueado com motivo', () => {
-    // Comportamento de hoje: o domínio proíbe PENDING → CHECKED_IN (🟡-1 do qa-redteam, decisão
-    // do Gabriel). Se a transição for liberada em state-machines.ts, este teste DEVE quebrar e
-    // ser trocado por `expect(a.checkIn).toEqual({ enabled: true })`.
+  it('PENDING habilita check-in direto (walk-in, decisão de 24/10/2026) e cancelar', () => {
     const a = reservationActions('PENDING');
-    expect(a.checkIn.enabled).toBe(false);
-    expect(a.checkIn.reason).toBe('Reserva pendente de confirmação: o check-in libera quando ela for confirmada.');
+    expect(a.checkIn).toEqual({ enabled: true });
     expect(a.cancel).toEqual({ enabled: true });
-    expect(a.checkOut.enabled).toBe(false);
+    expect(a.checkOut).toEqual({ enabled: false, reason: 'Check-out só depois do check-in.' });
   });
 
   it('status desconhecido é fail-safe: tudo desabilitado', () => {
