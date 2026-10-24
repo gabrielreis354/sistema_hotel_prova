@@ -183,7 +183,7 @@ endpoints — ver §9, decisão D-1.
 
 | Campo | Tipo | Usado por |
 |---|---|---|
-| `reservation_id` | UUID | `revenue.unpaid` e `alerts.no_show_risk` (reserva **sem** pagamento) |
+| `reservation_id` | UUID ou `null` | `revenue.unpaid` e `alerts.no_show_risk` (reserva **sem** pagamento). `null` no pagamento de conta sem reserva — day-use, mesa, balcão (T-04.4, CA-04.4.b); esse pagamento entra na receita e no mix, não em consulta por reserva *(desvio aceito pelo Gabriel em 21/10/2026)* |
 | `amount` | string decimal | `revenue.realized` · `payment-mix` |
 | `method` | string | `payment-mix` |
 | `status` | `PENDING` \| `PAID` \| `EXPIRED` \| `FAILED` \| `VOIDED` | ver §9, D-3. `VOIDED` (estorno de lançamento) entra com a T-06.13 da SPEC-06; a projeção conta só `PAID` |
@@ -225,9 +225,10 @@ Um `*.deleted` vira marca de exclusão na projeção (com a versão), não remo�
 
 | Tipo de erro | Exemplos | O que acontece |
 |---|---|---|
-| **Transitório** | banco do analytics fora do ar, *deadlock*, *timeout* | *nack* sem reenfileirar → espera **10 s** na fila de nova tentativa → volta. **5 tentativas no total** (≈ 40 s). Na 5ª falha, a mensagem é publicada em `analytics.dlx` com o erro e o número de tentativas no cabeçalho, e recebe *ack* |
+| **Transitório** | *deadlock*, falha de serialização, *timeout* | *nack* sem reenfileirar → espera **10 s** na fila de nova tentativa → volta. **5 tentativas no total** (≈ 40 s). Na 5ª falha, a mensagem é publicada em `analytics.dlx` com o erro e o número de tentativas no cabeçalho, e recebe *ack* |
 | **Permanente** | JSON inválido, `tenant_id` ausente, `type` desconhecido, `version` maior que a suportada | Direto para `analytics.dlx`, **sem** nova tentativa — tentar de novo não muda o resultado |
 
+- **Banco do analytics fora do ar não é falha da mensagem** (H.2, ressalva 🟡-3 do qa-redteam, 23/10/2026): erro de **conexão** (SQLSTATE `08*`, `57P01`–`57P03`, `53300`, erros de conexão do Sequelize) não conta tentativa. O consumidor não dá *ack* nem *nack* e fecha a conexão; o broker devolve as mensagens não confirmadas à fila **sem** `x-death`, e o consumo só volta quando o banco responde, com espera crescente até 30 s. Sem isso, um *restart* de rotina de ~40 s do banco mandaria a fila inteira para a DLQ.
 - A contagem de tentativas vem do cabeçalho `x-death` que o próprio RabbitMQ acrescenta a cada
   passagem pela fila de nova tentativa — o consumidor não guarda estado para isso.
 - **Uma mensagem com problema não bloqueia as outras**: o *nack* a tira da fila principal na
@@ -267,6 +268,17 @@ que a primeira confirma.
 *outbox*, para cada registro existente, um evento `*.updated` com o retrato atual. O
 publicador e o consumidor são os mesmos do fluxo normal — não existe caminho paralelo para
 testar. Rodar a carga duas vezes não duplica nada (§5.2).
+
+> **Registro com exclusão lógica sai como `*.deleted`**, com o mesmo retrato (desvio aceito pelo
+> Gabriel em 21/10/2026, H.2). Com `*.updated`, ele entraria vivo na projeção: um pagamento excluído
+> voltaria a contar como receita, contra a **D-2**, e um quarto excluído entraria na contagem de
+> ocupação. O retrato continua necessário porque reservas antigas apontam para hóspede, quarto e
+> categoria excluídos (alertas, receita por categoria). O `deleted_at` da projeção recebe o instante da
+> carga, não o da exclusão original — nenhuma consulta usa essa data.
+>
+> **A carga não pode parar o hotel:** cada tabela é lida sob `LOCK TABLE ... IN SHARE MODE` (ordem por
+> agregado) com `lock_timeout` (3 s) e novas tentativas; esgotadas, a carga para com mensagem clara e
+> pode ser rodada de novo (idempotente). Comando: `node command.js outbox-initial-load` no core.
 
 ---
 
@@ -503,3 +515,4 @@ os da projeção.
 |---|---|---|
 | 30/09/2026 | 0.1 | Proposta inicial — agente executor, trilha do Gabriel (delegação `rodada2_gabriel_28set2026.md`, etapa C) |
 | 04/10/2026 | 1.0 | **Aprovado pelo Gabriel.** Decisões D-1 a D-4 registradas na §9.1, com o critério de mercado. D-3 refinada em garantia × saldo. Regra de gravação do *outbox* depois da escrita de domínio (§6). Dinheiro sem `float` nas consultas sobre a projeção |
+| 24/10/2026 | 1.1 | Desvios registrados na H.2 (T-01.4): §6 carga inicial emite `*.deleted` para excluídos (D-2) e tem `lock_timeout`; §4.6 `reservation_id` pode ser `null` (T-04.4) — aceitos pelo Gabriel em 21/10. §5.3: banco do analytics fora do ar pausa o consumo sem gastar tentativa (ressalva 🟡-3 do qa-redteam). Nenhum `version` de evento muda: o core já publicava assim |

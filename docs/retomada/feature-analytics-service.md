@@ -22,7 +22,7 @@ eventos v1.0. Agora: corrigir as ressalvas do qa-redteam
 ## Falta
 - [x] 🟡-1 ack/nack com canal fechado não pode rejeitar; laço de reconexão roda (teste com canal caindo no meio)
 - [x] 🟡-3 erro de conexão com o banco do analytics não conta tentativa (fecha o canal sem nack, volta ao `ready()`)
-- [ ] 🟡-5 catálogo: §6 (`*.deleted` na carga, por causa da D-2) e §4.6 (`reservation_id` nulo) + histórico
+- [x] 🟡-5 catálogo: §6 (`*.deleted` na carga, por causa da D-2) e §4.6 (`reservation_id` nulo) + histórico
 - [x] 🟢 `/health` reflete consumidor e banco (degradado → 503)
 - [x] 🟢 SIGTERM: para de consumir, termina a mensagem em andamento, fecha conexões
 - [ ] Suítes core e analytics com cobertura, qa_checks, relatório atualizado, remover containers
