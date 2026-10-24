@@ -9,6 +9,8 @@
 //   (🟡-1 e 🟡-2 da auditoria qa-redteam de 21/10).
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
+import { DatabaseError } from 'sequelize';
+import sequelize from '../database/connections/sequelize.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
@@ -255,6 +257,37 @@ describe('DELETE /reservations/:id/rooms/:roomId — quarto extra com conta (rep
         expect((await getBill(extraAccount.id)).body.payments_made).toBe('50.00');
     });
 
+    it('N-2: rótulos do sistema não colidem — a conta movida sem diária ganha a origem ("Suíte 701 · ex-702")', async () => {
+        const main = await newRoom();
+        const extra = await newRoom();
+        const reservation = await reserve(main, [extra]);
+        const mainAccount = await openAccount({ reservation_id: reservation.id, room_id: main.id, label: `Suíte ${main.number}` });
+        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: `Suíte ${extra.number}` });
+
+        expect((await removeRoom(reservation.id, extra.id)).status).toBe(204);
+
+        // O garçom lista contas pelo rótulo (D-15): duas "Suíte 701" no mesmo quarto não se distinguem.
+        expect((await reload(mainAccount.id)).label).toBe(`Suíte ${main.number}`);
+        expect(await reload(extraAccount.id)).toMatchObject({
+            room_id: main.id, charges_lodging: false, label: `Suíte ${main.number} · ex-${extra.number}`
+        });
+    });
+
+    it('N-3: principal só com conta SEM diária e a única diária no extra → a movida segue cobrando a estadia', async () => {
+        const main = await newRoom();
+        const extra = await newRoom();
+        const reservation = await reserve(main, [extra]); // 800; depois da remoção, 400
+        const companion = await openAccount({ reservation_id: reservation.id, room_id: main.id, label: 'Acompanhante', charges_lodging: false });
+        const lodging = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Única diária' });
+
+        expect((await removeRoom(reservation.id, extra.id)).status).toBe(204);
+
+        expect(await reload(lodging.id)).toMatchObject({ room_id: main.id, charges_lodging: true, label: 'Única diária' });
+        expect(await reload(companion.id)).toMatchObject({ room_id: main.id, charges_lodging: false });
+        expect(await lodgingCount(reservation.id)).toBe(1);
+        expect((await getBill(lodging.id)).body.room_charges).toBe('400.00');
+    });
+
     it('conta fechada no extra não muda, nem bloqueia a remoção (D-23)', async () => {
         const main = await newRoom();
         const extra = await newRoom();
@@ -275,6 +308,111 @@ describe('DELETE /reservations/:id/rooms/:roomId — quarto extra com conta (rep
 
         expect((await removeRoom(reservation.id, extra.id, otherJwt)).status).toBe(404);
         expect(await reload(extraAccount.id)).toMatchObject({ room_id: extra.id, deleted_at: null });
+    });
+});
+
+// N-1 da reauditoria delta de 21/10: a remoção trava a reserva e lê "o principal não tem conta
+// de diária"; um POST /accounts de diária no principal, na mesma janela, gravava sem passar pela
+// trava da reserva e ficava preso na FK; o UPDATE da remoção esperava o índice único → deadlock
+// (40P01) → 500. A remoção é pausada logo depois dessa leitura até o POST estar esperando trava
+// no banco (pg_stat_activity) — condição, não tempo.
+describe('Remoção de extra × POST /accounts de diária no principal (N-1 da reauditoria delta)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    const lockWaiters = async () => {
+        const [rows] = await sequelize.query(
+            "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'"
+        );
+        return rows[0].n;
+    };
+    const untilSomeoneWaitsOnLock = async () => {
+        for (let i = 0; i < 500; i += 1) {
+            if (await lockWaiters() > 0) return true;
+            await new Promise((resolve) => setImmediate(resolve));
+        }
+        return false;
+    };
+
+    it('serializam pela trava da reserva (D-48): remoção 204, POST 422 (RN-005), uma conta de diária — nunca 500', async () => {
+        const main = await newRoom();
+        const extra = await newRoom();
+        const reservation = await reserve(main, [extra]);
+        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Extra' });
+
+        const original = AccountModel.findAll.bind(AccountModel);
+        let paused = false;
+        let postStarted;
+        const postStartedSignal = new Promise((resolve) => { postStarted = resolve; });
+        let sawWaiter = null;
+        vi.spyOn(AccountModel, 'findAll').mockImplementation(async (options, ...rest) => {
+            const result = await original(options, ...rest);
+            const isMainLodgingRead = options?.transaction && options.where?.charges_lodging === true && options.where?.room_id === main.id;
+            if (isMainLodgingRead && !paused) {
+                paused = true;
+                postStarted();
+                sawWaiter = await untilSomeoneWaitsOnLock();
+            }
+            return result;
+        });
+
+        // .then() dispara a requisição do supertest já; sem ele, ela só sairia no Promise.all.
+        const removal = removeRoom(reservation.id, extra.id).then((res) => res);
+        await postStartedSignal;
+        const post = request(app).post('/accounts').set(auth(jwt)).send({
+            type: 'ROOM', guest_id: guest.id, reservation_id: reservation.id, room_id: main.id, label: 'Concorrente'
+        });
+        const [removed, created] = await Promise.all([removal, post]);
+
+        expect(sawWaiter).toBe(true);
+        expect(removed.status).toBe(204);
+        expect(created.status).toBe(422);
+        expect(created.body.error).toMatch(/RN-005/);
+        expect(await AccountModel.count({ where: { reservation_id: reservation.id, charges_lodging: true } })).toBe(1);
+        expect(await reload(extraAccount.id)).toMatchObject({ room_id: main.id, charges_lodging: true });
+    });
+
+    // Defesa da remoção: se mesmo assim o banco escolher a remoção como vítima de deadlock,
+    // ela tenta de novo uma vez; se repetir, responde 409 claro — nunca 500.
+    const deadlock = () => new DatabaseError(Object.assign(new Error('deadlock detected'), { code: '40P01' }));
+
+    it('deadlock (40P01) na 1ª tentativa: tenta de novo e remove (204)', async () => {
+        const main = await newRoom();
+        const extra = await newRoom();
+        const reservation = await reserve(main, [extra]);
+        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Extra retry' });
+        const original = AccountModel.findAll.bind(AccountModel);
+        let thrown = 0;
+        vi.spyOn(AccountModel, 'findAll').mockImplementation((options, ...rest) => {
+            if (options?.lock && options.where?.room_id === extra.id && thrown === 0) {
+                thrown += 1;
+                return Promise.reject(deadlock());
+            }
+            return original(options, ...rest);
+        });
+
+        const res = await removeRoom(reservation.id, extra.id);
+
+        expect(thrown).toBe(1);
+        expect(res.status).toBe(204);
+        expect((await reload(extraAccount.id)).room_id).toBe(main.id);
+    });
+
+    it('deadlock repetido: 409 com mensagem para tentar de novo, nada muda', async () => {
+        const main = await newRoom();
+        const extra = await newRoom();
+        const reservation = await reserve(main, [extra]);
+        const extraAccount = await openAccount({ reservation_id: reservation.id, room_id: extra.id, label: 'Extra 409' });
+        const original = AccountModel.findAll.bind(AccountModel);
+        vi.spyOn(AccountModel, 'findAll').mockImplementation((options, ...rest) =>
+            (options?.lock && options.where?.room_id === extra.id ? Promise.reject(deadlock()) : original(options, ...rest)));
+
+        const res = await removeRoom(reservation.id, extra.id);
+
+        expect(res.status).toBe(409);
+        expect(res.body.error).toMatch(/tente de novo/i);
+        vi.restoreAllMocks();
+        expect((await reload(extraAccount.id)).room_id).toBe(extra.id);
+        expect(await ReservationRoomModel.count({ where: { reservation_id: reservation.id, room_id: extra.id } })).toBe(1);
     });
 });
 
