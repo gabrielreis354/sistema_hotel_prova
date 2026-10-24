@@ -11,7 +11,8 @@ import {
   useUpdateRoom,
 } from './queries.js';
 import { isNotFound, messageOf } from './errorMessages.js';
-import { roomDeleteBlockReason } from './roomRules.js';
+import { changedRoomFields, roomDeleteBlockReason } from './roomRules.js';
+import type { RoomInput } from './roomsApi.js';
 import { ErrorState } from './components/ErrorState.js';
 import { DeleteControl } from './components/DeleteControl.js';
 import { ActionLink } from './components/Actions.js';
@@ -53,7 +54,7 @@ export function RoomNewPage() {
             submitLabel="Cadastrar quarto"
             submitting={create.isPending}
             serverError={serverError}
-            onCancel={() => navigate('/quartos')}
+            cancelTo="/quartos"
             onSubmit={(input) => {
               setServerError(null);
               create.mutate(input, {
@@ -83,6 +84,17 @@ export function RoomEditPage() {
   const gone = room.isError && isNotFound(room.error);
   const failed = !gone && (room.isError || categories.isError);
 
+  // O quarto como está gravado: base para mandar no PUT só o que o admin mudou.
+  const original: RoomInput | null = room.data
+    ? {
+        number: room.data.number ?? '',
+        floor: room.data.floor ?? null,
+        category_id: room.data.category_id ?? '',
+        status: room.data.status ?? 'AVAILABLE',
+      }
+    : null;
+  const categoryAlive = !!original && !!categories.data?.some((c) => c.id === original.category_id);
+
   return (
     <FormShell title={room.data ? `Quarto ${room.data.number}` : 'Editar quarto'} {...BACK}>
       {loading && <Spinner label="Carregando quarto…" />}
@@ -96,33 +108,45 @@ export function RoomEditPage() {
           }}
         />
       )}
-      {room.data && categories.data && (
+      {original && categories.data && (
         <Card className="space-y-4 p-4 sm:p-6">
+          {!categoryAlive && (
+            <p role="status" className="rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-700">
+              A categoria deste quarto foi excluída. Escolha outra para salvar.
+            </p>
+          )}
           <RoomForm
             categories={categories.data}
-            currentStatus={room.data.status}
+            currentStatus={original.status}
             defaultValues={{
-              number: room.data.number ?? '',
-              floor: room.data.floor === null || room.data.floor === undefined ? '' : String(room.data.floor),
-              category_id: room.data.category_id ?? '',
-              status: room.data.status ?? 'AVAILABLE',
+              number: original.number,
+              floor: original.floor === null ? '' : String(original.floor),
+              // Categoria excluída não está na lista: o campo começa vazio e a validação pede
+              // outra, em vez de o select mostrar (e gravar) a primeira opção sem o admin ver.
+              category_id: categoryAlive ? original.category_id : '',
+              status: original.status,
             }}
             submitLabel="Salvar"
             submitting={update.isPending}
             serverError={serverError}
-            onCancel={() => navigate('/quartos')}
+            cancelTo="/quartos"
             onSubmit={(input) => {
               setServerError(null);
-              update.mutate(input, {
-                onSuccess: () => navigate('/quartos'),
-                onError: (e) => setServerError(messageOf(e)),
-              });
+              const changes = changedRoomFields(original, input);
+              if (Object.keys(changes).length === 0) return navigate('/quartos');
+              update.mutate(
+                { changes, number: input.number },
+                {
+                  onSuccess: () => navigate('/quartos'),
+                  onError: (e) => setServerError(messageOf(e)),
+                },
+              );
             }}
           />
           <DeleteControl
             canWrite={canWrite}
-            blockedReason={roomDeleteBlockReason(room.data.status)}
-            what={`o quarto ${room.data.number}`}
+            blockedReason={roomDeleteBlockReason(original.status)}
+            what={`o quarto ${original.number}`}
             pending={del.isPending}
             error={deleteError}
             onConfirm={() => {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/auth.js';
-import { canWriteRooms } from './roomRules.js';
+import { canWriteRooms, countRoomsByCategory } from './roomRules.js';
 import {
   listRooms,
   getRoom,
@@ -13,6 +13,7 @@ import {
   updateCategory,
   deleteCategory,
   type RoomInput,
+  type RoomUpdateBody,
   type CategoryInput,
   type Room,
   type RoomCategory,
@@ -66,7 +67,9 @@ export function useCreateRoom() {
 export function useUpdateRoom(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: RoomInput) => updateRoom(id, input),
+    // Só as mudanças (changedRoomFields); `number` entra apenas na mensagem de 409.
+    mutationFn: ({ changes, number }: { changes: RoomUpdateBody; number?: string }) =>
+      updateRoom(id, changes, number),
     // roomKeys.all é prefixo de roomKeys.detail — uma invalidação cobre lista e detalhe.
     onSuccess: () => qc.invalidateQueries({ queryKey: roomKeys.all, ...fresh }),
   });
@@ -82,6 +85,16 @@ export function useDeleteRoom() {
       qc.setQueryData<Room[]>(roomKeys.all, (old) => old?.filter((r) => r.id !== id));
     },
   });
+}
+
+/**
+ * Quantos quartos usam a categoria, segundo a lista de quartos que JÁ está em cache — sem
+ * disparar busca. Só serve de dica na tela; a recusa de verdade é o 409 do backend.
+ * null = a lista não foi carregada nesta sessão.
+ */
+export function useCachedRoomsUsingCategory(categoryId: string): number | null {
+  const rooms = useQueryClient().getQueryData<Room[]>(roomKeys.all);
+  return rooms ? (countRoomsByCategory(rooms).get(categoryId) ?? 0) : null;
 }
 
 // ─── Categorias ─────────────────────────────────────────────────────────────

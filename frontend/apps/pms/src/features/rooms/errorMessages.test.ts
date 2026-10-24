@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { writeErrorMessage } from './errorMessages.js';
+import { messageOf, writeErrorMessage } from './errorMessages.js';
+import { ApiError } from '../../lib/http.js';
 
 describe('writeErrorMessage', () => {
   it('409 de quarto cita o numero digitado', () => {
@@ -32,10 +33,24 @@ describe('writeErrorMessage', () => {
     expect(writeErrorMessage({ entity: 'room', action: 'delete' }, 403)).toMatch(/administrador/);
   });
 
-  it('5xx e rede dizem o verbo certo e o proximo passo', () => {
+  it('409 na exclusao e "em uso", nao duplicidade', () => {
+    expect(writeErrorMessage({ entity: 'category', action: 'delete' }, 409)).toBe(
+      'Esta categoria ainda tem quartos. Mude a categoria desses quartos e tente excluir de novo.',
+    );
+    expect(writeErrorMessage({ entity: 'room', action: 'delete' }, 409)).toMatch(/em uso/);
+    expect(writeErrorMessage({ entity: 'category', action: 'delete' }, 409)).not.toMatch(/nome/);
+  });
+
+  it('5xx diz o verbo certo e nao culpa a conexao', () => {
     expect(writeErrorMessage({ entity: 'room', action: 'delete' }, 500)).toBe(
-      'Não foi possível excluir o quarto. Verifique a conexão e tente de novo.',
+      'O sistema não conseguiu excluir o quarto. Tente de novo; se continuar, avise o suporte.',
     );
     expect(writeErrorMessage({ entity: 'category', action: 'create' }, 502)).toMatch(/salvar a categoria/);
+    expect(writeErrorMessage({ entity: 'category', action: 'create' }, 500)).not.toMatch(/conexão/);
+  });
+
+  it('falha de rede (fetch rejeitado) fala da conexao', () => {
+    expect(messageOf(new TypeError('Failed to fetch'))).toMatch(/conexão/);
+    expect(messageOf(new ApiError('x', 500))).toBe('x');
   });
 });

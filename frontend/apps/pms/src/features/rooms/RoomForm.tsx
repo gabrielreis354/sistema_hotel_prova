@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Field, Input } from '@hotel/ui';
 import { TOUCH } from './components/touch.js';
+import { ActionLink } from './components/Actions.js';
 import { decimalToCents, formatBRL, ROOM_STATUSES, type RoomStatus } from '@hotel/domain';
 import { roomStatusOptions } from './roomRules.js';
 import { StatusPicker } from './components/StatusPicker.js';
@@ -46,7 +47,8 @@ export interface RoomFormProps {
   submitting: boolean;
   serverError?: string | null;
   onSubmit: (input: RoomInput) => void;
-  onCancel: () => void;
+  /** Para onde "Cancelar" volta. */
+  cancelTo: string;
 }
 
 export function RoomForm({
@@ -57,7 +59,7 @@ export function RoomForm({
   submitting,
   serverError,
   onSubmit,
-  onCancel,
+  cancelTo,
 }: RoomFormProps) {
   const {
     register,
@@ -111,9 +113,8 @@ export function RoomForm({
         <Button type="submit" disabled={submitting}>
           {submitting ? 'Salvando…' : submitLabel}
         </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancelar
-        </Button>
+        {/* Cancelar só navega: é Link (abre em nova aba), não Button — CATALOGO.md. */}
+        <ActionLink to={cancelTo}>Cancelar</ActionLink>
       </div>
     </form>
   );

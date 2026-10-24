@@ -34,6 +34,13 @@ export function writeErrorMessage(ctx: WriteContext, status: number): string {
   const { entity, action, number } = ctx;
 
   if (status === 409) {
+    // Na exclusão, 409 é "em uso", não duplicidade: o backend recusa apagar categoria com
+    // quartos (e quarto em uso) — é ele quem enxerga o quarto que outra pessoa acabou de criar.
+    if (action === 'delete') {
+      return entity === 'category'
+        ? 'Esta categoria ainda tem quartos. Mude a categoria desses quartos e tente excluir de novo.'
+        : 'Este quarto está em uso e não pode ser excluído agora. Faça o check-out antes.';
+    }
     if (entity === 'room') {
       return number
         ? `Já existe um quarto ${number} neste hotel. Use outro número.`
@@ -56,6 +63,8 @@ export function writeErrorMessage(ctx: WriteContext, status: number): string {
     return GONE[entity];
   }
 
+  // Aqui o servidor RESPONDEU (5xx ou status inesperado): a conexão está boa, então mandar
+  // "verificar a conexão" faria o operador insistir à toa. Falha de rede é o messageOf.
   const verb = action === 'delete' ? 'excluir' : 'salvar';
-  return `Não foi possível ${verb} ${NOUN[entity]}. Verifique a conexão e tente de novo.`;
+  return `O sistema não conseguiu ${verb} ${NOUN[entity]}. Tente de novo; se continuar, avise o suporte.`;
 }

@@ -1,6 +1,6 @@
 import { canTransitionRoom, ROOM_STATUSES, type RoomStatus } from '@hotel/domain';
 import type { Role } from '../../types.js';
-import type { Room } from './roomsApi.js';
+import type { Room, RoomInput } from './roomsApi.js';
 
 /**
  * Regras de tela do módulo de quartos. Lógica pura, sem React — testada em roomRules.test.ts.
@@ -45,29 +45,41 @@ export function roomStatusOptions(current?: RoomStatus): StatusOption[] {
   });
 }
 
+/**
+ * O que mudou entre o quarto carregado e o formulário — é só isso que o PUT leva.
+ *
+ * Reenviar o formulário inteiro grava o `status` de quando a tela abriu: um check-in feito
+ * em paralelo voltaria o quarto a Livre com hóspede dentro (achado 🟡-1 do qa-redteam).
+ * Mandando só o que o admin alterou, corrigir o andar não toca no status. Objeto vazio =
+ * nada a salvar.
+ */
+export function changedRoomFields(original: RoomInput, edited: RoomInput): Partial<RoomInput> {
+  const changes: Partial<RoomInput> = {};
+  if (edited.number !== original.number) changes.number = edited.number;
+  if (edited.floor !== original.floor) changes.floor = edited.floor;
+  if (edited.category_id !== original.category_id) changes.category_id = edited.category_id;
+  if (edited.status !== original.status) changes.status = edited.status;
+  return changes;
+}
+
 /** Motivo para não excluir o quarto, ou null se pode. */
 export function roomDeleteBlockReason(status: RoomStatus | undefined): string | null {
   return status === 'OCCUPIED' ? 'Quarto ocupado não pode ser excluído. Faça o check-out antes.' : null;
 }
 
-/** Quantos quartos usam cada categoria — para impedir apagar categoria em uso. */
+/**
+ * Quantos quartos usam cada categoria — só informação na coluna "Quartos" da lista, a partir
+ * da lista de quartos já em cache. NÃO decide exclusão: quem recusa apagar categoria em uso é
+ * o backend (409), que enxerga o quarto cadastrado agora há pouco por outra pessoa e não
+ * depende de baixar a coleção inteira. Com a paginação (T-06.10) esta contagem deixa de ser
+ * completa e a coluna precisa de um campo do backend.
+ */
 export function countRoomsByCategory(rooms: Room[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const r of rooms) {
     if (r.category_id) counts.set(r.category_id, (counts.get(r.category_id) ?? 0) + 1);
   }
   return counts;
-}
-
-/**
- * Motivo para não excluir a categoria, ou null se pode. O backend aceita o DELETE de uma
- * categoria em uso (soft delete) e deixa os quartos sem categoria — sem tarifa para a
- * reserva calcular. Até o backend recusar com 409, a tela recusa antes.
- */
-export function categoryDeleteBlockReason(roomsUsing: number): string | null {
-  if (roomsUsing <= 0) return null;
-  const quartos = roomsUsing === 1 ? '1 quarto usa' : `${roomsUsing} quartos usam`;
-  return `${quartos} esta categoria. Mude a categoria deles antes de excluir.`;
 }
 
 const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });

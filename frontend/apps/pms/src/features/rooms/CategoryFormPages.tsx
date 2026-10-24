@@ -1,18 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, Spinner } from '@hotel/ui';
 import { centsToBRLInput, decimalToCents } from '@hotel/domain';
 import { CategoryForm } from './CategoryForm.js';
 import {
   useCanWriteRooms,
+  useCachedRoomsUsingCategory,
   useCategory,
   useCreateCategory,
   useDeleteCategory,
-  useRooms,
   useUpdateCategory,
 } from './queries.js';
 import { isNotFound, messageOf } from './errorMessages.js';
-import { categoryDeleteBlockReason, countRoomsByCategory } from './roomRules.js';
 import { ErrorState } from './components/ErrorState.js';
 import { DeleteControl } from './components/DeleteControl.js';
 import { FormShell, NotFound } from './components/FormShell.js';
@@ -31,7 +30,7 @@ export function CategoryNewPage() {
           submitLabel="Cadastrar categoria"
           submitting={create.isPending}
           serverError={serverError}
-          onCancel={() => navigate('/quartos/categorias')}
+          cancelTo="/quartos/categorias"
           onSubmit={(input) => {
             setServerError(null);
             create.mutate(input, {
@@ -50,17 +49,11 @@ export function CategoryEditPage() {
   const navigate = useNavigate();
   const canWrite = useCanWriteRooms();
   const category = useCategory(id);
-  const rooms = useRooms();
+  const roomsInCache = useCachedRoomsUsingCategory(id);
   const update = useUpdateCategory(id);
   const del = useDeleteCategory();
   const [serverError, setServerError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const roomsUsing = useMemo(() => countRoomsByCategory(rooms.data ?? []).get(id) ?? 0, [rooms.data, id]);
-  // Sem a lista de quartos não dá para saber se a categoria está em uso: na dúvida, bloqueia.
-  const deleteBlock = rooms.data
-    ? categoryDeleteBlockReason(roomsUsing)
-    : 'Carregando os quartos para conferir se a categoria está em uso…';
 
   const gone = category.isError && isNotFound(category.error);
   const failed = category.isError && !gone;
@@ -83,7 +76,7 @@ export function CategoryEditPage() {
             submitLabel="Salvar"
             submitting={update.isPending}
             serverError={serverError}
-            onCancel={() => navigate('/quartos/categorias')}
+            cancelTo="/quartos/categorias"
             onSubmit={(input) => {
               setServerError(null);
               update.mutate(input, {
@@ -94,7 +87,14 @@ export function CategoryEditPage() {
           />
           <DeleteControl
             canWrite={canWrite}
-            blockedReason={rooms.isError ? 'Não foi possível conferir os quartos desta categoria. Recarregue a página.' : deleteBlock}
+            // Sem trava no cliente: quem decide "em uso" é o backend (409, mensagem em
+            // errorMessages). A dica abaixo é só ajuda, com o que já estava em cache.
+            blockedReason={null}
+            hint={
+              roomsInCache
+                ? `Pela última lista de quartos, ${roomsInCache === 1 ? '1 quarto usa' : `${roomsInCache} quartos usam`} esta categoria — o sistema recusa a exclusão enquanto houver.`
+                : null
+            }
             what={`a categoria ${category.data.name}`}
             pending={del.isPending}
             error={deleteError}

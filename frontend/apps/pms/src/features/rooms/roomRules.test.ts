@@ -4,7 +4,7 @@ import {
   roomStatusOptions,
   roomDeleteBlockReason,
   countRoomsByCategory,
-  categoryDeleteBlockReason,
+  changedRoomFields,
   sortRooms,
   formatFloor,
 } from './roomRules.js';
@@ -71,7 +71,31 @@ describe('roomDeleteBlockReason', () => {
   });
 });
 
-describe('countRoomsByCategory / categoryDeleteBlockReason', () => {
+describe('changedRoomFields', () => {
+  const original = { number: '101', floor: 1, category_id: 'a', status: 'AVAILABLE' } as const;
+
+  it('corrigir o andar nao reenvia o status (nao desfaz check-in em paralelo)', () => {
+    expect(changedRoomFields(original, { ...original, floor: 2 })).toEqual({ floor: 2 });
+  });
+
+  it('status so vai quando o admin o mudou', () => {
+    expect(changedRoomFields(original, { ...original, status: 'MAINTENANCE' })).toEqual({ status: 'MAINTENANCE' });
+  });
+
+  it('nada mudou = objeto vazio', () => {
+    expect(changedRoomFields(original, { ...original })).toEqual({});
+  });
+
+  it('andar removido vai como null, e varios campos juntos', () => {
+    expect(changedRoomFields(original, { ...original, floor: null, number: '102', category_id: 'b' })).toEqual({
+      floor: null,
+      number: '102',
+      category_id: 'b',
+    });
+  });
+});
+
+describe('countRoomsByCategory', () => {
   const rooms: Room[] = [
     { id: '1', number: '101', category_id: 'a' },
     { id: '2', number: '102', category_id: 'a' },
@@ -85,11 +109,6 @@ describe('countRoomsByCategory / categoryDeleteBlockReason', () => {
     expect(c.get('z')).toBeUndefined();
   });
 
-  it('categoria em uso nao se exclui, com o motivo', () => {
-    expect(categoryDeleteBlockReason(0)).toBeNull();
-    expect(categoryDeleteBlockReason(1)).toBe('1 quarto usa esta categoria. Mude a categoria deles antes de excluir.');
-    expect(categoryDeleteBlockReason(3)).toMatch(/^3 quartos usam/);
-  });
 });
 
 describe('sortRooms', () => {

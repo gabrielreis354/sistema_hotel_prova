@@ -7,6 +7,9 @@ import { writeErrorMessage, type WriteContext } from './errorMessages.js';
 export type Room = components['schemas']['Room'];
 export type RoomCategory = components['schemas']['RoomCategory'];
 type RoomCreateBody = paths['/rooms']['post']['requestBody']['content']['application/json'];
+/** Corpo do PUT /rooms/{id}: parcial — só o que mudou (ver changedRoomFields). */
+export type RoomUpdateBody = paths['/rooms/{id}']['put']['requestBody']['content']['application/json'];
+type CategoryUpdateBody = paths['/room-categories/{id}']['put']['requestBody']['content']['application/json'];
 
 export interface RoomInput {
   number: string;
@@ -47,15 +50,12 @@ export async function createRoom(input: RoomInput): Promise<Room> {
   return data;
 }
 
-export async function updateRoom(id: string, input: RoomInput): Promise<Room> {
+export async function updateRoom(id: string, changes: RoomUpdateBody, number?: string): Promise<Room> {
   const { data, error, response } = await api.PUT('/rooms/{id}', {
     params: { path: { id } },
-    // O Swagger de PUT /rooms/{id} não declara requestBody, então o cliente tipa o corpo
-    // como `never` — mesmo caso do PUT /guests/{id}. Cast pontual até o Swagger documentar
-    // o corpo (pendência registrada no relatório da T-05.1; o conserto é no backend).
-    body: input as never,
+    body: changes,
   });
-  if (error || !response.ok) fail({ entity: 'room', action: 'update', number: input.number }, response.status);
+  if (error || !response.ok) fail({ entity: 'room', action: 'update', number }, response.status);
   return data;
 }
 
@@ -85,10 +85,10 @@ export async function createCategory(input: CategoryInput): Promise<RoomCategory
 }
 
 export async function updateCategory(id: string, input: CategoryInput): Promise<RoomCategory> {
+  const body: CategoryUpdateBody = input;
   const { data, error, response } = await api.PUT('/room-categories/{id}', {
     params: { path: { id } },
-    // Mesmo caso do PUT /rooms/{id}: Swagger sem requestBody tipa o corpo como `never`.
-    body: input as never,
+    body,
   });
   if (error || !response.ok) fail({ entity: 'category', action: 'update' }, response.status);
   return data;

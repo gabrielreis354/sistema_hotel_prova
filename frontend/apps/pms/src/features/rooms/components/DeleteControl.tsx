@@ -10,6 +10,7 @@ import { WriteButton } from './Actions.js';
 export function DeleteControl({
   canWrite,
   blockedReason,
+  hint,
   what,
   pending,
   error,
@@ -17,6 +18,8 @@ export function DeleteControl({
 }: {
   canWrite: boolean;
   blockedReason: string | null;
+  /** Aviso que não bloqueia (ex.: "a categoria parece estar em uso"). */
+  hint?: string | null;
   /** "o quarto 101", "a categoria Standard" — entra na pergunta de confirmação. */
   what: string;
   pending: boolean;
@@ -48,6 +51,7 @@ export function DeleteControl({
         </div>
       )}
       {canWrite && blockedReason && <p className="text-sm text-gray-600">{blockedReason}</p>}
+      {canWrite && !blockedReason && hint && <p className="text-sm text-gray-600">{hint}</p>}
       {error && (
         <p role="alert" className="text-sm text-status-maintenance">
           {error}

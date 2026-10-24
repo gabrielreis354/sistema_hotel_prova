@@ -3,8 +3,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Field, Input, cn } from '@hotel/ui';
 import { TOUCH } from './components/touch.js';
+import { ActionLink } from './components/Actions.js';
 import { centsToDecimalString, parseBRLInput } from '@hotel/domain';
 import type { CategoryInput } from './roomsApi.js';
+
+const MAX_DAILY_CENTS = 99_999_999;
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Informe o nome da categoria').max(60, 'Até 60 caracteres'),
@@ -13,10 +16,15 @@ const schema = z.object({
     .trim()
     .refine((v) => /^\d{1,2}$/.test(v) && Number.parseInt(v, 10) >= 1, 'Capacidade é um número de 1 a 99 pessoas'),
   // A diária é digitada como texto ("150,00") e convertida por @hotel/domain — nunca Number().
-  price: z.string().refine((v) => {
-    const cents = parseBRLInput(v);
-    return cents !== null && cents > 0;
-  }, 'Informe a diária em reais, por exemplo 150,00'),
+  price: z
+    .string()
+    .refine((v) => {
+      const cents = parseBRLInput(v);
+      return cents !== null && cents > 0;
+    }, 'Informe a diária em reais, por exemplo 150,00')
+    // DECIMAL(10,2) do banco estoura antes de R$ 100 milhões e volta 500; o teto do balcão é
+    // bem menor — diária acima disso é dígito a mais, não preço (🟢-1 do qa-redteam).
+    .refine((v) => (parseBRLInput(v) ?? 0) <= MAX_DAILY_CENTS, 'Diária acima do limite (R$ 999.999,99). Confira os dígitos.'),
 });
 
 type Values = z.infer<typeof schema>;
@@ -37,7 +45,8 @@ export interface CategoryFormProps {
   submitting: boolean;
   serverError?: string | null;
   onSubmit: (input: CategoryInput) => void;
-  onCancel: () => void;
+  /** Para onde "Cancelar" volta. */
+  cancelTo: string;
 }
 
 export function CategoryForm({
@@ -46,7 +55,7 @@ export function CategoryForm({
   submitting,
   serverError,
   onSubmit,
-  onCancel,
+  cancelTo,
 }: CategoryFormProps) {
   const {
     register,
@@ -88,9 +97,8 @@ export function CategoryForm({
         <Button type="submit" disabled={submitting}>
           {submitting ? 'Salvando…' : submitLabel}
         </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancelar
-        </Button>
+        {/* Cancelar só navega: é Link (abre em nova aba), não Button — CATALOGO.md. */}
+        <ActionLink to={cancelTo}>Cancelar</ActionLink>
       </div>
     </form>
   );
