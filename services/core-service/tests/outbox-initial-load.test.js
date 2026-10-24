@@ -115,4 +115,42 @@ describe('Carga inicial do outbox (CA-01.4.j, catálogo §6)', () => {
         // Sem o lock, a carga leria o retrato antigo ('901') e gravaria com número MAIOR: o
         // consumidor ficaria com o número velho e descartaria o novo como versão antiga.
     });
+
+    it('🟡-2: transação longa na tabela → a carga desiste por lock_timeout e tenta de novo, sem enfileirar as escritas da API', async () => {
+        await limparOutbox();
+        // Transação "esquecida" com escrita em payments (ex.: psql de operador, migrate lento).
+        const longa = await sequelize.transaction();
+        await sequelize.query('UPDATE payments SET method = method WHERE false', { transaction: longa });
+
+        const tentativas = [];
+        const carga = enqueueInitialLoad(sequelize, {
+            lockTimeoutMs: 300, attempts: 3, retryDelayMs: 50,
+            log: (linha) => { if (/tentativa/.test(linha)) tentativas.push(linha); }
+        });
+        const resultadoCarga = carga.then(() => 'concluiu', (erro) => erro);
+
+        try {
+            await new Promise((resolve) => setTimeout(resolve, 150));   // a carga já está no LOCK de payments
+            // Uma escrita nova da API na mesma tabela: com o LOCK esperando sem prazo, ela entraria na fila
+            // atrás dele e só andaria quando a transação longa terminasse.
+            const inicio = Date.now();
+            await sequelize.transaction(async (transaction) => {
+                await sequelize.query('SET LOCAL statement_timeout = 2000', { transaction });
+                await sequelize.query('UPDATE payments SET method = method WHERE false', { transaction });
+            });
+            expect(Date.now() - inicio).toBeLessThan(2000);
+
+            const erro = await resultadoCarga;
+            expect(erro).toBeInstanceOf(Error);
+            expect(erro.message).toMatch(/payments/);
+            expect(erro.message).toMatch(/fora do pico/);
+            expect(tentativas).toHaveLength(2);   // 3 tentativas = 2 avisos de nova tentativa + o erro final
+        } finally {
+            await longa.rollback();
+            await resultadoCarga;
+        }
+
+        // Sem a transação longa, a carga roda inteira de novo (idempotente).
+        expect(await enqueueInitialLoad(sequelize, { lockTimeoutMs: 300 })).toMatchObject({ payments: 1 });
+    });
 });

@@ -36,30 +36,69 @@ const AGREGADOS = [
     { tabela: 'payments',        agregado: 'payment',       tenant: 't.tenant_id', exclusaoLogica: true }
 ];
 
-/** Devolve `{ <tabela>: <eventos gravados> }`. */
-export default async function enqueueInitialLoad(sequelize, { log = () => {} } = {}) {
+const LOCK_NAO_DISPONIVEL = '55P03';   // SQLSTATE do lock_timeout estourado
+const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Devolve `{ <tabela>: <eventos gravados> }`.
+ *
+ * O LOCK tem prazo (`lock_timeout`, qa-redteam H.2 🟡-2): o PostgreSQL enfileira toda escrita nova da
+ * tabela ATRÁS de um LOCK que espera. Sem prazo, uma transação longa qualquer (psql de operador,
+ * migrate) faria a carga parar check-in e pagamento de todos os hotéis até ela terminar. Com prazo, a
+ * carga desiste em `lockTimeoutMs`, libera a fila e tenta de novo; esgotadas as tentativas, para com
+ * mensagem clara — o que já foi gravado vale, e rodar de novo é seguro (idempotente).
+ */
+export default async function enqueueInitialLoad(sequelize, {
+    log = () => {},
+    lockTimeoutMs = 3000,
+    attempts = 5,
+    retryDelayMs = 2000
+} = {}) {
+    if (!Number.isInteger(lockTimeoutMs) || lockTimeoutMs <= 0) throw new Error('lockTimeoutMs deve ser inteiro positivo');
     const resultado = {};
     for (const { tabela, agregado, tenant, exclusaoLogica } of AGREGADOS) {
         const fato = exclusaoLogica
             ? `CASE WHEN t.deleted_at IS NULL THEN 'updated' ELSE 'deleted' END`
             : `'updated'`;
 
-        resultado[tabela] = await sequelize.transaction(async (transaction) => {
-            await sequelize.query(`LOCK TABLE ${tabela} IN SHARE MODE`, { transaction });
-            const [{ total }] = await sequelize.query(`
-                WITH gravados AS (
-                    INSERT INTO outbox (event_id, type, version, tenant_id, aggregate_id, payload, occurred_at)
-                    SELECT gen_random_uuid(), '${agregado}.' || ${fato}, 1, ${tenant}, t.id,
-                           outbox_payload('${agregado}', to_jsonb(t)), now()
-                      FROM ${tabela} t
-                     ORDER BY t.id
-                    RETURNING 1
-                )
-                SELECT count(*)::int AS total FROM gravados
-            `, { transaction, type: QueryTypes.SELECT });
-            return total;
-        });
+        for (let tentativa = 1; ; tentativa++) {
+            try {
+                resultado[tabela] = await gravarTabela(sequelize, { tabela, agregado, tenant, fato, lockTimeoutMs });
+                break;
+            } catch (error) {
+                const lockOcupado = (error.original?.code ?? error.parent?.code) === LOCK_NAO_DISPONIVEL;
+                if (!lockOcupado) throw error;
+                if (tentativa >= attempts) {
+                    throw new Error(
+                        `Carga inicial interrompida: a tabela ${tabela} está com escrita de outra transação há mais de ` +
+                        `${lockTimeoutMs} ms em ${attempts} tentativas. As tabelas anteriores já foram gravadas; rode de novo ` +
+                        'fora do pico (é idempotente) ou encerre a transação longa (pg_stat_activity).'
+                    );
+                }
+                log(`⏳ Carga inicial: ${tabela} ocupada (tentativa ${tentativa}/${attempts}) — nova tentativa em ${retryDelayMs} ms.`);
+                await esperar(retryDelayMs);
+            }
+        }
         log(`✅ Carga inicial: ${resultado[tabela]} evento(s) de ${tabela} gravados no outbox.`);
     }
     return resultado;
+}
+
+async function gravarTabela(sequelize, { tabela, agregado, tenant, fato, lockTimeoutMs }) {
+    return sequelize.transaction(async (transaction) => {
+        await sequelize.query(`SET LOCAL lock_timeout = ${lockTimeoutMs}`, { transaction });
+        await sequelize.query(`LOCK TABLE ${tabela} IN SHARE MODE`, { transaction });
+        const [{ total }] = await sequelize.query(`
+            WITH gravados AS (
+                INSERT INTO outbox (event_id, type, version, tenant_id, aggregate_id, payload, occurred_at)
+                SELECT gen_random_uuid(), '${agregado}.' || ${fato}, 1, ${tenant}, t.id,
+                       outbox_payload('${agregado}', to_jsonb(t)), now()
+                  FROM ${tabela} t
+                 ORDER BY t.id
+                RETURNING 1
+            )
+            SELECT count(*)::int AS total FROM gravados
+        `, { transaction, type: QueryTypes.SELECT });
+        return total;
+    });
 }
