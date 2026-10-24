@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { RESERVATION_STATUS_LABEL, formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { Button, Spinner } from '@hotel/ui';
 import { useBill, useReservation } from './queries.js';
 import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, safeNights } from './reservationLogic.js';
-import { ErrorState, Money } from './components/primitives.js';
+import { BackLink, ErrorState, Money } from './components/primitives.js';
 
 /**
  * Comprovante da conta para entregar no check-out (CA-05.2.k). Rota fora do AppShell, de
@@ -28,9 +28,7 @@ export function ReservationReceiptPage() {
     return (
       <div className="mx-auto max-w-2xl space-y-3 p-6">
         <ErrorState message="Não foi possível montar o comprovante." onRetry={() => { reservation.refetch(); bill.refetch(); }} />
-        <Link to={`/reservas/${id}`} className="text-sm text-brand hover:underline">
-          ← Voltar à reserva
-        </Link>
+        <BackLink to={`/reservas/${id}`}>← Voltar à reserva</BackLink>
       </div>
     );
   }
@@ -45,9 +43,7 @@ export function ReservationReceiptPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4 print:hidden">
-        <Link to={`/reservas/${id}?aba=conta`} className="text-sm text-brand hover:underline">
-          ← Voltar à reserva
-        </Link>
+        <BackLink to={`/reservas/${id}?aba=conta`}>← Voltar à reserva</BackLink>
         <Button onClick={() => window.print()}>Imprimir</Button>
       </div>
 

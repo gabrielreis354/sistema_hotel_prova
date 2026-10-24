@@ -48,7 +48,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
         {message}
       </p>
       {onRetry && (
-        <Button variant="secondary" size="compact" onClick={onRetry}>
+        <Button variant="secondary" size="compact" className="min-h-touch md:min-h-0" onClick={onRetry}>
           Tentar de novo
         </Button>
       )}
@@ -93,7 +93,7 @@ export function PageHeader({ title, action }: { title: string; action?: ReactNod
 /** Link de volta, discreto, acima do conteúdo. */
 export function BackLink({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Link to={to} className="inline-block py-1 text-sm text-brand hover:underline">
+    <Link to={to} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline md:min-h-0 md:py-1">
       {children}
     </Link>
   );

@@ -19,10 +19,12 @@ export const reservationKeys = {
   available: (checkIn: string, checkOut: string) => ['rooms', 'available', checkIn, checkOut] as const,
 };
 
-export function useReservationList(params: ReservationListParams) {
+export function useReservationList(params: ReservationListParams, enabled = true) {
   return useQuery({
     queryKey: reservationKeys.list(params),
     queryFn: () => listReservations(params),
+    // Período inválido (de > até) não vai ao servidor.
+    enabled,
     // Ao trocar de página a tabela anterior fica na tela até a próxima chegar — sem piscar vazio.
     placeholderData: keepPreviousData,
   });

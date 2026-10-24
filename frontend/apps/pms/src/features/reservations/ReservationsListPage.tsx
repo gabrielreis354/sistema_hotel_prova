@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decimalToCents, formatDateBR, todayISO } from '@hotel/domain';
 import { Button, Card, EmptyState, Field, Input, Spinner, cn } from '@hotel/ui';
@@ -24,7 +24,7 @@ export function ReservationsListPage() {
   const page = Math.max(1, Number.parseInt(params.get('pagina') ?? '1', 10) || 1);
   const rangeOk = from <= to;
 
-  const query = useReservationList({ from, to, page, limit: PAGE_SIZE });
+  const query = useReservationList({ from, to, page, limit: PAGE_SIZE }, rangeOk);
   const result = rangeOk ? query.data : undefined;
   const pages = result ? pageCount(result.total, result.limit) : 1;
 
@@ -41,6 +41,16 @@ export function ReservationsListPage() {
     const r = presetRange(id, today);
     update({ de: r.from, ate: r.to });
   }
+
+  // ?pagina além da última (link antigo, reserva cancelada que encolheu a lista): volta para a
+  // última página válida em vez de mostrar uma tabela vazia com "Página 99 de 2".
+  const outOfRange = !!result && result.total > 0 && page > pages;
+  useEffect(() => {
+    if (!outOfRange) return;
+    const merged = new URLSearchParams(params);
+    merged.set('pagina', String(pages));
+    setParams(merged, { replace: true });
+  }, [outOfRange, pages, params, setParams]);
 
   const activePreset = PERIOD_PRESETS.find((p) => {
     const r = presetRange(p.id, today);
@@ -101,7 +111,7 @@ export function ReservationsListPage() {
         />
       )}
 
-      {result && result.total > 0 && (
+      {result && result.total > 0 && !outOfRange && (
         <>
           <Card
             className={cn(
@@ -128,7 +138,7 @@ export function ReservationsListPage() {
                       <td className="px-4 py-2">
                         <Link
                           to={`/reservas/${r.id}`}
-                          className="block py-1 font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand md:min-h-0 md:py-1"
                         >
                           {r.guest?.full_name ?? 'Hóspede removido'}
                         </Link>
