@@ -2,6 +2,7 @@ import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import { validateRoomCategoryFields } from '../../utils/roomCategoryValidation.js';
 import { parseInteger } from '../../utils/roomRules.js';
+import { invalidInputBody } from '../../utils/roomErrors.js';
 
 export default async function UpdateRoomCategoryController(request, response) {
     try {
@@ -10,8 +11,8 @@ export default async function UpdateRoomCategoryController(request, response) {
         const { name, capacity, price_per_night } = request.body;
 
         // Mesmas regras do cadastro, só no que veio (R-5).
-        const errors = validateRoomCategoryFields({ name, capacity, price_per_night }, { partial: true });
-        if (errors.length) return response.status(400).json({ errors });
+        const issues = validateRoomCategoryFields({ name, capacity, price_per_night }, { partial: true });
+        if (issues.length) return response.status(400).json(invalidInputBody(issues));
 
         const category = await RoomCategoryModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!category) return response.status(404).json({ error: 'Categoria não encontrada' });

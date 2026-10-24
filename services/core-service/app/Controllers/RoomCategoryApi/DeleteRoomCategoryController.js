@@ -1,5 +1,6 @@
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import RoomModel from '../../Models/RoomModel.js';
+import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 
 export default async function DeleteRoomCategoryController(request, response) {
     try {
@@ -13,7 +14,10 @@ export default async function DeleteRoomCategoryController(request, response) {
         // Só quarto vivo conta: o excluído não é mais vendido.
         const roomsInUse = await RoomModel.count({ where: { category_id: category.id, tenant_id: tenantId } });
         if (roomsInUse > 0) {
-            return response.status(409).json({ error: `Categoria em uso por ${roomsInUse} quarto(s) — mova-os para outra categoria antes de excluir` });
+            return response.status(409).json(roomError(
+                ROOM_ERROR_CODES.CATEGORY_IN_USE,
+                `Categoria em uso por ${roomsInUse} quarto(s) — mova-os para outra categoria antes de excluir`
+            ));
         }
 
         await category.destroy();

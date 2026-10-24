@@ -3,6 +3,7 @@ import RoomModel from '../../Models/RoomModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { ROOM_HOLDING_RESERVATION_STATUSES } from '../../utils/roomRules.js';
+import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 
 export default async function DeleteRoomController(request, response) {
     // Quarto travado durante a checagem: a inserção de uma reserva para ele (FK no pivô) espera.
@@ -22,7 +23,7 @@ export default async function DeleteRoomController(request, response) {
         // R-6: excluir um quarto com hóspede dentro, ou prometido a uma reserva (principal ou
         // extra — o pivô tem os dois), deixava a reserva sem onde hospedar.
         if (room.status === 'OCCUPIED') {
-            return await fail(409, { error: 'Quarto ocupado não pode ser excluído — faça o check-out antes' });
+            return await fail(409, roomError(ROOM_ERROR_CODES.ROOM_IN_USE, 'Quarto ocupado não pode ser excluído — faça o check-out antes'));
         }
         const holding = await ReservationRoomModel.findOne({
             where: { room_id: room.id },
@@ -36,7 +37,7 @@ export default async function DeleteRoomController(request, response) {
             transaction
         });
         if (holding) {
-            return await fail(409, { error: 'Quarto com reserva ativa não pode ser excluído — cancele ou mova a reserva antes' });
+            return await fail(409, roomError(ROOM_ERROR_CODES.ROOM_IN_USE, 'Quarto com reserva ativa não pode ser excluído — cancele ou mova a reserva antes'));
         }
 
         await room.destroy({ transaction });

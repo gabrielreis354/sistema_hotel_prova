@@ -2,6 +2,7 @@ import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import { validateRoomCategoryFields } from '../../utils/roomCategoryValidation.js';
 import { parseInteger } from '../../utils/roomRules.js';
+import { invalidInputBody } from '../../utils/roomErrors.js';
 
 export default async function CreateRoomCategoryController(request, response) {
     try {
@@ -10,8 +11,8 @@ export default async function CreateRoomCategoryController(request, response) {
 
         // R-5: diária decimal positiva com até 2 casas e capacidade inteira ≥ 1 — antes,
         // negativo era gravado e texto ou estouro viravam 500.
-        const errors = validateRoomCategoryFields({ name, capacity, price_per_night });
-        if (errors.length) return response.status(400).json({ errors });
+        const issues = validateRoomCategoryFields({ name, capacity, price_per_night });
+        if (issues.length) return response.status(400).json(invalidInputBody(issues));
 
         const category = await RoomCategoryModel.create({
             tenant_id: tenantId,

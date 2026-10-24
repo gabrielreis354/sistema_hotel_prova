@@ -4,6 +4,7 @@ import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { ROOM_STATUSES, floorError, parseInteger, isManualRoomTransitionAllowed } from '../../utils/roomRules.js';
+import { ROOM_ERROR_CODES, roomError, invalidInputBody } from '../../utils/roomErrors.js';
 
 export default async function UpdateRoomController(request, response) {
     // Quarto lido com lock: um check-in ou check-out simultâneo (que muda o status na mesma
@@ -18,13 +19,13 @@ export default async function UpdateRoomController(request, response) {
         const tenantId = request.user.tenantId;
         const { category_id, number, floor, status } = request.body;
 
+        const issues = [];
         if (status !== undefined && !ROOM_STATUSES.includes(status)) {
-            return response.status(400).json({
-                error: `Status inválido. Valores permitidos: ${ROOM_STATUSES.join(', ')}`
-            });
+            issues.push({ field: 'status', message: `Status inválido. Valores permitidos: ${ROOM_STATUSES.join(', ')}` });
         }
         const invalidFloor = floorError(floor);
-        if (invalidFloor) return response.status(400).json({ error: invalidFloor });
+        if (invalidFloor) issues.push({ field: 'floor', message: invalidFloor });
+        if (issues.length) return response.status(400).json(invalidInputBody(issues));
 
         transaction = await sequelize.transaction();
         const room = await RoomModel.findOne({ where: { id, tenant_id: tenantId }, lock: transaction.LOCK.UPDATE, transaction });
@@ -35,14 +36,15 @@ export default async function UpdateRoomController(request, response) {
         // nome, diária e tenant_id de B e a reserva era cobrada pela diária de B (R-1).
         if (category_id !== undefined) {
             const category = await findInTenant(RoomCategoryModel, category_id, tenantId, { transaction });
-            if (!category) return await fail(404, { error: 'Categoria não encontrada' });
+            if (!category) return await fail(404, roomError(ROOM_ERROR_CODES.CATEGORY_NOT_FOUND, 'Categoria não encontrada'));
         }
 
         // Transição, não só valor válido (R-3): OCCUPIED e CLEANING são do check-in e do check-out.
         if (status !== undefined && !isManualRoomTransitionAllowed(room.status, status)) {
-            return await fail(409, {
-                error: `Quarto em ${room.status} não pode ir para ${status} pela edição — use o check-in, o check-out ou conclua a limpeza`
-            });
+            return await fail(409, roomError(
+                ROOM_ERROR_CODES.ROOM_STATUS_TRANSITION_NOT_ALLOWED,
+                `Quarto em ${room.status} não pode ir para ${status} pela edição — use o check-in, o check-out ou conclua a limpeza`
+            ));
         }
 
         if (category_id !== undefined) room.category_id = category_id;
