@@ -93,11 +93,48 @@
 |---|-----------|-----------|------------|
 | 1 | **[revisão do Weslley]** `docker-compose.yml` (serviços `analytics-postgres` e `analytics-service`) | 🟡 Média | Nenhuma mudança em `infra/k8s/` nem no CI nesta etapa |
 | 2 | CI do analytics (**Weslley**, T-01.5) | 🟡 Média | O `ci.yml` só roda o core. O analytics precisa de um job com Postgres; o teste com broker é pulado sem `RABBITMQ_HOST` — com `services: rabbitmq` + `rabbitmq-setup.sh` ele roda (~45 s) |
-| 3 | Decisões 1 e 4 acima no texto do catálogo (§6 e §4.6) | 🟢 Baixa | Ajuste de redação, sem mudança de contrato |
+| 3 | ~~Decisões 1 e 4 acima no texto do catálogo (§6 e §4.6)~~ | — | **Feito em 24/10** (catálogo v1.1, `fe3a669`) |
 | 4 | Retenção de `processed_events` | 🟢 Baixa | Cresce para sempre. Apagar após N dias é seguro — a barreira de `aggregate_version` cobre a duplicata antiga. Combinar com a retenção de 7 dias do outbox (pendência 6 da H.1) |
 | 5 | "Em limpeza desde" na carga inicial | 🟢 Baixa | Quarto já em `CLEANING` na carga recebe o instante da carga, não o de quando entrou em limpeza (o payload do §4.3 não tem `updated_at`). Afeta só o alerta no dia da virada |
 | 6 | Atraso de consumo como métrica (CA-01.4.f) | 🟡 Média | O analytics ainda não expõe `/metrics`. Profundidade das filas já sai do RabbitMQ; o painel é da T-02.4 (Weslley) |
 | 7 | ADR-007 (uma reserva por quarto) | 🟡 Média | Não implementada; a projeção segue o catálogo v1.0. Se aceita, vira `reservation.*` v2 (§7) e uma coluna nova na projeção |
+
+#### Correções das ressalvas do qa-redteam (24/10/2026)
+
+Auditoria: `docs/qa/redteam_analytics-service-h2_21out2026.md` (APROVADO COM RESSALVAS, 0 🔴 · 5 🟡 · 6 🟢).
+Cada item com teste RED → GREEN, commit e push.
+
+| Achado | Correção | Teste | Commit |
+|---|---|---|---|
+| 🟡-1 queda do broker derrubava o processo | Handler nunca rejeita: ack/nack com o canal fechado só gera log (a reentrega cai em `duplicate`) | `tests/consumer-resilience.test.js` (canal fechado no ack e no nack; conexão cai com mensagem em andamento → processo segue e reconecta). Conferido de verdade: `rabbitmqctl close_all_connections` → `/health` 503, processo vivo, reconectou, 200 | `b635f80` |
+| 🟡-2 carga inicial podia parar as escritas do core | `SET LOCAL lock_timeout` (3 s) antes do `LOCK`, 5 tentativas a cada 2 s, erro claro ao esgotar | `outbox-initial-load.test.js`: transação longa em `payments` → a escrita nova da API passa em < 2 s e a carga desiste com mensagem; sem a correção, a escrita era cancelada por `statement_timeout` (RED). Sem o `LOCK`, o teste de ordem continua falhando | `b2bc987` |
+| 🟡-3 banco fora ~40 s mandava a fila à DLQ | Erro de conexão (Sequelize, SQLSTATE `08*`, `57P01-03`, `53300`) não conta tentativa: sem ack/nack, a conexão fecha, o broker devolve sem `x-death`, o consumo volta só depois do `ready()` com espera crescente | `consumer-resilience.test.js` e `rabbitmq.integration.test.js` (2 entregas com o banco "fora" → aplicado, DLQ vazia) | `b635f80` |
+| 🟡-4 nome em branco | Core: `CreateGuestController`/`UpdateGuestController` → 400 para nome vazio, só espaços ou outro tipo (`utils/isNonBlankString.js`). Analytics: texto aceita qualquer string | `core/tests/guest-name-validation.test.js` (9 casos) · `analytics/tests/catalog.test.js` | `a585a25` |
+| 🟡-5 desvios fora do catálogo | Catálogo v1.1: §6 (`*.deleted` na carga, por causa da D-2; `lock_timeout`), §4.6 (`reservation_id` nulo), §5.3 (banco fora não gasta tentativa), linha no histórico | — | `fe3a669` |
+| 🟢-3 `/health` sempre OK | Confere banco e consumidor; degradado → 503 sem expor o erro | `tests/health.test.js` | `1fae3da` |
+| 🟢-4 sem desligamento ordenado | SIGTERM/SIGINT: fecha HTTP, cancela o consumo, termina a mensagem em andamento (ack) e fecha broker e banco | `consumer-resilience.test.js` (stop com mensagem em andamento); real: SIGTERM → saída 0 | `b635f80`, `1fae3da` |
+
+**Testes antigos alterados (com justificativa):** `consumer.test.js` e `rabbitmq.integration.test.js`
+simulavam o erro transitório com SQLSTATE `08006`, que é erro de **conexão** e agora segue o caminho do
+🟡-3. Passaram a usar `40P01` (deadlock), o transitório da mensagem. A asserção do `x-error` mudou junto.
+O teste "prefetch 10" passou a chamar `stop()` antes de derrubar a conexão falsa, porque `stop()` agora
+espera o laço terminar.
+
+**Saída real depois das correções:**
+- analytics — `Test Files 7 passed (7)` · `Tests 84 passed (84)` · Statements **95.53%**, Branches 89.47%, Functions 90.54%, Lines 95.07%
+- core — `Test Files 41 passed (41)` · `Tests 851 passed | 1 skipped (852)` · Statements **83.5%**, Branches 79.27%, Functions 88.76%, Lines 85.95%
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.` (os mesmos da develop)
+
+**Pendências novas (verdes não tratados agora):**
+
+| # | Pendência | Prioridade | Observação |
+|---|-----------|-----------|------------|
+| 8 | Purga da DLQ na eliminação do titular (🟢-2) | 🟡 Média | A T-06.11 deve purgar ou reprocessar `analytics.core-events.dlq`: a DLQ guarda o payload com o nome, sem TTL |
+| 9 | OpenAPI do analytics e regras 4 e 7 do `qa_checks.sh` para `$ANALYTICS/routes` (🟢-6) | 🟢 Baixa | Entra com as 7 consultas na H.3 |
+| 10 | Probe do k8s: usar `/health` como **readiness**, não liveness | 🟡 Média | Com o broker fora, `/health` dá 503 de propósito; como liveness, o pod reiniciaria em laço (H.3) |
+| 11 | Outros caminhos que criam hóspede (reserva pública, representante de contrato) | 🟢 Baixa | Não conferidos quanto a nome em branco nesta correção; o consumidor já aceita o branco |
+
+A pendência 4 (retenção de `processed_events`, 🟢-5) continua aberta.
 
 #### Estimativa da H.3 (k, n, o, p, q)
 

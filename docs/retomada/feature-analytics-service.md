@@ -2,7 +2,7 @@
 
 **Atualizado:** 24/10/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
 **Worktree:** /home/gabri/wt-h2-analytics · **Portas:** PG 5441 · RabbitMQ 5682 (AMQP) e 15682 (gestão)
-**Containers:** pg-h2, rmq-h2 (subir de novo com os comandos abaixo; o rmq-h2 precisa da topologia)
+**Containers:** pg-h2, rmq-h2 — REMOVIDOS em 24/10 (subir de novo com os comandos abaixo; o rmq-h2 precisa da topologia)
 
 ## Objetivo
 T-01.4 etapa H.2 — `services/analytics-service` (CA-01.4.g, h, i, j, l, m), contrato no catálogo de
@@ -11,8 +11,8 @@ eventos v1.0. Agora: corrigir as ressalvas do qa-redteam
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: correções das ressalvas, uma por commit (RED → GREEN)
-- Próximo passo: o primeiro item ainda aberto em "Falta"
+- Passo atual: ressalvas do qa-redteam corrigidas; aguardando o Gabriel (nova auditoria e PR)
+- Próximo passo: nenhum nesta frente até o retorno do Gabriel; depois do merge, marcar ENCERRADA
 
 ## Feito
 - [x] H.2 entregue (8 commits, `93aa1f3`..`30b25cd`); auditoria `fc474e5` APROVADO COM RESSALVAS
@@ -25,7 +25,7 @@ eventos v1.0. Agora: corrigir as ressalvas do qa-redteam
 - [x] 🟡-5 catálogo: §6 (`*.deleted` na carga, por causa da D-2) e §4.6 (`reservation_id` nulo) + histórico
 - [x] 🟢 `/health` reflete consumidor e banco (degradado → 503)
 - [x] 🟢 SIGTERM: para de consumir, termina a mensagem em andamento, fecha conexões
-- [ ] Suítes core e analytics com cobertura, qa_checks, relatório atualizado, remover containers
+- [x] Suítes core e analytics com cobertura, qa_checks, relatório atualizado, remover containers
 
 ## Decisões tomadas nesta frente
 - 21/10 — carga inicial emite `*.deleted` para excluídos e aceita `reservation_id` nulo (aceitas pelo Gabriel)
