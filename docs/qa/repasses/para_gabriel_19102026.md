@@ -59,3 +59,9 @@ A regra da **remoção de quarto extra** mudou. Ela substitui o "desliga a vazia
 - RED em `0041651`, GREEN em `4f0e2f7`.
 
 O 409 RN-005 da troca de quarto passou a trazer `account_ids` (mesmos commits). Essa regra toca `accounts` (dono: Sirlande) e precisa do conhecimento dele.
+
+### Tratamento — complemento de 24/10 (reauditoria delta `docs/qa/redteam_repasses-gabriel-out_delta_21out2026.md`)
+- **N-1:** `POST /accounts` de conta ROOM trava a reserva antes da RN-005 (`d17250b`). Na remoção, um deadlock 40P01 leva a uma nova tentativa e, se repetir, a 409 (`ff3457a`).
+- **N-2:** a conta movida sem diária ganha a origem no rótulo do sistema, "Suíte 701 · ex-702" (`ff3457a`).
+- **N-3:** teste do principal só com conta sem diária (`1de70ad`).
+- O RED está em `1de70ad`. O `CreateAccountController` é do Sirlande e precisa do aval dele.

@@ -161,3 +161,92 @@ RED da rodada 2 (`0041651`): **5 falhas pelo motivo certo**, com 8 testes passan
 | 4 | Corrida entre `POST /accounts` de diária no principal e a remoção que move a conta de diária para lá | 🟢 Baixa | O índice `accounts_lodging_unique` recusa a segunda, então não há dado errado, mas a remoção responderia 500. Tratar só se aparecer em uso real |
 | 5 | 🟢 do repasse de 19/10 ainda abertos | 🟢 Baixa | Catálogo de eventos com `reservation_id: UUID \| null` e estorno depois de PAID (T-06.13) |
 | 6 | Regenerar o cliente tipado (`pnpm --filter @hotel/api-client generate`) | 🟢 Baixa | A defasagem já existia antes desta branch (ver "Não foi possível verificar" da auditoria) |
+
+---
+
+### 2026-10-24 — Rodada 3: achados da reauditoria delta
+
+- **Origem:** `docs/qa/redteam_repasses-gabriel-out_delta_21out2026.md` (commit `6a63194`). O veredito foi **APROVADO COM RESSALVAS**: os 5 achados anteriores fecharam e sobraram 3 🟢 novos.
+- Os três foram fechados, com RED antes do GREEN.
+- Arquivo de retomada criado: `docs/retomada/fix-repasses-gabriel-out.md`.
+
+#### O que mudou
+
+**🟢 N-1 — deadlock entre a remoção de extra e o `POST /accounts` de diária**
+- **Correção certa** (`CreateAccountController.js`, `d17250b`): para conta `ROOM`, a rota agora abre transação e trava a reserva (`FOR UPDATE`) antes de checar o status, o quarto da estadia e a RN-005, e antes do `INSERT`.
+  - É a ordem da D-48 (reserva → contas).
+  - Quem chega depois espera e enxerga o que o outro gravou. A corrida vira **422 RN-005**.
+  - O realinhamento da D-32 continua fora da transação, como antes. Ele só muda `room_id`/`label` de conta e não toca a linha da reserva, então não espera a trava.
+  - O contrato da rota não mudou.
+- **Defesa na remoção** (`RemoveRoomFromReservationController.js`, `ff3457a`): se o banco ainda escolher a remoção como vítima de deadlock (40P01), a transação volta inteira e é repetida **uma vez**. Se repetir, a resposta é **409** "tente de novo", nunca 500. O Swagger documenta esse 409.
+- **Testes:**
+  - **Concorrência determinística:** a remoção é pausada logo depois de ler "o principal não tem diária" e só segue quando o `POST` está esperando trava no banco. A espera é por condição (`pg_stat_activity`), não por tempo.
+  - RED: deadlock e 500.
+  - GREEN: remoção 204, `POST` 422 e uma conta de diária, estável em 5 rodadas.
+  - **Mutação:** com o `CreateAccountController` antigo, o teste volta a falhar (`expected 500 to be 422`).
+  - Dois testes da defesa, simulando 40P01 com spy:
+    - na 1ª tentativa: a remoção repete e responde 204;
+    - repetido: 409, e nada muda.
+
+**🟢 N-2 — rótulo duplicado** (`roomChangeAccounts.js`, `ff3457a`)
+- A conta movida que **não** vira a conta de diária do principal leva a origem no rótulo gerado pelo sistema: **"Suíte 701 · ex-702"**.
+- Por que esse formato:
+  - o garçom lista contas só pelo rótulo (D-15), e duas "Suíte 701" no mesmo quarto não se distinguem;
+  - manter "Suíte 702" mandaria o garçom a um quarto que saiu da estadia e pode já ser de outro hóspede;
+  - com dois extras removidos, os rótulos ficam "ex-702" e "ex-703", distintos entre si.
+- A conta que vira a conta de diária do principal fica com "Suíte 701", e o rótulo da recepção nunca muda.
+
+**🟢 N-3 — mutação sobrevivente** (teste em `1de70ad`)
+- Novo cenário: o principal tem só conta sem diária, e a única conta de diária está no extra.
+- Depois da remoção, a conta movida segue com `charges_lodging: true`, há uma conta de diária e `room_charges` dá 400,00.
+- **Mutação conferida:** tirar `charges_lodging: true` de `lodgingAccountsOfRoom` faz o teste falhar.
+
+#### ⚠ Toca `accounts` — precisa do conhecimento do Sirlande (atualizado)
+
+O `CreateAccountController.js` (T-04.1, Sirlande) passou a usar transação e a travar a reserva para conta ROOM. É uma mudança de concorrência, sem regra nova. Soma-se ao que já estava na rodada 2:
+- a remoção de extra move contas e muda `charges_lodging` e rótulo;
+- a guarda de 404 no `CreateAccountItemController`.
+
+**Sugestão:** registrar tudo numa decisão D-xx do anexo da SPEC-04.
+
+#### Saída real da verificação (rodada 3)
+
+Banco próprio (`pg-repasses`, porta 5443). `npm run test:coverage`:
+
+```
+ Test Files  40 passed (40)
+      Tests  856 passed | 1 skipped (857)
+All files          |   83.58 |     79.2 |   88.64 |      86 |
+Statements   : 83.58% ( 2786/3333 )
+Branches     : 79.2% ( 1440/1818 )
+Functions    : 88.64% ( 328/370 )
+Lines        : 86% ( 2519/2929 )
+```
+
+São 5 testes novos em relação à rodada 2: N-1 concorrência, 40P01 com nova tentativa, 40P01 repetido, N-2 e N-3.
+
+RED (`1de70ad`): 4 falhas pelo motivo certo, com 14 testes passando:
+- N-2: `expected AccountModel{…} to match object {…}`;
+- N-1: `expected 500 to be 422`, porque o deadlock derrubou o `POST`;
+- defesa: `expected 500 to be 204` e `expected 500 to be 409`.
+
+`bash scripts/qa_checks.sh`: `⚠ 3 aviso(s). Nenhum erro bloqueante.` São os mesmos avisos de antes.
+
+#### Commits gerados (rodada 3)
+
+| Hash | Mensagem |
+|------|----------|
+| `1de70ad` | `test(reservations): RED dos achados da reauditoria delta de 21/10` |
+| `d17250b` | `fix(accounts): POST /accounts de conta ROOM trava a reserva antes da RN-005` |
+| `ff3457a` | `fix(reservations): remocao de extra resiste a deadlock e nao duplica rotulo` |
+| (este) | `docs(historico): rodada 3 dos repasses e arquivo de retomada` |
+
+#### Pendências (atualizadas)
+
+| # | Pendência | Prioridade | Observação |
+|---|-----------|-----------|------------|
+| 1 | Aval do Sirlande e registro como D-xx | 🟡 Média | Cobre a remoção que move contas e muda `charges_lodging`/rótulo, a trava da reserva no `POST /accounts` ROOM e a guarda de 404 no lançamento |
+| 2 | Pendência 4 da rodada 2 (corrida remoção × `POST /accounts`) | — | **Resolvida** (N-1) |
+| 3 | Comentário desatualizado em `reservationRoomAccount.js:49-50` ("Sobras … ficam para o repasse ao Gabriel") | 🟢 Baixa | Arquivo do Sirlande. Atualizar quando alguém mexer nele |
+| 4 | 🟢 do repasse de 19/10 ainda abertos | 🟢 Baixa | Catálogo com `reservation_id: UUID \| null` e estorno depois de PAID (T-06.13) |
+| 5 | Regenerar o cliente tipado | 🟢 Baixa | Defasagem anterior a esta branch |
