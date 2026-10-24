@@ -45,6 +45,7 @@ describe('R-1 — category_id de outro hotel no quarto', () => {
     it('PUT /rooms/:id com category_id do hotel B → 404, e o quarto continua na categoria de A', async () => {
         const res = await request(app).put(`/rooms/${roomA.id}`).set(auth(A.jwt)).send({ category_id: catB.id });
         expect(res.status).toBe(404);
+        expect(res.body.code).toBe('CATEGORY_NOT_FOUND');
 
         const get = await request(app).get(`/rooms/${roomA.id}`).set(auth(A.jwt));
         expect(get.body.category_id).toBe(catA.id);
@@ -74,11 +75,13 @@ describe('R-1 — category_id de outro hotel no quarto', () => {
     it('PUT /rooms/:id com category_id inexistente → 404 (antes: 500 da FK)', async () => {
         const res = await request(app).put(`/rooms/${roomA.id}`).set(auth(A.jwt)).send({ category_id: UUID_INEXISTENTE });
         expect(res.status).toBe(404);
+        expect(res.body.code).toBe('CATEGORY_NOT_FOUND');
     });
 
     it('PUT /rooms/:id com category_id que não é UUID → 404, nunca 500', async () => {
         const res = await request(app).put(`/rooms/${roomA.id}`).set(auth(A.jwt)).send({ category_id: 'abc' });
         expect(res.status).toBe(404);
+        expect(res.body.code).toBe('CATEGORY_NOT_FOUND');
     });
 
     it('PUT /rooms/:id com categoria excluída do próprio hotel → 404', async () => {
@@ -87,6 +90,7 @@ describe('R-1 — category_id de outro hotel no quarto', () => {
 
         const res = await request(app).put(`/rooms/${roomA.id}`).set(auth(A.jwt)).send({ category_id: morta.id });
         expect(res.status).toBe(404);
+        expect(res.body.code).toBe('CATEGORY_NOT_FOUND');
     });
 
     it('PUT /rooms/:id com categoria do próprio hotel continua funcionando (200)', async () => {
@@ -101,11 +105,13 @@ describe('R-1 — category_id de outro hotel no quarto', () => {
     it('POST /rooms com category_id do hotel B → 404', async () => {
         const res = await request(app).post('/rooms').set(auth(A.jwt)).send({ category_id: catB.id, number: 'A-X1' });
         expect(res.status).toBe(404);
+        expect(res.body.code).toBe('CATEGORY_NOT_FOUND');
     });
 
     it('POST /rooms com category_id que não é UUID → 404, nunca 500', async () => {
         const res = await request(app).post('/rooms').set(auth(A.jwt)).send({ category_id: 'abc', number: 'A-X2' });
         expect(res.status).toBe(404);
+        expect(res.body.code).toBe('CATEGORY_NOT_FOUND');
     });
 });
 

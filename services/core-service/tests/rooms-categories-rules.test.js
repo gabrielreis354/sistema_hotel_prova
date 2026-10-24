@@ -23,6 +23,14 @@ let seq = 0;
 const auth = () => ({ Authorization: `Bearer ${jwt}` });
 const nextNumber = () => `R${++seq}`;
 
+// Contrato de erro combinado com o frontend (T-05.1): status + `code` estável, e `field` no 400.
+function expectError(res, status, code, field) {
+    expect(res.status).toBe(status);
+    expect(res.body.code).toBe(code);
+    expect(typeof res.body.error).toBe('string');
+    if (field) expect(res.body.field).toBe(field);
+}
+
 async function newRoom(overrides = {}) {
     const res = await request(app).post('/rooms').set(auth())
         .send({ category_id: categoryId, number: nextNumber(), floor: 1, ...overrides });
@@ -56,13 +64,13 @@ describe('R-2 — andar 0 (térreo) é preservado', () => {
     });
 
     it('floor que não é inteiro → 400, nunca 500', async () => {
-        expect((await newRoom({ floor: 'abc' })).status).toBe(400);
-        expect((await newRoom({ floor: 1.5 })).status).toBe(400);
-        expect((await newRoom({ floor: 99999999999 })).status).toBe(400);
+        expectError(await newRoom({ floor: 'abc' }), 400, 'INVALID_INPUT', 'floor');
+        expectError(await newRoom({ floor: 1.5 }), 400, 'INVALID_INPUT', 'floor');
+        expectError(await newRoom({ floor: 99999999999 }), 400, 'INVALID_INPUT', 'floor');
 
         const room = (await newRoom()).body;
         const put = await request(app).put(`/rooms/${room.id}`).set(auth()).send({ floor: 'abc' });
-        expect(put.status).toBe(400);
+        expectError(put, 400, 'INVALID_INPUT', 'floor');
     });
 });
 
@@ -81,7 +89,13 @@ describe('R-3 — status em allowlist no cadastro', () => {
 
     it.each(['FOO', 'OCCUPIED', 'CLEANING'])('recusa status %s no cadastro (400)', async (status) => {
         const res = await newRoom({ status });
-        expect(res.status).toBe(400);
+        expectError(res, 400, 'INVALID_INPUT', 'status');
+    });
+
+    it('campos obrigatórios ausentes → 400 INVALID_INPUT, mantendo a lista errors', async () => {
+        const res = await request(app).post('/rooms').set(auth()).send({});
+        expectError(res, 400, 'INVALID_INPUT', 'category_id');
+        expect(res.body.errors).toEqual(expect.arrayContaining(['category_id obrigatório', 'number obrigatório']));
     });
 });
 
@@ -108,7 +122,7 @@ describe('R-3 — transição de status validada na edição', () => {
     ])('%s → %s pela edição manual é recusado (409), e o status não muda', async (from, to) => {
         const room = await roomWithStatus(from);
         const res = await request(app).put(`/rooms/${room.id}`).set(auth()).send({ status: to });
-        expect(res.status).toBe(409);
+        expectError(res, 409, 'ROOM_STATUS_TRANSITION_NOT_ALLOWED');
         expect((await RoomModel.findByPk(room.id)).status).toBe(from);
     });
 
@@ -129,7 +143,29 @@ describe('R-3 — transição de status validada na edição', () => {
     it('status fora da lista continua 400', async () => {
         const room = (await newRoom()).body;
         const res = await request(app).put(`/rooms/${room.id}`).set(auth()).send({ status: 'FOO' });
-        expect(res.status).toBe(400);
+        expectError(res, 400, 'INVALID_INPUT', 'status');
+    });
+});
+
+describe('Unicidade no hotel — code estável nos 409 que já existiam', () => {
+    it('número de quarto repetido → 409 ROOM_NUMBER_TAKEN (cadastro e edição)', async () => {
+        const number = nextNumber();
+        await newRoom({ number });
+        expectError(await newRoom({ number }), 409, 'ROOM_NUMBER_TAKEN');
+
+        const other = (await newRoom()).body;
+        const put = await request(app).put(`/rooms/${other.id}`).set(auth()).send({ number });
+        expectError(put, 409, 'ROOM_NUMBER_TAKEN');
+    });
+
+    it('nome de categoria repetido → 409 CATEGORY_NAME_TAKEN (cadastro e edição)', async () => {
+        await createCategory(app, jwt, { name: 'Repetida', price_per_night: '100.00' });
+        const dup = await request(app).post('/room-categories').set(auth()).send({ name: 'Repetida', price_per_night: '100.00' });
+        expectError(dup, 409, 'CATEGORY_NAME_TAKEN');
+
+        const other = await createCategory(app, jwt, { name: 'Outra única', price_per_night: '100.00' });
+        const put = await request(app).put(`/room-categories/${other.id}`).set(auth()).send({ name: 'Repetida' });
+        expectError(put, 409, 'CATEGORY_NAME_TAKEN');
     });
 });
 
@@ -139,7 +175,7 @@ describe('R-4 — excluir categoria em uso', () => {
         await newRoom({ category_id: cat.id });
 
         const res = await request(app).delete(`/room-categories/${cat.id}`).set(auth());
-        expect(res.status).toBe(409);
+        expectError(res, 409, 'CATEGORY_IN_USE');
         expect((await request(app).get(`/room-categories/${cat.id}`).set(auth())).status).toBe(200);
     });
 
@@ -170,7 +206,7 @@ describe('R-5 — diária e capacidade da categoria', () => {
         ['com 3 casas', '10.999'],
         ['vírgula', '12,50']
     ])('POST com diária %s → 400', async (_caso, price) => {
-        expect((await post({ price_per_night: price })).status).toBe(400);
+        expectError(await post({ price_per_night: price }), 400, 'INVALID_INPUT', 'price_per_night');
     });
 
     it.each([
@@ -180,12 +216,12 @@ describe('R-5 — diária e capacidade da categoria', () => {
         ['texto', 'abc'],
         ['acima de INTEGER', 99999999999]
     ])('POST com capacidade %s → 400', async (_caso, capacity) => {
-        expect((await post({ capacity })).status).toBe(400);
+        expectError(await post({ capacity }), 400, 'INVALID_INPUT', 'capacity');
     });
 
     it('POST com name que não é texto → 400, nunca 500', async () => {
-        expect((await post({ name: { a: 1 } })).status).toBe(400);
-        expect((await post({ name: '   ' })).status).toBe(400);
+        expectError(await post({ name: { a: 1 } }), 400, 'INVALID_INPUT', 'name');
+        expectError(await post({ name: '   ' }), 400, 'INVALID_INPUT', 'name');
     });
 
     it('POST válido continua 201, com diária em string e sem capacidade vira 1', async () => {
@@ -199,12 +235,14 @@ describe('R-5 — diária e capacidade da categoria', () => {
         const cat = (await post({})).body;
         const put = (body) => request(app).put(`/room-categories/${cat.id}`).set(auth()).send(body);
 
-        expect((await put({ price_per_night: '-50.00', capacity: -3 })).status).toBe(400);
-        expect((await put({ price_per_night: '-50.00' })).status).toBe(400);
-        expect((await put({ capacity: -3 })).status).toBe(400);
-        expect((await put({ price_per_night: 'abc' })).status).toBe(400);
-        expect((await put({ price_per_night: '100000000.00' })).status).toBe(400);
-        expect((await put({ name: '' })).status).toBe(400);
+        const both = await put({ price_per_night: '-50.00', capacity: -3 });
+        expectError(both, 400, 'INVALID_INPUT', 'price_per_night');
+        expect(both.body.errors).toHaveLength(2);
+        expectError(await put({ price_per_night: '-50.00' }), 400, 'INVALID_INPUT', 'price_per_night');
+        expectError(await put({ capacity: -3 }), 400, 'INVALID_INPUT', 'capacity');
+        expectError(await put({ price_per_night: 'abc' }), 400, 'INVALID_INPUT', 'price_per_night');
+        expectError(await put({ price_per_night: '100000000.00' }), 400, 'INVALID_INPUT', 'price_per_night');
+        expectError(await put({ name: '' }), 400, 'INVALID_INPUT', 'name');
 
         const get = await request(app).get(`/room-categories/${cat.id}`).set(auth());
         expect(get.body).toMatchObject({ price_per_night: '100.00', capacity: 2 });
@@ -227,7 +265,7 @@ describe('R-6 — excluir quarto ocupado ou com reserva ativa', () => {
     it('quarto OCCUPIED → 409, e ele continua lá', async () => {
         const room = await roomWithStatus('OCCUPIED');
         const res = await request(app).delete(`/rooms/${room.id}`).set(auth());
-        expect(res.status).toBe(409);
+        expectError(res, 409, 'ROOM_IN_USE');
         expect((await request(app).get(`/rooms/${room.id}`).set(auth())).status).toBe(200);
     });
 
@@ -236,7 +274,7 @@ describe('R-6 — excluir quarto ocupado ou com reserva ativa', () => {
         const reservation = await createReservation(app, jwt, guestId, room.id, { check_in_date: '2028-02-01', check_out_date: '2028-02-03' });
         await ReservationModel.update({ status }, { where: { id: reservation.id } });
 
-        expect((await request(app).delete(`/rooms/${room.id}`).set(auth())).status).toBe(409);
+        expectError(await request(app).delete(`/rooms/${room.id}`).set(auth()), 409, 'ROOM_IN_USE');
     });
 
     it('quarto extra de uma reserva ativa → 409', async () => {
@@ -248,7 +286,7 @@ describe('R-6 — excluir quarto ocupado ou com reserva ativa', () => {
         });
         expect(res.status).toBe(201);
 
-        expect((await request(app).delete(`/rooms/${extra.id}`).set(auth())).status).toBe(409);
+        expectError(await request(app).delete(`/rooms/${extra.id}`).set(auth()), 409, 'ROOM_IN_USE');
     });
 
     it('quarto só com reserva cancelada → 204', async () => {
