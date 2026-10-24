@@ -1,41 +1,60 @@
+import sequelize from '../../../database/connections/sequelize.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
-
-const VALID_ROOM_STATUSES = ['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'];
+import { ROOM_STATUSES, floorError, parseInteger, isManualRoomTransitionAllowed } from '../../utils/roomRules.js';
 
 export default async function UpdateRoomController(request, response) {
+    // Quarto lido com lock: um check-in ou check-out simultâneo (que muda o status na mesma
+    // linha) não pode ser sobrescrito por uma edição que leu o status anterior.
+    let transaction;
+    const fail = async (status, body) => {
+        await transaction.rollback();
+        return response.status(status).json(body);
+    };
     try {
         const { id } = request.params;
         const tenantId = request.user.tenantId;
         const { category_id, number, floor, status } = request.body;
 
-        if (status !== undefined && !VALID_ROOM_STATUSES.includes(status)) {
+        if (status !== undefined && !ROOM_STATUSES.includes(status)) {
             return response.status(400).json({
-                error: `Status inválido. Valores permitidos: ${VALID_ROOM_STATUSES.join(', ')}`
+                error: `Status inválido. Valores permitidos: ${ROOM_STATUSES.join(', ')}`
             });
         }
+        const invalidFloor = floorError(floor);
+        if (invalidFloor) return response.status(400).json({ error: invalidFloor });
 
-        const room = await RoomModel.findOne({ where: { id, tenant_id: tenantId } });
-        if (!room) return response.status(404).json({ error: 'Quarto não encontrado' });
+        transaction = await sequelize.transaction();
+        const room = await RoomModel.findOne({ where: { id, tenant_id: tenantId }, lock: transaction.LOCK.UPDATE, transaction });
+        if (!room) return await fail(404, { error: 'Quarto não encontrado' });
 
         // A categoria nova precisa ser deste hotel. A FK só confere que o id existe: antes,
         // o quarto do hotel A passava a apontar para a categoria do hotel B — o GET devolvia
         // nome, diária e tenant_id de B e a reserva era cobrada pela diária de B (R-1).
         if (category_id !== undefined) {
-            const category = await findInTenant(RoomCategoryModel, category_id, tenantId);
-            if (!category) return response.status(404).json({ error: 'Categoria não encontrada' });
+            const category = await findInTenant(RoomCategoryModel, category_id, tenantId, { transaction });
+            if (!category) return await fail(404, { error: 'Categoria não encontrada' });
+        }
+
+        // Transição, não só valor válido (R-3): OCCUPIED e CLEANING são do check-in e do check-out.
+        if (status !== undefined && !isManualRoomTransitionAllowed(room.status, status)) {
+            return await fail(409, {
+                error: `Quarto em ${room.status} não pode ir para ${status} pela edição — use o check-in, o check-out ou conclua a limpeza`
+            });
         }
 
         if (category_id !== undefined) room.category_id = category_id;
         if (number !== undefined)      room.number = number;
-        if (floor !== undefined)       room.floor = floor;
+        if (floor !== undefined)       room.floor = floor === null ? null : parseInteger(floor);
         if (status !== undefined)      room.status = status;
 
-        await room.save();
+        await room.save({ transaction });
+        await transaction.commit();
         return response.json(room);
     } catch (error) {
+        if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
         // Race no check-then-act acima: o índice único barra a segunda gravação.
         // Sem isto o conflito do cliente viraria 500.
         const conflito = uniqueConstraintConflict(error, response);

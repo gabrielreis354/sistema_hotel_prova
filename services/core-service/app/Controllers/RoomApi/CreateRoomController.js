@@ -2,6 +2,7 @@ import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
+import { CREATABLE_ROOM_STATUSES, floorError, parseInteger } from '../../utils/roomRules.js';
 
 export default async function CreateRoomController(request, response) {
     try {
@@ -11,6 +12,12 @@ export default async function CreateRoomController(request, response) {
         const errors = [];
         if (!category_id) errors.push('category_id obrigatório');
         if (!number)      errors.push('number obrigatório');
+        const invalidFloor = floorError(floor);
+        if (invalidFloor) errors.push(invalidFloor);
+        // Allowlist (R-3): quarto novo não nasce OCCUPIED nem CLEANING — isso é check-in e check-out.
+        if (status !== undefined && status !== null && !CREATABLE_ROOM_STATUSES.includes(status)) {
+            errors.push(`status no cadastro deve ser um de: ${CREATABLE_ROOM_STATUSES.join(', ')}`);
+        }
         if (errors.length) return response.status(400).json({ errors });
 
         // Valida a FK antes de inserir, no tenant: sem isso, um category_id inexistente
@@ -22,8 +29,9 @@ export default async function CreateRoomController(request, response) {
             tenant_id: tenantId,
             category_id,
             number,
-            floor: floor || null,
-            status: status || 'AVAILABLE'
+            // `??`, não `||`: o térreo (0) virava null (R-2).
+            floor: floor === undefined || floor === null ? null : parseInteger(floor),
+            status: status ?? 'AVAILABLE'
         });
         return response.status(201).json(room);
     } catch (error) {
