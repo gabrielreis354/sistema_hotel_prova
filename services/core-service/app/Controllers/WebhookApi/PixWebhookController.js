@@ -104,11 +104,20 @@ export default async function PixWebhookController(request, response) {
             if (isTerminalNegative || isApprovedWithWrongAmount) {
                 const transaction = await sequelize.transaction();
                 try {
-                    payment.status = 'FAILED';
-                    await payment.save({ transaction });
+                    // Relido com lock e reconferido, como no ramo PAID: a instância lida antes da
+                    // consulta ao PSP pode estar velha. Sem isso, uma notificação PAID paralela
+                    // gravava PAID + reserva CONFIRMED, e este save() sobrescrevia com FAILED
+                    // (repasse do qa-redteam de 17/10).
+                    const lockedPayment = await PaymentModel.findOne({ where: { id: payment.id }, lock: transaction.LOCK.UPDATE, transaction });
+                    if (lockedPayment.status !== 'PENDING') {
+                        await transaction.rollback();
+                        return response.status(200).json({ status: 'already_processed', payment_id: payment.id });
+                    }
+                    lockedPayment.status = 'FAILED';
+                    await lockedPayment.save({ transaction });
                     await transaction.commit();
                 } catch (txError) {
-                    await transaction.rollback();
+                    if (!transaction.finished) await transaction.rollback();
                     throw txError;
                 }
                 return response.status(200).json({ status: 'not_approved', payment_id: payment.id });
