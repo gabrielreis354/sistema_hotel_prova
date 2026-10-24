@@ -722,7 +722,7 @@ const options = {
                     requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
                     responses: {
                         201: { description: 'Criada', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
-                        400: { description: 'name ou price_per_night ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        400: { description: 'name ausente ou vazio (máx. 100); price_per_night ausente, não numérico, ≤ 0, com mais de 2 casas ou acima de 99999999.99; capacity não inteiro ou < 1 (ausente vale 1)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
                         409: { description: 'Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
@@ -740,11 +740,19 @@ const options = {
                     tags: ['Categorias de Quarto'], summary: 'Atualiza',
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
+                        400: { description: 'Campo enviado fora das regras do cadastro (name, price_per_night, capacity)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
                         404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
-                delete: { tags: ['Categorias de Quarto'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Categorias de Quarto'], summary: 'Remove',
+                    responses: {
+                        204: { description: 'OK' },
+                        404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Categoria em uso por quarto não excluído', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/rooms': {
                 get: {
@@ -755,12 +763,12 @@ const options = {
                     tags: ['Quartos'], summary: 'Cria quarto',
                     requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['category_id', 'number'], properties: {
                         category_id: { type: 'string', format: 'uuid' }, number: { type: 'string', example: '101' },
-                        floor: { type: 'integer', nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'], description: 'Default: AVAILABLE' }
+                        floor: { type: 'integer', nullable: true, description: '0 é o térreo' }, status: { type: 'string', enum: ['AVAILABLE', 'MAINTENANCE'], description: 'Default: AVAILABLE. OCCUPIED e CLEANING só pelo check-in e check-out' }
                     }}}}},
                     responses: {
                         201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'category_id ou number ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
-                        404: { description: 'Categoria não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'category_id ou number ausentes, floor não inteiro ou status fora de AVAILABLE | MAINTENANCE', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        404: { description: 'Categoria não encontrada — inexistente, excluída, de outro hotel ou id inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
@@ -792,12 +800,19 @@ const options = {
                     tags: ['Quartos'], summary: 'Atualiza',
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'status inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'status fora da lista ou floor não inteiro', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
-                delete: { tags: ['Quartos'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Quartos'], summary: 'Remove',
+                    responses: {
+                        204: { description: 'OK' },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Quarto OCCUPIED ou com reserva PENDING, CONFIRMED ou CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/guests': {
                 get: {
