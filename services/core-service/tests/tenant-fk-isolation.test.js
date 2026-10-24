@@ -108,3 +108,104 @@ describe('R-1 — category_id de outro hotel no quarto', () => {
         expect(res.status).toBe(404);
     });
 });
+
+/**
+ * Varredura de 24/10: os endpoints abaixo já validavam o tenant da FK do corpo, mas não tinham
+ * teste que travasse a regra. Os que já tinham ficam onde estão (accounts, account-items,
+ * account-payments, quote-pdf, reservation-multiroom).
+ */
+describe('Varredura — FKs do corpo já corretas, agora com teste de regressão', () => {
+    let reservationA;
+    let clientA;
+    let clientB;
+    let quoteB;
+
+    const corporateClient = (jwt, sufixo) => request(app).post('/corporate-clients').set(auth(jwt)).send({
+        razao_social: `Empresa FK ${sufixo} LTDA`,
+        representante_nome: `Representante ${sufixo}`
+    });
+
+    const contractBody = (overrides) => ({
+        corporate_client_id: clientA.id,
+        objeto: 'Hospedagem de evento',
+        check_in: '2027-11-01',
+        check_out: '2027-11-03',
+        pessoas: 4,
+        total: 1000,
+        testemunha_1: 'Testemunha Um',
+        testemunha_2: 'Testemunha Dois',
+        ...overrides
+    });
+
+    beforeAll(async () => {
+        reservationA = await createReservation(app, A.jwt, guestA.id, roomA.id, {
+            check_in_date: '2027-09-01',
+            check_out_date: '2027-09-03'
+        });
+        clientA = (await corporateClient(A.jwt, 'A')).body;
+        clientB = (await corporateClient(B.jwt, 'B')).body;
+        quoteB = (await request(app).post('/event-quotes').set(auth(B.jwt)).send({
+            corporate_client_id: clientB.id, check_in: '2027-11-01', check_out: '2027-11-03',
+            pessoas: 4, valor_diaria_sem_refeicao: 125
+        })).body;
+    });
+
+    const reserva = (overrides) => ({
+        guest_id: guestA.id, room_id: roomA.id, check_in_date: '2027-12-01', check_out_date: '2027-12-03', ...overrides
+    });
+
+    it('POST /reservations com guest_id do hotel B → 404', async () => {
+        const res = await request(app).post('/reservations').set(auth(A.jwt)).send(reserva({ guest_id: guestB.id }));
+        expect(res.status).toBe(404);
+    });
+
+    it('POST /reservations com room_id do hotel B → 404', async () => {
+        const res = await request(app).post('/reservations').set(auth(A.jwt)).send(reserva({ room_id: roomB.id }));
+        expect(res.status).toBe(404);
+    });
+
+    it('POST /reservations com extra_room_ids contendo quarto do hotel B → 404', async () => {
+        const res = await request(app).post('/reservations').set(auth(A.jwt)).send(reserva({ extra_room_ids: [roomB.id] }));
+        expect(res.status).toBe(404);
+    });
+
+    it('PUT /reservations/:id com room_id do hotel B → 404, e o quarto não muda', async () => {
+        const res = await request(app).put(`/reservations/${reservationA.id}`).set(auth(A.jwt)).send({ room_id: roomB.id });
+        expect(res.status).toBe(404);
+        const get = await request(app).get(`/reservations/${reservationA.id}`).set(auth(A.jwt));
+        expect(get.body.room_id).toBe(roomA.id);
+    });
+
+    it('POST /reservations/:id/rooms com room_id do hotel B → 404', async () => {
+        const res = await request(app).post(`/reservations/${reservationA.id}/rooms`).set(auth(A.jwt)).send({ room_id: roomB.id });
+        expect(res.status).toBe(404);
+    });
+
+    it('POST /payments com reservation_id do hotel B → 404', async () => {
+        const reservationB = await createReservation(app, B.jwt, guestB.id, roomB.id, {
+            check_in_date: '2027-09-01',
+            check_out_date: '2027-09-03'
+        });
+        const res = await request(app).post('/payments').set(auth(A.jwt))
+            .send({ reservation_id: reservationB.id, amount: '10.00', method: 'CASH' });
+        expect(res.status).toBe(404);
+    });
+
+    it('POST /contracts com corporate_client_id do hotel B → 404', async () => {
+        const res = await request(app).post('/contracts').set(auth(A.jwt)).send(contractBody({ corporate_client_id: clientB.id }));
+        expect(res.status).toBe(404);
+    });
+
+    it('POST /contracts com quote_id do hotel B → 404', async () => {
+        const res = await request(app).post('/contracts').set(auth(A.jwt)).send(contractBody({ quote_id: quoteB.id }));
+        expect(res.status).toBe(404);
+    });
+
+    it('PUT /contracts/:id/sign com room_ids contendo quarto do hotel B → 404, e o contrato não é assinado', async () => {
+        const contract = (await request(app).post('/contracts').set(auth(A.jwt)).send(contractBody())).body;
+        const res = await request(app).put(`/contracts/${contract.id}/sign`).set(auth(A.jwt)).send({ room_ids: [roomB.id] });
+        expect(res.status).toBe(404);
+        const get = await request(app).get(`/contracts/${contract.id}`).set(auth(A.jwt));
+        expect(get.body.status).toBe('GENERATED');
+    });
+});
