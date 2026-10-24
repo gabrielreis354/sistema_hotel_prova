@@ -507,7 +507,7 @@ describe('🟢-1 — method em allowlist e paid_at válido, no POST e no PUT', (
 
     it('POST com paid_at inválido → 400 (antes era 500); válido grava a data; ausente usa agora', async () => {
         const { reservation } = await newReservation();
-        for (const paid_at of ['lixo', '2026-02-30T99:00', 12345, {}]) {
+        for (const paid_at of ['lixo', '2026-03-10T99:00', 12345, {}]) {
             const res = await request(app).post('/payments').set(auth(jwt))
                 .send({ reservation_id: reservation.id, amount: '10.00', method: 'PIX', paid_at });
             expect(res.status, `paid_at ${JSON.stringify(paid_at)}`).toBe(400);
@@ -534,6 +534,93 @@ describe('🟢-1 — method em allowlist e paid_at válido, no POST e no PUT', (
             expect(res.status, `method ${JSON.stringify(method)}`).toBe(400);
         }
         expect((await raw(payment.id)).method).toBe('DINHEIRO');
+    });
+});
+
+describe('Reauditoria delta 🟢-1 — data de calendário inexistente e ano < 1 → 400', () => {
+    // Hora válida em todos: o que deve barrar é o dia (ou o ano), não a hora.
+    const INVALID_DATES = [
+        '2026-02-30T10:00:00Z', '2026-02-31', '2026-04-31T12:00:00Z', '2027-02-29T10:00:00Z',
+        '2026-00-10T10:00:00Z', '2026-13-01T10:00:00Z', '2026-06-00T10:00:00Z', '0000-01-01', '0000-01-01T10:00:00Z'
+    ];
+
+    it('POST recusa e não grava nada', async () => {
+        const { reservation } = await newReservation();
+        for (const paid_at of INVALID_DATES) {
+            const res = await request(app).post('/payments').set(auth(jwt))
+                .send({ reservation_id: reservation.id, amount: '10.00', method: 'PIX', paid_at });
+            expect(res.status, paid_at).toBe(400);
+        }
+        expect(await PaymentModel.count({ where: { reservation_id: reservation.id } })).toBe(0);
+    });
+
+    it('PUT recusa e a data não muda', async () => {
+        const { reservation } = await newReservation();
+        const payment = await pay({ reservation_id: reservation.id, amount: '10.00', paid_at: '2026-10-01T10:00:00.000Z' });
+        for (const paid_at of INVALID_DATES) {
+            const res = await request(app).put(`/payments/${payment.id}`).set(auth(jwt)).send({ paid_at });
+            expect(res.status, paid_at).toBe(400);
+        }
+        expect((await raw(payment.id)).paid_at.toISOString()).toBe('2026-10-01T10:00:00.000Z');
+    });
+
+    it('29/02 de ano bissexto e último dia do mês são aceitos, sem mudar de dia', async () => {
+        const { reservation } = await newReservation();
+        for (const paid_at of ['2028-02-29T10:00:00.000Z', '2026-04-30T12:00:00.000Z', '2026-12-31T10:00:00.000Z']) {
+            const created = await pay({ reservation_id: reservation.id, amount: '10.00', paid_at });
+            expect(new Date(created.paid_at).toISOString()).toBe(paid_at);
+        }
+    });
+});
+
+describe('Reauditoria delta 🟢-2 — PAID legado sem paid_at no PUT', () => {
+    let legacyId;
+
+    beforeAll(async () => {
+        const { reservation } = await newReservation();
+        legacyId = randomUUID();
+        // Linha anterior ao CHECK (NOT VALID não confere o que já existe).
+        await sequelize.query('ALTER TABLE payments DROP CONSTRAINT payments_paid_has_paid_at');
+        try {
+            await sequelize.query(
+                `INSERT INTO payments (id, tenant_id, reservation_id, amount, method, status, kind, paid_at, created_at, updated_at)
+                 VALUES (:id, :tenantId, :rid, 10, 'DINHEIRO', 'PAID', 'FULL', NULL, now(), now())`,
+                { replacements: { id: legacyId, tenantId, rid: reservation.id } }
+            );
+        } finally {
+            await sequelize.query(`ALTER TABLE payments ADD CONSTRAINT payments_paid_has_paid_at
+                CHECK (status <> 'PAID' OR paid_at IS NOT NULL) NOT VALID`);
+        }
+    });
+
+    it('PUT sem paid_at → 422 pedindo a data, nunca 500; nada muda', async () => {
+        const res = await request(app).put(`/payments/${legacyId}`).set(auth(jwt)).send({ method: 'PIX' });
+        expect(res.status).toBe(422);
+        expect(res.body.error).toMatch(/paid_at/);
+        expect((await raw(legacyId)).method).toBe('DINHEIRO');
+    });
+
+    it('PUT com paid_at corrige a linha', async () => {
+        const res = await request(app).put(`/payments/${legacyId}`).set(auth(jwt))
+            .send({ method: 'PIX', paid_at: '2026-10-02T09:00:00.000Z' });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ method: 'PIX' });
+        expect((await raw(legacyId)).paid_at.toISOString()).toBe('2026-10-02T09:00:00.000Z');
+    });
+});
+
+describe('Reauditoria delta 🟢-3 — o model barra PAID sem paid_at antes do banco', () => {
+    it('create PAID sem paid_at falha na validação do model, com o nome da regra', async () => {
+        const { reservation } = await newReservation();
+        const attempt = PaymentModel.create({ tenant_id: tenantId, reservation_id: reservation.id, amount: '10.00', method: 'PIX' });
+        await expect(attempt).rejects.toMatchObject({ name: 'SequelizeValidationError' });
+        await expect(PaymentModel.create({ tenant_id: tenantId, reservation_id: reservation.id, amount: '10.00', method: 'PIX' }))
+            .rejects.toThrow(/paid_at/);
+    });
+
+    it('PENDING sem paid_at e PAID com paid_at passam na validação', async () => {
+        await expect(PaymentModel.build({ tenant_id: tenantId, amount: '1.00', method: 'PIX', status: 'PENDING' }).validate()).resolves.toBeDefined();
+        await expect(PaymentModel.build({ tenant_id: tenantId, amount: '1.00', method: 'PIX', paid_at: new Date() }).validate()).resolves.toBeDefined();
     });
 });
 
