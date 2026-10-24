@@ -17,11 +17,6 @@ try {
     process.exit(1);
 }
 
-const port = process.env.NODE_WEB_PORT || 3001;
-createApp().listen(port, () => {
-    console.log(`🚀 analytics-service ouvindo na porta ${port}`);
-});
-
 // O consumidor só começa quando o banco responde e o schema existe (`node command.js migrate`):
 // sem as tabelas, cada evento falharia 5 vezes e iria para a fila de mensagens mortas.
 async function schemaPronto() {
@@ -32,4 +27,28 @@ async function schemaPronto() {
     if (!existe) throw new Error('schema do analytics ausente — rode "node command.js migrate"');
 }
 
-startConsumerFromEnv({ ready: schemaPronto });
+const consumer = startConsumerFromEnv({ ready: schemaPronto });
+
+const port = process.env.NODE_WEB_PORT || 3001;
+const server = createApp({ consumerStatus: consumer ? consumer.status : () => 'disabled' }).listen(port, () => {
+    console.log(`🚀 analytics-service ouvindo na porta ${port}`);
+});
+
+// Desligamento ordenado (qa-redteam H.2, 🟢-4): para de aceitar HTTP, para de consumir, termina as
+// mensagens em andamento (com ack) e fecha broker e banco. O que não terminar no prazo é reentregue
+// pelo broker e cai em 'duplicate'.
+let encerrando = false;
+async function encerrar(sinal) {
+    if (encerrando) return;
+    encerrando = true;
+    console.log(`analytics-service: ${sinal} recebido — encerrando.`);
+    server.close();
+    try {
+        await consumer?.stop();
+        await sequelize.close();
+    } finally {
+        process.exit(0);
+    }
+}
+process.once('SIGTERM', () => encerrar('SIGTERM'));
+process.once('SIGINT', () => encerrar('SIGINT'));
