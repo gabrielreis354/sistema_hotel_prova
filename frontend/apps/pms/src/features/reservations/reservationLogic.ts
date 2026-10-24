@@ -11,6 +11,7 @@ import {
   multiplyCents,
   nightsBetween,
   parseHotelDate,
+  RESERVATION_STATUSES,
   sumCents,
   type Cents,
   type ReservationStatus,
@@ -128,10 +129,8 @@ export function reservationActions(status: string | undefined): ReservationActio
   };
 }
 
-const STATUSES: readonly string[] = ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED'];
-
 export function isReservationStatus(value: string | undefined): value is ReservationStatus {
-  return value !== undefined && STATUSES.includes(value);
+  return RESERVATION_STATUSES.some((s) => s === value);
 }
 
 // ─── Conta em linha do tempo (CA-05.2.h) ───────────────────────────────────────────────
@@ -167,6 +166,11 @@ export interface TimelineEntry {
   amountCents: Cents;
   /** Pagamento que ainda não conta no saldo (PIX pendente, falho, expirado). */
   notCounted: boolean;
+  /**
+   * Pagamento PENDING: ainda pode entrar e soma em "aguardando". EXPIRED e FAILED não abatem
+   * e também não somam — é cobrança morta, igual ao `total_pending` do GetBillController.
+   */
+  awaiting: boolean;
   /** Saldo depois desta linha — só o que conta entra. */
   balanceCents: Cents;
 }
@@ -234,6 +238,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       label: `Diária ${i + 1} de ${nights}`,
       amountCents: amount,
       notCounted: false,
+      awaiting: false,
     });
   });
 
@@ -246,6 +251,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       label: c.description || 'Consumo',
       amountCents: cents(c.amount),
       notCounted: false,
+      awaiting: false,
     });
   }
 
@@ -261,6 +267,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       label: `${kind} · ${method}${note ? ` (${note})` : ''}`,
       amountCents: -cents(p.amount),
       notCounted: p.status !== 'PAID',
+      awaiting: p.status === 'PENDING',
     });
   }
 
@@ -277,8 +284,8 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
   let pending = 0;
   const entries = raw.map((e) => {
     if (e.kind === 'payment') {
-      if (e.notCounted) pending += -e.amountCents;
-      else paid += -e.amountCents;
+      if (e.awaiting) pending += -e.amountCents;
+      else if (!e.notCounted) paid += -e.amountCents;
     } else {
       charges += e.amountCents;
     }

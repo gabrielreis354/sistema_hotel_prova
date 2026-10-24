@@ -69,11 +69,15 @@ describe('reservationActions — ação desabilitada sempre traz o motivo', () =
     }
   });
 
-  it('segue a allowlist do @hotel/domain para PENDING (cancelar sim, check-out não)', () => {
+  it('PENDING segue a allowlist ATUAL do @hotel/domain: check-in bloqueado com motivo', () => {
+    // Comportamento de hoje: o domínio proíbe PENDING → CHECKED_IN (🟡-1 do qa-redteam, decisão
+    // do Gabriel). Se a transição for liberada em state-machines.ts, este teste DEVE quebrar e
+    // ser trocado por `expect(a.checkIn).toEqual({ enabled: true })`.
     const a = reservationActions('PENDING');
-    expect(a.cancel.enabled).toBe(true);
+    expect(a.checkIn.enabled).toBe(false);
+    expect(a.checkIn.reason).toBe('Reserva pendente de confirmação: o check-in libera quando ela for confirmada.');
+    expect(a.cancel).toEqual({ enabled: true });
     expect(a.checkOut.enabled).toBe(false);
-    if (!a.checkIn.enabled) expect(a.checkIn.reason).toMatch(/pendente/);
   });
 
   it('status desconhecido é fail-safe: tudo desabilitado', () => {
@@ -125,6 +129,24 @@ describe('buildBillTimeline — conta em linha do tempo', () => {
     expect(t.pendingCents).toBe(5000);
     expect(t.paidCents).toBe(7000);
     expect(t.chargesCents).toBe(30550);
+  });
+
+  it('PIX expirado ou falho aparece, não abate e NÃO soma em "aguardando" (igual ao total_pending)', () => {
+    const t = buildBillTimeline({
+      ...bill,
+      payments: [
+        { id: 'e1', amount: 100, method: 'PIX', kind: 'DEPOSIT', status: 'EXPIRED', paid_at: null },
+        { id: 'f1', amount: 40, method: 'PIX', kind: 'BALANCE', status: 'FAILED', paid_at: null },
+        { id: 'k1', amount: 100, method: 'CASH', kind: 'FULL', status: 'PAID', paid_at: '2026-10-22T15:00:00.000Z' },
+      ],
+    });
+    expect(t.pendingCents).toBe(0);
+    expect(t.paidCents).toBe(10000);
+    const expired = t.entries.find((e) => e.key === 'payment-e1');
+    expect(expired).toMatchObject({ notCounted: true, awaiting: false });
+    expect(expired?.label).toMatch(/expirado/);
+    expect(t.entries.find((e) => e.key === 'payment-f1')?.label).toMatch(/falhou/);
+    expect(t.balanceCents).toBe(30550 - 10000);
   });
 
   it('o saldo da linha do tempo bate com o balance_due do servidor', () => {
