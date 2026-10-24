@@ -36,7 +36,7 @@ Escolhi **`/quartos/categorias`** em vez de `/config/...` por dois motivos. Prim
 ### Decisões de regra (todas com o motivo na tela)
 
 - **Status no formulário segue a máquina de estados.** Ocupado e Limpeza aparecem **desabilitados com motivo**, porque são efeito do check-in e do check-out. Sobra para a mão: Livre ↔ Manutenção e Limpeza → Livre. O backend aceita qualquer valor da allowlist; quem restringe é a tela.
-- **Categoria em uso não se exclui.** O backend faz *soft delete* e deixa os quartos sem categoria, ou seja, sem tarifa. Até o backend recusar com 409, a tela recusa antes, com "N quartos usam esta categoria…". Se a lista de quartos não carregar, o botão fica bloqueado (fail-safe).
+- ~~**Categoria em uso não se exclui na tela.**~~ *Revisto em 24/10 (🟡-3 do qa-redteam): a trava era check-then-act no cliente e baixava todos os quartos. Agora quem recusa é o backend com 409, e a tela traduz a resposta. O comentário "sem tarifa" estava errado: a reserva usa a diária congelada da categoria excluída.*
 - **Quarto ocupado não se exclui** ("Faça o check-out antes").
 - **Ordenação** por andar e número natural na lista. A tela mostra exatamente o que a API devolveu, sem filtro no cliente. Ordenar no servidor fica para a T-05.12.
 
@@ -128,6 +128,32 @@ O Impeccable está no marketplace, mas **não está instalado** nesta sessão, e
 
 ---
 
+## 24/10 — Correções do qa-redteam (`docs/qa/redteam_t051-quartos-categorias_21out2026.md`)
+
+O veredito foi **aprovado com ressalvas**: 0 🔴, 3 🟡 e 4 🟢 no escopo. Corrigi os 3 🟡 e os 🟢 baratos.
+
+| Achado | O que mudou | Evidência |
+|---|---|---|
+| 🟡-1 A edição reenviava `status` sempre e desfazia check-in/out paralelo | `changedRoomFields` em `roomRules.ts` (+4 testes): o PUT leva só o que mudou, e `status` só quando o admin o alterou. Se nada mudou, a tela volta sem fazer request | Corpos de PUT capturados no navegador: andar → `{"floor":7}`; status → `{"status":"MAINTENANCE"}`; quarto 102 salvo sem mudança → nenhum PUT |
+| 🟡-2 `body: input as never` | `requestBody` declarado em `PUT /rooms/{id}`, `PUT /room-categories/{id}` e `PUT /guests/{id}` em `config/swagger.js` (só esses três trechos, autorizado pelo coordenador). `api-client` regenerado e os três `as never` removidos, inclusive o de hóspedes | `grep "as never\|as unknown as" apps/pms/src` → nada; o PUT de hóspede continua gravando (corpo capturado) |
+| 🟡-3 Trava "em uso" só no cliente, com `GET /rooms` inteiro | A edição de categoria não busca mais quartos. "Excluir" fica habilitado para o ADMIN, e o 409 de exclusão vira "Esta categoria ainda tem quartos. Mude a categoria desses quartos e tente excluir de novo." (antes caía na mensagem de nome duplicado). Sobra uma dica não bloqueante, lida do cache **sem** disparar busca | Edição aberta a frio: `GET /rooms` = 0 requisições; Excluir habilitado; 409 simulado por interceptação → mensagem acima. O 409 real chega com `fix/tenant-fk-validation` |
+| 🟢-1 5xx dizia "verifique a conexão"; diária sem teto; comentário falso | 5xx → "O sistema não conseguiu … Tente de novo; se continuar, avise o suporte." Falha de rede continua falando de conexão. A diária tem teto de R$ 999.999,99. O comentário "sem tarifa" foi removido | `100000000` → "Diária acima do limite (R$ 999.999,99). Confira os dígitos."; testes de mensagem |
+| 🟢-3 Motivo só em `title`; Cancelar como Button | Opção desabilitada aponta `aria-describedby` para o item da lista de motivos. "Cancelar" virou `Link` | `aria-describedby` → "Ocupado — Só o check-in ocupa o quarto."; Cancelar → `href="/quartos"` |
+| Suspeita: select com categoria excluída | O campo abre vazio, com o aviso "A categoria deste quarto foi excluída. Escolha outra para salvar.", em vez de gravar a primeira opção sem o admin ver | Por código. Reproduzir exigiria um quarto com categoria soft-deleted |
+| 🟢-2 `tone`+`label` sem consumidor | Sem mudança | Validar com a T-05.2, o primeiro consumidor |
+| 🟢-4 `TOUCH` local em vez de no `Input` do `@hotel/ui` | Sem mudança | Levar à faxina semanal: `min-h-touch md:min-h-0` no `Input` compartilhado também conserta hóspedes |
+
+**Saídas reais (24/10, `--force`, sem cache):**
+
+```
+typecheck exit=0   Tasks: 4 successful, 4 total   Cached: 0 cached, 4 total
+build     exit=0   app-pms: dist/assets/index-BphNs2gd.js 401.16 kB │ gzip: 121.87 kB  ✓ built in 4.46s
+test      exit=0   @hotel/domain 37/37 · app-pms 31/31 (roomRules 17, errorMessages 9, guestFilter 5)
+qa_checks exit=0   ⚠ 3 aviso(s). Nenhum erro bloqueante. — idêntico a develop c6742b2
+```
+
+No console do roteiro só aparece o 409 que eu mesmo provoquei, mais o 404 do favicon na carga inicial, que já existia antes.
+
 ## Lições
 
 - O processo iniciado por `wsl bash` morre quando o comando volta. Backend e Vite só ficaram de pé num script em background com `wait`.
@@ -136,9 +162,11 @@ O Impeccable está no marketplace, mas **não está instalado** nesta sessão, e
 
 ## Pendências (com contexto para o próximo)
 
-1. **Swagger (backend, fora do escopo):** `PUT /rooms/{id}` e `PUT /room-categories/{id}` não declaram `requestBody`, então o cliente tipa o corpo como `never`, e `roomsApi.ts` usa `body: input as never`, o mesmo caso do `PUT /guests/{id}`. Conserto em `services/core-service/config/swagger.js`.
+1. ~~**Swagger:** PUT sem `requestBody`.~~ **Resolvido em 24/10** (`75395a0`).
 2. **Backend, `CreateRoomController`:** `floor: floor || null` transforma o andar **0 (térreo) em null** no cadastro. A edição preserva o 0. A tela mostra "Térreo" quando o valor é 0.
-3. **Backend, `DeleteRoomCategoryController`:** aceita excluir categoria em uso, e os quartos ficam sem categoria. O ideal é um 409. Hoje só a tela impede.
+3. **Backend, `DeleteRoomCategoryController`:** aceita excluir categoria em uso (204). O 409 está sendo feito em `fix/tenant-fk-validation`, e a tela já trata. **Até esse merge, nada impede a exclusão**: a trava do cliente saiu de propósito (🟡-3).
+9. **Coluna "Quartos" na lista de categorias** conta sobre `GET /rooms` inteiro. Com a paginação da T-06.10 ela fica incompleta e precisa de contagem no backend.
+10. **Teste de componente** para `RoomForm`/`CategoryForm`: o CI não roda nada do frontend (achado do redteam). O 🟡-1 passou por falta disso. Hoje a regra está coberta em `changedRoomFields`.
 4. **Backend, `CreateRoomController`:** `status` sem allowlist no cadastro (o `Update` tem). A tela só envia Livre ou Manutenção.
 5. **Barra inferior do celular com 6 itens para o ADMIN** (agora inclui Quartos): cabe a 375 px, mas sem folga. A forma do AppShell é do Gabriel.
 6. **Hóspedes adotar `Table`/`ErrorState`** desta feature: elimina a string de cabeçalho repetida 3x e o `<button>` cru do `qa_checks`. Pela regra de promoção, esse movimento sobe os dois para `@hotel/ui`.
