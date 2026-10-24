@@ -38,6 +38,7 @@ async function esperar(condicao, { timeoutMs = 10000, intervaloMs = 100 } = {}) 
 describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', () => {
     const tenantId = randomUUID();
     const falhasTransitorias = new Map();   // aggregate_id → nº de chamadas que falharam
+    const bancoForaPara = new Map();        // aggregate_id → quantas entregas ainda acham o banco fora
     let conexaoCore;
     let canalCore;
     let conexaoLeitura;
@@ -67,9 +68,13 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
 
         // O apply real, com falha transitória simulada para os agregados marcados no teste.
         const apply = async (evento) => {
+            if ((bancoForaPara.get(evento.aggregateId) ?? 0) > 0) {
+                bancoForaPara.set(evento.aggregateId, bancoForaPara.get(evento.aggregateId) - 1);
+                throw Object.assign(new Error('connect ECONNREFUSED (simulado)'), { name: 'SequelizeConnectionRefusedError' });
+            }
             if (falhasTransitorias.has(evento.aggregateId)) {
                 falhasTransitorias.set(evento.aggregateId, falhasTransitorias.get(evento.aggregateId) + 1);
-                throw Object.assign(new Error('banco do analytics fora do ar (simulado)'), { original: { code: '08006' } });
+                throw Object.assign(new Error('deadlock detectado (simulado)'), { original: { code: '40P01' } });   // transitório da mensagem
             }
             return applyEvent(evento);
         };
@@ -157,6 +162,17 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
         expect(Date.now() - inicio).toBeGreaterThanOrEqual(4 * 10000 - 1000);   // 4 esperas de 10 s
         expect(await GuestProjection.count({ where: { id: env.aggregate_id } })).toBe(0);
     }, 120000);
+
+    it('🟡-3: banco do analytics fora do ar pausa o consumo sem gastar tentativa — a mensagem volta e é aplicada, sem DLQ', async () => {
+        const env = envelope('guest.created', { tenantId, payload: { full_name: 'Banco voltou' } });
+        bancoForaPara.set(env.aggregate_id, 2);   // as 2 primeiras entregas encontram o banco fora
+        await publicar(env, { type: env.type });
+
+        const g = await esperar(() => GuestProjection.findOne({ where: { id: env.aggregate_id, tenant_id: tenantId } }), { timeoutMs: 30000 });
+        expect(g.full_name).toBe('Banco voltou');
+        expect(bancoForaPara.get(env.aggregate_id)).toBe(0);
+        expect(await canalLeitura.get(DLQ, { noAck: true })).toBe(false);   // nada foi para a DLQ
+    }, 60000);
 
     it('§8: a credencial do analytics NÃO publica na exchange do core (não fabrica evento)', async () => {
         const conexao = await conectar(process.env.RABBITMQ_ANALYTICS_USER, process.env.RABBITMQ_ANALYTICS_PASSWORD);

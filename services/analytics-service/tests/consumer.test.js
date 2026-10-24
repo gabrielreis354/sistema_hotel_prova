@@ -36,7 +36,8 @@ const mensagem = (falhasAnteriores = 0, conteudo = toBuffer(envelope('tenant.cre
             : {}
     }
 });
-const erroTransitorio = () => Object.assign(new Error('conexão recusada'), { original: { code: '08006' } });
+// Transitório DA MENSAGEM (deadlock). Erro de conexão com o banco é infraestrutura e tem outro caminho (🟡-3).
+const erroTransitorio = () => Object.assign(new Error('deadlock detectado'), { original: { code: '40P01' } });
 
 describe('Recebimento (§5.1)', () => {
     it('ack só DEPOIS que a transação da projeção confirma', async () => {
@@ -73,8 +74,9 @@ describe('Recebimento (§5.1)', () => {
         expect(canal.consume.mock.calls[0][2]).toEqual({ noAck: false });
         expect(canal.assertQueue).toBeUndefined();
 
-        await consumidor.stop();
+        const parando = consumidor.stop();   // stop() espera o laço, que sai quando a conexão fecha
         derrubar();
+        await parando;
         await laco;
     });
 
@@ -126,7 +128,7 @@ describe('Falhas (§5.3, CA-01.4.i)', () => {
         await createMessageHandler({ channel: canal, apply: async () => { throw erroTransitorio(); }, logger: silencioso })(msg);
         expect(canal.publish.mock.calls[0][0]).toBe(DEAD_LETTER_EXCHANGE);
         const headers = canal.publish.mock.calls[0][3].headers;
-        expect(headers).toMatchObject({ 'x-error-kind': 'transient', 'x-attempts': 5, 'x-error': 'conexão recusada' });
+        expect(headers).toMatchObject({ 'x-error-kind': 'transient', 'x-attempts': 5, 'x-error': 'deadlock detectado' });
         expect(headers).not.toHaveProperty('x-death');   // cabeçalho do broker não é republicado
         expect(canal.ack).toHaveBeenCalledWith(msg);
         expect(canal.nack).not.toHaveBeenCalled();

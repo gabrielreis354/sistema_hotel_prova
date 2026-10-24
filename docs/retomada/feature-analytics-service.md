@@ -20,8 +20,8 @@ eventos v1.0. Agora: corrigir as ressalvas do qa-redteam
 - [x] 🟡-2 carga inicial com `lock_timeout` e novas tentativas (teste com transação longa; sem o LOCK o teste de ordem continua falhando)
 
 ## Falta
-- [ ] 🟡-1 ack/nack com canal fechado não pode rejeitar; laço de reconexão roda (teste com canal caindo no meio)
-- [ ] 🟡-3 erro de conexão com o banco do analytics não conta tentativa (fecha o canal sem nack, volta ao `ready()`)
+- [x] 🟡-1 ack/nack com canal fechado não pode rejeitar; laço de reconexão roda (teste com canal caindo no meio)
+- [x] 🟡-3 erro de conexão com o banco do analytics não conta tentativa (fecha o canal sem nack, volta ao `ready()`)
 - [ ] 🟡-5 catálogo: §6 (`*.deleted` na carga, por causa da D-2) e §4.6 (`reservation_id` nulo) + histórico
 - [ ] 🟢 `/health` reflete consumidor e banco (degradado → 503)
 - [ ] 🟢 SIGTERM: para de consumir, termina a mensagem em andamento, fecha conexões
