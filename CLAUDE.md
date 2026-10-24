@@ -60,10 +60,16 @@ disponível durante todo o tempo em que duas falhas de segurança ficaram aberta
 
 ```
 PENDING → CONFIRMED → CHECKED_IN → CHECKED_OUT
-           ↓                ↗ (não permitido)
-        CANCELLED ←────────
-        (apenas PENDING e CONFIRMED podem cancelar)
+   │                      ↑
+   └──── walk-in ─────────┘   (check-in direto de PENDING — decisão de 24/10/2026)
+
+PENDING / CONFIRMED → CANCELLED   (apenas esses dois podem cancelar)
+CHECKED_IN → CANCELLED            (não permitido)
 ```
+
+> **Walk-in:** a reserva criada no balcão nasce `PENDING` e pode ir direto a `CHECKED_IN`.
+> `CONFIRMED` nasce do sinal PIX pago (webhook) ou da assinatura de contrato B2B. Backend
+> (`CheckInController`) e `@hotel/domain` (`state-machines.ts`) seguem a mesma regra.
 
 ### Máquina de estados — Quartos
 
