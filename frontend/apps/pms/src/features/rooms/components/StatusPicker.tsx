@@ -36,6 +36,7 @@ export function StatusPicker({
               variant="secondary"
               disabled={!o.enabled}
               title={o.reason}
+              aria-describedby={o.enabled ? undefined : `${labelId}-${o.status}`}
               onClick={() => onChange(o.status)}
               className={cn(
                 'justify-start border bg-white',
@@ -50,7 +51,7 @@ export function StatusPicker({
       {blocked.length > 0 && (
         <ul className="space-y-0.5 text-xs text-gray-500">
           {blocked.map((o) => (
-            <li key={o.status}>
+            <li key={o.status} id={`${labelId}-${o.status}`}>
               <StatusBadge status={o.status} className="bg-transparent px-0 text-xs text-gray-500" /> — {o.reason}
             </li>
           ))}
