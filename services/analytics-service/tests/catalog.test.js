@@ -81,7 +81,16 @@ describe('Erro permanente (§5.3) — direto para a DLQ', () => {
         permanente(envelope('tenant.updated', { tenantId, aggregateId: randomUUID(), payload: { status: 'ACTIVE' } }), 'difere de tenant_id');
     });
     it('a mensagem de erro cita o campo, nunca o valor (LGPD — vai para log e cabeçalho da DLQ)', () => {
-        const e = envelope('guest.created', { tenantId, payload: { full_name: '   ' } });
-        try { parseEvent(toBuffer(e)); } catch (erro) { expect(erro.message).toBe('campo payload.full_name: esperado texto não vazio'); }
+        const e = envelope('guest.created', { tenantId, payload: { full_name: 98765 } });
+        expect(() => parseEvent(toBuffer(e))).toThrow('campo payload.full_name: esperado texto');
+        expect(() => parseEvent(toBuffer(e))).not.toThrow(/98765/);
+    });
+
+    it('🟡-4: texto em branco que o core gravou é ACEITO (o catálogo tipa como string) — não vai para a DLQ', () => {
+        for (const nome of ['', '   ']) {
+            const evento = parseEvent(toBuffer(envelope('guest.updated', { tenantId, payload: { full_name: nome } })));
+            expect(evento.data.full_name).toBe(nome);
+        }
+        expect(() => parseEvent(toBuffer(envelope('guest.updated', { tenantId, payload: { full_name: null } })))).toThrow(PermanentEventError);
     });
 });

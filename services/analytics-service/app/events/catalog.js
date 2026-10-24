@@ -28,7 +28,10 @@ const erro = (campo, esperado) => new PermanentEventError(`campo ${campo}: esper
 // nunca o valor — o valor pode ser o nome do hóspede, e a mensagem vai para log e cabeçalho da DLQ.
 const uuid = (campo, v) => { if (typeof v !== 'string' || !UUID.test(v)) throw erro(campo, 'UUID'); return v.toLowerCase(); };
 const uuidOuNulo = (campo, v) => (v === null ? null : uuid(campo, v));
-const texto = (campo, v) => { if (typeof v !== 'string' || v.trim() === '') throw erro(campo, 'texto não vazio'); return v; };
+// Texto: qualquer string, inclusive em branco — o catálogo tipa como `string` e o consumidor não pode ser
+// mais estrito que o contrato que o produtor cumpre (qa-redteam H.2, 🟡-4). Se o core gravou um nome em
+// branco (ex.: para anonimizar), a projeção segue o core; mandar à DLQ deixaria o nome antigo aqui.
+const texto = (campo, v) => { if (typeof v !== 'string') throw erro(campo, 'texto'); return v; };
 const dinheiro = (campo, v) => { if (typeof v !== 'string' || !MONEY.test(v)) throw erro(campo, 'decimal em string com duas casas'); return v; };
 const data = (campo, v) => {
     if (typeof v !== 'string' || !DATE.test(v) || Number.isNaN(Date.parse(`${v}T00:00:00Z`))) throw erro(campo, 'data YYYY-MM-DD');
