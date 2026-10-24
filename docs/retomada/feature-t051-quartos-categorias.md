@@ -1,6 +1,6 @@
 # Retomada — T-05.1 quartos e categorias (feature/t051-quartos-categorias)
 
-**Atualizado:** 24/10/2026 · **Por:** agente executor (trilha do Gabriel)
+**Atualizado:** 24/10/2026 (reauditoria delta) · **Por:** agente executor (trilha do Gabriel)
 **Worktree:** /home/gabri/wt-t051 · **Portas:** PG 5444 · backend 3051 · Vite 5181 (todas desligadas agora)
 **Containers:** nenhum ativo. Para subir de novo, ver "Comandos úteis".
 
@@ -9,8 +9,8 @@ Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `
 
 ## Onde estou
 - Último commit de código: `32bfb4f fix(rooms): motivo do status indisponivel ligado ao botao` (com push). Este arquivo, a SPEC e o relatório entram no commit `docs(t051)` que vem logo depois.
-- Passo atual: correções do qa-redteam (3 🟡 e os 🟢 baratos) **concluídas e verificadas no navegador**.
-- Próximo passo: **nenhum de código.** Esperar o Gabriel. Ele pode reauditar e abrir o PR `develop`. Se pedir mais ajuste, ler `docs/qa/redteam_t051-quartos-categorias_21out2026.md` e o relatório da sessão.
+- Passo atual: correções da **reauditoria delta** (`docs/qa/redteam_t051-quartos-categorias_delta_24out2026.md`). 🟡-1 (snapshot congelado) feito.
+- Próximo passo: 🟡-2/🟢-1 — mensagens por `code` do corpo de erro (contrato com `fix/tenant-fk-validation`: CATEGORY_NOT_FOUND, ROOM_NUMBER_TAKEN, ROOM_STATUS_TRANSITION_NOT_ALLOWED, ROOM_IN_USE, CATEGORY_IN_USE, CATEGORY_NAME_TAKEN, INVALID_INPUT+field); sem code conhecido → genérica honesta, sem adivinhar pelo status. Depois: verificação completa, relatório, retomada. **Sem PR** — a T-05.1 só entra depois da fk.
 
 ## Feito
 - [x] api-client regenerado (40 → 46 paths) — `0a0b9b4`
@@ -26,9 +26,12 @@ Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `
 - [x] 🟡-2: `requestBody` dos três PUTs no Swagger e `as never` removidos — `75395a0`
 - [x] 🟡-1 (PUT só com o que mudou), 🟡-3 (exclusão confia no 409), 🟢-1, parte do 🟢-3 — `22f47b2`
 - [x] 🟢-3: motivo do status ligado por `aria-describedby` — `32bfb4f`
+- [x] Reauditoria delta recebida — `74458e2`
+- [x] Delta 🟡-1: base do diff congelada na 1ª carga (`keepFirstSnapshot`, teste do refetch) — ver git log
 - [x] Verificação: typecheck, build, testes (37 + 31), qa_checks idêntico a develop, navegador (corpos de PUT capturados)
 
 ## Falta
+- [ ] Delta 🟡-2/🟢-1: mensagens por `code`
 - [ ] (Gabriel) reauditar e abrir o PR
 - [ ] (outra frente) 409 de categoria em uso no backend — `fix/tenant-fk-validation`
 

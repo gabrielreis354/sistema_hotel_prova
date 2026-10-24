@@ -62,6 +62,29 @@ export function changedRoomFields(original: RoomInput, edited: RoomInput): Parti
   return changes;
 }
 
+/** O quarto gravado no formato do formulário. */
+export function toRoomInput(room: Room): RoomInput {
+  return {
+    number: room.number ?? '',
+    floor: room.floor ?? null,
+    category_id: room.category_id ?? '',
+    status: room.status ?? 'AVAILABLE',
+  };
+}
+
+/**
+ * Base do diff da edição: o quarto como estava quando o formulário ABRIU, congelado.
+ *
+ * O formulário (react-hook-form) não reaplica valores depois de montado; se a base do diff
+ * acompanhasse a query viva, um refetch (reconexão, foco) trazendo o quarto já OCCUPIED
+ * faria o diff ver "status mudou de OCCUPIED para AVAILABLE" e reenviar o status velho —
+ * desfazendo o check-in (🟡-1 da reauditoria). A primeira foto vence; as seguintes são
+ * ignoradas.
+ */
+export function keepFirstSnapshot(frozen: RoomInput | null, latest: RoomInput | null): RoomInput | null {
+  return frozen ?? latest;
+}
+
 /** Motivo para não excluir o quarto, ou null se pode. */
 export function roomDeleteBlockReason(status: RoomStatus | undefined): string | null {
   return status === 'OCCUPIED' ? 'Quarto ocupado não pode ser excluído. Faça o check-out antes.' : null;

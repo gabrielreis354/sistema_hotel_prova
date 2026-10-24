@@ -5,6 +5,8 @@ import {
   roomDeleteBlockReason,
   countRoomsByCategory,
   changedRoomFields,
+  keepFirstSnapshot,
+  toRoomInput,
   sortRooms,
   formatFloor,
 } from './roomRules.js';
@@ -92,6 +94,31 @@ describe('changedRoomFields', () => {
       number: '102',
       category_id: 'b',
     });
+  });
+});
+
+describe('keepFirstSnapshot + changedRoomFields: refetch com o formulario aberto', () => {
+  it('check-in no meio da edicao nao volta o status: so o andar vai no PUT', () => {
+    // 14h00: formulario abre com o quarto Livre.
+    const aberto = toRoomInput({ id: 'r', number: '101', floor: 1, category_id: 'a', status: 'AVAILABLE' });
+    let base = keepFirstSnapshot(null, aberto);
+    // 14h01: reconexao rebusca o quarto, que a recepcao ja ocupou.
+    const rebuscado = toRoomInput({ id: 'r', number: '101', floor: 1, category_id: 'a', status: 'OCCUPIED' });
+    base = keepFirstSnapshot(base, rebuscado);
+    expect(base?.status).toBe('AVAILABLE');
+    // 14h02: o admin salva so com o andar mudado; o formulario ainda mostra "Livre".
+    const editado = { ...aberto, floor: 2 };
+    expect(changedRoomFields(base!, editado)).toEqual({ floor: 2 });
+  });
+
+  it('sem foto ainda, usa a primeira que chegar', () => {
+    const r = toRoomInput({ id: 'r', number: '7', floor: null, category_id: 'c', status: 'CLEANING' });
+    expect(keepFirstSnapshot(null, r)).toBe(r);
+    expect(keepFirstSnapshot(null, null)).toBeNull();
+  });
+
+  it('toRoomInput preenche ausentes como o formulario espera', () => {
+    expect(toRoomInput({ id: 'r' })).toEqual({ number: '', floor: null, category_id: '', status: 'AVAILABLE' });
   });
 });
 

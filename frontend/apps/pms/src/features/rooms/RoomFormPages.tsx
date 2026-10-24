@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, EmptyState, Spinner } from '@hotel/ui';
 import { RoomForm } from './RoomForm.js';
@@ -11,7 +11,7 @@ import {
   useUpdateRoom,
 } from './queries.js';
 import { isNotFound, messageOf } from './errorMessages.js';
-import { changedRoomFields, roomDeleteBlockReason } from './roomRules.js';
+import { changedRoomFields, keepFirstSnapshot, roomDeleteBlockReason, toRoomInput } from './roomRules.js';
 import type { RoomInput } from './roomsApi.js';
 import { ErrorState } from './components/ErrorState.js';
 import { DeleteControl } from './components/DeleteControl.js';
@@ -84,15 +84,14 @@ export function RoomEditPage() {
   const gone = room.isError && isNotFound(room.error);
   const failed = !gone && (room.isError || categories.isError);
 
-  // O quarto como está gravado: base para mandar no PUT só o que o admin mudou.
-  const original: RoomInput | null = room.data
-    ? {
-        number: room.data.number ?? '',
-        floor: room.data.floor ?? null,
-        category_id: room.data.category_id ?? '',
-        status: room.data.status ?? 'AVAILABLE',
-      }
-    : null;
+  // Base do diff congelada na primeira carga (keepFirstSnapshot): um refetch com o
+  // formulário aberto não pode mudar o "original", senão o diff reenviaria o status velho.
+  const [frozen, setFrozen] = useState<RoomInput | null>(null);
+  const latest = room.data ? toRoomInput(room.data) : null;
+  const original = keepFirstSnapshot(frozen, latest);
+  useEffect(() => {
+    if (!frozen && latest) setFrozen(latest);
+  }, [frozen, latest]);
   const categoryAlive = !!original && !!categories.data?.some((c) => c.id === original.category_id);
 
   return (
@@ -145,7 +144,8 @@ export function RoomEditPage() {
           />
           <DeleteControl
             canWrite={canWrite}
-            blockedReason={roomDeleteBlockReason(original.status)}
+            // Exclusão olha o status VIVO (não a foto do formulário): ocupado agora, bloqueia agora.
+            blockedReason={roomDeleteBlockReason(latest?.status ?? original.status)}
             what={`o quarto ${original.number}`}
             pending={del.isPending}
             error={deleteError}
