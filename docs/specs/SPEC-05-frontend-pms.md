@@ -93,13 +93,13 @@ Endpoints já existem: `/rooms`, `/room-categories`.
 ### T-05.2 — Reservas e check-in/out 🟡 *(~4 dias)* — entregue em `feature/t052-reservas`, aguardando qa-redteam
 
 Endpoints já existem, incluindo `?from=&to=` e paginação (Fatia 0).
-Relatório: `docs/historico_sessao/gabriel/t052_reservas_21102026.md`. Evidência E2E: Playwright em 1366×900 e 375×812, 29 PASS / 0 FAIL.
+Relatório: `docs/historico_sessao/gabriel/t052_reservas_21102026.md`. qa-redteam: APROVADO COM RESSALVAS (`docs/qa/redteam_t052-reservas_21out2026.md`), ressalvas tratadas em 24/10. Evidência E2E: Playwright em 1366×900 e 375×812, fluxo do balcão criar → check-in direto → conta → check-out, 41 PASS / 0 FAIL.
 
 **Critérios de aceitação**
 - [x] **CA-05.2.a** — Lista de reservas com filtro por período e paginação — `ReservationsListPage`: `?from=&to=&page=&limit=20` no servidor, período e página na URL; E2E "Página 1 de 2 · 31 reservas" e avanço para a página 2
 - [x] **CA-05.2.b** — Detalhe da reserva com hóspede, quarto, período e valores — `ReservationDetailPage`, aba Resumo (hóspede, quartos principal e extras, período, diárias, total, criada por)
 - [x] **CA-05.2.c** — Criação de reserva usando `GET /rooms/available` — `NewReservationPage` + `RoomPicker`; E2E cria reserva e cai no detalhe
-- [x] **CA-05.2.d** — Ações de check-in, check-out e cancelar, respeitando a máquina de estados — endpoints dedicados, allowlist de `@hotel/domain`; E2E check-in → Hospedado → check-out → Finalizada; 422 tratado. ⚠️ ver ressalva da T-05.2 em §5 (check-in de `PENDING`)
+- [x] **CA-05.2.d** — Ações de check-in, check-out e cancelar, respeitando a máquina de estados — endpoints dedicados, allowlist de `@hotel/domain`; reserva criada no balcão (`PENDING`) faz check-in direto — **decisão do Gabriel de 24/10/2026** (`PENDING → CHECKED_IN` no `/domain`, alinhado ao `CheckInController`); E2E criar → check-in → Hospedado → check-out → Finalizada; 422 tratado
 - [x] **CA-05.2.e** — Ação indisponível fica **desabilitada com motivo**, não some — `reservationActions()` (testado) + `ActionSlot`; motivo visível e ligado por `aria-describedby`
 - [x] **CA-05.2.f** — Conta da reserva (`/bill`) exibida no check-out — "Fazer check-out" abre a aba Conta com a linha do tempo, o saldo em aberto e a confirmação
 - [x] **CA-05.2.g** — Valores formatados via `@hotel/domain`, sem `Number()` direto — `decimalToCents`/`formatBRL`/`multiplyCents`; grep sem `Number(`, `parseFloat` nem `as unknown as` no módulo
@@ -107,7 +107,7 @@ Relatório: `docs/historico_sessao/gabriel/t052_reservas_21102026.md`. Evidênci
 - [x] **CA-05.2.i** — Saldo da estadia visível no cabeçalho, em qualquer aba da reserva (RT-14) — cabeçalho acima das abas, `balance_due` do servidor
 - [ ] **CA-05.2.j** — Estorno de consumo exibindo quem autorizou, a partir de `deleted_by` (RT-18) — ⛔ **bloqueado no backend**: nenhum endpoint devolve item excluído (`AccountItem` é *paranoid*; `/bill` e `/consumptions` só trazem os vivos)
 - [x] **CA-05.2.k** — Comprovante da conta imprimível ou em PDF, para entregar no check-out (RT-20) — `/reservas/:id/comprovante`, fora do AppShell, barra de ações `print:hidden`; PDF pelo "Salvar como PDF" do navegador
-- [x] **CA-05.2.l** — No fluxo de nova reserva, hóspede reaproveitado da base por CPF, e-mail ou telefone, e cadastrável sem perder o que já foi preenchido (RT-23, RT-24) — `GuestPicker`; cadastro inline pré-preenchido com o termo buscado. ⚠️ busca em memória sobre `GET /guests` (ver §5)
+- [x] **CA-05.2.l** — No fluxo de nova reserva, hóspede reaproveitado da base por CPF, e-mail ou telefone, e cadastrável sem perder o que já foi preenchido (RT-23, RT-24) — `GuestPicker`; cadastro inline pré-preenchido com o termo buscado; a consulta só parte com 3+ caracteres digitados. ⚠️ paliativo: depois de digitar, ainda é `GET /guests` inteiro (ver §5, T-05.12)
 - [x] **CA-05.2.m** — Valor da estadia e número de diárias exibidos **antes** de confirmar (RT-22) — resumo lateral com tarifa × noites por quarto; E2E confere que o total gravado pelo servidor é igual à prévia
 
 ---
@@ -277,8 +277,8 @@ Do `qa-redteam` nas Fases 0 e 1:
 | Ficha do hóspede baixa **todas** as reservas do tenant e filtra no cliente | 🔲 Ver **T-05.12** — é o mesmo defeito da lista de hóspedes |
 | `openapi.json` do `api-client` está defasado: 37 paths, sem `/products` | 🔲 Regenerar ao executar a T-06.2; cliente tipado hoje sai de spec antiga |
 | `StatusBadge` só cobre status de quarto; reserva ficará sem | 🟡 T-05.2 criou `ReservationStatusBadge` **local** em `features/reservations/components/` (o de quarto está sendo estendido na T-05.1). Promover para `packages/ui` quando o segundo módulo (T-05.3/T-05.4) precisar |
-| **T-05.2** — `@hotel/domain` proíbe `PENDING → CHECKED_IN`, mas o backend e o Swagger aceitam (`CheckInController`), e a recepção não tem endpoint de confirmar reserva. Reserva criada no balcão nasce `PENDING` e fica com check-in desabilitado na tela | 🔴 **Decisão do Gabriel.** A tela já obedece a allowlist do domínio; liberar a transição em `state-machines.ts` (com teste) habilita o check-in sem mudar o módulo. Alternativa: endpoint de confirmação no backend |
-| **T-05.2** — Nova reserva busca hóspede sobre `GET /guests` inteiro (não há busca no backend) | 🔲 Ver **T-05.12** — trocar por `?q=` quando existir |
+| **T-05.2** — `@hotel/domain` proibia `PENDING → CHECKED_IN`, mas o backend e o Swagger aceitam (`CheckInController`), e a recepção não tem endpoint de confirmar reserva | ✅ **Decisão do Gabriel em 24/10/2026: walk-in — `PENDING → CHECKED_IN` liberado** em `packages/domain/src/state-machines.ts`, com teste (commit `58e37b5`); a tela habilitou o check-in de reserva `PENDING` (`4755177`). Cancelamento continua só de `PENDING`/`CONFIRMED`. Pendente: atualizar o diagrama do CLAUDE.md §3 |
+| **T-05.2** — Nova reserva busca hóspede sobre `GET /guests` inteiro (não há busca no backend) | 🟡 Paliativo em 24/10: a consulta só parte depois de 3+ caracteres (não baixa a base ao abrir a tela). Definitivo: `GET /guests?q=&limit=` na **T-05.12** |
 | **T-05.2** — CA-05.2.j: nenhum endpoint devolve consumo estornado com `deleted_by` | 🔲 Backend: expor itens excluídos (ADMIN/RECEPTIONIST) no bill da conta ou da reserva |
 
 ---
