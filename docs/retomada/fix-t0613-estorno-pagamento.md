@@ -1,6 +1,6 @@
 # Retomada — T-06.13 estorno de pagamento (fix/t0613-estorno-pagamento)
 
-**Atualizado:** 24/10/2026 · **Por:** agente executor (Claude Code, orquestrado pelo Gabriel)
+**Atualizado:** 24/10/2026 (fim da rodada) · **Por:** agente executor (Claude Code, orquestrado pelo Gabriel)
 **Worktree:** /home/gabri/wt-t0613 · **Portas:** PG 5442
 **Containers:** pg-t0613 (subir de novo com: `docker run --rm -d --name pg-t0613 -e POSTGRES_USER=hotel_user -e POSTGRES_PASSWORD=hotel_password -p 5442:5432 postgres:17`)
 
@@ -10,10 +10,9 @@ do qa-redteam (`docs/qa/redteam_t0613-estorno-pagamento_21out2026.md`) e da reau
 (`docs/qa/redteam_t0613-estorno-pagamento_delta_21out2026.md`). Sem PR nem merge: o Gabriel abre.
 
 ## Onde estou
-- Último commit: ver `git log -1` (RED 63ab261 e GREEN da reauditoria delta, com push)
-- Passo atual: fechar os 3 🟢 da reauditoria delta (data inexistente/ano < 1 → 400; PUT em PAID legado
-  sem `paid_at` → 422; validação de model PAID exige `paid_at`)
-- Próximo passo: suíte completa + qa_checks, nova entrada no relatório, remover pg-t0613
+- Último commit: docs(historico) da reauditoria delta, depois de ad191fc (com push: sim)
+- Passo atual: nenhum — os 3 🟢 da reauditoria delta estão fechados; aguardando o PR (Gabriel)
+- Próximo passo: PR (não abrir sem ordem); no merge, remover este arquivo ou marcar ENCERRADA
 
 ## Feito
 - [x] RED da T-06.13 — 07277f4
@@ -23,10 +22,10 @@ do qa-redteam (`docs/qa/redteam_t0613-estorno-pagamento_21out2026.md`) e da reau
 - [x] RED/GREEN das ressalvas (🟡-1 paid_at, 🟢-1 method/paid_at, 🟢-2 testes, 🟢-4 comentário) — 71a108e, 71c829d, 0b6117e
 - [x] reauditoria delta: aprovada com 3 🟢 — 93b1b36
 
-## Falta
-- [x] RED dos 3 🟢 do delta — (ver git log: test(payments): RED da reauditoria delta)
-- [x] GREEN dos 3 🟢 do delta — (ver git log: fix(payments): reauditoria delta)
-- [ ] suíte completa + qa_checks; relatório (nova entrada); remover pg-t0613
+## Falta (nada desta rodada)
+- [x] RED dos 3 🟢 do delta — 63ab261
+- [x] GREEN dos 3 🟢 do delta — ad191fc
+- [x] suíte completa (888 passed, 1 skipped; statements 83,83%) + qa_checks idêntico ao da develop; relatório (3ª entrada); pg-t0613 removido
 
 ## Decisões tomadas nesta frente
 - 21/10 — DELETE atrás do ADMIN (RECEPTIONIST 403, ADMIN 405), conforme a delegação

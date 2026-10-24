@@ -176,3 +176,57 @@ como texto de apoio. Revisar junto com o fechamento de caixa (RF-056), que vai e
 | 2 | Regerar o cliente tipado do frontend (🟢-3) | 🟡 Média | Depois do merge, junto com as outras frentes |
 | 3 | O seed (`seed/seed_hotels.sql`) grava `method = 'CARTAO'`, fora da allowlist nova | 🟢 Baixa | A API não aceita mais esse valor, mas a linha antiga continua legível e entra no `payment-mix` como `CARTAO`. Decidir com o dono do seed se vira `CARTAO_CREDITO`; sem CHECK de método no banco por isso |
 | 4 | `REFUNDED`, `unpaid` como "saldo > 0" e RF-056 | 🟢 Baixa | As mesmas da 1ª entrada |
+
+---
+
+### 2026-10-24 (3ª entrada) — Gabriel (orquestrando Claude Code): reauditoria delta
+
+- **Branch:** `fix/t0613-estorno-pagamento` (mesma)
+- **Origem:** `docs/qa/redteam_t0613-estorno-pagamento_delta_21out2026.md` (commit `93b1b36`), aprovada com 3 🟢
+- **Banco de teste:** `pg-t0613`, porta 5442, recriado e removido no fim
+- **Retomada:** `docs/retomada/fix-t0613-estorno-pagamento.md`, criado nesta rodada e atualizado a cada checkpoint
+
+#### O que foi feito
+
+| Achado | Correção |
+|---|---|
+| 🟢-1 dia inexistente aceito (31/04 virava 01/05) e ano 0000 → 500 | `isValidPaidAt` (`app/utils/paymentInput.js`) confere que ano, mês e dia **do texto** existem no calendário (inclui 29/02 só em ano bissexto) e recusa ano < 1 → 400 no POST e no PUT. A conferência é sobre o texto, não sobre a data interpretada, então o fuso não interfere. O caso de teste antigo `'2026-02-30T99:00'` só testava a hora e virou `'2026-03-10T99:00'`; o dia inexistente tem casos próprios, com hora válida |
+| 🟢-2 PAID legado sem `paid_at` + PUT só de método → 500 | `UpdatePaymentController` responde 422 "informe paid_at" quando a linha não tem data e o corpo não a traz; com `paid_at`, corrige. O PUT passou a atualizar pela instância, só com os campos enviados |
+| 🟢-3 model contradizia o CHECK | `PaymentModel` ganhou a validação `paidHasPaidAt` (a regra do `payments_paid_has_paid_at`): `create`/`save` de PAID sem data falha antes do INSERT com `SequelizeValidationError`. O UPDATE estático por `where` (o do estorno, que grava VOIDED) não carrega a linha inteira; ali quem garante é o banco |
+| Swagger | 422 do PUT e a regra do dia de calendário nos 400 |
+
+**RED:** 4 falhas reais (POST e PUT com dia inexistente, PUT legado → 422, model sem validação). O teste
+"PENDING sem paid_at e PAID com paid_at passam" já passava (protege o caminho válido).
+
+#### Verificação real
+
+`npx vitest run --coverage`, suíte completa:
+```
+ Test Files  40 passed (40)
+      Tests  888 passed | 1 skipped (889)
+   Duration  84.83s
+Statements   : 83.83% ( 2790/3328 )
+Branches     : 79.92% ( 1461/1828 )
+Functions    : 88.82% ( 326/367 )
+Lines        : 86.22% ( 2522/2925 )
+```
+
+`bash scripts/qa_checks.sh`: saída idêntica à de `origin/develop` (`diff` vazio) —
+`⚠ 3 aviso(s). Nenhum erro bloqueante.`, exit 0.
+
+#### Commits gerados (3ª entrada)
+
+| Hash | Mensagem |
+|------|----------|
+| `63ab261` | `test(payments): RED da reauditoria delta da T-06.13` |
+| `ad191fc` | `fix(payments): reauditoria delta da T-06.13` |
+| (este) | `docs(historico): reauditoria delta da T-06.13 (gabriel)` |
+
+#### Pendências
+
+| # | Pendência | Prioridade | Observação |
+|---|-----------|-----------|------------|
+| 1 | Abrir o PR da branch | 🟡 Média | Não aberto, por instrução |
+| 2 | Regerar o cliente tipado do frontend (🟢-3 da 1ª auditoria) | 🟡 Média | Depois do merge |
+| 3 | Seed com `method = 'CARTAO'` | 🟢 Baixa | Igual à 2ª entrada |
+| 4 | Remover ou marcar `ENCERRADA` o arquivo de retomada | 🟢 Baixa | No PR do merge, pela regra de `docs/retomada/README.md` |
