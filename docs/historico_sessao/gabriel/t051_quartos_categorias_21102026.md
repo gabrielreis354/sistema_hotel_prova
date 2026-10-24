@@ -154,6 +154,30 @@ qa_checks exit=0   ⚠ 3 aviso(s). Nenhum erro bloqueante. — idêntico a devel
 
 No console do roteiro só aparece o 409 que eu mesmo provoquei, mais o 404 do favicon na carga inicial, que já existia antes.
 
+## 24/10 — Correções da reauditoria delta (`docs/qa/redteam_t051-quartos-categorias_delta_24out2026.md`)
+
+O veredito foi aprovado com ressalvas: 0 🔴, 2 🟡 e 1 🟢. Os três estão corrigidos.
+
+| Achado | O que mudou | Evidência |
+|---|---|---|
+| 🟡-1 O "original" do diff seguia a query viva: com o formulário aberto, um refetch com o quarto já OCCUPIED reenviaria `status: "AVAILABLE"` | `toRoomInput` + `keepFirstSnapshot` (puros): a base do diff é congelada na primeira carga do formulário. O bloqueio de exclusão continua olhando o status **vivo** | Teste "check-in no meio da edição não volta o status: só o andar vai no PUT" (abre AVAILABLE → refetch OCCUPIED → salva só o andar → `{ floor: 2 }`) |
+| 🟡-2 Os 409 novos do backend caíam em "número duplicado"/"check-out" | `writeErrorMessage` escolhe o motivo pelo **`code`** do corpo de erro (contrato com `fix/tenant-fk-validation`): `ROOM_NUMBER_TAKEN`, `ROOM_STATUS_TRANSITION_NOT_ALLOWED`, `ROOM_IN_USE`, `CATEGORY_IN_USE`, `CATEGORY_NAME_TAKEN`, `CATEGORY_NOT_FOUND`, `INVALID_INPUT` (+`field` → nome do campo na tela). Sem `code` conhecido, a mensagem é genérica e honesta, com o texto do servidor, **sem adivinhar pelo status**; 403 e 5xx continuam pelo status porque não são ambíguos. O `code` é lido de `unknown` com `readErrorBody`, sem cast. O api-client tipa só `{ error? }` até ser regenerado depois do merge da fk | `errorMessages.test.ts`: 14 testes, um por `code`, mais "409 sem code não vira número duplicado", "404 sem code não afirma o que sumiu", código desconhecido, 403, 5xx e `readErrorBody` com lixo |
+| 🟢-1 404 no PUT de quarto por categoria excluída dizia "quarto excluído" | `CATEGORY_NOT_FOUND` no contexto de quarto → "A categoria escolhida não existe mais…" | Teste dedicado |
+
+**Consequência até o merge da fk:** o backend da `develop` ainda não manda `code`. Por exemplo, o número repetido aparece como "O sistema recusou salvar o quarto: Já existe um quarto com esse número.", que é honesto, mas não é a mensagem de balcão final. A T-05.1 só entra depois da `fix/tenant-fk-validation`, como combinado.
+
+**Saídas reais (`--force`):**
+
+```
+typecheck exit=0   Tasks: 4 successful, 4 total   Cached: 0 cached, 4 total
+build     exit=0   app-pms: dist/assets/index-CHBwCi0m.js 402.16 kB │ gzip: 122.29 kB  ✓ built in 3.49s
+test      exit=0   @hotel/domain 37/37 · app-pms 39/39 (roomRules 20, errorMessages 14, guestFilter 5)
+qa_checks exit=0   ⚠ 3 aviso(s). Nenhum erro bloqueante. — idêntico a develop c6742b2
+grep "as never|as unknown as|as any|@ts-ignore" apps/pms/src → nenhum
+```
+
+Nesta rodada não reabri o navegador: as mudanças são lógica pura e coberta por teste. A passagem do corpo de erro até a mensagem já tinha sido verificada no navegador na rodada anterior, com o 409 simulado. A conferência ponta a ponta com os `code` reais fica para depois do merge da fk.
+
 ## Lições
 
 - O processo iniciado por `wsl bash` morre quando o comando volta. Backend e Vite só ficaram de pé num script em background com `wait`.

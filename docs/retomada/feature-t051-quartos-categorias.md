@@ -9,8 +9,8 @@ Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `
 
 ## Onde estou
 - Último commit de código: `32bfb4f fix(rooms): motivo do status indisponivel ligado ao botao` (com push). Este arquivo, a SPEC e o relatório entram no commit `docs(t051)` que vem logo depois.
-- Passo atual: correções da **reauditoria delta** (`docs/qa/redteam_t051-quartos-categorias_delta_24out2026.md`). 🟡-1 (snapshot congelado) feito.
-- Próximo passo: 🟡-2/🟢-1 — mensagens por `code` do corpo de erro (contrato com `fix/tenant-fk-validation`: CATEGORY_NOT_FOUND, ROOM_NUMBER_TAKEN, ROOM_STATUS_TRANSITION_NOT_ALLOWED, ROOM_IN_USE, CATEGORY_IN_USE, CATEGORY_NAME_TAKEN, INVALID_INPUT+field); sem code conhecido → genérica honesta, sem adivinhar pelo status. Depois: verificação completa, relatório, retomada. **Sem PR** — a T-05.1 só entra depois da fk.
+- Passo atual: correções da **reauditoria delta** concluídas (🟡-1 snapshot congelado, 🟡-2/🟢-1 mensagens por `code`). Verificação completa verde.
+- Próximo passo: **esperar o merge de `fix/tenant-fk-validation`**. Depois dele: (1) `pnpm gen:api` para o api-client trazer `code`/`field` no schema de erro — então `readErrorBody` pode ler direto do tipo; (2) conferir no navegador os `code` reais (409 de número, transição, em uso; 404 de categoria); (3) o Gabriel reaudita e abre o PR. **Sem PR antes disso.**
 
 ## Feito
 - [x] api-client regenerado (40 → 46 paths) — `0a0b9b4`
@@ -28,10 +28,11 @@ Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `
 - [x] 🟢-3: motivo do status ligado por `aria-describedby` — `32bfb4f`
 - [x] Reauditoria delta recebida — `74458e2`
 - [x] Delta 🟡-1: base do diff congelada na 1ª carga (`keepFirstSnapshot`, teste do refetch) — ver git log
+- [x] Delta 🟡-2/🟢-1: mensagens pelo `code` do corpo de erro, genérica honesta sem `code` — ver git log
 - [x] Verificação: typecheck, build, testes (37 + 31), qa_checks idêntico a develop, navegador (corpos de PUT capturados)
 
 ## Falta
-- [ ] Delta 🟡-2/🟢-1: mensagens por `code`
+- [ ] (após a fk) regenerar o api-client e conferir as mensagens por `code` no navegador
 - [ ] (Gabriel) reauditar e abrir o PR
 - [ ] (outra frente) 409 de categoria em uso no backend — `fix/tenant-fk-validation`
 
@@ -42,6 +43,8 @@ Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `
 - 24/10 — PUT de quarto parcial (`changedRoomFields`) (qa-redteam 🟡-1)
 - 24/10 — Swagger: `requestBody` nos três PUTs, editando só esses trechos (autorizado pelo coordenador)
 - 24/10 — Sem trava "categoria em uso" no cliente; quem recusa é o backend com 409 (coordenador, 🟡-3)
+- 24/10 — Base do diff da edição congelada na 1ª carga (reauditoria delta 🟡-1)
+- 24/10 — Motivo do erro pelo `code` do backend; sem `code`, genérica honesta; só 403 e 5xx pelo status (coordenador, contrato com a fk)
 
 ## Bloqueios e perguntas abertas
 - Até `fix/tenant-fk-validation` entrar, o backend ainda aceita excluir categoria em uso (204).
