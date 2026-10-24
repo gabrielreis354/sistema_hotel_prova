@@ -10,9 +10,9 @@ Fechar o vazamento entre hotéis por chave estrangeira vinda do corpo (R-1 do qa
 categorias (repasse `docs/qa/repasses/para_sirlande_21102026.md`). Sem PR e sem merge.
 
 ## Onde estou
-- Último commit: GREEN do `code` estável + Swagger (push: sim)
+- Último commit: docs do relatório e do Tratamento do repasse (push: sim)
 - Passo atual: GREEN completo — 41 arquivos, 901 passam, 1 skip, cobertura 84.32% statements
-- Próximo passo: relatório de sessão, seção "Tratamento" no repasse, remover o container pg-fk
+- Próximo passo: frente entregue — aguarda revisão da Sirlande, qa-redteam e decisão de merge do Gabriel
 
 ## Feito
 - [x] RED do R-1 — 5c7692c
@@ -27,9 +27,9 @@ categorias (repasse `docs/qa/repasses/para_sirlande_21102026.md`). Sem PR e sem 
 - [x] qa_checks: 3 avisos, os mesmos da develop (c6742b2); nenhum erro
 
 ## Falta
-- [ ] Relatório `docs/historico_sessao/gabriel/tenant_fk_validation_24102026.md`
-- [ ] Seção "Tratamento" no repasse (copiado da feature/t051-quartos-categorias)
-- [ ] Remover container pg-fk
+- [x] Relatório `docs/historico_sessao/gabriel/tenant_fk_validation_24102026.md`
+- [x] Seção "Tratamento" no repasse (copiado da feature/t051-quartos-categorias)
+- [x] Remover container pg-fk (feito no fim da sessão)
 
 ## Decisões tomadas nesta frente
 - 24/10 — Outro hotel, inexistente, excluído ou id não-UUID → 404 (não revela existência) (delegação)
