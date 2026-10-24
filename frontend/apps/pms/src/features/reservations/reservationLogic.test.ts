@@ -8,6 +8,7 @@ import {
   presetRange,
   quoteStay,
   reservationActions,
+  roomConflictMessage,
   splitLodging,
 } from './reservationLogic.js';
 
@@ -166,6 +167,23 @@ describe('filtro de período e paginação', () => {
   it('pageCount nunca devolve zero', () => {
     expect(pageCount(0, 20)).toBe(1);
     expect(pageCount(41, 20)).toBe(3);
+  });
+});
+
+describe('roomConflictMessage — 409 fala o número do quarto', () => {
+  const selected = [
+    { id: 'r1', number: '101' },
+    { id: 'r2', number: '201' },
+  ];
+  it('nomeia um ou vários quartos perdidos', () => {
+    expect(roomConflictMessage(selected, ['r2'])).toBe(
+      'Outro atendimento acabou de reservar o quarto 201 neste período. Escolha outro quarto livre.',
+    );
+    expect(roomConflictMessage(selected, ['r1', 'r2'])).toMatch(/os quartos 101, 201/);
+  });
+  it('sem room_ids conhecidos devolve null (vale a mensagem genérica)', () => {
+    expect(roomConflictMessage(selected, [])).toBeNull();
+    expect(roomConflictMessage(selected, ['outro'])).toBeNull();
   });
 });
 

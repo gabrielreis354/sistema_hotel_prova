@@ -320,6 +320,21 @@ export function pageCount(total: number, limit: number): number {
   return limit > 0 ? Math.max(1, Math.ceil(total / limit)) : 1;
 }
 
+// ─── 409 de corrida na criação ─────────────────────────────────────────────────────────
+
+/**
+ * Mensagem do balcão para o 409: nomeia o(s) quarto(s) que outro atendimento acabou de pegar.
+ * null quando o servidor não disse quais (corrida barrada pelo EXCLUDE do banco) — aí vale a
+ * mensagem genérica do RoomConflictError.
+ */
+export function roomConflictMessage(selected: { id?: string; number?: string }[], lostIds: string[]): string | null {
+  const lost = new Set(lostIds);
+  const numbers = selected.filter((r) => r.id && lost.has(r.id)).map((r) => r.number ?? '?');
+  if (numbers.length === 0) return null;
+  const which = numbers.length === 1 ? `o quarto ${numbers[0]}` : `os quartos ${numbers.join(', ')}`;
+  return `Outro atendimento acabou de reservar ${which} neste período. Escolha outro quarto livre.`;
+}
+
 // ─── Minimização no papel (LGPD art. 6º, III) ──────────────────────────────────────────
 
 /**

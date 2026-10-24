@@ -6,7 +6,7 @@ import type { Guest } from '../guests/index.js';
 import { ApiError } from '../../lib/http.js';
 import { useAvailableRooms, useCreateReservation } from './queries.js';
 import { RoomConflictError } from './reservationsApi.js';
-import { quoteStay, safeNights } from './reservationLogic.js';
+import { quoteStay, roomConflictMessage, safeNights } from './reservationLogic.js';
 import { GuestPicker } from './components/GuestPicker.js';
 import { RoomPicker } from './components/RoomPicker.js';
 import { ButtonLink, Money, Notice, PageHeader } from './components/primitives.js';
@@ -80,12 +80,11 @@ export function NewReservationPage() {
         onError: (err) => {
           if (err instanceof RoomConflictError) {
             const lost = new Set(err.roomIds);
-            const numbers = selectedRooms.filter((r) => r.id && lost.has(r.id)).map((r) => r.number);
             setSelectedIds((ids) => ids.filter((id) => !lost.has(id)));
             // O balcão fala em número de quarto, não em "este quarto".
-            if (numbers.length > 0) {
-              const which = numbers.length === 1 ? `o quarto ${numbers[0]}` : `os quartos ${numbers.join(', ')}`;
-              setSubmitError(`Outro atendimento acabou de reservar ${which} neste período. Escolha outro quarto livre.`);
+            const named = roomConflictMessage(selectedRooms, err.roomIds);
+            if (named) {
+              setSubmitError(named);
               return;
             }
           }
