@@ -5,7 +5,8 @@ import { ApiError } from '../../../lib/http.js';
 import { guestDraftFromTerm, type GuestDraft } from '../reservationLogic.js';
 
 const MAX_MATCHES = 6;
-const MIN_TERM = 2;
+// Três caracteres: com menos, quase todo nome casa e a consulta não filtra nada.
+const MIN_TERM = 3;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
@@ -19,7 +20,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function GuestPicker({ selected, onSelect }: { selected: Guest | null; onSelect: (g: Guest | null) => void }) {
   const [term, setTerm] = useState('');
   const [creating, setCreating] = useState(false);
-  const guests = useGuests();
+  const searched = term.trim().length >= MIN_TERM;
+  // Paliativo do princípio 7 (qa-redteam 🟡-4): abrir a tela não baixa o cadastro — a consulta só
+  // parte depois que o recepcionista digita. A solução definitiva é  (T-05.12).
+  const guests = useGuests({ enabled: searched });
   const resultsId = useId();
 
   const matches = useMemo(
@@ -56,7 +60,7 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
     );
   }
 
-  const searched = term.trim().length >= MIN_TERM;
+
 
   return (
     <div className="space-y-3">
@@ -72,13 +76,13 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
       </Field>
 
       <div id={resultsId} aria-live="polite">
-        {guests.isPending && <Spinner label="Carregando hóspedes…" />}
+        {guests.isLoading && <Spinner label="Carregando hóspedes…" />}
         {guests.isError && (
           <p role="alert" className="text-sm text-status-maintenance">
             Não foi possível consultar os hóspedes. Você ainda pode cadastrar um novo.
           </p>
         )}
-        {!searched && guests.data && (
+        {!searched && (
           <p className="text-sm text-gray-600">Digite ao menos {MIN_TERM} caracteres para procurar na base.</p>
         )}
         {searched && guests.data && matches.length === 0 && (

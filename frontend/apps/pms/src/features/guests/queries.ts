@@ -13,8 +13,13 @@ export const guestKeys = {
   detail: (id: string) => ['guests', id] as const,
 };
 
-export function useGuests() {
-  return useQuery({ queryKey: guestKeys.all, queryFn: listGuests });
+/**
+ * `enabled: false` adia a consulta — a nova reserva só busca depois que o recepcionista digita
+ * (paliativo do princípio 7 até existir `GET /guests?q=`, T-05.12). Sem opção, comportamento
+ * de sempre (a tela de hóspedes não muda).
+ */
+export function useGuests(options: { enabled?: boolean } = {}) {
+  return useQuery({ queryKey: guestKeys.all, queryFn: listGuests, enabled: options.enabled ?? true });
 }
 
 export function useGuest(id: string | undefined) {
