@@ -18,7 +18,7 @@ const byClosing = (list) => [...list].sort((x, y) => (x.closed_at - y.closed_at)
  * só muda com pagamento, e todo pagamento acerta as contas da reserva. Uma conta que fecha
  * entra no fim das fechadas: as que fecharam antes não perdem nada.
  */
-function creditOrder(accounts) {
+export function creditOrder(accounts) {
     const closed = byClosing(accounts.filter((a) => a.status !== 'OPEN'));
     const open = accounts.filter((a) => a.status === 'OPEN');
     const titular = byOpening(open.filter((a) => a.charges_lodging))[0];
