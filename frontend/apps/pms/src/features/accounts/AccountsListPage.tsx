@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, EmptyState, Input, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
+import { useAuthStore } from '../../stores/auth.js';
 import { useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { ACCOUNT_TYPE_LABEL, filterAccounts } from './accountFilter.js';
@@ -15,8 +16,12 @@ import { OpenAccountForm } from './components/OpenAccountForm.js';
 export function AccountsListPage() {
   useQueueRunner();
   const navigate = useNavigate();
-  const { data, isLoading, isError, refetch } = useOpenAccounts();
+  const { data, isLoading, isError, fetchStatus, refetch } = useOpenAccounts();
+  const userId = useAuthStore((s) => s.user?.id);
   const entries = useQueueEntries();
+  const mine = useMemo(() => entries.filter((e) => e.ownerId === userId), [entries, userId]);
+  // Lançamentos de outro usuário neste aparelho só saem quando ele logar de novo (🟡-4).
+  const othersWaiting = entries.filter((e) => e.ownerId !== userId && pendingFor([e], e.accountId).length > 0).length;
   const [term, setTerm] = useState('');
   const [opening, setOpening] = useState(false);
   const filtered = useMemo(() => filterAccounts(data ?? [], term), [data, term]);
@@ -33,8 +38,22 @@ export function AccountsListPage() {
     <div className="mx-auto flex max-w-xl flex-col gap-3">
       <h1 className="text-xl font-semibold">Comanda</h1>
 
-      {isLoading && <Spinner label="Carregando contas…" />}
-      {isError && <ErrorState message="Não foi possível carregar as contas." onRetry={() => refetch()} />}
+      {othersWaiting > 0 && (
+        <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+          {othersWaiting === 1 ? 'Há 1 lançamento' : `Há ${othersWaiting} lançamentos`} de outro usuário
+          esperando neste aparelho. Eles só são enviados quando essa pessoa entrar de novo.
+        </p>
+      )}
+
+      {/* Rede ruim não apaga a lista já carregada (🟡-3): só avisa. */}
+      {!data && isLoading && <Spinner label="Carregando contas…" />}
+      {!data && fetchStatus === 'paused' && (
+        <ErrorState message="Sem conexão. As contas aparecem quando a rede voltar." onRetry={() => refetch()} />
+      )}
+      {!data && isError && <ErrorState message="Não foi possível carregar as contas." onRetry={() => refetch()} />}
+      {data && (isError || fetchStatus === 'paused') && (
+        <p role="status" className="text-xs text-gray-600">Sem conexão com o sistema: mostrando a última lista.</p>
+      )}
 
       {data && data.length === 0 && !opening && (
         <EmptyState
@@ -58,7 +77,7 @@ export function AccountsListPage() {
           ) : (
             <ul aria-label="Contas abertas" className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
               {filtered.map((account) => {
-                const waiting = pendingFor(entries, account.id ?? '').length;
+                const waiting = pendingFor(mine, account.id ?? '').length;
                 return (
                   <li key={account.id}>
                     <Link

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Spinner } from '@hotel/ui';
 import { decimalToCents, formatBRL } from '@hotel/domain';
 import type { AccountDetail } from '../accountsApi.js';
@@ -37,6 +37,14 @@ export function StaffActions({ account, pendingCount }: { account: AccountDetail
   const close = useCloseAccount(id);
   const blocked = closeBlockedReason(account, pendingCount);
 
+  // A confirmação vale por alguns segundos e cai se surgir um bloqueio (item novo na fila).
+  useEffect(() => {
+    if (!confirming) return;
+    if (blocked) setConfirming(false);
+    const timer = setTimeout(() => setConfirming(false), 5_000);
+    return () => clearTimeout(timer);
+  }, [confirming, blocked]);
+
   return (
     <div className="space-y-2">
       {showBill && (
@@ -45,19 +53,24 @@ export function StaffActions({ account, pendingCount }: { account: AccountDetail
           {bill.isError && <p className="text-status-maintenance">{bill.error.message}</p>}
           {bill.data && (
             <dl className="space-y-1">
-              {BILL_ROWS.map((row) => (
-                <div key={row.key} className="flex justify-between">
-                  <dt className="text-gray-600">{row.label}</dt>
-                  <dd className="tabular-nums">{formatBRL(decimalToCents(bill.data[row.key] ?? '0'))}</dd>
-                </div>
-              ))}
+              {BILL_ROWS.map((row) => {
+                const cents = decimalToCents(bill.data[row.key] ?? '0');
+                // Saldo negativo é dinheiro a devolver: no balcão, "Crédito", sem sinal de menos.
+                const credit = row.key === 'balance' && cents < 0;
+                return (
+                  <div key={row.key} className="flex justify-between">
+                    <dt className="text-gray-600">{credit ? 'Crédito do hóspede' : row.label}</dt>
+                    <dd className="tabular-nums">{formatBRL(Math.abs(cents))}</dd>
+                  </div>
+                );
+              })}
             </dl>
           )}
         </div>
       )}
 
       {close.error && <p role="alert" className="text-sm text-status-maintenance">{close.error.message}</p>}
-      {blocked && <p className="text-xs text-gray-600">{blocked}</p>}
+      {blocked && <p id="close-blocked-reason" className="text-xs text-gray-600">{blocked}</p>}
 
       <div className="grid grid-cols-2 gap-2">
         <Button variant="secondary" onClick={() => setShowBill((v) => !v)} aria-expanded={showBill}>
@@ -72,7 +85,12 @@ export function StaffActions({ account, pendingCount }: { account: AccountDetail
             {close.isPending ? 'Fechando…' : 'Confirmar fechamento'}
           </Button>
         ) : (
-          <Button variant="secondary" disabled={!!blocked} onClick={() => setConfirming(true)}>
+          <Button
+            variant="secondary"
+            disabled={!!blocked}
+            aria-describedby={blocked ? 'close-blocked-reason' : undefined}
+            onClick={() => setConfirming(true)}
+          >
             Fechar conta
           </Button>
         )}

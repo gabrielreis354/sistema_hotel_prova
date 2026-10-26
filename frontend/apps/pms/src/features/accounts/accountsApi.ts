@@ -48,20 +48,27 @@ export async function listMenu(): Promise<Product[]> {
   return data ?? [];
 }
 
+/** Prazo de um envio da fila. Sem ele, uma requisição pendurada segura a fila inteira. */
+const POST_TIMEOUT_MS = 10_000;
+
+export type AccountItemResult = components['schemas']['AccountItemResult'];
+
 /**
  * Lançamento vindo da fila. Não lança exceção: a fila decide o que cada resposta significa
- * (queueCore.classifySend). Falha de rede vira status 'network'.
+ * (queueCore.classifySend). Falha de rede e prazo estourado viram status 'network' — o reenvio
+ * é seguro, porque o servidor reconhece o client_item_id (RN-008).
  */
 export async function postItem(
   accountId: string,
   body: ItemBody,
-): Promise<{ status: number | 'network'; body: unknown }> {
+): Promise<{ status: number | 'network'; data?: AccountItemResult; body: unknown }> {
   try {
     const { data, error, response } = await api.POST('/accounts/{id}/items', {
       params: { path: { id: accountId } },
       body,
+      signal: AbortSignal.timeout(POST_TIMEOUT_MS),
     });
-    return { status: response.status, body: data ?? error };
+    return { status: response.status, data, body: data ?? error };
   } catch {
     return { status: 'network', body: undefined };
   }

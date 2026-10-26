@@ -32,9 +32,13 @@ export function MenuGrid({
     [data, category],
   );
 
-  if (isLoading) return <Spinner label="Carregando cardápio…" />;
-  if (isError) return <ErrorState message="Não foi possível carregar o cardápio." onRetry={() => refetch()} />;
-  if (!data || data.length === 0) {
+  // Com o cardápio já carregado, uma atualização que falha não o tira da tela (🟡-3).
+  if (!data) {
+    if (isLoading) return <Spinner label="Carregando cardápio…" />;
+    if (isError) return <ErrorState message="Não foi possível carregar o cardápio." onRetry={() => refetch()} />;
+    return <p className="text-sm text-gray-600">Sem conexão: o cardápio aparece quando a rede voltar.</p>;
+  }
+  if (data.length === 0) {
     return <p className="text-sm text-gray-500">O cardápio está vazio. A gerência cadastra os produtos.</p>;
   }
 
@@ -57,7 +61,7 @@ export function MenuGrid({
         </div>
       )}
 
-      {disabledReason && <p className="text-sm text-gray-600">{disabledReason}</p>}
+      {disabledReason && <p id="menu-disabled-reason" className="text-sm text-gray-600">{disabledReason}</p>}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {shown.map((product) => (
@@ -65,6 +69,7 @@ export function MenuGrid({
             key={product.id}
             variant="secondary"
             disabled={!!disabledReason}
+            aria-describedby={disabledReason ? 'menu-disabled-reason' : undefined}
             onClick={() => onTap(product)}
             className="h-auto min-h-[64px] flex-col items-start justify-between gap-1 py-2 text-left transition-transform duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100"
           >

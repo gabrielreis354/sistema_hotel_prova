@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Button } from '@hotel/ui';
 import { decimalToCents, formatBRL, multiplyCents } from '@hotel/domain';
 import type { AccountItem } from '../accountsApi.js';
-import type { QueueEntry } from '../queueCore.js';
+import { canUndo, type QueueEntry } from '../queueCore.js';
+import { useNow } from '../queueStore.js';
 import { itemLine } from '../accountTotals.js';
 
 /** Itens do servidor visíveis sem expandir: o cardápio fica perto do polegar mesmo em conta longa. */
@@ -48,6 +49,8 @@ export function ItemList({
   onDismiss: (clientItemId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // Relógio só enquanto há janela de desfazer aberta: o botão some quando o prazo vence (🟡-1).
+  const now = useNow(entries.some((e) => e.status === 'undo'));
   if (items.length === 0 && entries.length === 0) {
     return <p className="px-1 text-sm text-gray-500">Nada lançado ainda. Toque num produto do cardápio.</p>;
   }
@@ -93,7 +96,7 @@ export function ItemList({
                 <EntryState status={entry.status} />
                 {entry.reason && <p className="text-xs text-status-maintenance">{entry.reason}</p>}
               </div>
-              {entry.status === 'undo' && (
+              {canUndo(entry, now) && (
                 <Button variant="ghost" onClick={() => onUndo(entry.clientItemId)}>
                   Desfazer
                 </Button>
@@ -103,7 +106,7 @@ export function ItemList({
                   OK
                 </Button>
               )}
-              {!settled && entry.status !== 'undo' && (
+              {!settled && !canUndo(entry, now) && (
                 <span className="tabular-nums text-sm text-gray-600">{formatBRL(price)}</span>
               )}
             </Row>

@@ -79,10 +79,22 @@ export function addTap(entries: QueueEntry[], tap: Tap, now: number, clientItemI
   ];
 }
 
-/** "Desfazer": tira uma unidade enquanto a janela está aberta. Fora dela, não faz nada. */
-export function undoTap(entries: QueueEntry[], clientItemId: string, now: number): QueueEntry[] {
+/**
+ * O botão "Desfazer" só existe dentro do prazo. Depois dele o item pode já estar no servidor,
+ * mesmo que o envio atrase — mostrar o botão seria prometer o que o toque não cumpre.
+ */
+export function canUndo(entry: QueueEntry, now: number): boolean {
+  return entry.status === 'undo' && now < entry.undoUntil;
+}
+
+/**
+ * "Desfazer": tira uma unidade enquanto a janela está aberta. Fora dela, ou para quem não
+ * lançou (aparelho compartilhado), não faz nada.
+ */
+export function undoTap(entries: QueueEntry[], clientItemId: string, now: number, ownerId?: string): QueueEntry[] {
   const entry = entries.find((e) => e.clientItemId === clientItemId);
-  if (!entry || entry.status !== 'undo' || now >= entry.undoUntil) return entries;
+  if (!entry || !canUndo(entry, now)) return entries;
+  if (ownerId !== undefined && entry.ownerId !== ownerId) return entries;
   if (entry.quantity > 1) {
     return entries.map((e) => (e === entry ? { ...e, quantity: e.quantity - 1 } : e));
   }
@@ -198,4 +210,24 @@ export function newClientItemId(): string {
   bytes[8] = (bytes[8]! & 0x3f) | 0x80;
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+const STATUSES: EntryStatus[] = ['undo', 'queued', 'sending', 'rejected', 'excluded'];
+const STRING_FIELDS = ['clientItemId', 'ownerId', 'accountId', 'productId', 'description', 'unitPrice'] as const;
+const NUMBER_FIELDS = ['quantity', 'undoUntil', 'attempts', 'nextAttemptAt'] as const;
+
+/**
+ * O que veio do armazenamento do aparelho é uma entrada inteira? Entrada malformada ou de
+ * versão antiga é descartada na leitura, em vez de derrubar a tela da conta.
+ */
+export function isQueueEntry(value: unknown): value is QueueEntry {
+  if (typeof value !== 'object' || value === null) return false;
+  const record: Record<string, unknown> = { ...value };
+  return (
+    STRING_FIELDS.every((field) => typeof record[field] === 'string') &&
+    NUMBER_FIELDS.every((field) => typeof record[field] === 'number' && Number.isFinite(record[field])) &&
+    typeof record.status === 'string' &&
+    STATUSES.some((status) => status === record.status) &&
+    (record.reason === undefined || typeof record.reason === 'string')
+  );
 }
