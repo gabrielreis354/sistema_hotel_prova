@@ -1,5 +1,6 @@
 import sequelize from '../../database/connections/sequelize.js';
 import AccountModel from '../Models/AccountModel.js';
+import ReservationModel from '../Models/ReservationModel.js';
 import { accountCharges } from './accountCharges.js';
 import { toCents } from './calculateStayTotal.js';
 
@@ -25,6 +26,18 @@ function creditOrder(accounts) {
 }
 
 /**
+ * Diária da reserva que fica fora das contas quando nenhuma cobra diária (D-54): o total da
+ * reserva, ou 0 se cancelada (D-46) ou excluída — a mesma regra de lodgingShare.
+ */
+async function uncoveredLodgingCents(reservationId, tenantId, transaction) {
+    const reservation = await ReservationModel.findOne({
+        where: { id: reservationId, tenant_id: tenantId }, attributes: ['status', 'total_amount'], transaction
+    });
+    if (!reservation || reservation.status === 'CANCELLED') return 0;
+    return toCents(reservation.total_amount);
+}
+
+/**
  * Soma em centavos, com sinal, feita no banco em NUMERIC: somar dinheiro em float erra
  * centavo, e toCents não lê negativo — um pagamento negativo anterior ao CHECK precisa
  * entrar com o sinal (🟢-4 da reauditoria).
@@ -37,8 +50,8 @@ const SUM_CENTS = `(COALESCE(SUM(amount), 0) * 100)::bigint::text`;
  *
  * Pago = pagamentos PAID da conta + a parte do crédito da reserva que lhe cabe. Crédito da
  * reserva = pagamentos PAID feitos na reserva sem conta (o sinal PIX, o pagamento da
- * recepção pela reserva). Ele preenche as contas na ordem de creditOrder, cada uma até o
- * que ela ainda deve (D-45).
+ * recepção pela reserva). Ele paga primeiro a diária que nenhuma conta cobra (D-61) e
+ * depois preenche as contas na ordem de creditOrder, cada uma até o que ela ainda deve (D-45).
  *
  * A sobra — pagamento a maior — fica na **primeira** conta da ordem com total > 0. A
  * primeira é estável: conta nova entra depois dela. Na última, a sobra pulava para cada
@@ -64,6 +77,13 @@ export async function reservationLedger(reservationId, tenantId, transaction) {
     { replacements: { tenantId, reservationId }, transaction });
     const paid = new Map(rows.map((row) => [row.account_id, Number(row.cents)])); // chave null = crédito
     let remaining = paid.get(null) ?? 0;
+
+    // Diária que nenhuma conta cobra fica no bill da reserva (D-54) e é paga primeiro pelo
+    // crédito da reserva (D-61). Sem isso, a conta do acompanhante recebia o sinal que paga
+    // a diária, ficava com saldo negativo e fechava PAID (🟡-1 do qa-redteam da T-04.5).
+    if (remaining > 0 && !accounts.some((a) => a.type === 'ROOM' && a.charges_lodging)) {
+        remaining -= Math.min(remaining, await uncoveredLodgingCents(reservationId, tenantId, transaction));
+    }
 
     const ledger = new Map();
     const ordered = creditOrder(accounts);
