@@ -170,6 +170,32 @@ describe('Check-in cria a conta da suíte (CA-04.6.a, D-58)', () => {
         expect(lodging).toHaveLength(1);
     });
 
+    it('consumo pela rota antiga no meio do check-in: espera a trava e usa a conta dele (🟡-1 do qa-redteam)', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1));
+        // Pausa o check-in logo depois de ele não achar conta de diária (com a reserva travada)
+        // e dispara o consumo nesse instante: é a sequência que dava deadlock (40P01).
+        const findOne = AccountModel.findOne.bind(AccountModel);
+        let consumption;
+        vi.spyOn(AccountModel, 'findOne').mockImplementation(async (options) => {
+            const found = await findOne(options);
+            if (!consumption && options?.transaction && options?.order && options?.where?.charges_lodging === true) {
+                consumption = request(app).post(`/reservations/${reservation.id}/consumptions`)
+                    .set(auth(jwt)).send({ description: 'Água', amount: 5 }).then((res) => res);
+                await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+            return found;
+        });
+
+        const ci = await checkIn(reservation.id);
+        const consumed = await consumption;
+        expect(ci.status).toBe(200);
+        expect(consumed.status).toBe(201);
+        const lodging = await AccountModel.findAll({ where: { reservation_id: reservation.id, charges_lodging: true } });
+        expect(lodging).toHaveLength(1);
+        expect((await get(`/reservations/${reservation.id}/bill`)).consumptions_total).toBe(5);
+    });
+
     it('colisão no índice da RN-005: o savepoint segura o check-in e a conta que ficou vale', async () => {
         const room = await newRoom();
         const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2));
@@ -220,6 +246,31 @@ describe('Estadia de ponta a ponta com a conta do check-in', () => {
         expect(bill).toMatchObject({ status: 'PAID', room_charges: '400.00', total: '460.00', payments_made: '460.00', balance: '0.00' });
         expect((await get(`/reservations/${reservation.id}/bill`)).balance_due).toBe(0);
     });
+
+    it('titular do check-in + acompanhante + sinal pela reserva → check-out: o sinal fica na titular e as somas batem (🟢-2, D-62)', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2)); // 400
+        await payOk({ reservation_id: reservation.id, amount: 150 });
+        await checkIn(reservation.id);
+        const [titular] = (await listAccounts(reservation.id)).body;
+        // id menor que qualquer UUID sorteado: o check-out trava em ordem de id, e antes da
+        // D-62 também fechava nessa ordem — o sinal ia pagar o suco do acompanhante.
+        const companion = await AccountModel.create({
+            id: '00000000-0000-4000-8000-000000000001', tenant_id: titular.tenant_id, type: 'ROOM', status: 'OPEN',
+            reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Acompanhante', charges_lodging: false
+        });
+        await addItem(titular.id, { description: 'Vinho', unit_price: '50.00' });
+        await addItem(companion.id, { description: 'Suco', unit_price: '8.00' });
+
+        const checkOut = await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        expect(checkOut.status).toBe(200);
+        const [t, c] = await Promise.all([get(`/accounts/${titular.id}/bill`), get(`/accounts/${companion.id}/bill`)]);
+        expect(t).toMatchObject({ status: 'CLOSED', total: '450.00', payments_made: '150.00', balance: '300.00' });
+        expect(c).toMatchObject({ status: 'CLOSED', total: '8.00', payments_made: '0.00', balance: '8.00' });
+        const resBill = await get(`/reservations/${reservation.id}/bill`);
+        expect(resBill.balance_due).toBe(308);
+        expect(signedCents(t.balance) + signedCents(c.balance)).toBe(Math.round(resBill.balance_due * 100));
+    });
 });
 
 describe('Falha na conta desfaz o check-in (CA-04.6.c)', () => {
@@ -232,6 +283,26 @@ describe('Falha na conta desfaz o check-in (CA-04.6.c)', () => {
 
         const res = await checkIn(reservation.id);
         expect(res.status).toBe(500);
+        expect((await ReservationModel.findByPk(reservation.id)).status).toBe(statusBefore);
+        expect((await RoomModel.findByPk(room.id)).status).toBe('AVAILABLE');
+        expect(await AccountModel.count({ where: { reservation_id: reservation.id } })).toBe(0);
+    });
+});
+
+describe('Falha do banco na conta desfaz o check-in (CA-04.6.c, 🟢-1)', () => {
+    it('erro do Postgres dentro do savepoint → 500, e nada do check-in fica gravado', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1));
+        const statusBefore = (await ReservationModel.findByPk(reservation.id)).status;
+        const create = AccountModel.create.bind(AccountModel);
+        // INSERT real com um tipo que o banco recusa: o erro nasce no Postgres, não na aplicação.
+        // validate: false — sem ele o Sequelize recusaria antes de chegar ao banco.
+        vi.spyOn(AccountModel, 'create').mockImplementationOnce((values, options) =>
+            create({ ...values, type: 'INVALIDO' }, { ...options, validate: false }));
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        expect((await checkIn(reservation.id)).status).toBe(500);
+        expect(logged.mock.calls.flat().some((arg) => arg?.name === 'SequelizeDatabaseError')).toBe(true);
         expect((await ReservationModel.findByPk(reservation.id)).status).toBe(statusBefore);
         expect((await RoomModel.findByPk(room.id)).status).toBe('AVAILABLE');
         expect(await AccountModel.count({ where: { reservation_id: reservation.id } })).toBe(0);

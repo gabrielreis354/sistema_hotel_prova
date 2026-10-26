@@ -1,6 +1,7 @@
 import { Op, UniqueConstraintError } from 'sequelize';
 import sequelize from '../../database/connections/sequelize.js';
 import AccountModel from '../Models/AccountModel.js';
+import ReservationModel from '../Models/ReservationModel.js';
 import ReservationRoomModel from '../Models/ReservationRoomModel.js';
 import RoomModel from '../Models/RoomModel.js';
 
@@ -26,8 +27,10 @@ export const roomAccountLabel = (roomNumber) => `Suíte ${roomNumber}`;
  * Não confere check-in de propósito: o contrato antigo lança em reserva de qualquer
  * status (exceção registrada à regra da T-04.1, D-28).
  *
- * Fora de transação: na corrida de duas criações, o índice da RN-005 recusa a segunda,
- * e o erro abortaria uma transação em volta. Uma conta aberta sem item é inofensiva.
+ * A criação trava a reserva numa transação curta (D-48): serializa com o check-in, que abre
+ * a mesma conta (D-58). A busca sem trava e o realinhamento ficam fora dela. Se outro
+ * caminho que não trava a reserva criar no meio-tempo, o índice da RN-005 recusa a segunda
+ * e vale a que ficou.
  *
  * @param {import('sequelize').Model} reservation já validada no tenant
  * @returns {Promise<import('sequelize').Model>}
@@ -108,12 +111,24 @@ export default async function reservationRoomAccount(reservation) {
 
     const room = await roomOf(reservation.room_id, reservation.tenant_id);
     try {
-        return await AccountModel.create({
-            ...where,
-            type: 'ROOM',
-            status: 'OPEN',
-            guest_id: reservation.guest_id,
-            label: roomAccountLabel(room.number)
+        // Trava a reserva antes de criar, como o check-in (D-48, D-58). Sem a trava, o INSERT
+        // daqui e o do check-in se esperavam (FK na reserva travada × índice da RN-005) e o
+        // banco derrubava o consumo por deadlock (🟡-1 do qa-redteam da T-04.6). Com ela, quem
+        // chega durante o check-in espera e encontra a conta que ele abriu.
+        return await sequelize.transaction(async (transaction) => {
+            await ReservationModel.findOne({
+                where: { id: reservation.id, tenant_id: reservation.tenant_id },
+                attributes: ['id'], lock: transaction.LOCK.UPDATE, paranoid: false, transaction
+            });
+            const opened = await AccountModel.findOne({ where, transaction });
+            if (opened) return opened;
+            return AccountModel.create({
+                ...where,
+                type: 'ROOM',
+                status: 'OPEN',
+                guest_id: reservation.guest_id,
+                label: roomAccountLabel(room.number)
+            }, { transaction });
         });
     } catch (error) {
         // Outra requisição criou no meio-tempo: usa a dela.
@@ -133,8 +148,10 @@ export default async function reservationRoomAccount(reservation) {
  * - Sem conta de diária, cria a do quarto principal, cobrando diária, com o hóspede da
  *   reserva e o rótulo do sistema, sem nome (D-15). Com uma conta só, ela leva a diária
  *   inteira, mesmo na reserva de vários quartos (D-40).
- * - A rota antiga cria a conta fora de transação e pode cruzar com o check-in: o índice da
- *   RN-005 recusa a segunda, e o savepoint deixa o check-in seguir com a conta que ficou.
+ * - A rota antiga também trava a reserva antes de criar (reservationRoomAccount): quem chega
+ *   durante o check-in espera e encontra esta conta. O savepoint é defesa para um caminho
+ *   que crie conta de diária sem travar a reserva: o índice da RN-005 recusa a segunda, e o
+ *   check-in segue com a que ficou.
  *
  * @param {import('sequelize').Model} reservation travada pela transação
  * @param {import('sequelize').Model} room quarto principal da reserva
