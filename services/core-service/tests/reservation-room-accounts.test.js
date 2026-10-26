@@ -17,6 +17,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import ReservationRoomModel from '../app/Models/ReservationRoomModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -41,7 +42,7 @@ const nextDates = (nights) => {
 };
 
 const checkIn = async (reservationId) => {
-    const res = await request(app).put(`/reservations/${reservationId}/check-in`).set(auth(jwt));
+    const res = await checkInWithoutAccount(app, jwt, reservationId);
     if (res.status !== 200) throw new Error(`check-in falhou: ${res.status} ${JSON.stringify(res.body)}`);
 };
 

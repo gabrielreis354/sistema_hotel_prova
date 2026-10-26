@@ -11,6 +11,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 
@@ -347,7 +348,7 @@ describe('Conta ROOM só recebe item durante a estadia (qa-redteam 19/10)', () =
         const guest = await createGuest(app, jwt, { email: `suite_itens_${Date.now()}@test.com` });
         const reservation = await createReservation(app, jwt, guest.id, room.id);
         reservationId = reservation.id;
-        await request(app).put(`/reservations/${reservationId}/check-in`).set(auth(jwt));
+        await checkInWithoutAccount(app, jwt, reservationId);
 
         const res = await request(app).post('/accounts').set(auth(jwt)).send({
             type: 'ROOM', reservation_id: reservationId, room_id: room.id, guest_id: guest.id, label: 'Suíte 501'

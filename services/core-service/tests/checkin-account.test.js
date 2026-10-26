@@ -188,6 +188,24 @@ describe('Check-in cria a conta da suíte (CA-04.6.a, D-58)', () => {
     });
 });
 
+describe('Estadia de ponta a ponta com a conta do check-in', () => {
+    it('check-in → consumo → sinal → check-out: a conta fecha PAID e a reserva fecha zerada', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2)); // 400
+        await payOk({ reservation_id: reservation.id, amount: 100 }); // sinal antes do check-in
+        await checkIn(reservation.id);
+        const [account] = (await listAccounts(reservation.id)).body;
+        await addItem(account.id, { description: 'Jantar', unit_price: '60.00' });
+        await payOk({ account_id: account.id, reservation_id: reservation.id, amount: 360 });
+
+        const checkOut = await request(app).put(`/reservations/${reservation.id}/check-out`).set(auth(jwt));
+        expect(checkOut.status).toBe(200);
+        const bill = await get(`/accounts/${account.id}/bill`);
+        expect(bill).toMatchObject({ status: 'PAID', room_charges: '400.00', total: '460.00', payments_made: '460.00', balance: '0.00' });
+        expect((await get(`/reservations/${reservation.id}/bill`)).balance_due).toBe(0);
+    });
+});
+
 describe('Falha na conta desfaz o check-in (CA-04.6.c)', () => {
     it('erro ao criar a conta → 500, reserva e quarto voltam ao que eram', async () => {
         const room = await newRoom();
