@@ -198,6 +198,14 @@ describe('Bill da reserva = soma das contas (CA-04.5.a)', () => {
         expect(body).toMatchObject({ balance_due: -100, fully_paid: true });
     });
 
+    it('pagamento exato: saldo 0 e fully_paid', async () => {
+        const { reservation, a } = await splitStay();
+        await addItem(a.id, { description: 'Café', unit_price: '9.90' });
+        await payOk({ reservation_id: reservation.id, amount: 1509.9 });
+        const body = await expectSumOfAccounts(reservation.id);
+        expect(body).toMatchObject({ grand_total: 1509.9, balance_due: 0, fully_paid: true });
+    });
+
     it('diária gravada na conta fechada vale sobre o total_amount atual (D-55, D-39)', async () => {
         const room = await newRoom();
         const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2)); // 400
