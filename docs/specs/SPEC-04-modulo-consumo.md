@@ -1,7 +1,7 @@
 # SPEC-04 — Módulo de Consumo (Comanda)
 
 **Prioridade:** 🟠 Alta — diferencial de produto
-**Estado:** 🟡 Parcialmente implementado — **7 de 9 fatias concluídas e a 8ª parcial** (T-04.1 a T-04.4 em 19/10/2026, T-04.5 e T-04.6 a/c/d em 26/10/2026)
+**Estado:** 🟡 Escopo do MVP concluído — **8 de 9 fatias concluídas e a fatia 4 parcial** (T-04.1 a T-04.4 em 19/10/2026; T-04.5, T-04.6 a/c/d e T-04.7 em 26/10/2026); falta só o CA-04.6.b (5º semestre)
 **Criado em:** 26/08/2026
 **Bloqueia:** SPEC-05 Fase 2 (comanda no frontend)
 
@@ -25,11 +25,11 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 | 3b — `Payment` ↔ `Account` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `payments.account_id`, `payments_made` real, `CLOSED ↔ PAID`, crédito da reserva rateado entre as contas |
 | 3c — Delegação do bill da reserva | 🔲 Pendente | ✅ **Mergeada** em 26/10 — `/reservations/:id/bill` soma as contas (`app/utils/reservationBill.js`), contrato idêntico |
 | 4 — Check-in + Split Bill + Day-use | 🔲 Pendente | 🟡 **Parcial** em 26/10 — check-in cria a conta da suíte e `/reservations/:id/accounts` (CA-a, c, d); day-use já atendido (e, f); split no check-in (b) no 5º semestre |
-| 5 — Seed, Swagger e testes | 🔲 Pendente | 🔲 Pendente |
+| 5 — Seed, Swagger e testes | 🔲 Pendente | ✅ **Mergeada** em 26/10 — `/analytics/internal-consumption`, `seed/seed_consumo.sql`, Swagger, isolamento de Account e Product |
 
 **Evidência do que existe:** `services/core-service/app/Models/ProductModel.js`, `services/core-service/app/Controllers/ProductApi/` (5 controllers), rota `/products` registrada, `services/core-service/tests/products.test.js` com 36 testes, tabela `products` em `services/core-service/db/schema.sql` com índice único parcial.
 
-**Evidência do que falta (26/10):** check-in com várias contas (CA-04.6.b); seed, Swagger final e relatório (T-04.7).
+**Evidência do que falta (26/10):** check-in com várias contas (CA-04.6.b, 5º semestre).
 
 ---
 
@@ -43,10 +43,10 @@ Completar o módulo de comanda, entregando os quatro cenários operacionais que 
 
 | Cenário | Como o modelo resolve | Estado |
 |---------|----------------------|--------|
-| Família hospedada consome na conta da suíte | Conta `ROOM` vinculada à reserva | 🔲 |
-| Pessoas diferentes na mesma suíte, contas separadas | Múltiplas contas com o mesmo `room_id`; só uma com `charges_lodging = true` | 🔲 |
-| *Day-use* — consome sem se hospedar | Conta `DAY_USE` com `reservation_id` nulo | 🔲 |
-| Consumo interno — cortesia, refeição de funcionário, perda | Conta `INTERNAL` ou item com `billable = false` e `reason` | 🔲 |
+| Família hospedada consome na conta da suíte | Conta `ROOM` vinculada à reserva | ✅ *(T-04.1; aberta no check-in desde a T-04.6)* |
+| Pessoas diferentes na mesma suíte, contas separadas | Múltiplas contas com o mesmo `room_id`; só uma com `charges_lodging = true` | ✅ *(T-04.1, RN-005; várias contas no check-in é o CA-04.6.b, 5º semestre)* |
+| *Day-use* — consome sem se hospedar | Conta `DAY_USE` com `reservation_id` nulo | ✅ *(T-04.1)* |
+| Consumo interno — cortesia, refeição de funcionário, perda | Conta `INTERNAL` ou item com `billable = false` e `reason` | ✅ *(relatório na T-04.7)* |
 
 ---
 
@@ -194,17 +194,17 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 
 ---
 
-### T-04.7 — Seed, Swagger, relatório e testes 🔲 *(fatia 5 · ~2,5 dias)*
+### T-04.7 — Seed, Swagger, relatório e testes ✅ *(fatia 5 · ~2,5 dias — concluída em 26/10/2026; decisões em `anexos/SPEC-04-decisoes-T-04.7.md`)*
 
 **DEP:** T-04.6
 
 **Critérios de aceitação**
-- [ ] **CA-04.7.a** — `GET /analytics/internal-consumption?start=&end=` agrupa por `reason`, com valor e contagem
-- [ ] **CA-04.7.b** — Considera itens `billable: false` de qualquer conta **mais** todos os itens de contas `INTERNAL`
-- [ ] **CA-04.7.c** — Requer `ADMIN`
-- [ ] **CA-04.7.d** — `seed/seed_consumo.sql` idempotente, com cardápio, conta aberta, day-use, `INTERNAL` e cortesia
-- [ ] **CA-04.7.e** — Swagger completo de `/accounts`, **com schema de resposta** (ver SPEC-06)
-- [ ] **CA-04.7.f** — `services/core-service/tests/tenant-isolation.test.js` expandido com `Account` e `Product`
+- [x] **CA-04.7.a** — `GET /analytics/internal-consumption?start=&end=` agrupa por `reason`, com valor e contagem *(26/10 — dia do consumo no horário de Brasília, D-64 e D-68)*
+- [x] **CA-04.7.b** — Considera itens `billable: false` de qualquer conta **mais** todos os itens de contas `INTERNAL` *(26/10 — INTERNAL sem motivo no grupo `null`, D-63)*
+- [x] **CA-04.7.c** — Requer `ADMIN` *(26/10)*
+- [x] **CA-04.7.d** — `seed/seed_consumo.sql` idempotente, com cardápio, conta aberta, day-use, `INTERNAL` e cortesia *(26/10 — mais a conta da suíte de cada CHECKED_IN e um garçom, D-66)*
+- [x] **CA-04.7.e** — Swagger completo de `/accounts`, **com schema de resposta** (ver SPEC-06) *(26/10 — já estava; 64/64 respostas 2xx da API com schema)*
+- [x] **CA-04.7.f** — `services/core-service/tests/tenant-isolation.test.js` expandido com `Account` e `Product` *(26/10)*
 
 > O endpoint de relatório está aqui menos pela feature e mais porque **escrever a query prova que o modelo funciona**. Se agrupar por motivo for difícil, o modelo está errado.
 
@@ -251,3 +251,4 @@ Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e pre
 | Versão | Data | Autor | Alteração |
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Substitui o plano de 02/08, cuja tabela de status estava desatualizada — 2 fatias já mergeadas constavam como pendentes |
+| 1.1 | 26/10/2026 | Sirlande | T-04.7 concluída (D-63 a D-68); cenários do §3 marcados com a fatia que os entregou |
