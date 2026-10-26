@@ -39,6 +39,9 @@ export function AccountPage() {
   const mine = useMemo(() => entries.filter((e) => e.ownerId === user?.id), [entries, user?.id]);
   const onThisAccount = useMemo(() => mine.filter((e) => e.accountId === id), [mine, id]);
   const pendingCount = pendingFor(mine, id).length;
+  // Lançamentos de outro usuário nesta conta, parados neste aparelho: não aparecem nem somam,
+  // mas fechar a conta agora faria o servidor recusá-los — consumo sem cobrança (D-1).
+  const othersHere = pendingFor(entries.filter((e) => e.ownerId !== user?.id), id).length;
 
   if (!account) {
     if (fetchStatus === 'paused') {
@@ -89,6 +92,13 @@ export function AccountPage() {
         </p>
       )}
 
+      {othersHere > 0 && (
+        <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+          {othersHere === 1 ? 'Há 1 lançamento' : `Há ${othersHere} lançamentos`} de outro usuário nesta conta
+          esperando neste aparelho. Eles só são enviados quando essa pessoa entrar de novo.
+        </p>
+      )}
+
       <ItemList
         items={account.items ?? []}
         entries={onThisAccount}
@@ -107,7 +117,7 @@ export function AccountPage() {
         <p role="status" aria-live="polite" className="text-right text-xs text-gray-600">
           {totals.pendingCents > 0 ? `inclui ${formatBRL(totals.pendingCents)} na fila` : ''}
         </p>
-        {isStaff && <StaffActions account={account} pendingCount={pendingCount} />}
+        {isStaff && <StaffActions account={account} pendingCount={pendingCount} othersPending={othersHere} />}
       </div>
     </div>
   );

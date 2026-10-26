@@ -29,7 +29,16 @@ const BILL_ROWS: { key: 'room_charges' | 'consumptions' | 'total' | 'payments_ma
  *
  * Fechar pede confirmação no próprio botão: é irreversível (conta fechada não recebe item).
  */
-export function StaffActions({ account, pendingCount }: { account: AccountDetail; pendingCount: number }) {
+export function StaffActions({
+  account,
+  pendingCount,
+  othersPending = 0,
+}: {
+  account: AccountDetail;
+  pendingCount: number;
+  /** Lançamentos de outro usuário nesta conta, parados neste aparelho (D-1). Avisa, não bloqueia. */
+  othersPending?: number;
+}) {
   const [showBill, setShowBill] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const id = account.id ?? '';
@@ -71,6 +80,12 @@ export function StaffActions({ account, pendingCount }: { account: AccountDetail
 
       {close.error && <p role="alert" className="text-sm text-status-maintenance">{close.error.message}</p>}
       {blocked && <p id="close-blocked-reason" className="text-xs text-gray-600">{blocked}</p>}
+      {!blocked && othersPending > 0 && (
+        <p id="close-others-warning" role="alert" className="text-xs text-status-maintenance">
+          Fechar agora recusa {othersPending === 1 ? 'o lançamento' : `os ${othersPending} lançamentos`} de outro
+          usuário que ainda não saíram deste aparelho: o consumo fica sem cobrança.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Button variant="secondary" onClick={() => setShowBill((v) => !v)} aria-expanded={showBill}>
@@ -82,13 +97,13 @@ export function StaffActions({ account, pendingCount }: { account: AccountDetail
             disabled={close.isPending}
             onClick={() => close.mutate(undefined, { onSettled: () => setConfirming(false) })}
           >
-            {close.isPending ? 'Fechando…' : 'Confirmar fechamento'}
+            {close.isPending ? 'Fechando…' : othersPending > 0 ? 'Fechar mesmo assim' : 'Confirmar fechamento'}
           </Button>
         ) : (
           <Button
             variant="secondary"
             disabled={!!blocked}
-            aria-describedby={blocked ? 'close-blocked-reason' : undefined}
+            aria-describedby={blocked ? 'close-blocked-reason' : othersPending > 0 ? 'close-others-warning' : undefined}
             onClick={() => setConfirming(true)}
           >
             Fechar conta

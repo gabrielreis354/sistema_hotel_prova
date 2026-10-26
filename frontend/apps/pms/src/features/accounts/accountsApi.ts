@@ -1,6 +1,7 @@
 import type { components, paths } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
+import { SEND_TIMEOUT_MS, timeoutSignal } from './queueCore.js';
 
 /** Tipos do schema do OpenAPI. Nada redefinido à mão. */
 export type Account = components['schemas']['Account'];
@@ -48,8 +49,6 @@ export async function listMenu(): Promise<Product[]> {
   return data ?? [];
 }
 
-/** Prazo de um envio da fila. Sem ele, uma requisição pendurada segura a fila inteira. */
-const POST_TIMEOUT_MS = 10_000;
 
 export type AccountItemResult = components['schemas']['AccountItemResult'];
 
@@ -66,7 +65,8 @@ export async function postItem(
     const { data, error, response } = await api.POST('/accounts/{id}/items', {
       params: { path: { id: accountId } },
       body,
-      signal: AbortSignal.timeout(POST_TIMEOUT_MS),
+      // Prazo do envio: sem ele, uma requisição pendurada segura a fila inteira.
+      signal: timeoutSignal(SEND_TIMEOUT_MS),
     });
     return { status: response.status, data, body: data ?? error };
   } catch {

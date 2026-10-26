@@ -21,7 +21,13 @@ export function AccountsListPage() {
   const entries = useQueueEntries();
   const mine = useMemo(() => entries.filter((e) => e.ownerId === userId), [entries, userId]);
   // Lançamentos de outro usuário neste aparelho só saem quando ele logar de novo (🟡-4).
-  const othersWaiting = entries.filter((e) => e.ownerId !== userId && pendingFor([e], e.accountId).length > 0).length;
+  const others = entries.filter((e) => e.ownerId !== userId && pendingFor([e], e.accountId).length > 0);
+  const othersWaiting = others.length;
+  // Em quais contas (o rótulo é da conta, sem dado do hóspede — D-15).
+  // Só com a lista carregada: antes disso, uma conta que ainda não chegou pareceria fechada.
+  const othersAccounts = data
+    ? [...new Set(others.map((e) => data.find((a) => a.id === e.accountId)?.label ?? 'conta já fechada'))]
+    : [];
   const [term, setTerm] = useState('');
   const [opening, setOpening] = useState(false);
   const filtered = useMemo(() => filterAccounts(data ?? [], term), [data, term]);
@@ -41,7 +47,8 @@ export function AccountsListPage() {
       {othersWaiting > 0 && (
         <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
           {othersWaiting === 1 ? 'Há 1 lançamento' : `Há ${othersWaiting} lançamentos`} de outro usuário
-          esperando neste aparelho. Eles só são enviados quando essa pessoa entrar de novo.
+          esperando neste aparelho{othersAccounts.length > 0 && ` (${othersAccounts.join(', ')})`}. Eles só são enviados quando essa pessoa entrar de
+          novo — não feche essas contas antes.
         </p>
       )}
 

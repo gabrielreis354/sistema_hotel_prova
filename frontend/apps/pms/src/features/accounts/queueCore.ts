@@ -38,6 +38,8 @@ export interface QueueEntry extends Tap {
   undoUntil: number;
   attempts: number;
   nextAttemptAt: number;
+  /** Quando o envio começou. Serve para devolver à fila o envio que uma aba fechada largou. */
+  sendingSince?: number;
   reason?: string;
 }
 
@@ -110,8 +112,35 @@ export function readyToSend(entries: QueueEntry[], ownerId: string, now: number)
   );
 }
 
-export function markSending(entries: QueueEntry[], clientItemId: string): QueueEntry[] {
-  return entries.map((e) => (e.clientItemId === clientItemId ? { ...e, status: 'sending' } : e));
+export function markSending(entries: QueueEntry[], clientItemId: string, now = 0): QueueEntry[] {
+  return entries.map((e) => (e.clientItemId === clientItemId ? { ...e, status: 'sending', sendingSince: now } : e));
+}
+
+/** Prazo do envio (SEND_TIMEOUT_MS) com folga: depois disso, nenhuma aba está mais esperando a resposta. */
+export const SEND_TIMEOUT_MS = 10_000;
+export const STALE_SENDING_MS = SEND_TIMEOUT_MS + 5_000;
+
+/**
+ * "Enviando" que passou do prazo: a aba que enviava foi fechada no meio. Volta para a fila —
+ * reenviar é seguro (RN-008). Sem isso, a outra aba via o item "Enviando" para sempre, e o
+ * fechamento da conta ficava travado (D-3 da reauditoria).
+ */
+export function recoverStale(entries: QueueEntry[], now: number): QueueEntry[] {
+  const stale = (e: QueueEntry) => e.status === 'sending' && now - (e.sendingSince ?? 0) > STALE_SENDING_MS;
+  if (!entries.some(stale)) return entries;
+  return entries.map((e) => (stale(e) ? { ...e, status: 'queued', nextAttemptAt: now } : e));
+}
+
+/**
+ * Sinal que aborta o envio depois do prazo. `AbortSignal.timeout` não existe antes do
+ * Safari/iOS 16 e do Chrome 103; sem ele, o TypeError virava "falha de rede" e a fila tentava
+ * para sempre sem nunca enviar (D-2 da reauditoria).
+ */
+export function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
 }
 
 const STATUS_WORDS: Record<string, string> = { CLOSED: 'fechada', PAID: 'paga' };
@@ -228,6 +257,7 @@ export function isQueueEntry(value: unknown): value is QueueEntry {
     NUMBER_FIELDS.every((field) => typeof record[field] === 'number' && Number.isFinite(record[field])) &&
     typeof record.status === 'string' &&
     STATUSES.some((status) => status === record.status) &&
-    (record.reason === undefined || typeof record.reason === 'string')
+    (record.reason === undefined || typeof record.reason === 'string') &&
+    (record.sendingSince === undefined || typeof record.sendingSince === 'number')
   );
 }

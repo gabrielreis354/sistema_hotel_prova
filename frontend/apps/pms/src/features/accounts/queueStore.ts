@@ -12,6 +12,7 @@ import {
   classifySend,
   applyOutcome,
   recoverAfterReload,
+  recoverStale,
   sendBody,
   newClientItemId,
   isQueueEntry,
@@ -122,8 +123,14 @@ async function flush(ownerId: string, qc: QueryClient) {
   if (flushing) return;
   flushing = true;
   try {
+    const recovered = recoverStale(entries, Date.now());
+    if (recovered !== entries) commit(recovered);
     for (const entry of readyToSend(entries, ownerId, Date.now())) {
-      commit(markSending(entries, entry.clientItemId));
+      // Trocou o usuário no meio da rodada: o lançamento não sai com o login de outra pessoa,
+      // senão o created_by fica errado (D-5 da reauditoria).
+      const session = useAuthStore.getState();
+      if (!session.token || session.user?.id !== ownerId) break;
+      commit(markSending(entries, entry.clientItemId, Date.now()));
       const result = await postItem(entry.accountId, sendBody(entry));
       const outcome = classifySend(result.status, result.body);
       if (outcome.kind === 'saved') showSaved(qc, entry.accountId, result.data);
