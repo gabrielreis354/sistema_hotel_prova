@@ -1,7 +1,7 @@
 # SPEC-04 — Módulo de Consumo (Comanda)
 
 **Prioridade:** 🟠 Alta — diferencial de produto
-**Estado:** 🟡 Parcialmente implementado — **6 de 9 fatias concluídas** (T-04.1 a T-04.4 em 19/10/2026)
+**Estado:** 🟡 Parcialmente implementado — **7 de 9 fatias concluídas** (T-04.1 a T-04.4 em 19/10/2026, T-04.5 em 26/10/2026)
 **Criado em:** 26/08/2026
 **Bloqueia:** SPEC-05 Fase 2 (comanda no frontend)
 
@@ -23,13 +23,13 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 | 2b — Migração do `Consumption` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `database/migrateConsumptions.js`, rotas antigas via conta |
 | 3a — Bill da conta + close | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `/accounts/:id/bill`, `/accounts/:id/close`, contas fecham no encerramento da estadia |
 | 3b — `Payment` ↔ `Account` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `payments.account_id`, `payments_made` real, `CLOSED ↔ PAID`, crédito da reserva rateado entre as contas |
-| 3c — Delegação do bill da reserva | 🔲 Pendente | 🔲 Pendente |
+| 3c — Delegação do bill da reserva | 🔲 Pendente | ✅ **Mergeada** em 26/10 — `/reservations/:id/bill` soma as contas (`app/utils/reservationBill.js`), contrato idêntico |
 | 4 — Check-in + Split Bill + Day-use | 🔲 Pendente | 🔲 Pendente |
 | 5 — Seed, Swagger e testes | 🔲 Pendente | 🔲 Pendente |
 
 **Evidência do que existe:** `services/core-service/app/Models/ProductModel.js`, `services/core-service/app/Controllers/ProductApi/` (5 controllers), rota `/products` registrada, `services/core-service/tests/products.test.js` com 36 testes, tabela `products` em `services/core-service/db/schema.sql` com índice único parcial.
 
-**Evidência do que falta (19/10):** o bill da reserva ainda não soma as contas (T-04.5); o check-in ainda não cria conta (T-04.6).
+**Evidência do que falta (26/10):** o check-in ainda não cria conta (T-04.6).
 
 ---
 
@@ -165,16 +165,16 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 
 ---
 
-### T-04.5 — Delegação do bill da reserva 🔲 *(fatia 3c · ~1-2 dias)*
+### T-04.5 — Delegação do bill da reserva ✅ *(fatia 3c · ~1-2 dias — concluída em 26/10/2026; decisões em `anexos/SPEC-04-decisoes-T-04.5.md`)*
 
 **DEP:** T-04.4 · ⚠️ refatoração
 
 > **Herdado da T-04.4:** o pagamento feito na reserva sem conta é crédito rateado entre as contas (D-45), e o bill da reserva cancelada já não cobra diária (D-46). Com isso, a soma dos saldos das contas é o `balance_due` da reserva — `expectAccountsMatchReservation`, em `tests/account-payments.test.js`, é a base para o CA-04.5.a.
 
 **Critérios de aceitação**
-- [ ] **CA-04.5.a** — `GET /reservations/:id/bill` soma as `Accounts` da reserva
-- [ ] **CA-04.5.b** — **Contrato de resposta idêntico** ao atual
-- [ ] **CA-04.5.c** — `services/core-service/tests/bill-consumptions.test.js` passa sem alteração
+- [x] **CA-04.5.a** — `GET /reservations/:id/bill` soma as `Accounts` da reserva *(26/10 — diária sem conta fica na reserva, D-54)*
+- [x] **CA-04.5.b** — **Contrato de resposta idêntico** ao atual *(26/10)*
+- [x] **CA-04.5.c** — `services/core-service/tests/bill-consumptions.test.js` passa sem alteração *(26/10)*
 
 ---
 
