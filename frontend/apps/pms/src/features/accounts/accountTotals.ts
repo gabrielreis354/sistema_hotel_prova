@@ -3,7 +3,7 @@ import { pendingFor, type QueueEntry } from './queueCore.js';
 
 /** O mínimo de um item de conta que a tela precisa (subconjunto de AccountItem). */
 export interface ItemLike {
-  description: string;
+  description?: string;
   quantity?: number;
   total?: string;
   billable?: boolean;
