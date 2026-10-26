@@ -3421,6 +3421,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/internal-consumption": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consumo interno por motivo (cortesia, funcionário, perda)
+         * @description Responde "quanto o hotel deu de cortesia, refeição de funcionário e perda no período?" (RN-007). Entram os itens não faturáveis (billable: false) de qualquer conta e todos os itens de contas INTERNAL. Item de conta INTERNAL lançado sem motivo aparece no grupo reason: null (D-63). Itens excluídos e itens de contas excluídas ficam de fora; o status da conta não importa (D-65). O período filtra pelo dia do consumo (consumed_at), não pelo dia em que o servidor gravou (D-64). Requer ADMIN (T-04.7).
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Data inicial (YYYY-MM-DD), inclusiva. Vem junto com end. */
+                    start?: string;
+                    /** @description Data final (YYYY-MM-DD), inclusiva. Vem junto com start. */
+                    end?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Um grupo por motivo, do maior valor para o menor; lista vazia se não houver consumo interno */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description null: item de conta INTERNAL lançado sem motivo
+                             * @example COURTESY
+                             * @enum {string|null}
+                             */
+                            reason: "COURTESY" | "STAFF" | "LOSS" | "INTERNAL_USE" | null;
+                            /**
+                             * @description Número de lançamentos
+                             * @example 12
+                             */
+                            count: number;
+                            /**
+                             * @description Soma de quantity × unit_price, em reais
+                             * @example 340.5
+                             */
+                            total: number;
+                        }[];
+                    };
+                };
+                /** @description Só uma das datas, data inexistente ou fora do formato YYYY-MM-DD, ou start depois de end */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Requer papel ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/products": {
         parameters: {
             query?: never;
