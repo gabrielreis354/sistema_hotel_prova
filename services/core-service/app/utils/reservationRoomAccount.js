@@ -46,8 +46,8 @@ const roomOf = (id, tenantId) => RoomModel.findOne({ where: { id, tenant_id: ten
  * suíte, nas rotas antigas e no POST /accounts (reauditoria N-1): assim a criação
  * enxerga a conta realinhada e a RN-005 recusa a segunda diária.
  *
- * Realinha no máximo uma: o quarto principal só cabe uma. Sobras (remoção de quarto extra
- * que tinha conta) ficam para o repasse ao Gabriel e para a regra da T-04.3.
+ * Realinha no máximo uma: o quarto principal só cabe uma. Desde 21/10 a troca e a remoção
+ * de quarto já levam as contas (roomChangeAccounts.js, D-51); isto ficou como rede para dado legado.
  *
  * @returns {Promise<import('sequelize').Model|null>} a conta realinhada, ou null
  */
