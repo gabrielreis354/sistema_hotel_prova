@@ -15,6 +15,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import PaymentModel from '../app/Models/PaymentModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -290,7 +291,7 @@ describe('Estorno acerta a conta na mesma transação (T-04.4)', () => {
 
     it('pagamento da reserva que quitava a conta titular: estornar devolve a CLOSED', async () => {
         const { room, reservation } = await newReservation();
-        await request(app).put(`/reservations/${reservation.id}/check-in`).set(auth(jwt)).expect(200);
+        await checkInWithoutAccount(app, jwt, reservation.id).then((r) => expect(r.status).toBe(200));
         const account = await openAccount({
             type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Suíte estorno'
         });
@@ -687,7 +688,7 @@ describe('🟢-2 — corridas do estorno com outros caminhos que travam a reserv
     it('estorno ∥ check-out da mesma reserva: sem deadlock, e a conta termina CLOSED com o saldo', async () => {
         for (let round = 0; round < 6; round += 1) {
             const { room, reservation } = await newReservation();
-            await request(app).put(`/reservations/${reservation.id}/check-in`).set(auth(jwt)).expect(200);
+            await checkInWithoutAccount(app, jwt, reservation.id).then((r) => expect(r.status).toBe(200));
             const account = await openAccount({
                 type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: `Suíte corrida ${round}`
             });

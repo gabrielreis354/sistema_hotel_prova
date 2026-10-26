@@ -19,6 +19,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 // Import tardio: sem o módulo, só os testes da migração falham — não o arquivo inteiro.
 async function migrateConsumptions(db) {
@@ -41,7 +42,7 @@ async function newReservation({ checkIn = false } = {}) {
     const reservation = await createReservation(app, jwt, guest.id, room.id, {
         check_in_date: `2028-0${(roomNumber % 9) + 1}-01`, check_out_date: `2028-0${(roomNumber % 9) + 1}-03`
     });
-    if (checkIn) await request(app).put(`/reservations/${reservation.id}/check-in`).set(auth(jwt));
+    if (checkIn) await checkInWithoutAccount(app, jwt, reservation.id);
     return { reservation, room, guest };
 }
 
@@ -238,7 +239,7 @@ describe('Rotas antigas gravam e leem via conta (CA-04.2.d)', () => {
         roomNumber += 1;
         const newRoom = await createRoom(app, jwt, category.id, { number: String(roomNumber) });
         expect((await request(app).put(`/reservations/${reservation.id}`).set(auth(jwt)).send({ room_id: newRoom.id })).status).toBe(200);
-        expect((await request(app).put(`/reservations/${reservation.id}/check-in`).set(auth(jwt))).status).toBe(200);
+        expect((await checkInWithoutAccount(app, jwt, reservation.id)).status).toBe(200);
 
         const res = await request(app).post('/accounts').set(auth(jwt)).send({
             type: 'ROOM', reservation_id: reservation.id, room_id: newRoom.id, guest_id: guest.id, label: 'Suíte nova'

@@ -12,6 +12,7 @@ import { createCategory, createRoom, createGuest, createReservation } from './he
 import AccountModel from '../app/Models/AccountModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 // Import tardio: sem o módulo, só os testes do migrate falham — não o arquivo inteiro.
 async function closeEndedStayAccounts(db) {
@@ -54,7 +55,7 @@ async function newStay({ checkIn = false } = {}) {
     const room = await createRoom(app, jwt, category.id, { number: String(roomNumber) });
     const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates());
     if (checkIn) {
-        const res = await request(app).put(`/reservations/${reservation.id}/check-in`).set(auth(jwt));
+        const res = await checkInWithoutAccount(app, jwt, reservation.id);
         if (res.status !== 200) throw new Error(`check-in falhou: ${JSON.stringify(res.body)}`);
     }
     return { reservation, room };
@@ -406,7 +407,7 @@ describe('Diária gravada no fechamento (D-39)', () => {
             guest_id: guest.id, room_id: main.id, extra_room_ids: [extra.id], ...nextDates()
         });
         expect(res.body.total_amount).toBe('1000.00'); // 2 × (300 + 200)
-        await request(app).put(`/reservations/${res.body.id}/check-in`).set(auth(jwt));
+        await checkInWithoutAccount(app, jwt, res.body.id);
         const a = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: res.body.id, room_id: main.id, label: 'Lux' });
         const b = await openAccount({ type: 'ROOM', guest_id: guest.id, reservation_id: res.body.id, room_id: extra.id, label: 'Std' });
         return { reservation: res.body, std, a, b };

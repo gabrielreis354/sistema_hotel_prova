@@ -22,6 +22,7 @@ import AccountModel from '../app/Models/AccountModel.js';
 import PaymentModel from '../app/Models/PaymentModel.js';
 import getPixProvider from '../app/services/pix/index.js';
 import { fromCents, toCents } from '../app/utils/calculateStayTotal.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -79,7 +80,7 @@ const close = async (accountId) => {
 const reload = (id) => AccountModel.findByPk(id);
 
 async function checkIn(reservationId) {
-    const res = await request(app).put(`/reservations/${reservationId}/check-in`).set(auth(jwt));
+    const res = await checkInWithoutAccount(app, jwt, reservationId);
     if (res.status !== 200) throw new Error(`check-in falhou: ${res.status} ${JSON.stringify(res.body)}`);
 }
 
@@ -630,7 +631,9 @@ describe('Crédito da reserva rateado entre as contas (D-45, 🟡-1 do qa-redtea
             type: 'ROOM', reservation_id: reservation.id, room_id: room.id, guest_id: guest.id, label: 'Bar0', charges_lodging: false
         });
         await close(zero.id);
-        await payOk({ reservation_id: reservation.id, amount: '100.00' }); // nenhuma conta com total: a sobra cai na Bar0
+        // Sem conta de diária, o crédito paga antes a diária que ficou na reserva (200, D-61);
+        // a sobra de 100 não acha conta com total e cai na Bar0.
+        await payOk({ reservation_id: reservation.id, amount: '300.00' });
 
         expect(await bill(zero.id)).toMatchObject({ status: 'CLOSED', total: '0.00', payments_made: '100.00', balance: '-100.00' });
 
