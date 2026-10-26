@@ -9,6 +9,7 @@ import GetSeasonalityController       from '../../app/Controllers/AnalyticsApi/G
 import GetRevenueByCategoryController from '../../app/Controllers/AnalyticsApi/GetRevenueByCategoryController.js';
 import GetPaymentMixController        from '../../app/Controllers/AnalyticsApi/GetPaymentMixController.js';
 import GetTopGuestsController         from '../../app/Controllers/AnalyticsApi/GetTopGuestsController.js';
+import GetInternalConsumptionController from '../../app/Controllers/AnalyticsApi/GetInternalConsumptionController.js';
 
 const analyticsRouter = Router();
 
@@ -22,5 +23,8 @@ analyticsRouter.get('/seasonality',          GetSeasonalityController);
 analyticsRouter.get('/revenue-by-category',  GetRevenueByCategoryController);
 analyticsRouter.get('/payment-mix',          GetPaymentMixController);
 analyticsRouter.get('/top-guests',           GetTopGuestsController);
+
+// Cortesia, refeição de funcionário e perda: decisão de gestão, só ADMIN (CA-04.7.c).
+analyticsRouter.get('/internal-consumption', requireRole('ADMIN'), GetInternalConsumptionController);
 
 export default analyticsRouter;
