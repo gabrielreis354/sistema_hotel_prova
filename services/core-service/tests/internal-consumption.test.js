@@ -123,6 +123,23 @@ describe('GET /analytics/internal-consumption — agrupamento (CA-04.7.a/b)', ()
         }
     });
 
+    it('item gravado com hotel diferente do da conta não aparece em nenhum dos dois (JOIN por tenant)', async () => {
+        // Estado que a API não produz: só o banco direto cria. Sem o a.tenant_id no JOIN,
+        // o vizinho veria a conta INTERNAL deste hotel somada no relatório dele.
+        const neighbour = await AccountModel.findOne({ where: { label: 'Mesa do vizinho' } });
+        // LEGACY_CONSUMPTION: a única origem que dispensa created_by (D-25).
+        const stray = await AccountItemModel.create({
+            tenant_id: neighbour.tenant_id, account_id: internalAccount.id, description: 'Item torto',
+            quantity: 1, unit_price: 1000, total: 1000, billable: true, origin: 'LEGACY_CONSUMPTION'
+        });
+        try {
+            expect((await report(otherJwt)).body).toEqual([{ reason: 'COURTESY', count: 1, total: 500 }]);
+            expect(byReason((await report(jwt)).body).null.total).toBe(8);
+        } finally {
+            await stray.destroy({ force: true });
+        }
+    });
+
     it('hotel sem consumo interno recebe lista vazia', async () => {
         const { jwt: emptyJwt } = await registerAndLogin(app, { tenantName: 'Hotel Sem Cortesia' });
         const res = await report(emptyJwt);
@@ -153,7 +170,8 @@ describe('GET /analytics/internal-consumption — período (D-64)', () => {
         ['data inválida', '?start=2026-02-30&end=2026-03-31'],
         ['formato errado', '?start=01/03/2026&end=2026-03-31'],
         ['start depois de end', '?start=2026-04-01&end=2026-03-01'],
-        ['start repetido', '?start=2026-03-01&start=2026-03-02&end=2026-03-31']
+        ['start repetido', '?start=2026-03-01&start=2026-03-02&end=2026-03-31'],
+        ['ano 0000, que o Postgres recusa', '?start=0000-01-01&end=2026-01-01']
     ])('400 com %s', async (_label, query) => {
         const res = await report(jwt, query);
         expect(res.status).toBe(400);

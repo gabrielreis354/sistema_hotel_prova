@@ -8,8 +8,9 @@ import { QueryTypes } from 'sequelize';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // YYYY-MM-DD que existe no calendário: 2026-02-30 passa no regex e viraria 500 no Postgres.
+// O ano 0000 também: o JS aceita, o Postgres não (no calendário dele, 1 a.C. vem antes de 1 d.C.).
 function isCalendarDate(value) {
-    if (typeof value !== 'string' || !DATE_RE.test(value)) return false;
+    if (typeof value !== 'string' || !DATE_RE.test(value) || value.startsWith('0000')) return false;
     const date = new Date(`${value}T00:00:00Z`);
     return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }

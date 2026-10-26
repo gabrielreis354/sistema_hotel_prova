@@ -15,6 +15,9 @@
 --   - Referências por subdomínio, e-mail, CPF, número do quarto e nome do produto —
 --     NUNCA UUID hardcoded.
 --   - Só toca os tenants 'aurora' e 'sol'.
+--   - Horários com fuso explícito (-03, Brasília): o instante gravado não depende do
+--     fuso da sessão que roda o seed (psql ou command.js), e o NOT EXISTS por
+--     consumed_at continua reconhecendo o lançamento.
 --   - Item só entra em conta OPEN: se a demonstração já fechou a conta, o seed não a
 --     reabre nem lança nela.
 -- =============================================================================
@@ -74,7 +77,7 @@ ON CONFLICT (tenant_id, name) WHERE deleted_at IS NULL DO NOTHING;
 -- -----------------------------------------------------------------------------
 INSERT INTO accounts (tenant_id, type, status, reservation_id, room_id, guest_id, label, charges_lodging, opened_at)
 SELECT r.tenant_id, 'ROOM', 'OPEN', r.id, r.room_id, r.guest_id, 'Suíte ' || rm.number, true,
-       r.check_in_date::timestamptz + interval '14 hours'
+       (r.check_in_date + time '14:00') AT TIME ZONE 'America/Sao_Paulo'
 FROM reservations r
 JOIN tenants t ON t.id = r.tenant_id AND t.subdomain IN ('aurora', 'sol')
 JOIN rooms rm  ON rm.id = r.room_id
@@ -95,9 +98,9 @@ ON CONFLICT (reservation_id, room_id) WHERE charges_lodging = true AND deleted_a
 INSERT INTO accounts (tenant_id, type, status, guest_id, label, charges_lodging, opened_at)
 SELECT t.id, v.type, 'OPEN', g.id, v.label, false, v.opened_at::timestamptz
 FROM (VALUES
-  ('TABLE',    'Mesa 3',                     NULL,          '2026-06-17 12:10'),
-  ('DAY_USE',  'Day-use — piscina',          '30000000010', '2026-06-17 10:00'),
-  ('INTERNAL', 'Equipe e perdas — junho',    NULL,          '2026-06-01 08:00')
+  ('TABLE',    'Mesa 3',                     NULL,          '2026-06-17 12:10-03'),
+  ('DAY_USE',  'Day-use — piscina',          '30000000010', '2026-06-17 10:00-03'),
+  ('INTERNAL', 'Equipe e perdas — junho',    NULL,          '2026-06-01 08:00-03')
 ) AS v(type, label, guest_cpf, opened_at)
 JOIN tenants t ON t.subdomain = 'aurora'
 LEFT JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf AND g.deleted_at IS NULL
@@ -135,18 +138,18 @@ SELECT al.tenant_id, al.account_id, p.id, p.name, v.quantity, p.price, v.quantit
        v.billable, v.reason, u.id, 'ACCOUNT', v.consumed_at::timestamptz
 FROM (VALUES
   -- conta,                     produto,                 qtd, faturável, motivo,     autor,                    consumido em
-  ('Suíte 106',                 'Cerveja long neck',       4, true,  NULL,         'admin@aurora.example',  '2026-06-15 21:30'),
-  ('Suíte 106',                 'Porção de fritas',        1, true,  NULL,         'admin@aurora.example',  '2026-06-15 21:30'),
-  ('Suíte 106',                 'Lavanderia (peça)',       3, true,  NULL,         'admin@aurora.example',  '2026-06-16 09:00'),
-  ('Suíte 106',                 'Vinho tinto (garrafa)',   1, false, 'COURTESY',   'admin@aurora.example',  '2026-06-15 20:00'),
-  ('Mesa 3',                    'Almoço executivo',        2, true,  NULL,         'garcom@aurora.example', '2026-06-17 12:15'),
-  ('Mesa 3',                    'Refrigerante lata',       2, true,  NULL,         'garcom@aurora.example', '2026-06-17 12:15'),
-  ('Day-use — piscina',         'Caipirinha',              2, true,  NULL,         'admin@aurora.example',  '2026-06-17 11:00'),
-  ('Day-use — piscina',         'Água mineral 500ml',      3, true,  NULL,         'admin@aurora.example',  '2026-06-17 11:00'),
-  ('Day-use — piscina',         'Pudim',                   1, false, 'COURTESY',   'admin@aurora.example',  '2026-06-17 13:00'),
-  ('Equipe e perdas — junho',   'Almoço executivo',        6, false, 'STAFF',      'admin@aurora.example',  '2026-06-10 12:00'),
-  ('Equipe e perdas — junho',   'Vinho tinto (garrafa)',   1, false, 'LOSS',       'admin@aurora.example',  '2026-06-12 22:00'),
-  ('Equipe e perdas — junho',   'Água mineral 500ml',     12, false, 'INTERNAL_USE','admin@aurora.example', '2026-06-14 08:00')
+  ('Suíte 106',                 'Cerveja long neck',       4, true,  NULL,         'admin@aurora.example',  '2026-06-15 21:30-03'),
+  ('Suíte 106',                 'Porção de fritas',        1, true,  NULL,         'admin@aurora.example',  '2026-06-15 21:30-03'),
+  ('Suíte 106',                 'Lavanderia (peça)',       3, true,  NULL,         'admin@aurora.example',  '2026-06-16 09:00-03'),
+  ('Suíte 106',                 'Vinho tinto (garrafa)',   1, false, 'COURTESY',   'admin@aurora.example',  '2026-06-15 20:00-03'),
+  ('Mesa 3',                    'Almoço executivo',        2, true,  NULL,         'garcom@aurora.example', '2026-06-17 12:15-03'),
+  ('Mesa 3',                    'Refrigerante lata',       2, true,  NULL,         'garcom@aurora.example', '2026-06-17 12:15-03'),
+  ('Day-use — piscina',         'Caipirinha',              2, true,  NULL,         'admin@aurora.example',  '2026-06-17 11:00-03'),
+  ('Day-use — piscina',         'Água mineral 500ml',      3, true,  NULL,         'admin@aurora.example',  '2026-06-17 11:00-03'),
+  ('Day-use — piscina',         'Pudim',                   1, false, 'COURTESY',   'admin@aurora.example',  '2026-06-17 13:00-03'),
+  ('Equipe e perdas — junho',   'Almoço executivo',        6, false, 'STAFF',      'admin@aurora.example',  '2026-06-10 12:00-03'),
+  ('Equipe e perdas — junho',   'Vinho tinto (garrafa)',   1, false, 'LOSS',       'admin@aurora.example',  '2026-06-12 22:00-03'),
+  ('Equipe e perdas — junho',   'Água mineral 500ml',     12, false, 'INTERNAL_USE','admin@aurora.example', '2026-06-14 08:00-03')
 ) AS v(conta, produto, quantity, billable, reason, autor, consumed_at)
 JOIN alvo al   ON al.conta = v.conta
 JOIN products p ON p.tenant_id = al.tenant_id AND p.name = v.produto AND p.deleted_at IS NULL

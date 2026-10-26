@@ -46,6 +46,23 @@ describe('seed da comanda — idempotência', () => {
         for (const table of TABLES) expect({ table, n: await count(table) }).toEqual({ table, n: firstRun[table] });
     });
 
+    it('rodar numa sessão com outro fuso também não duplica (horários com -03 no arquivo)', async () => {
+        const sql = await readFile(path.join(seedDir, 'seed_consumo.sql'), 'utf-8');
+        // Uma chamada só = uma conexão: o SET vale para o arquivo e o RESET devolve o pool limpo.
+        await sequelize.query(`SET TIME ZONE 'America/Sao_Paulo'; ${sql}; RESET TIME ZONE;`);
+        for (const table of TABLES) expect({ table, n: await count(table) }).toEqual({ table, n: firstRun[table] });
+    });
+
+    it('a conta da suíte abre às 14h de Brasília do dia da entrada', async () => {
+        const [{ opened }] = await sequelize.query(`
+            SELECT to_char(a.opened_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI') AS opened
+            FROM accounts a
+            JOIN rooms rm  ON rm.id = a.room_id
+            JOIN tenants t ON t.id = a.tenant_id AND t.subdomain = 'aurora'
+            WHERE a.type = 'ROOM' AND rm.number = '106'`, { type: QueryTypes.SELECT });
+        expect(opened).toBe('2026-06-15 14:00');
+    });
+
     it('cria cardápio, contas e lançamentos', () => {
         expect(firstRun.products).toBe(14);
         expect(firstRun.account_items).toBe(12);
