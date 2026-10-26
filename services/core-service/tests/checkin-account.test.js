@@ -17,6 +17,8 @@ import AccountModel from '../app/Models/AccountModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
 import RoomModel from '../app/Models/RoomModel.js';
 import { toCents } from '../app/utils/calculateStayTotal.js';
+import reservationRoomAccount from '../app/utils/reservationRoomAccount.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -194,6 +196,23 @@ describe('Check-in cria a conta da suíte (CA-04.6.a, D-58)', () => {
         const lodging = await AccountModel.findAll({ where: { reservation_id: reservation.id, charges_lodging: true } });
         expect(lodging).toHaveLength(1);
         expect((await get(`/reservations/${reservation.id}/bill`)).consumptions_total).toBe(5);
+    });
+
+    it('estadia encerrada enquanto o consumo esperava a trava: não abre conta (🟢-1 da reauditoria delta)', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1));
+        await checkInWithoutAccount(app, jwt, reservation.id); // estadia antiga, sem conta de diária
+        // O consumo leu a reserva CHECKED_IN; o check-out terminou antes de ele pegar a trava.
+        const seenByConsumption = await ReservationModel.findByPk(reservation.id);
+        await ReservationModel.update({ status: 'CHECKED_OUT' }, { where: { id: reservation.id } });
+
+        expect(await reservationRoomAccount(seenByConsumption)).toBeNull();
+        expect(await AccountModel.count({ where: { reservation_id: reservation.id } })).toBe(0);
+
+        await ReservationModel.update({ status: 'CHECKED_IN' }, { where: { id: reservation.id } });
+        await ReservationModel.destroy({ where: { id: reservation.id } }); // excluída no meio-tempo
+        expect(await reservationRoomAccount(seenByConsumption)).toBeNull();
+        expect(await AccountModel.count({ where: { reservation_id: reservation.id }, paranoid: false })).toBe(0);
     });
 
     it('colisão no índice da RN-005: o savepoint segura o check-in e a conta que ficou vale', async () => {

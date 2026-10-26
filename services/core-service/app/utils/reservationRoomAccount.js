@@ -33,7 +33,8 @@ export const roomAccountLabel = (roomNumber) => `Suíte ${roomNumber}`;
  * e vale a que ficou.
  *
  * @param {import('sequelize').Model} reservation já validada no tenant
- * @returns {Promise<import('sequelize').Model>}
+ * @returns {Promise<import('sequelize').Model|null>} null se a estadia encerrou ou foi
+ *   excluída enquanto esperava a trava
  */
 const isLodgingRace = (error) =>
     error instanceof UniqueConstraintError && error.parent?.constraint === 'accounts_lodging_unique';
@@ -95,6 +96,9 @@ export async function realignStaleLodgingAccount(reservation) {
     }
 }
 
+// Estadia encerrada: não recebe consumo nem conta nova (D-30).
+export const CLOSED_STAY_STATUSES = ['CHECKED_OUT', 'CANCELLED'];
+
 export default async function reservationRoomAccount(reservation) {
     const where = {
         tenant_id: reservation.tenant_id,
@@ -116,10 +120,13 @@ export default async function reservationRoomAccount(reservation) {
         // banco derrubava o consumo por deadlock (🟡-1 do qa-redteam da T-04.6). Com ela, quem
         // chega durante o check-in espera e encontra a conta que ele abriu.
         return await sequelize.transaction(async (transaction) => {
-            await ReservationModel.findOne({
+            const locked = await ReservationModel.findOne({
                 where: { id: reservation.id, tenant_id: reservation.tenant_id },
-                attributes: ['id'], lock: transaction.LOCK.UPDATE, paranoid: false, transaction
+                attributes: ['id', 'status', 'deleted_at'], lock: transaction.LOCK.UPDATE, paranoid: false, transaction
             });
+            // Estadia que encerrou (ou foi excluída) enquanto esperava a trava não ganha conta
+            // nova: ela ficaria aberta para sempre, cobrando diária (🟢-1 da reauditoria delta).
+            if (!locked || locked.deleted_at || CLOSED_STAY_STATUSES.includes(locked.status)) return null;
             const opened = await AccountModel.findOne({ where, transaction });
             if (opened) return opened;
             return AccountModel.create({
