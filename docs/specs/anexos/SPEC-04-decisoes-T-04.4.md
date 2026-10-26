@@ -4,6 +4,7 @@
 **Estado da tarefa:** ✅ concluída — decisões aprovadas pelo Sirlande; qa-redteam APROVADO COM RESSALVAS na 3ª rodada (ressalvas corrigidas antes do merge)
 **Fonte:** relatório `docs/historico_sessao/sirlande/t044_pagamento_conta_19out2026.md`
 **Continua:** `SPEC-04-decisoes-T-04.3.md` (D-33 a D-41). A numeração segue daqui.
+**Segue em:** `SPEC-04-decisoes-repasses-gabriel.md` (D-51 a D-53, aval ao PR #101).
 
 > A SPEC-04 diz o que entregar (CA-04.4.a–e). Aqui ficam as escolhas que ela não fixava e **por quê**.
 > D-42 a D-44 foram aprovadas no plano. D-45 e D-46 vieram dos 🟡-1 e 🟡-2 da 1ª auditoria, aprovadas pelo Sirlande. D-47 a D-50 são decisões de implementação.
