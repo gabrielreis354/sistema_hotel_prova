@@ -1,5 +1,6 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import { QueryTypes } from 'sequelize';
+import { HOTEL_TIMEZONE } from '../../utils/hotelTimezone.js';
 
 // Relatório de consumo interno (T-04.7, CA-04.7.a e b): "quanto o hotel deu de cortesia,
 // refeição de funcionário e perda no período?" (RN-007). Decisões D-63 a D-65 em
@@ -33,9 +34,10 @@ export default async function GetInternalConsumptionController(request, response
         if (error) return response.status(400).json({ error });
 
         // consumed_at, não created_at: o item que a fila offline do garçom entregou
-        // depois pertence ao dia em que foi consumido (D-26, D-64).
+        // depois pertence ao dia em que foi consumido (D-26, D-64) — e o dia é o do
+        // hotel, não o de UTC (D-68).
         const dateFilter = start !== undefined
-            ? 'AND ai.consumed_at::date BETWEEN :start AND :end'
+            ? 'AND (ai.consumed_at AT TIME ZONE :timezone)::date BETWEEN :start AND :end'
             : '';
 
         // Entra (CA-04.7.b): item não faturável de qualquer conta + todo item de conta
@@ -59,7 +61,7 @@ export default async function GetInternalConsumptionController(request, response
             GROUP BY ai.reason
             ORDER BY total DESC, ai.reason NULLS LAST
         `, {
-            replacements: { tenantId, start: start ?? null, end: end ?? null },
+            replacements: { tenantId, timezone: HOTEL_TIMEZONE, start: start ?? null, end: end ?? null },
             type: QueryTypes.SELECT
         });
 

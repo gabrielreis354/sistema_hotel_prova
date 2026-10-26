@@ -1353,7 +1353,7 @@ const options = {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Consumo interno por motivo (cortesia, funcionário, perda)',
-                    description: 'Responde "quanto o hotel deu de cortesia, refeição de funcionário e perda no período?" (RN-007). Entram os itens não faturáveis (billable: false) de qualquer conta e todos os itens de contas INTERNAL. Item de conta INTERNAL lançado sem motivo aparece no grupo reason: null (D-63). Itens excluídos e itens de contas excluídas ficam de fora; o status da conta não importa (D-65). O período filtra pelo dia do consumo (consumed_at), não pelo dia em que o servidor gravou (D-64). Requer ADMIN (T-04.7).',
+                    description: 'Responde "quanto o hotel deu de cortesia, refeição de funcionário e perda no período?" (RN-007). Entram os itens não faturáveis (billable: false) de qualquer conta e todos os itens de contas INTERNAL. Item de conta INTERNAL lançado sem motivo aparece no grupo reason: null (D-63). Itens excluídos e itens de contas excluídas ficam de fora; o status da conta não importa (D-65). O período filtra pelo dia do consumo (consumed_at), não pelo dia em que o servidor gravou (D-64), contado no horário de Brasília (D-68). Requer ADMIN (T-04.7).',
                     parameters: [
                         { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-10-01' }, description: 'Data inicial (YYYY-MM-DD), inclusiva. Vem junto com end.' },
                         { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-10-31' }, description: 'Data final (YYYY-MM-DD), inclusiva. Vem junto com start.' }
