@@ -933,6 +933,7 @@ const options = {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 put: {
                     tags: ['Reservas'], summary: 'Realiza check-in (PENDING ou CONFIRMED → CHECKED_IN; ocupa o(s) quarto(s))',
+                    description: 'Abre a conta da suíte (ROOM, cobrando diária, no quarto principal) na mesma transação; se a reserva já tem conta de diária, ela é reaproveitada. Falha na conta desfaz o check-in (T-04.6, D-58). A conta aparece em GET /reservations/{id}/accounts.',
                     responses: {
                         200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -957,11 +958,24 @@ const options = {
                 get: {
                     tags: ['Financeiro'],
                     summary: 'Fechamento de conta: (diária + consumos) − pagamentos confirmados',
-                    description: 'Desde a T-04.2, os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.',
+                    description: 'Desde a T-04.5, os totais são a soma das contas da reserva; a diária que nenhuma conta cobra fica na reserva (D-54). Os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.',
                     responses: {
                         200: { description: 'Conta com room_total, consumptions_total, grand_total, total_paid, balance_due', content: { 'application/json': { schema: { $ref: '#/components/schemas/Bill' } } } },
                         404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         503: { description: 'A reserva tem consumo antigo ainda não migrado — o total sairia menor. Some quando o `migrate` concluir (T-04.2)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
+            },
+            '/reservations/{id}/accounts': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Lista as contas da reserva (T-04.6, CA-04.6.d)',
+                    description: 'Mesmo formato de GET /accounts, da mais antiga para a mais nova; fechadas e pagas entram, excluídas não. Garçom não acessa.',
+                    responses: {
+                        200: { description: 'Contas da reserva', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Account' } } } } },
+                        403: { description: 'Garçom (allowlist)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
