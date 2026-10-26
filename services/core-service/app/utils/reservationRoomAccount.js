@@ -1,4 +1,5 @@
 import { Op, UniqueConstraintError } from 'sequelize';
+import sequelize from '../../database/connections/sequelize.js';
 import AccountModel from '../Models/AccountModel.js';
 import ReservationRoomModel from '../Models/ReservationRoomModel.js';
 import RoomModel from '../Models/RoomModel.js';
@@ -117,6 +118,46 @@ export default async function reservationRoomAccount(reservation) {
     } catch (error) {
         // Outra requisição criou no meio-tempo: usa a dela.
         if (isLodgingRace(error)) return AccountModel.findOne({ where });
+        throw error;
+    }
+}
+
+/**
+ * Conta da suíte aberta pelo check-in (T-04.6, CA-04.6.a, D-58), dentro da transação do
+ * check-in e depois da trava da reserva (D-48): se a conta falhar, o check-in inteiro volta
+ * (CA-04.6.c).
+ *
+ * - Reaproveita qualquer conta de diária da reserva: a rota antiga de consumo pode ter
+ *   criado uma antes do check-in (D-28). Não realinha conta de quarto antigo — o
+ *   realinhamento roda em outra conexão (D-53), e a troca de quarto já leva a conta (D-51).
+ * - Sem conta de diária, cria a do quarto principal, cobrando diária, com o hóspede da
+ *   reserva e o rótulo do sistema, sem nome (D-15). Com uma conta só, ela leva a diária
+ *   inteira, mesmo na reserva de vários quartos (D-40).
+ * - A rota antiga cria a conta fora de transação e pode cruzar com o check-in: o índice da
+ *   RN-005 recusa a segunda, e o savepoint deixa o check-in seguir com a conta que ficou.
+ *
+ * @param {import('sequelize').Model} reservation travada pela transação
+ * @param {import('sequelize').Model} room quarto principal da reserva
+ * @param {import('sequelize').Transaction} transaction
+ * @returns {Promise<import('sequelize').Model>}
+ */
+export async function openStayAccount(reservation, room, transaction) {
+    const lodging = { tenant_id: reservation.tenant_id, reservation_id: reservation.id, charges_lodging: true };
+    const existing = await AccountModel.findOne({ where: lodging, order: [['opened_at', 'ASC']], transaction });
+    if (existing) return existing;
+
+    try {
+        // Savepoint: o erro do índice abortaria a transação do check-in inteira.
+        return await sequelize.transaction({ transaction }, (savepoint) => AccountModel.create({
+            ...lodging,
+            room_id: reservation.room_id,
+            type: 'ROOM',
+            status: 'OPEN',
+            guest_id: reservation.guest_id,
+            label: roomAccountLabel(room.number)
+        }, { transaction: savepoint }));
+    } catch (error) {
+        if (isLodgingRace(error)) return AccountModel.findOne({ where: lodging, transaction });
         throw error;
     }
 }

@@ -154,6 +154,21 @@ describe('Check-in cria a conta da suíte (CA-04.6.a, D-58)', () => {
         expect(lodging).toHaveLength(1);
     });
 
+    it('colisão no índice da RN-005: o savepoint segura o check-in e a conta que ficou vale', async () => {
+        const room = await newRoom();
+        const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2));
+        await request(app).post(`/reservations/${reservation.id}/consumptions`).set(auth(jwt)).send({ description: 'Café', amount: 7 });
+        const legacy = await AccountModel.findOne({ where: { reservation_id: reservation.id } });
+        // A busca do check-in "não vê" a conta, como na corrida: o INSERT bate no índice.
+        vi.spyOn(AccountModel, 'findOne').mockResolvedValueOnce(null);
+
+        const res = await checkIn(reservation.id);
+        expect(res.status).toBe(200);
+        expect((await ReservationModel.findByPk(reservation.id)).status).toBe('CHECKED_IN');
+        const accounts = await AccountModel.findAll({ where: { reservation_id: reservation.id } });
+        expect(accounts.map((a) => a.id)).toEqual([legacy.id]);
+    });
+
     it('depois do check-in, abrir outra conta de diária no mesmo quarto → 422 (RN-005)', async () => {
         const room = await newRoom();
         const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(1));
