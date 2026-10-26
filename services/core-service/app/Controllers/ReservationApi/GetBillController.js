@@ -26,8 +26,11 @@ export default async function GetBillController(request, response) {
         const tenantId = request.user.tenantId;
 
         const result = await sequelize.transaction(
-            { isolationLevel: Transaction.ISOLATION_LEVELS.REPEATABLE_READ, readOnly: true },
+            { isolationLevel: Transaction.ISOLATION_LEVELS.REPEATABLE_READ },
             async (transaction) => {
+                // O `readOnly` do Sequelize 6 só escolhe a conexão; quem impõe é o banco
+                // (🟢-1 do qa-redteam). Precisa ser o primeiro comando da transação.
+                await sequelize.query('SET TRANSACTION READ ONLY', { transaction });
                 const reservation = await ReservationModel.findOne({
                     where: { id, tenant_id: tenantId },
                     include: [

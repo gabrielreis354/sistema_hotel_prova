@@ -226,13 +226,19 @@ describe('Bill da reserva = soma das contas (CA-04.5.a)', () => {
 
     it('lançamentos e pagamentos em paralelo: no fim, a soma das contas bate', async () => {
         const { reservation, a, b } = await splitStay();
-        await Promise.all([
+        const midBills = await Promise.all([
             addItem(a.id, { description: 'Cerveja', quantity: 2, unit_price: '12.50' }),
             addItem(b.id, { description: 'Porção', unit_price: '45.90' }),
             payOk({ reservation_id: reservation.id, amount: 200 }),
             payOk({ account_id: a.id, reservation_id: reservation.id, amount: 70.1 }),
+            reservationBill(reservation.id),
             reservationBill(reservation.id)
-        ]);
+        ]).then((all) => all.slice(4));
+        // O bill lido no meio das escritas é coerente consigo mesmo (D-57, 🟢-2 do qa-redteam).
+        for (const mid of midBills) {
+            expect(cents(mid.grand_total) - cents(mid.total_paid)).toBe(cents(mid.balance_due));
+            expect(mid.consumptions.reduce((acc, c) => acc + cents(c.amount), 0)).toBe(cents(mid.consumptions_total));
+        }
         const body = await expectSumOfAccounts(reservation.id);
         expect(body).toMatchObject({ consumptions_total: 70.9, total_paid: 270.1, balance_due: 1300.8 });
     });

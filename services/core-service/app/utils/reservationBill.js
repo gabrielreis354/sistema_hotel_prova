@@ -17,8 +17,11 @@ const toNumber = (cents) => cents / 100;
  *   check-in, que até a T-04.6 não tem conta.
  * - Consumos: soma dos consumos das contas (só itens faturáveis, CA-04.3.c). A lista sai
  *   dos mesmos itens, no formato antigo.
- * - Pago e pendente: pagamentos da reserva (D-56). Com conta, o pago é igual à soma do que
- *   as contas receberam: o razão põe a sobra do crédito em alguma conta.
+ * - Pago e pendente: pagamentos da reserva (D-56). Com conta de diária, o pago é igual à
+ *   soma do que as contas receberam: o razão põe a sobra do crédito em alguma conta.
+ *   Sem conta de diária mas com outra conta (só a do acompanhante), o razão ainda põe o
+ *   crédito inteiro nas contas, sem saber que a diária ficou aqui: o saldo da reserva fica
+ *   certo e o da conta sai negativo (🟡-1 do qa-redteam, pendência para a T-04.6).
  *
  * Contrato idêntico ao de antes (CA-04.5.b): valores em número, não em texto.
  *
