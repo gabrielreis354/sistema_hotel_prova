@@ -12,6 +12,8 @@ import {
   recoverAfterReload,
   sendBody,
   newClientItemId,
+  canUndo,
+  isQueueEntry,
   type QueueEntry,
   type Tap,
 } from './queueCore.js';
@@ -66,6 +68,19 @@ describe('undoTap — desfazer em vez de diálogo (CA-05.5.g)', () => {
   it('fora da janela, não desfaz: o item já pode estar no servidor', () => {
     const q = addTap([], tap(), T0, 'abc');
     expect(undoTap(q, 'abc', T0 + UNDO_MS)).toEqual(q);
+  });
+
+  it('só quem lançou desfaz (aparelho compartilhado, 🟡-4 do qa-redteam)', () => {
+    const q = addTap([], tap(), T0, 'abc');
+    expect(undoTap(q, 'abc', T0 + 1000, 'outro-garcom')).toEqual(q);
+    expect(undoTap(q, 'abc', T0 + 1000, 'garcom-1')).toEqual([]);
+  });
+
+  it('canUndo: o botão só existe dentro do prazo, mesmo que o envio atrase (🟡-1)', () => {
+    const [entry] = addTap([], tap(), T0, 'abc');
+    expect(canUndo(entry!, T0 + UNDO_MS - 1)).toBe(true);
+    expect(canUndo(entry!, T0 + UNDO_MS)).toBe(false);
+    expect(canUndo({ ...entry!, status: 'queued' }, T0)).toBe(false);
   });
 });
 
@@ -186,6 +201,17 @@ describe('pendingFor e sendBody', () => {
   it('corpo do POST: só produto, quantidade e client_item_id — o garçom lança do cardápio, faturável (D-21)', () => {
     const [entry] = addTap([], tap(), T0, 'abc');
     expect(sendBody(entry!)).toEqual({ product_id: 'cerveja', quantity: 1, client_item_id: 'abc' });
+  });
+});
+
+describe('isQueueEntry — o que vem do armazenamento do aparelho (🟢 do qa-redteam)', () => {
+  it('aceita a entrada completa e recusa a malformada ou de versão antiga', () => {
+    const [entry] = addTap([], tap(), T0, 'abc');
+    expect(isQueueEntry(JSON.parse(JSON.stringify(entry)))).toBe(true);
+    expect(isQueueEntry({ clientItemId: 'x', accountId: 'y' })).toBe(false);
+    expect(isQueueEntry({ ...entry, quantity: '2' })).toBe(false);
+    expect(isQueueEntry({ ...entry, status: 'gravado' })).toBe(false);
+    expect(isQueueEntry(null)).toBe(false);
   });
 });
 
