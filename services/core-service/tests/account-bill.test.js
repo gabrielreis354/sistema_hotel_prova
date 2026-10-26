@@ -1,6 +1,7 @@
 // T-04.3 — GET /accounts/:id/bill (CA-04.3.a a f).
 // Diária por conta = rateio do total da reserva entre os quartos, pelo preço da categoria
-// (D-33). payments_made = 0 até a T-04.4 (D-34). Reserva cancelada não cobra diária (D-35).
+// (D-33). Desde a T-04.4, o pagamento da reserva sem conta entra na conta titular (substitui
+// a D-34). Reserva cancelada não cobra diária (D-35).
 // Ver docs/specs/anexos/SPEC-04-decisoes-T-04.3.md.
 import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -12,6 +13,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -42,7 +44,7 @@ const addItem = async (accountId, body) => {
 };
 
 async function checkIn(reservationId) {
-    const res = await request(app).put(`/reservations/${reservationId}/check-in`).set(auth(jwt));
+    const res = await checkInWithoutAccount(app, jwt, reservationId);
     if (res.status !== 200) throw new Error(`check-in falhou: ${res.status} ${JSON.stringify(res.body)}`);
 }
 
@@ -87,7 +89,7 @@ describe('GET /accounts/:id/bill — conta da suíte (CA-04.3.a a d)', () => {
         await addItem(account.id, { description: 'Cerveja', quantity: 2, unit_price: '12.50' });
         courtesy = await addItem(account.id, { description: 'Vinho', unit_price: '30.00', billable: false, reason: 'COURTESY' });
 
-        // Um pagamento da reserva não é da conta antes da T-04.4 (D-34).
+        // Pagamento da reserva sem conta: entra na conta titular, a de diária mais antiga (T-04.4).
         const payment = await request(app).post('/payments').set(auth(jwt))
             .send({ reservation_id: reservation.id, amount: 100, method: 'PIX' });
         if (payment.status !== 201) throw new Error(`pagamento falhou: ${JSON.stringify(payment.body)}`);
@@ -105,8 +107,8 @@ describe('GET /accounts/:id/bill — conta da suíte (CA-04.3.a a d)', () => {
             room_charges: '800.00',
             consumptions: '25.00',
             total: '825.00',
-            payments_made: '0.00',
-            balance: '825.00'
+            payments_made: '100.00',
+            balance: '725.00'
         });
         expect(res.body.items).toHaveLength(2);
     });
@@ -266,6 +268,9 @@ describe('Diária rateada entre os quartos da reserva (D-33)', () => {
         expect(swap.status).toBe(200);
         // Estado que o repasse ao Gabriel descreve: a conta antiga não acompanhou a troca, e uma
         // segunda conta de diária nasceu no quarto novo (gravada direto, sem o realinhamento da D-32).
+        // Desde a correção do repasse (19/10) a troca leva a conta junto; o estado aqui é o dado
+        // legado de antes dela, reconstruído direto no banco.
+        await AccountModel.update({ room_id: oldRoom.id }, { where: { id: stale.id } });
         const fresh = await AccountModel.create({
             tenant_id: tenantId, type: 'ROOM', reservation_id: reservation.id, room_id: newRoomOfStay.id,
             guest_id: guest.id, label: 'Nova', charges_lodging: true

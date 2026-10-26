@@ -117,6 +117,8 @@ export default function initRelations() {
     AccountModel.belongsTo(GuestModel, { foreignKey: 'guest_id', as: 'guest' });
 
     AccountModel.hasMany(AccountItemModel, { foreignKey: 'account_id', as: 'items' });
+    AccountModel.hasMany(PaymentModel, { foreignKey: 'account_id', as: 'payments' });
+    PaymentModel.belongsTo(AccountModel, { foreignKey: 'account_id', as: 'account' });
     AccountItemModel.belongsTo(AccountModel, { foreignKey: 'account_id', as: 'account' });
     AccountItemModel.belongsTo(TenantModel, { foreignKey: 'tenant_id', as: 'tenant' });
     AccountItemModel.belongsTo(ProductModel, { foreignKey: 'product_id', as: 'product' });

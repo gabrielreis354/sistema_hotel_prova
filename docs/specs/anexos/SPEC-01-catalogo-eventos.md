@@ -177,16 +177,16 @@ endpoints — ver §9, decisão D-1.
 | `type` | Quando |
 |---|---|
 | `payment.created` | Pagamento manual (já nasce `PAID`) e cobrança PIX (nasce `PENDING`) |
-| `payment.updated` | Alteração de valor ou método |
-| `payment.status_changed` | `PENDING → PAID` (webhook PIX), `EXPIRED`, `FAILED`. Leva `previous_status` |
-| `payment.deleted` | Exclusão lógica (`DELETE /payments/:id`) |
+| `payment.updated` | Correção de método ou data (`PUT /payments/:id`, só ADMIN). Desde a T-06.13 o valor de um pagamento não se altera |
+| `payment.status_changed` | `PENDING → PAID` (webhook PIX), `EXPIRED`, `FAILED`, e **`PAID → VOIDED`** (estorno, `POST /payments/:id/void` — T-06.13). Leva `previous_status` |
+| `payment.deleted` | Exclusão lógica. **Desde a T-06.13 nenhuma rota a emite**: `DELETE /payments/:id` responde `405` e o caminho é o estorno. O trigger segue emitindo se um `deleted_at` for gravado por fora da API |
 
 | Campo | Tipo | Usado por |
 |---|---|---|
 | `reservation_id` | UUID | `revenue.unpaid` e `alerts.no_show_risk` (reserva **sem** pagamento) |
 | `amount` | string decimal | `revenue.realized` · `payment-mix` |
 | `method` | string | `payment-mix` |
-| `status` | `PENDING` \| `PAID` \| `EXPIRED` \| `FAILED` \| `VOIDED` | ver §9, D-3. `VOIDED` (estorno de lançamento) entra com a T-06.13 da SPEC-06; a projeção conta só `PAID` |
+| `status` | `PENDING` \| `PAID` \| `EXPIRED` \| `FAILED` \| `VOIDED` | ver §9, D-3. `VOIDED` (estorno de lançamento, T-06.13 da SPEC-06 — implementado em 21/10/2026) chega como `payment.status_changed` com `previous_status: "PAID"`; a projeção conta só `PAID`, então nenhum campo novo entra no evento. Motivo e autor do estorno **não** viajam (minimização): ficam em `payments` |
 | `paid_at` | ISO-8601 ou `null` | `revenue.realized` (por mês) · `payment-mix` — só conta com `paid_at` preenchido |
 
 Dados do provedor (`provider`, `provider_charge_id`, `pix_qr_code`) não entram — já são

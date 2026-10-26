@@ -2,6 +2,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { VALID_ROLES } from '../app/utils/roles.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
+import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
 
 const options = {
     definition: {
@@ -136,8 +137,8 @@ const options = {
                         room_charges:   { type: 'string', example: '800.00', description: 'Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging, ou com a reserva cancelada/excluída quando a conta ainda estava aberta (D-35); a conta fechada mantém o valor gravado' },
                         consumptions:   { type: 'string', example: '25.00', description: 'Soma dos itens faturáveis e não excluídos (CA-04.3.c)' },
                         total:          { type: 'string', example: '825.00', description: 'room_charges + consumptions. Conta INTERNAL: sempre 0 (CA-04.3.f)' },
-                        payments_made:  { type: 'string', example: '0.00', description: 'Sempre 0 até a T-04.4 ligar pagamento a conta (D-34). O saldo da estadia está em GET /reservations/{id}/bill' },
-                        balance:        { type: 'string', example: '825.00', description: 'total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b)' },
+                        payments_made:  { type: 'string', example: '100.00', description: 'Pagamentos PAID da conta (T-04.4) mais a parte que lhe cabe do crédito da reserva. Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Cobrança PENDING, FAILED ou EXPIRED, pagamento estornado (VOIDED, T-06.13) e pagamento excluído não contam' },
+                        balance:        { type: 'string', example: '725.00', description: 'total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b). Negativo quando o pagamento passou do total: o hotel deve devolver (D-44)' },
                         items: {
                             type: 'array',
                             description: 'Itens não excluídos, inclusive cortesia (billable false, com reason) — CA-04.3.d. Em ordem de consumo',
@@ -331,8 +332,10 @@ const options = {
                         payments: { type: 'array', items: { type: 'object', properties: {
                             id: { type: 'string', format: 'uuid' }, amount: { type: 'number' }, method: { type: 'string' },
                             kind: { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
-                            status: { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
-                            paid_at: { type: 'string', format: 'date-time', nullable: true }
+                            status: { type: 'string', enum: PAYMENT_STATUSES, description: 'Só PAID soma em total_paid. VOIDED (estornado, T-06.13) segue listado como histórico' },
+                            paid_at: { type: 'string', format: 'date-time', nullable: true },
+                            void_reason: { type: 'string', nullable: true, description: 'Motivo do estorno; nulo se não estornado' },
+                            voided_at: { type: 'string', format: 'date-time', nullable: true }
                         }}}
                     }
                 },
@@ -342,12 +345,16 @@ const options = {
                     properties: {
                         id:             { type: 'string', format: 'uuid' },
                         tenant_id:      { type: 'string', format: 'uuid' },
-                        reservation_id: { type: 'string', format: 'uuid' },
+                        reservation_id: { type: 'string', format: 'uuid', nullable: true, description: 'Nulo só em pagamento de conta sem reserva (day-use, mesa, balcão)' },
+                        account_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Conta paga (T-04.4). Nulo = pagamento da reserva: vira crédito rateado entre as contas dela (D-42, D-45)' },
                         amount:         { type: 'string', example: '300.00', description: 'DECIMAL(12,2) serializado como string' },
-                        method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] },
-                        status:         { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
+                        method:         { type: 'string', enum: PAYMENT_METHODS },
+                        status:         { type: 'string', enum: PAYMENT_STATUSES, description: 'Só PAID é receita e abate saldo. VOIDED = lançamento estornado (POST /payments/{id}/void, T-06.13): fica no histórico, fora da receita' },
                         kind:           { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
-                        paid_at:        { type: 'string', format: 'date-time', nullable: true },
+                        paid_at:        { type: 'string', format: 'date-time', nullable: true, description: 'Mantido no VOIDED: é histórico' },
+                        void_reason:    { type: 'string', nullable: true, description: 'Motivo do estorno. Nulo em todo pagamento não estornado' },
+                        voided_by:      { type: 'string', format: 'uuid', nullable: true, description: 'Usuário (ADMIN) que estornou' },
+                        voided_at:      { type: 'string', format: 'date-time', nullable: true },
                         reservation: {
                             type: 'object', nullable: true,
                             description: 'Presente em GET /payments e GET /payments/{id}',
@@ -558,7 +565,7 @@ const options = {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
                     security: [],
                     parameters: [
                         { in: 'header', name: 'x-pix-signature', required: true, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>' }
@@ -895,11 +902,15 @@ const options = {
                 },
                 put: {
                     tags: ['Reservas'], summary: 'Atualiza reserva (guest_id, room_id, datas — não altera status; total_amount recalculado se quarto ou datas mudarem)',
+                    description: 'Na troca do quarto principal, as contas ROOM abertas do quarto que sai passam para o quarto novo na mesma transação (RN-005 / D-3, D-5). O rótulo gerado pelo sistema ("Suíte 906") acompanha; o escolhido pela recepção fica. Conta fechada ou paga não muda (D-23).',
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         400: { description: 'check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Reserva, hóspede ou quarto não encontrado (no hotel do token)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } }
+                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005, com account_ids — escolha outro quarto ou peça ao administrador para ajustar a conta); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { allOf: [
+                            { $ref: '#/components/schemas/RoomOccupied' },
+                            { type: 'object', properties: { account_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Só no 409 da RN-005: contas de diária desta reserva que já estão no quarto novo' } } }
+                        ] } } } }
                     }
                 },
                 delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', description: 'Fecha as contas abertas da reserva na mesma transação (D-36).', responses: { 204: { description: 'OK' } } }
@@ -922,6 +933,7 @@ const options = {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 put: {
                     tags: ['Reservas'], summary: 'Realiza check-in (PENDING ou CONFIRMED → CHECKED_IN; ocupa o(s) quarto(s))',
+                    description: 'Abre a conta da suíte (ROOM, cobrando diária, no quarto principal) na mesma transação; se a reserva já tem conta de diária, ela é reaproveitada. Falha na conta desfaz o check-in (T-04.6, D-58). A conta aparece em GET /reservations/{id}/accounts.',
                     responses: {
                         200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -946,11 +958,24 @@ const options = {
                 get: {
                     tags: ['Financeiro'],
                     summary: 'Fechamento de conta: (diária + consumos) − pagamentos confirmados',
-                    description: 'Desde a T-04.2, os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.',
+                    description: 'Desde a T-04.5, os totais são a soma das contas da reserva; a diária que nenhuma conta cobra fica na reserva (D-54). Os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.',
                     responses: {
                         200: { description: 'Conta com room_total, consumptions_total, grand_total, total_paid, balance_due', content: { 'application/json': { schema: { $ref: '#/components/schemas/Bill' } } } },
                         404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         503: { description: 'A reserva tem consumo antigo ainda não migrado — o total sairia menor. Some quando o `migrate` concluir (T-04.2)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
+            },
+            '/reservations/{id}/accounts': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Lista as contas da reserva (T-04.6, CA-04.6.d)',
+                    description: 'Mesmo formato de GET /accounts, da mais antiga para a mais nova; fechadas e pagas entram, excluídas não. Garçom não acessa.',
+                    responses: {
+                        200: { description: 'Contas da reserva', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Account' } } } } },
+                        403: { description: 'Garçom (allowlist)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -1010,11 +1035,15 @@ const options = {
                     { in: 'path', name: 'id',     required: true, schema: { type: 'string', format: 'uuid' } },
                     { in: 'path', name: 'roomId', required: true, schema: { type: 'string', format: 'uuid' } }
                 ],
-                delete: { tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)', responses: {
-                    204: { description: 'Desvinculado' },
-                    404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                    409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
-                } }
+                delete: {
+                    tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)',
+                    description: 'As contas ROOM abertas do quarto removido passam para o quarto principal da reserva, com itens e pagamentos — nenhuma é apagada e a remoção não é bloqueada por conta aberta. Se o principal já tem conta cobrando diária, a conta movida passa a `charges_lodging: false` (RN-005); senão, ela segue cobrando a diária. O rótulo gerado pelo sistema acompanha o quarto ("Suíte 701"); a conta movida que não vira a conta de diária do principal leva a origem ("Suíte 701 · ex-702"); o rótulo da recepção fica. Conta fechada ou paga não muda (D-23).',
+                    responses: {
+                        204: { description: 'Desvinculado' },
+                        404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED; outra operação alterando a reserva ao mesmo tempo (deadlock repetido — tente de novo)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/payments': {
                 get: {
@@ -1022,20 +1051,25 @@ const options = {
                     responses: { 200: { description: 'OK — nunca inclui pix_qr_code/provider/provider_charge_id (PaymentModel.defaultScope)', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Payment' } } } } } }
                 },
                 post: {
-                    tags: ['Pagamentos'], summary: 'Registra novo pagamento (recepção — manual, não PIX online)',
+                    tags: ['Pagamentos'], summary: 'Registra novo pagamento da reserva ou de uma conta (recepção — manual, não PIX online)',
+                    description: 'Informe reservation_id ou account_id (T-04.4). Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Com account_id, a reserva vem da conta. Se o pagamento quita uma conta fechada, ela vira PAID na mesma transação; conta aberta paga vira PAID ao fechar (D-43). Pagamento a maior é aceito e deixa o saldo negativo (D-44).',
                     requestBody: { required: true, content: { 'application/json': { schema: {
-                        type: 'object', required: ['reservation_id', 'amount', 'method'],
+                        type: 'object', required: ['amount', 'method'],
+                        description: 'reservation_id ou account_id obrigatório',
                         properties: {
-                            reservation_id: { type: 'string', format: 'uuid' },
+                            reservation_id: { type: 'string', format: 'uuid', description: 'Com account_id, opcional; se vier, tem de ser a reserva da conta' },
+                            account_id:     { type: 'string', format: 'uuid', description: 'Conta a pagar (T-04.4)' },
                             amount:         { type: 'number', example: 300.00 },
-                            method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'], example: 'PIX' },
-                            paid_at:        { type: 'string', format: 'date-time' }
+                            method:         { type: 'string', enum: PAYMENT_METHODS, example: 'PIX' },
+                            paid_at:        { type: 'string', format: 'date-time', description: 'Opcional; ausente ou nulo = agora. Se vier, data ISO-8601 válida' }
                         }
                     }}}},
                     responses: {
                         201: { description: 'Pagamento registrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        400: { description: 'reservation_id, amount ou method ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'reservation_id e account_id ausentes; amount ou method ausentes; amount inválido; method fora de PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO; paid_at que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva ou conta não encontrada no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Conta INTERNAL (nunca é receita), conta já PAID, ou reservation_id diferente da reserva da conta', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -1049,19 +1083,57 @@ const options = {
                     }
                 },
                 put: {
-                    tags: ['Pagamentos'], summary: 'Atualiza pagamento (amount, method, paid_at)',
+                    tags: ['Pagamentos'], summary: 'Corrige método ou data de um pagamento manual (só ADMIN)',
+                    description: 'Só pagamento PAID lançado pela recepção (sem PSP). O valor não se altera (T-06.13): corrigir valor é estornar (POST /payments/{id}/void) e lançar de novo. amount só é aceito igual ao gravado. Reserva, conta, status e trilha de estorno não mudam por aqui.',
+                    requestBody: { required: true, content: { 'application/json': { schema: {
+                        type: 'object',
+                        properties: {
+                            method:  { type: 'string', enum: PAYMENT_METHODS },
+                            paid_at: { type: 'string', format: 'date-time', description: 'Se vier, data ISO-8601 válida — nulo é recusado: pagamento PAID tem data (CHECK payments_paid_has_paid_at)' },
+                            amount:  { type: 'string', example: '300.00', description: 'Opcional; se vier, igual ao gravado' }
+                        }
+                    }}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'amount inválido; method fora da lista ou nulo; paid_at nulo ou que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Não encontrado no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'amount diferente do gravado; pagamento VOIDED, PENDING, EXPIRED, FAILED ou de PSP', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Pagamento PAID antigo sem data (anterior ao CHECK payments_paid_has_paid_at) e paid_at não enviado: informe paid_at para corrigir', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
-                delete: { tags: ['Pagamentos'], summary: 'Remove pagamento (soft delete)', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Pagamentos'], summary: 'Não existe mais — use o estorno (405)',
+                    description: 'T-06.13 (CA-06.13.a): lançamento financeiro não se apaga, se estorna. Responde 405 com header Allow e a indicação de POST /payments/{id}/void. Restrito a ADMIN, como o estorno.',
+                    responses: {
+                        403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        405: { description: 'Exclusão não permitida — estorne com POST /payments/{id}/void', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
+            },
+            '/payments/{id}/void': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                post: {
+                    tags: ['Pagamentos'], summary: 'Estorna um pagamento lançado por engano (só ADMIN)',
+                    description: 'T-06.13. Correção de lançamento (valor errado, reserva errada, duplicado), sem movimento de caixa — não é devolução ao hóspede (REFUNDED, pelo PSP, fora desta versão). Grava status VOIDED, void_reason, voided_by (usuário do JWT) e voided_at; o pagamento permanece e aparece na listagem e na conta da reserva, marcado. Sai da receita e do saldo das contas: a conta que ele quitava volta de PAID a CLOSED na mesma transação. Só PAID vira VOIDED. Gera payment.status_changed (PAID → VOIDED) no outbox.',
+                    requestBody: { required: true, content: { 'application/json': { schema: {
+                        type: 'object', required: ['reason'],
+                        properties: { reason: { type: 'string', maxLength: 500, example: 'Valor digitado errado' } }
+                    }}}},
+                    responses: {
+                        200: { description: 'Estornado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
+                        400: { description: 'reason ausente, vazio, não-texto ou com mais de 500 caracteres', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Pagamento não encontrado no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Pagamento não está PAID (já VOIDED, PENDING, EXPIRED, FAILED) ou é de PSP (PIX online — exige devolução pelo PSP)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/analytics/revenue': {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Caixa realizado vs esperado vs inadimplência',
-                    description: 'Retorna receita realizada (pagamentos recebidos) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes. Filtro por período opcional.',
+                    description: 'Retorna receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes (reservas ativas sem nenhum pagamento PAID). Filtro por período opcional.',
                     parameters: [
                         { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-01-01' }, description: 'Data inicial do filtro (YYYY-MM-DD)' },
                         { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: 'Data final do filtro (YYYY-MM-DD)' }
@@ -1225,7 +1297,7 @@ const options = {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Mix de meios de pagamento com percentual',
-                    description: 'Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período.',
+                    description: 'Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período. Só pagamentos PAID (estornados VOIDED e excluídos não contam — T-06.13).',
                     parameters: [
                         { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-01-01' }, description: 'Data inicial (YYYY-MM-DD)' },
                         { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: 'Data final (YYYY-MM-DD)' }
@@ -1502,8 +1574,8 @@ const options = {
             '/accounts/{id}/close': {
                 put: {
                     tags: ['Comandas'],
-                    summary: 'Fecha a conta: OPEN → CLOSED (ADMIN, RECEPTIONIST)',
-                    description: 'Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
+                    summary: 'Fecha a conta: OPEN → CLOSED, ou PAID se já está paga (ADMIN, RECEPTIONIST)',
+                    description: 'Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. Se a conta já tem pagamento e o saldo é ≤ 0, sai do fechamento PAID (D-43). O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
                     parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                     responses: {
                         200: { description: 'Conta fechada; devolve o bill', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountBill' } } } },
