@@ -16,8 +16,7 @@
 --     NUNCA UUID hardcoded.
 --   - Só toca os tenants 'aurora' e 'sol'.
 --   - Horários com fuso explícito (-03, Brasília): o instante gravado não depende do
---     fuso da sessão que roda o seed (psql ou command.js), e o NOT EXISTS por
---     consumed_at continua reconhecendo o lançamento.
+--     fuso da sessão que roda o seed (psql ou command.js).
 --   - Item só entra em conta OPEN: se a demonstração já fechou a conta, o seed não a
 --     reabre nem lança nela.
 -- =============================================================================
@@ -156,7 +155,9 @@ JOIN products p ON p.tenant_id = al.tenant_id AND p.name = v.produto AND p.delet
 JOIN users u    ON u.tenant_id = al.tenant_id AND u.email = v.autor AND u.deleted_at IS NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM account_items ai
-  WHERE ai.account_id = al.account_id AND ai.description = p.name AND ai.consumed_at = v.consumed_at::timestamptz
+  -- Guarda por (conta, descrição): cada produto aparece uma vez por conta nesta lista.
+  -- Não usa consumed_at, que mudaria de instante se o horário do arquivo mudasse de fuso.
+  WHERE ai.account_id = al.account_id AND ai.description = p.name
 );
 
 COMMIT;
