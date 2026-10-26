@@ -141,6 +141,22 @@ describe('Check-in cria a conta da suíte (CA-04.6.a, D-58)', () => {
         expect(accounts.map((a) => a.id)).toEqual([before.id]);
     });
 
+    it('conta de diária em outro quarto da reserva (dado legado) também é reaproveitada: nunca duas diárias', async () => {
+        const main = await newRoom(luxo);
+        const extra = await newRoom(standard);
+        const created = await request(app).post('/reservations').set(auth(jwt)).send({
+            guest_id: guest.id, room_id: main.id, extra_room_ids: [extra.id], ...nextDates(2)
+        });
+        const legacy = await AccountModel.create({
+            tenant_id: created.body.tenant_id, type: 'ROOM', status: 'OPEN', reservation_id: created.body.id,
+            room_id: extra.id, guest_id: guest.id, label: 'Extra legado', charges_lodging: true
+        });
+
+        expect((await checkIn(created.body.id)).status).toBe(200);
+        const lodging = await AccountModel.findAll({ where: { reservation_id: created.body.id, charges_lodging: true } });
+        expect(lodging.map((a) => a.id)).toEqual([legacy.id]);
+    });
+
     it('check-in e consumo pela rota antiga em paralelo: uma conta de diária só', async () => {
         const room = await newRoom();
         const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2));
