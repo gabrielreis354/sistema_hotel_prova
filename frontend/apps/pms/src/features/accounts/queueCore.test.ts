@@ -14,6 +14,9 @@ import {
   newClientItemId,
   canUndo,
   isQueueEntry,
+  recoverStale,
+  STALE_SENDING_MS,
+  timeoutSignal,
   type QueueEntry,
   type Tap,
 } from './queueCore.js';
@@ -186,6 +189,40 @@ describe('recarga da página no meio do envio', () => {
   it('o que estava "enviando" volta para a fila: o reenvio é seguro pelo client_item_id', () => {
     const q = recoverAfterReload(markSending(addTap([], tap(), T0, 'a'), 'a'));
     expect(q[0]!.status).toBe('queued');
+  });
+});
+
+describe('recoverStale — aba fechada no meio do envio (D-3 da reauditoria)', () => {
+  it('"Enviando" que passou do prazo volta para a fila; o recente fica', () => {
+    let q = addTap([], tap(), T0, 'a');
+    q = addTap(q, tap({ productId: 'agua' }), T0, 'b');
+    q = markSending(q, 'a', T0);
+    q = markSending(q, 'b', T0 + STALE_SENDING_MS);
+    const now = T0 + STALE_SENDING_MS + 1;
+    const r = recoverStale(q, now);
+    expect(r.find((e) => e.clientItemId === 'a')).toMatchObject({ status: 'queued', nextAttemptAt: now });
+    expect(r.find((e) => e.clientItemId === 'b')!.status).toBe('sending');
+  });
+
+  it('sem nada parado, devolve a mesma lista (não regrava o aparelho)', () => {
+    const q = markSending(addTap([], tap(), T0, 'a'), 'a', T0);
+    expect(recoverStale(q, T0 + 1)).toBe(q);
+  });
+});
+
+describe('timeoutSignal — prazo do envio sem AbortSignal.timeout (D-2, iOS 15)', () => {
+  it('aborta depois do prazo também sem AbortSignal.timeout', async () => {
+    const original = AbortSignal.timeout;
+    // @ts-expect-error simula navegador antigo, sem a função
+    AbortSignal.timeout = undefined;
+    try {
+      const signal = timeoutSignal(20);
+      expect(signal.aborted).toBe(false);
+      await new Promise((r) => setTimeout(r, 40));
+      expect(signal.aborted).toBe(true);
+    } finally {
+      AbortSignal.timeout = original;
+    }
   });
 });
 
