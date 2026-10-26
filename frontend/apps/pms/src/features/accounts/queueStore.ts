@@ -93,7 +93,8 @@ async function flush(ownerId: string): Promise<Set<string>> {
       const result = await postItem(entry.accountId, sendBody(entry));
       const outcome = classifySend(result.status, result.body);
       commit(applyOutcome(entries, entry.clientItemId, outcome, Date.now()));
-      if (outcome.kind === 'saved' || outcome.kind === 'excluded') touched.add(entry.accountId);
+      // Gravado, excluído ou recusado: a conta mudou no servidor (item novo, ou foi fechada).
+      if (outcome.kind !== 'retry' && outcome.kind !== 'unauthorized') touched.add(entry.accountId);
       if (outcome.kind === 'unauthorized' || outcome.kind === 'retry') break;
     }
   } finally {

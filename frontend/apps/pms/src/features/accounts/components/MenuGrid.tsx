@@ -10,6 +10,10 @@ import { useMenu } from '../queries.js';
  * Cardápio em grade, categorias como chips, preço visível (CA-05.5.b). Um toque lança
  * quantidade 1 (CA-05.5.c) — sem diálogo, sem tela de quantidade.
  *
+ * Toque no produto: só o "afundar" de 150 ms no :active, que confirma o toque (feedback).
+ * Nada de animação de entrada nos itens — o garçom lança dezenas de vezes por turno, e
+ * movimento repetido assim só atrasa. Com movimento reduzido, nem o afundar.
+ *
  * `disabledReason` desabilita a grade inteira e diz por quê (conta fechada): ação
  * indisponível fica visível com o motivo, não some (RNF-026).
  */
@@ -62,7 +66,7 @@ export function MenuGrid({
             variant="secondary"
             disabled={!!disabledReason}
             onClick={() => onTap(product)}
-            className="h-auto min-h-[64px] flex-col items-start justify-between gap-1 py-2 text-left"
+            className="h-auto min-h-[64px] flex-col items-start justify-between gap-1 py-2 text-left transition-transform duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100"
           >
             <span className="line-clamp-2 text-sm font-medium leading-tight">{product.name}</span>
             <span className="tabular-nums text-sm text-gray-600">{formatBRL(decimalToCents(product.price ?? '0'))}</span>

@@ -63,7 +63,7 @@ export function AccountsListPage() {
                   <li key={account.id}>
                     <Link
                       to={`/comanda/${account.id}`}
-                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50"
+                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 active:bg-gray-100 [@media(hover:hover)]:hover:bg-gray-50"
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{account.label}</span>
