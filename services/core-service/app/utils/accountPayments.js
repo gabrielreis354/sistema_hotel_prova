@@ -1,6 +1,7 @@
 import sequelize from '../../database/connections/sequelize.js';
 import AccountModel from '../Models/AccountModel.js';
 import { accountCharges } from './accountCharges.js';
+import { toCents } from './calculateStayTotal.js';
 
 const byOpening = (list) => [...list].sort((x, y) => (x.opened_at - y.opened_at) || (x.id < y.id ? -1 : 1));
 const byClosing = (list) => [...list].sort((x, y) => (x.closed_at - y.closed_at) || (x.id < y.id ? -1 : 1));
@@ -48,7 +49,8 @@ const SUM_CENTS = `(COALESCE(SUM(amount), 0) * 100)::bigint::text`;
  * Só PAID conta — cobrança PIX PENDING, FAILED ou EXPIRED ainda não pagou nada —, e
  * pagamento ou conta excluídos não contam.
  *
- * @returns {Promise<Map<string, { totalCents: number, paidCents: number, directCents: number }>>}
+ * @returns {Promise<Map<string, { totalCents: number, paidCents: number, directCents: number,
+ *   roomCents: number, consumptionsCents: number, chargesLodging: boolean }>>}
  */
 export async function reservationLedger(reservationId, tenantId, transaction) {
     const accounts = await AccountModel.findAll({ where: { reservation_id: reservationId, tenant_id: tenantId }, transaction });
@@ -67,11 +69,16 @@ export async function reservationLedger(reservationId, tenantId, transaction) {
     const ordered = creditOrder(accounts);
     // Em sequência: dentro de uma transação as consultas dividem a mesma conexão.
     for (const account of ordered) {
-        const { totalCents } = await accountCharges(account, transaction);
+        const { roomCharges, consumptions, totalCents } = await accountCharges(account, transaction);
         const direct = paid.get(account.id) ?? 0;
         const share = Math.max(0, Math.min(totalCents - direct, remaining));
         remaining -= share;
-        ledger.set(account.id, { totalCents, paidCents: direct + share, directCents: direct });
+        ledger.set(account.id, {
+            totalCents, paidCents: direct + share, directCents: direct,
+            // Partes do total, para o bill da reserva somar as contas (T-04.5).
+            roomCents: toCents(roomCharges), consumptionsCents: toCents(consumptions),
+            chargesLodging: account.type === 'ROOM' && account.charges_lodging
+        });
     }
     if (remaining !== 0 && ordered.length > 0) {
         const target = ordered.find((a) => ledger.get(a.id).totalCents > 0) ?? ordered[0];
