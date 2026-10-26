@@ -164,6 +164,19 @@ describe('GET /analytics/internal-consumption — período (D-64)', () => {
         expect(march.body.length).toBeGreaterThan(0);
     });
 
+    it('conta o dia no horário de Brasília: 22:30 de 31/10 é outubro, não novembro (D-68)', async () => {
+        // 22:30 em Brasília = 01:30 UTC de 01/11. Em UTC, a cortesia sairia do mês certo.
+        const late = await postItem(jwt, tableAccount.id, { description: 'Saideira', unit_price: 7, quantity: 1, billable: false, reason: 'COURTESY' });
+        await consumedOn(late.id, '2026-10-31T22:30:00-03:00');
+        try {
+            expect((await report(jwt, '?start=2026-10-01&end=2026-10-31')).body)
+                .toEqual([{ reason: 'COURTESY', count: 1, total: 7 }]);
+            expect((await report(jwt, '?start=2026-11-01&end=2026-11-30')).body).toEqual([]);
+        } finally {
+            await AccountItemModel.destroy({ where: { id: late.id }, force: true });
+        }
+    });
+
     it.each([
         ['só start', '?start=2026-03-01'],
         ['só end', '?end=2026-03-31'],
