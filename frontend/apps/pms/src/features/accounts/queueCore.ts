@@ -112,7 +112,7 @@ export function readyToSend(entries: QueueEntry[], ownerId: string, now: number)
   );
 }
 
-export function markSending(entries: QueueEntry[], clientItemId: string, now = 0): QueueEntry[] {
+export function markSending(entries: QueueEntry[], clientItemId: string, now: number): QueueEntry[] {
   return entries.map((e) => (e.clientItemId === clientItemId ? { ...e, status: 'sending', sendingSince: now } : e));
 }
 

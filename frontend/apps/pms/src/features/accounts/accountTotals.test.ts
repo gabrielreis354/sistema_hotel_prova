@@ -48,7 +48,7 @@ describe('footerTotals — rodapé honesto sobre a fila (CA-05.5.d, f)', () => {
 
   it('recusado não entra no total; sem fila, pendente é zero', () => {
     let q = addTap([], { ownerId: 'g', accountId: 'm', productId: 'p', description: 'x', unitPrice: '12.00' }, T0, 'a');
-    q = applyOutcome(markSending(q, 'a'), 'a', { kind: 'rejected', reason: 'x' }, T0);
+    q = applyOutcome(markSending(q, 'a', T0), 'a', { kind: 'rejected', reason: 'x' }, T0);
     expect(footerTotals('10.00', q, 'm')).toEqual({ serverCents: 1000, pendingCents: 0, totalCents: 1000 });
   });
 });

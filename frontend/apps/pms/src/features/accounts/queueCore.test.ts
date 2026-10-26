@@ -99,7 +99,7 @@ describe('readyToSend', () => {
 
   it('não reenvia o que já está sendo enviado, nem item recusado', () => {
     let q = addTap([], tap(), T0, 'a');
-    q = markSending(q, 'a');
+    q = markSending(q, 'a', T0);
     expect(readyToSend(q, 'garcom-1', T0 + UNDO_MS)).toEqual([]);
     q = applyOutcome(q, 'a', { kind: 'rejected', reason: 'x' }, T0 + UNDO_MS);
     expect(readyToSend(q, 'garcom-1', T0 + 99 * UNDO_MS)).toEqual([]);
@@ -147,7 +147,7 @@ describe('classifySend — o que cada resposta significa', () => {
 });
 
 describe('applyOutcome', () => {
-  const sending = (): QueueEntry[] => markSending(addTap([], tap(), T0, 'a'), 'a');
+  const sending = (): QueueEntry[] => markSending(addTap([], tap(), T0, 'a'), 'a', T0);
 
   it('gravado: sai da fila (o servidor passa a mostrar o item)', () => {
     expect(applyOutcome(sending(), 'a', { kind: 'saved' }, T0)).toEqual([]);
@@ -157,9 +157,9 @@ describe('applyOutcome', () => {
     let q = applyOutcome(sending(), 'a', { kind: 'retry' }, T0);
     expect(q[0]).toMatchObject({ status: 'queued', attempts: 1 });
     const first = q[0]!.nextAttemptAt - T0;
-    q = applyOutcome(markSending(q, 'a'), 'a', { kind: 'retry' }, T0);
+    q = applyOutcome(markSending(q, 'a', T0), 'a', { kind: 'retry' }, T0);
     expect(q[0]!.nextAttemptAt - T0).toBeGreaterThan(first);
-    for (let i = 0; i < 20; i += 1) q = applyOutcome(markSending(q, 'a'), 'a', { kind: 'retry' }, T0);
+    for (let i = 0; i < 20; i += 1) q = applyOutcome(markSending(q, 'a', T0), 'a', { kind: 'retry' }, T0);
     expect(q[0]!.nextAttemptAt - T0).toBeLessThanOrEqual(30_000);
   });
 
@@ -187,7 +187,7 @@ describe('applyOutcome', () => {
 
 describe('recarga da página no meio do envio', () => {
   it('o que estava "enviando" volta para a fila: o reenvio é seguro pelo client_item_id', () => {
-    const q = recoverAfterReload(markSending(addTap([], tap(), T0, 'a'), 'a'));
+    const q = recoverAfterReload(markSending(addTap([], tap(), T0, 'a'), 'a', T0));
     expect(q[0]!.status).toBe('queued');
   });
 });
@@ -202,6 +202,13 @@ describe('recoverStale — aba fechada no meio do envio (D-3 da reauditoria)', (
     const r = recoverStale(q, now);
     expect(r.find((e) => e.clientItemId === 'a')).toMatchObject({ status: 'queued', nextAttemptAt: now });
     expect(r.find((e) => e.clientItemId === 'b')!.status).toBe('sending');
+  });
+
+  it('limite exato: no prazo ainda espera; entrada antiga sem sendingSince volta à fila', () => {
+    const q = markSending(addTap([], tap(), T0, 'a'), 'a', T0);
+    expect(recoverStale(q, T0 + STALE_SENDING_MS)).toBe(q);
+    const { sendingSince: _ignored, ...legacy } = q[0]!;
+    expect(recoverStale([legacy], T0)[0]!.status).toBe('queued');
   });
 
   it('sem nada parado, devolve a mesma lista (não regrava o aparelho)', () => {
@@ -231,7 +238,7 @@ describe('pendingFor e sendBody', () => {
     let q = addTap([], tap(), T0, 'a');
     q = addTap(q, tap({ productId: 'agua' }), T0, 'b');
     q = addTap(q, tap({ accountId: 'outra' }), T0, 'c');
-    q = applyOutcome(markSending(q, 'b'), 'b', { kind: 'rejected', reason: 'x' }, T0);
+    q = applyOutcome(markSending(q, 'b', T0), 'b', { kind: 'rejected', reason: 'x' }, T0);
     expect(pendingFor(q, 'mesa-5').map((e) => e.clientItemId)).toEqual(['a']);
   });
 
