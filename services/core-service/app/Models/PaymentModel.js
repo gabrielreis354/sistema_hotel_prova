@@ -115,6 +115,18 @@ const PaymentModel = sequelize.define(
         updatedAt: 'updated_at',
         paranoid: true,
         deletedAt: 'deleted_at',
+        indexes: [
+            {
+                // O webhook PIX (rota pública, sem tenant) acha o pagamento só por este id.
+                // Único e GLOBAL: duplicado, o webhook confirmaria uma linha qualquer, até
+                // de outro hotel. PARCIAL, como todo único de model paranoid. O índice de
+                // verdade vem de applyDbConstraints (indicesParciais), que cura banco legado.
+                unique: true,
+                fields: ['provider_charge_id'],
+                name: 'payments_provider_charge_id_unique',
+                where: { deleted_at: null }
+            }
+        ],
         // Defesa por MODEL, não por call site: pix_qr_code e provider_charge_id nunca
         // saem por padrão. provider_charge_id é a ÚNICA credencial que POST /webhooks/pix
         // exige (T-06.9) — qualquer consumidor de PaymentModel que "esquecer" o

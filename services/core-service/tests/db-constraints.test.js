@@ -347,7 +347,9 @@ describe('payments.provider_charge_id é único entre pagamentos vivos', () => {
     it('o banco recusa dois pagamentos vivos com o mesmo provider_charge_id', async () => {
         expect.assertions(1);
         await insertPayment('charge-duplicada');
-        await expect(insertPayment('charge-duplicada')).rejects.toThrow(/payments_provider_charge_id_unique/);
+        // O Sequelize embrulha o erro ("Validation error"); o nome do índice vem no original.
+        await expect(insertPayment('charge-duplicada'))
+            .rejects.toMatchObject({ original: { constraint: 'payments_provider_charge_id_unique' } });
     });
 
     it('pagamento manual (provider_charge_id nulo) não disputa unicidade', async () => {
