@@ -117,7 +117,14 @@ export function AccountPage() {
         <p role="status" aria-live="polite" className="text-right text-xs text-gray-600">
           {totals.pendingCents > 0 ? `inclui ${formatBRL(totals.pendingCents)} na fila` : ''}
         </p>
-        {isStaff && <StaffActions account={account} pendingCount={pendingCount} othersPending={othersHere} />}
+        {isStaff && (
+          <StaffActions
+            account={account}
+            pendingCount={pendingCount}
+            othersPending={othersHere}
+            totalCents={totals.totalCents}
+          />
+        )}
       </div>
     </div>
   );

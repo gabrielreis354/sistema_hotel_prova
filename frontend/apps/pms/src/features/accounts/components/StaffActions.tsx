@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Spinner } from '@hotel/ui';
 import { decimalToCents, formatBRL } from '@hotel/domain';
 import type { AccountDetail } from '../accountsApi.js';
 import { useAccountBill, useCloseAccount } from '../queries.js';
+import { confirmArmed } from '../closeGuard.js';
 
 /**
  * Por que a conta não pode ser fechada agora. Mesma regra do backend, para o botão nascer
@@ -27,20 +29,28 @@ const BILL_ROWS: { key: 'room_charges' | 'consumptions' | 'total' | 'payments_ma
  * Bill e fechamento — só recepção e gerência (CA-05.5.j). O garçom nem vê estes botões: o
  * backend também recusaria (requireRole em /bill e /close).
  *
- * Fechar pede confirmação no próprio botão: é irreversível (conta fechada não recebe item).
+ * Fechar pede confirmação: é irreversível (conta fechada não recebe item). A confirmação mostra
+ * o total e troca os botões de lugar — "Confirmar" à esquerda, "Voltar" onde estava "Fechar
+ * conta" — e ignora toques nos primeiros 400 ms. Antes, "Confirmar" nascia no mesmo lugar e o
+ * toque duplo fechava a conta (P0 da revisão Impeccable). Fechada, volta para a lista com aviso.
  */
 export function StaffActions({
   account,
   pendingCount,
   othersPending = 0,
+  totalCents,
 }: {
   account: AccountDetail;
   pendingCount: number;
+  /** O total que o rodapé mostra: é o valor que a confirmação repete. */
+  totalCents: number;
   /** Lançamentos de outro usuário nesta conta, parados neste aparelho (D-1). Avisa, não bloqueia. */
   othersPending?: number;
 }) {
   const [showBill, setShowBill] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const shownAt = useRef(0);
+  const navigate = useNavigate();
   const id = account.id ?? '';
   const bill = useAccountBill(id, showBill);
   const close = useCloseAccount(id);
@@ -87,29 +97,50 @@ export function StaffActions({
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="secondary" onClick={() => setShowBill((v) => !v)} aria-expanded={showBill}>
-          {showBill ? 'Esconder conta' : 'Ver conta'}
-        </Button>
-        {confirming ? (
-          <Button
-            variant="danger"
-            disabled={close.isPending}
-            onClick={() => close.mutate(undefined, { onSettled: () => setConfirming(false) })}
-          >
-            {close.isPending ? 'Fechando…' : othersPending > 0 ? 'Fechar mesmo assim' : 'Confirmar fechamento'}
+      {confirming ? (
+        <div role="group" aria-labelledby="close-confirm-text" className="space-y-2">
+          <p id="close-confirm-text" className="text-sm text-gray-700">
+            Fechar <span className="font-medium">{account.label}</span> com{' '}
+            <span className="font-semibold tabular-nums">{formatBRL(totalCents)}</span>? Depois de fechada, a conta
+            não recebe item.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="danger"
+              disabled={close.isPending}
+              onClick={() => {
+                if (!confirmArmed(shownAt.current, performance.now())) return;
+                close.mutate(undefined, {
+                  onSuccess: () => navigate('/comanda', { state: { notice: `${account.label}: conta fechada.` } }),
+                  onSettled: () => setConfirming(false),
+                });
+              }}
+            >
+              {close.isPending ? 'Fechando…' : othersPending > 0 ? 'Fechar mesmo assim' : 'Confirmar fechamento'}
+            </Button>
+            <Button variant="secondary" autoFocus disabled={close.isPending} onClick={() => setConfirming(false)}>
+              Voltar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={() => setShowBill((v) => !v)} aria-expanded={showBill}>
+            {showBill ? 'Esconder conta' : 'Ver conta'}
           </Button>
-        ) : (
           <Button
             variant="secondary"
             disabled={!!blocked}
             aria-describedby={blocked ? 'close-blocked-reason' : othersPending > 0 ? 'close-others-warning' : undefined}
-            onClick={() => setConfirming(true)}
+            onClick={() => {
+              shownAt.current = performance.now();
+              setConfirming(true);
+            }}
           >
             Fechar conta
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
