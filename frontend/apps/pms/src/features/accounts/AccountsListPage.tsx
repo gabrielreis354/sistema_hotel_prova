@@ -1,21 +1,31 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, EmptyState, Input, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
-import { ACCOUNT_TYPE_LABEL, filterAccounts } from './accountFilter.js';
+import { filterAccounts, openedAtLabel, sortAccounts } from './accountFilter.js';
 import { ErrorState } from './components/ErrorState.js';
 import { OpenAccountForm } from './components/OpenAccountForm.js';
 
 /**
  * Tela inicial do garçom: as contas abertas, sem tela intermediária (CA-05.5.a). Um toque na
  * conta abre o cardápio. "Abrir conta" fica embaixo, ao alcance do polegar (CA-05.5.i).
+ *
+ * Ordem estável, a mais antiga primeiro, e a hora de abertura em cada linha: duas "Mesa 3"
+ * ficam distinguíveis e a lista não se mexe quando alguém abre conta (P1 da revisão Impeccable).
  */
 export function AccountsListPage() {
   useQueueRunner();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Aviso de "conta fechada" que o fechamento deixa ao voltar. Lido uma vez e tirado do
+  // histórico, para não reaparecer num recarregar.
+  const [notice] = useState<string | undefined>(() => (location.state as { notice?: string } | null)?.notice);
+  useEffect(() => {
+    if (notice) navigate(location.pathname, { replace: true, state: null });
+  }, [notice, navigate, location.pathname]);
   const { data, isLoading, isError, fetchStatus, refetch } = useOpenAccounts();
   const userId = useAuthStore((s) => s.user?.id);
   const entries = useQueueEntries();
@@ -30,10 +40,14 @@ export function AccountsListPage() {
     : [];
   const [term, setTerm] = useState('');
   const [opening, setOpening] = useState(false);
-  const filtered = useMemo(() => filterAccounts(data ?? [], term), [data, term]);
+  const filtered = useMemo(() => sortAccounts(filterAccounts(data ?? [], term)), [data, term]);
 
   const openForm = opening ? (
-    <OpenAccountForm onCancel={() => setOpening(false)} onOpened={(account) => navigate(`/comanda/${account.id}`)} />
+    <OpenAccountForm
+      openAccounts={data ?? []}
+      onCancel={() => setOpening(false)}
+      onOpened={(account) => navigate(`/comanda/${account.id}`)}
+    />
   ) : (
     <Button block onClick={() => setOpening(true)}>
       Abrir conta
@@ -43,6 +57,12 @@ export function AccountsListPage() {
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3">
       <h1 className="text-xl font-semibold">Comanda</h1>
+
+      {notice && (
+        <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+          {notice}
+        </p>
+      )}
 
       {othersWaiting > 0 && (
         <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
@@ -76,6 +96,7 @@ export function AccountsListPage() {
             type="search"
             aria-label="Buscar conta"
             placeholder="Buscar por mesa, suíte ou nome"
+            className="min-h-touch"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
           />
@@ -93,7 +114,7 @@ export function AccountsListPage() {
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{account.label}</span>
-                        <span className="text-xs text-gray-500">{account.type ? ACCOUNT_TYPE_LABEL[account.type] : ''}</span>
+                        <span className="text-xs text-gray-600">{openedAtLabel(account.opened_at)}</span>
                       </span>
                       {waiting > 0 && (
                         <span className="shrink-0 text-xs text-gray-600">

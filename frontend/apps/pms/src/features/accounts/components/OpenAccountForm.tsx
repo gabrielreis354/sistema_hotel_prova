@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Field, Input } from '@hotel/ui';
 import { useOpenAccount } from '../queries.js';
 import type { Account, WaiterAccountType } from '../accountsApi.js';
+import { openWithSameLabel, openedAtLabel } from '../accountFilter.js';
 
 const TYPES: { type: WaiterAccountType; label: string; placeholder: string }[] = [
   { type: 'TABLE', label: 'Mesa', placeholder: 'Mesa 5' },
@@ -11,12 +13,25 @@ const TYPES: { type: WaiterAccountType; label: string; placeholder: string }[] =
 /**
  * Abrir mesa ou balcão (D-8). A conta da suíte não aparece aqui: ela nasce no check-in (D-58).
  * Sem diálogo: o formulário abre no lugar do botão, na metade de baixo da tela (CA-05.5.i).
+ *
+ * Nome igual ao de uma conta aberta só avisa, com o caminho para ela (P1 da revisão Impeccable):
+ * duas "Mesa 3" iguais na lista fazem o garçom lançar na errada. Não bloqueia — o backend aceita
+ * e pode ser outra mesa 3 de fato. O aviso usa a lista já carregada, sem consulta nova.
  */
-export function OpenAccountForm({ onOpened, onCancel }: { onOpened: (account: Account) => void; onCancel: () => void }) {
+export function OpenAccountForm({
+  openAccounts,
+  onOpened,
+  onCancel,
+}: {
+  openAccounts: Account[];
+  onOpened: (account: Account) => void;
+  onCancel: () => void;
+}) {
   const [type, setType] = useState<WaiterAccountType>('TABLE');
   const [label, setLabel] = useState('');
   const open = useOpenAccount();
   const current = TYPES.find((t) => t.type === type) ?? TYPES[0]!;
+  const same = openWithSameLabel(openAccounts, label);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -47,8 +62,17 @@ export function OpenAccountForm({ onOpened, onCancel }: { onOpened: (account: Ac
           placeholder={current.placeholder}
           onChange={(e) => setLabel(e.target.value)}
           autoFocus
+          aria-describedby={same ? 'account-label-same' : undefined}
         />
       </Field>
+      {same && (
+        <p id="account-label-same" className="text-sm text-gray-700">
+          Já existe uma conta aberta com esse nome ({openedAtLabel(same.opened_at)}).{' '}
+          <Link to={`/comanda/${same.id}`} className="inline-flex min-h-touch items-center font-medium text-brand underline">
+            Ir para essa conta
+          </Link>
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <Button variant="ghost" onClick={onCancel}>
           Cancelar
