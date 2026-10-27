@@ -7,6 +7,7 @@ import { useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { filterAccounts, openedAtLabel, sortAccounts } from './accountFilter.js';
 import { ErrorState } from './components/ErrorState.js';
+import { Notice } from './components/Notice.js';
 import { OpenAccountForm } from './components/OpenAccountForm.js';
 
 /**
@@ -59,17 +60,17 @@ export function AccountsListPage() {
       <h1 className="text-xl font-semibold">Comanda</h1>
 
       {notice && (
-        <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+        <Notice>
           {notice}
-        </p>
+        </Notice>
       )}
 
       {othersWaiting > 0 && (
-        <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+        <Notice>
           {othersWaiting === 1 ? 'Há 1 lançamento' : `Há ${othersWaiting} lançamentos`} de outro usuário
           esperando neste aparelho{othersAccounts.length > 0 && ` (${othersAccounts.join(', ')})`}. Eles só são enviados quando essa pessoa entrar de
           novo — não feche essas contas antes.
-        </p>
+        </Notice>
       )}
 
       {/* Rede ruim não apaga a lista já carregada (🟡-3): só avisa. */}
