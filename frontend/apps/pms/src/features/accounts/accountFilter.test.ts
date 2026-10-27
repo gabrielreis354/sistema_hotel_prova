@@ -71,6 +71,14 @@ describe('openWithSameLabel — aviso de conta repetida (P1)', () => {
     expect(openWithSameLabel(open, 'Mesa 30')).toBeUndefined();
     expect(openWithSameLabel(open, '')).toBeUndefined();
   });
+
+  it('o começo de um nome não avisa: digitar "Mesa" com a Mesa 3 aberta', () => {
+    expect(openWithSameLabel(open, 'Mesa')).toBeUndefined();
+  });
+
+  it('campo em branco nunca avisa, nem com conta sem rótulo na lista', () => {
+    expect(openWithSameLabel([{ id: 'x' }], '   ')).toBeUndefined();
+  });
 });
 
 describe('openedAtLabel — hora de abertura no fuso do hotel (P1)', () => {
