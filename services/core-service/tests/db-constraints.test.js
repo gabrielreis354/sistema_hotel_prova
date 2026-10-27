@@ -228,6 +228,40 @@ describe('Constraints de banco no ambiente de teste', () => {
             expect(depois[0].indexdef).toContain('deleted_at IS NULL');
         });
 
+        // 🟢-1 do qa-redteam (26/10): o índice de payments vive só aqui e no schema.sql —
+        // não no model, para uma duplicata legada não parar o sync({ alter }) no meio.
+        // Dois cenários de banco antigo: sem índice nenhum, e com índice TOTAL.
+        it('payments.provider_charge_id: banco sem o índice recebe o parcial', async () => {
+            await sequelize.query('DROP INDEX IF EXISTS payments_provider_charge_id_unique');
+
+            const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+            await applyDbConstraints(sequelize);
+
+            const [depois] = await sequelize.query(`
+                SELECT indexdef FROM pg_indexes WHERE indexname = 'payments_provider_charge_id_unique'
+            `);
+            expect(depois).toHaveLength(1);
+            expect(depois[0].indexdef).toContain('deleted_at IS NULL');
+        });
+
+        it('payments.provider_charge_id: índice TOTAL legado vira parcial', async () => {
+            await sequelize.query(`
+                DROP INDEX IF EXISTS payments_provider_charge_id_unique;
+                CREATE UNIQUE INDEX payments_provider_charge_legado ON payments (provider_charge_id);
+            `);
+
+            const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+            await applyDbConstraints(sequelize);
+
+            const [indices] = await sequelize.query(`
+                SELECT indexname, indexdef FROM pg_indexes
+                WHERE tablename = 'payments' AND indexdef ILIKE '%(provider_charge_id)%'
+            `);
+            expect(indices).toHaveLength(1);
+            expect(indices[0].indexname).toBe('payments_provider_charge_id_unique');
+            expect(indices[0].indexdef).toContain('deleted_at IS NULL');
+        });
+
         it('ciclo criar → deletar → recriar funciona depois da cura (prova funcional)', async () => {
             // Cria o próprio tenant em vez de depender de um já existente: neste ponto
             // da suíte (db-constraints roda antes de qualquer registerAndLogin) pode não

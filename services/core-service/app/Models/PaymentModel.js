@@ -77,6 +77,12 @@ const PaymentModel = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: true
         },
+        // Único entre os pagamentos vivos, GLOBAL (sem tenant_id): o webhook PIX (rota
+        // pública) acha o pagamento só por este id. O índice payments_provider_charge_id_unique
+        // NÃO está em `indexes` de propósito — vive em database/applyDbConstraints.js
+        // (indicesParciais) e db/schema.sql. No model, uma duplicata legada pararia o
+        // sync({ alter }) do migrate no meio, sem migrar as tabelas seguintes (🟡-1 do
+        // qa-redteam de 26/10); no applyDbConstraints ela é reportada e o resto segue.
         provider_charge_id: {
             type: DataTypes.TEXT,
             allowNull: true
@@ -115,18 +121,6 @@ const PaymentModel = sequelize.define(
         updatedAt: 'updated_at',
         paranoid: true,
         deletedAt: 'deleted_at',
-        indexes: [
-            {
-                // O webhook PIX (rota pública, sem tenant) acha o pagamento só por este id.
-                // Único e GLOBAL: duplicado, o webhook confirmaria uma linha qualquer, até
-                // de outro hotel. PARCIAL, como todo único de model paranoid. O índice de
-                // verdade vem de applyDbConstraints (indicesParciais), que cura banco legado.
-                unique: true,
-                fields: ['provider_charge_id'],
-                name: 'payments_provider_charge_id_unique',
-                where: { deleted_at: null }
-            }
-        ],
         // Defesa por MODEL, não por call site: pix_qr_code e provider_charge_id nunca
         // saem por padrão. provider_charge_id é a ÚNICA credencial que POST /webhooks/pix
         // exige (T-06.9) — qualquer consumidor de PaymentModel que "esquecer" o
