@@ -30,8 +30,8 @@ const BILL_ROWS: { key: 'room_charges' | 'consumptions' | 'total' | 'payments_ma
  * backend também recusaria (requireRole em /bill e /close).
  *
  * Fechar pede confirmação: é irreversível (conta fechada não recebe item). A confirmação mostra
- * o total e troca os botões de lugar — "Confirmar" à esquerda, "Voltar" onde estava "Fechar
- * conta" — e ignora toques nos primeiros 400 ms. Antes, "Confirmar" nascia no mesmo lugar e o
+ * o total e troca os botões de lugar — "Sim, fechar" à esquerda, "Voltar" onde estava "Fechar
+ * conta" — e ignora toques nos primeiros 400 ms. Antes, a confirmação nascia no mesmo lugar e o
  * toque duplo fechava a conta (P0 da revisão Impeccable). Fechada, volta para a lista com aviso.
  */
 export function StaffActions({
@@ -116,7 +116,7 @@ export function StaffActions({
                 });
               }}
             >
-              {close.isPending ? 'Fechando…' : othersPending > 0 ? 'Fechar mesmo assim' : 'Confirmar fechamento'}
+              {close.isPending ? 'Fechando…' : othersPending > 0 ? 'Fechar mesmo assim' : 'Sim, fechar'}
             </Button>
             <Button variant="secondary" autoFocus disabled={close.isPending} onClick={() => setConfirming(false)}>
               Voltar
