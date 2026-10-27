@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  undoLabel,
   UNDO_MS,
   addTap,
   undoTap,
@@ -266,5 +267,15 @@ describe('newClientItemId', () => {
     for (const value of ids) {
       expect(value).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     }
+  });
+});
+
+describe('undoLabel — "Desfazer" diz quanto tira (P1)', () => {
+  it('linha com 1: "Desfazer"', () => {
+    expect(undoLabel(1)).toBe('Desfazer');
+  });
+
+  it('linha com mais de 1: "Desfazer 1", porque tira só um', () => {
+    expect(undoLabel(2)).toBe('Desfazer 1');
   });
 });

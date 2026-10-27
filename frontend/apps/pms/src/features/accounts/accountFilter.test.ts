@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterAccounts, menuCategories } from './accountFilter.js';
+import { filterAccounts, menuCategories, openedAtLabel, openWithSameLabel, sortAccounts } from './accountFilter.js';
 import type { Account, Product } from './accountsApi.js';
 
 const accounts: Account[] = [
@@ -33,5 +33,62 @@ describe('menuCategories', () => {
       { id: 'a', category: 'DRINK' }, { id: 'b', category: 'DRINK' }, { id: 'c', category: 'FOOD' },
     ];
     expect(menuCategories(products)).toEqual(['DRINK', 'FOOD']);
+  });
+});
+
+describe('sortAccounts — ordem estável da lista (P1 da revisão Impeccable)', () => {
+  it('mais antiga primeiro: conta nova entra no fim e não empurra as outras', () => {
+    const list: Account[] = [
+      { id: 'b', label: 'Mesa 2', opened_at: '2026-10-26T15:00:00Z' },
+      { id: 'a', label: 'Mesa 1', opened_at: '2026-10-26T14:00:00Z' },
+    ];
+    expect(sortAccounts(list).map((a) => a.id)).toEqual(['a', 'b']);
+  });
+
+  it('mesma hora de abertura: desempata pelo id, sempre na mesma ordem', () => {
+    const at = '2026-10-26T14:00:00Z';
+    const list: Account[] = [{ id: 'z', opened_at: at }, { id: 'c', opened_at: at }];
+    expect(sortAccounts(list).map((a) => a.id)).toEqual(['c', 'z']);
+    expect(sortAccounts([...list].reverse()).map((a) => a.id)).toEqual(['c', 'z']);
+  });
+
+  it('não altera a lista recebida (é o cache do TanStack Query)', () => {
+    const list: Account[] = [{ id: 'b', opened_at: '2026-10-26T15:00:00Z' }, { id: 'a', opened_at: '2026-10-26T14:00:00Z' }];
+    sortAccounts(list);
+    expect(list.map((a) => a.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('openWithSameLabel — aviso de conta repetida (P1)', () => {
+  const open: Account[] = [{ id: '1', label: 'Mesa 3' }, { id: '2', label: 'Suíte 201' }];
+
+  it('acha a conta aberta com o mesmo nome, sem caixa, acento ou espaço sobrando', () => {
+    expect(openWithSameLabel(open, '  mesa 3 ')?.id).toBe('1');
+    expect(openWithSameLabel(open, 'suite 201')?.id).toBe('2');
+  });
+
+  it('nome parecido não é o mesmo nome', () => {
+    expect(openWithSameLabel(open, 'Mesa 30')).toBeUndefined();
+    expect(openWithSameLabel(open, '')).toBeUndefined();
+  });
+});
+
+describe('openedAtLabel — hora de abertura no fuso do hotel (P1)', () => {
+  const now = new Date('2026-10-26T20:00:00Z'); // 17:00 em Brasília
+
+  it('aberta hoje: só a hora', () => {
+    expect(openedAtLabel('2026-10-26T17:05:00Z', now)).toBe('aberta às 14:05');
+  });
+
+  it('aberta em outro dia: dia e hora', () => {
+    expect(openedAtLabel('2026-10-25T23:30:00Z', now)).toBe('aberta em 25/10 às 20:30');
+  });
+
+  it('o dia é o do hotel, não o UTC: 01:00 UTC do dia 27 ainda é dia 26 em Brasília', () => {
+    expect(openedAtLabel('2026-10-27T01:00:00Z', new Date('2026-10-27T02:00:00Z'))).toBe('aberta às 22:00');
+  });
+
+  it('sem data: nada', () => {
+    expect(openedAtLabel(undefined, now)).toBe('');
   });
 });
