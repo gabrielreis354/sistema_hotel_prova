@@ -335,6 +335,11 @@ ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
 ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
   CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+-- Webhook PIX acha o pagamento só pelo id da cobrança do PSP: único entre os vivos,
+-- global (sem tenant_id). Mesmo nome de applyDbConstraints (indicesParciais).
+CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_charge_id_unique
+  ON payments (provider_charge_id)
+  WHERE deleted_at IS NULL;
 -- Pagamento com conta tem a reserva e o tenant da conta, e nunca é de conta INTERNAL
 CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
 DECLARE
