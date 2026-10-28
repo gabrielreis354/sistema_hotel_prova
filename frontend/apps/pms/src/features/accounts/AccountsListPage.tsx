@@ -21,9 +21,10 @@ export function AccountsListPage() {
   useQueueRunner();
   const navigate = useNavigate();
   const location = useLocation();
-  // Aviso de "conta fechada" que o fechamento deixa ao voltar. Lido uma vez e tirado do
-  // histórico, para não reaparecer num recarregar.
-  const [notice] = useState<string | undefined>(() => (location.state as { notice?: string } | null)?.notice);
+  // Aviso de "conta fechada" que o fechamento deixa ao voltar, com o saldo e o caminho para a
+  // conta fechada (🟡-1). Lido uma vez e tirado do histórico, para não reaparecer num recarregar.
+  const [closed] = useState(() => location.state as { notice?: string; closedId?: string } | null);
+  const notice = closed?.notice;
   useEffect(() => {
     if (notice) navigate(location.pathname, { replace: true, state: null });
   }, [notice, navigate, location.pathname]);
@@ -60,8 +61,13 @@ export function AccountsListPage() {
       <h1 className="text-xl font-semibold">Comanda</h1>
 
       {notice && (
-        <Notice>
-          {notice}
+        <Notice focus>
+          {notice}{' '}
+          {closed?.closedId && (
+            <Link to={`/comanda/${closed.closedId}`} className="inline-flex min-h-touch items-center font-medium text-brand underline">
+              Ver conta fechada
+            </Link>
+          )}
         </Notice>
       )}
 
