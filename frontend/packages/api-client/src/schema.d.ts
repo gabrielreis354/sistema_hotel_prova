@@ -1761,7 +1761,10 @@ export interface paths {
                 };
             };
         };
-        /** Atualiza reserva (guest_id, room_id, datas — não altera status; total_amount recalculado se quarto ou datas mudarem) */
+        /**
+         * Atualiza reserva (guest_id, room_id, datas — não altera status; total_amount recalculado se quarto ou datas mudarem)
+         * @description Na troca do quarto principal, as contas ROOM abertas do quarto que sai passam para o quarto novo na mesma transação (RN-005 / D-3, D-5). O rótulo gerado pelo sistema ("Suíte 906") acompanha; o escolhido pela recepção fica. Conta fechada ou paga não muda (D-23).
+         */
         put: {
             parameters: {
                 query?: never;
@@ -1800,13 +1803,16 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED */
+                /** @description Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005, com account_ids — escolha outro quarto ou peça ao administrador para ajustar a conta); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["RoomOccupied"];
+                        "application/json": components["schemas"]["RoomOccupied"] & {
+                            /** @description Só no 409 da RN-005: contas de diária desta reserva que já estão no quarto novo */
+                            account_ids?: string[];
+                        };
                     };
                 };
             };
@@ -1921,7 +1927,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Realiza check-in (PENDING ou CONFIRMED → CHECKED_IN; ocupa o(s) quarto(s)) */
+        /**
+         * Realiza check-in (PENDING ou CONFIRMED → CHECKED_IN; ocupa o(s) quarto(s))
+         * @description Abre a conta da suíte (ROOM, cobrando diária, no quarto principal) na mesma transação; se a reserva já tem conta de diária, ela é reaproveitada. Falha na conta desfaz o check-in (T-04.6, D-58). A conta aparece em GET /reservations/{id}/accounts.
+         */
         put: {
             parameters: {
                 query?: never;
@@ -2041,7 +2050,7 @@ export interface paths {
         };
         /**
          * Fechamento de conta: (diária + consumos) − pagamentos confirmados
-         * @description Desde a T-04.2, os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.
+         * @description Desde a T-04.5, os totais são a soma das contas da reserva; a diária que nenhuma conta cobra fica na reserva (D-54). Os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.
          */
         get: {
             parameters: {
@@ -2074,6 +2083,67 @@ export interface paths {
                 };
                 /** @description A reserva tem consumo antigo ainda não migrado — o total sairia menor. Some quando o `migrate` concluir (T-04.2) */
                 503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reservations/{id}/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Lista as contas da reserva (T-04.6, CA-04.6.d)
+         * @description Mesmo formato de GET /accounts, da mais antiga para a mais nova; fechadas e pagas entram, excluídas não. Garçom não acessa.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Contas da reserva */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Account"][];
+                    };
+                };
+                /** @description Garçom (allowlist) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reserva não encontrada */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2376,7 +2446,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove quarto extra da reserva (recalcula o total) */
+        /**
+         * Remove quarto extra da reserva (recalcula o total)
+         * @description As contas ROOM abertas do quarto removido passam para o quarto principal da reserva, com itens e pagamentos — nenhuma é apagada e a remoção não é bloqueada por conta aberta. Se o principal já tem conta cobrando diária, a conta movida passa a `charges_lodging: false` (RN-005); senão, ela segue cobrando a diária. O rótulo gerado pelo sistema acompanha o quarto ("Suíte 701"); a conta movida que não vira a conta de diária do principal leva a origem ("Suíte 701 · ex-702"); o rótulo da recepção fica. Conta fechada ou paga não muda (D-23).
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -2405,7 +2478,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED */
+                /** @description Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED; outra operação alterando a reserva ao mesmo tempo (deadlock repetido — tente de novo) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2481,7 +2554,10 @@ export interface paths {
                          * @enum {string}
                          */
                         method: "PIX" | "CARTAO_CREDITO" | "CARTAO_DEBITO" | "DINHEIRO";
-                        /** Format: date-time */
+                        /**
+                         * Format: date-time
+                         * @description Opcional; ausente ou nulo = agora. Se vier, data ISO-8601 válida
+                         */
                         paid_at?: string;
                     };
                 };
@@ -2496,7 +2572,7 @@ export interface paths {
                         "application/json": components["schemas"]["Payment"];
                     };
                 };
-                /** @description reservation_id e account_id ausentes, ou amount ou method ausentes */
+                /** @description reservation_id e account_id ausentes; amount ou method ausentes; amount inválido; method fora de PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO; paid_at que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2582,8 +2658,8 @@ export interface paths {
             };
         };
         /**
-         * Atualiza pagamento (amount, method, paid_at)
-         * @description Reserva e conta do pagamento não mudam. Mudar o valor acerta a conta afetada: quita (CLOSED → PAID) ou reabre o saldo (PAID → CLOSED).
+         * Corrige método ou data de um pagamento manual (só ADMIN)
+         * @description Só pagamento PAID lançado pela recepção (sem PSP). O valor não se altera (T-06.13): corrigir valor é estornar (POST /payments/{id}/void) e lançar de novo. amount só é aceito igual ao gravado. Reserva, conta, status e trilha de estorno não mudam por aqui.
          */
         put: {
             parameters: {
@@ -2594,7 +2670,24 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        method?: "PIX" | "CARTAO_CREDITO" | "CARTAO_DEBITO" | "DINHEIRO";
+                        /**
+                         * Format: date-time
+                         * @description Se vier, data ISO-8601 válida — nulo é recusado: pagamento PAID tem data (CHECK payments_paid_has_paid_at)
+                         */
+                        paid_at?: string;
+                        /**
+                         * @description Opcional; se vier, igual ao gravado
+                         * @example 300.00
+                         */
+                        amount?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -2605,8 +2698,44 @@ export interface paths {
                         "application/json": components["schemas"]["Payment"];
                     };
                 };
-                /** @description Não encontrado */
+                /** @description amount inválido; method fora da lista ou nulo; paid_at nulo ou que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Papel diferente de ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Não encontrado no hotel */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description amount diferente do gravado; pagamento VOIDED, PENDING, EXPIRED, FAILED ou de PSP */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Pagamento PAID antigo sem data (anterior ao CHECK payments_paid_has_paid_at) e paid_at não enviado: informe paid_at para corrigir */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2618,8 +2747,8 @@ export interface paths {
         };
         post?: never;
         /**
-         * Remove pagamento (soft delete)
-         * @description A conta que o pagamento quitava volta a CLOSED com saldo (T-04.4).
+         * Não existe mais — use o estorno (405)
+         * @description T-06.13 (CA-06.13.a): lançamento financeiro não se apaga, se estorna. Responde 405 com header Allow e a indicação de POST /payments/{id}/void. Restrito a ADMIN, como o estorno.
          */
         delete: {
             parameters: {
@@ -2632,15 +2761,112 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                204: {
+                /** @description Papel diferente de ADMIN */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Exclusão não permitida — estorne com POST /payments/{id}/void */
+                405: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estorna um pagamento lançado por engano (só ADMIN)
+         * @description T-06.13. Correção de lançamento (valor errado, reserva errada, duplicado), sem movimento de caixa — não é devolução ao hóspede (REFUNDED, pelo PSP, fora desta versão). Grava status VOIDED, void_reason, voided_by (usuário do JWT) e voided_at; o pagamento permanece e aparece na listagem e na conta da reserva, marcado. Sai da receita e do saldo das contas: a conta que ele quitava volta de PAID a CLOSED na mesma transação. Só PAID vira VOIDED. Gera payment.status_changed (PAID → VOIDED) no outbox.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example Valor digitado errado */
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Estornado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Payment"];
+                    };
+                };
+                /** @description reason ausente, vazio, não-texto ou com mais de 500 caracteres */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Papel diferente de ADMIN */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Pagamento não encontrado no hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Pagamento não está PAID (já VOIDED, PENDING, EXPIRED, FAILED) ou é de PSP (PIX online — exige devolução pelo PSP) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2655,7 +2881,7 @@ export interface paths {
         };
         /**
          * Caixa realizado vs esperado vs inadimplência
-         * @description Retorna receita realizada (pagamentos recebidos) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes. Filtro por período opcional.
+         * @description Retorna receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes (reservas ativas sem nenhum pagamento PAID). Filtro por período opcional.
          */
         get: {
             parameters: {
@@ -3055,7 +3281,7 @@ export interface paths {
         };
         /**
          * Mix de meios de pagamento com percentual
-         * @description Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período.
+         * @description Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período. Só pagamentos PAID (estornados VOIDED e excluídos não contam — T-06.13).
          */
         get: {
             parameters: {
@@ -3173,6 +3399,95 @@ export interface paths {
                 };
                 /** @description Token não fornecido ou inválido */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Erro interno */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/internal-consumption": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consumo interno por motivo (cortesia, funcionário, perda)
+         * @description Responde "quanto o hotel deu de cortesia, refeição de funcionário e perda no período?" (RN-007). Entram os itens não faturáveis (billable: false) de qualquer conta e todos os itens de contas INTERNAL. Item de conta INTERNAL lançado sem motivo aparece no grupo reason: null (D-63). Itens excluídos e itens de contas excluídas ficam de fora; o status da conta não importa (D-65). O período filtra pelo dia do consumo (consumed_at), não pelo dia em que o servidor gravou (D-64), contado no horário de Brasília (D-68). Requer ADMIN (T-04.7).
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Data inicial (YYYY-MM-DD), inclusiva. Vem junto com end. */
+                    start?: string;
+                    /** @description Data final (YYYY-MM-DD), inclusiva. Vem junto com start. */
+                    end?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Um grupo por motivo, do maior valor para o menor; lista vazia se não houver consumo interno */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description null: item de conta INTERNAL lançado sem motivo
+                             * @example COURTESY
+                             * @enum {string|null}
+                             */
+                            reason: "COURTESY" | "STAFF" | "LOSS" | "INTERNAL_USE" | null;
+                            /**
+                             * @description Número de lançamentos
+                             * @example 12
+                             */
+                            count: number;
+                            /**
+                             * @description Soma de quantity × unit_price, em reais
+                             * @example 340.5
+                             */
+                            total: number;
+                        }[];
+                    };
+                };
+                /** @description Só uma das datas, data inexistente ou fora do formato YYYY-MM-DD, ou start depois de end */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token não fornecido ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Requer papel ADMIN */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4310,7 +4625,7 @@ export interface components {
              */
             total?: string;
             /**
-             * @description Pagamentos PAID da conta (T-04.4) mais a parte que lhe cabe do crédito da reserva. Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Cobrança PENDING, FAILED ou EXPIRED e pagamento excluído não contam
+             * @description Pagamentos PAID da conta (T-04.4) mais a parte que lhe cabe do crédito da reserva. Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Cobrança PENDING, FAILED ou EXPIRED, pagamento estornado (VOIDED, T-06.13) e pagamento excluído não contam
              * @example 100.00
              */
             payments_made?: string;
@@ -4581,10 +4896,17 @@ export interface components {
                 method?: string;
                 /** @enum {string} */
                 kind?: "FULL" | "DEPOSIT" | "BALANCE";
-                /** @enum {string} */
-                status?: "PENDING" | "PAID" | "EXPIRED" | "FAILED";
+                /**
+                 * @description Só PAID soma em total_paid. VOIDED (estornado, T-06.13) segue listado como histórico
+                 * @enum {string}
+                 */
+                status?: "PENDING" | "PAID" | "EXPIRED" | "FAILED" | "VOIDED";
                 /** Format: date-time */
                 paid_at?: string | null;
+                /** @description Motivo do estorno; nulo se não estornado */
+                void_reason?: string | null;
+                /** Format: date-time */
+                voided_at?: string | null;
             }[];
         };
         /** @description pix_qr_code, provider e provider_charge_id não aparecem em GET /payments, GET /payments/{id} nem PUT /payments/{id} — PaymentModel.defaultScope os exclui nessas consultas (T-06.2/achado de segurança fechado em 22/09). provider_charge_id é a credencial do webhook PIX (T-06.9); quem precisar dos 3 campos usa PaymentModel.unscoped() no código, não a API. Ressalva (achado 🟡 da auditoria de 22/09): POST /payments usa .create(), que o defaultScope não filtra — os 3 campos vêm null nessa resposta (pagamento manual da recepção, nunca passa pelo provider PIX), mas tecnicamente aparecem no JSON. */
@@ -4610,12 +4932,27 @@ export interface components {
             amount?: string;
             /** @enum {string} */
             method?: "PIX" | "CARTAO_CREDITO" | "CARTAO_DEBITO" | "DINHEIRO";
-            /** @enum {string} */
-            status?: "PENDING" | "PAID" | "EXPIRED" | "FAILED";
+            /**
+             * @description Só PAID é receita e abate saldo. VOIDED = lançamento estornado (POST /payments/{id}/void, T-06.13): fica no histórico, fora da receita
+             * @enum {string}
+             */
+            status?: "PENDING" | "PAID" | "EXPIRED" | "FAILED" | "VOIDED";
             /** @enum {string} */
             kind?: "FULL" | "DEPOSIT" | "BALANCE";
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Mantido no VOIDED: é histórico
+             */
             paid_at?: string | null;
+            /** @description Motivo do estorno. Nulo em todo pagamento não estornado */
+            void_reason?: string | null;
+            /**
+             * Format: uuid
+             * @description Usuário (ADMIN) que estornou
+             */
+            voided_by?: string | null;
+            /** Format: date-time */
+            voided_at?: string | null;
             /** @description Presente em GET /payments e GET /payments/{id} */
             reservation?: {
                 /** Format: uuid */

@@ -149,6 +149,12 @@ export default async function CreateAccountItemController(request, response) {
                 lock: transaction.LOCK.UPDATE,
                 transaction
             });
+            // A conta pode ter sumido entre a leitura acima e a trava (excluída por outra
+            // transação): 404, não TypeError → 500 (🟢-1 da auditoria de 21/10).
+            if (!locked) {
+                await transaction.rollback();
+                return response.status(404).json({ error: 'Conta não encontrada' });
+            }
             if (locked.status !== 'OPEN') {
                 await transaction.rollback();
                 return response.status(422).json({ error: `Conta ${locked.status} não aceita item novo` });

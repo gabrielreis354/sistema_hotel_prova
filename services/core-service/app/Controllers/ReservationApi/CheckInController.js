@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
+import { openStayAccount } from '../../utils/reservationRoomAccount.js';
 
 export default async function CheckInController(request, response) {
     const { id } = request.params;
@@ -46,6 +47,10 @@ export default async function CheckInController(request, response) {
                 { where: { id: extraRoomIds, tenant_id: tenantId }, transaction }
             );
         }
+
+        // A conta da suíte nasce com o check-in, na mesma transação (T-04.6, D-58): falhou a
+        // conta, o check-in volta inteiro (CA-04.6.c). A resposta segue sendo a reserva (D-59).
+        await openStayAccount(reservation, room, transaction);
 
         await transaction.commit();
         return response.json(reservation);

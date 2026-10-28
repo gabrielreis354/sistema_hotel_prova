@@ -1,45 +1,83 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import PaymentModel from '../../Models/PaymentModel.js';
-import { settlePaymentAccount } from '../../utils/accountBill.js';
+import isUuid from '../../utils/isUuid.js';
+import { toCents } from '../../utils/calculateStayTotal.js';
 import { isValidPaymentAmount, INVALID_AMOUNT_MESSAGE } from '../../utils/paymentAmount.js';
+import { EDITABLE_STATUSES } from '../../utils/paymentEnums.js';
+import { isValidPaymentMethod, isValidPaidAt, INVALID_METHOD_MESSAGE, INVALID_PAID_AT_MESSAGE } from '../../utils/paymentInput.js';
 
 /**
  * PUT /payments/:id
- * Altera valor, método ou data. Reserva e conta do pagamento não mudam.
- * Mudar o valor pode quitar a conta ou reabrir o saldo dela: acerta CLOSED ↔ PAID na
- * mesma transação (T-04.4).
+ * Corrige método ou data de um lançamento manual. Só ADMIN, pela rota (repasse de 19/10).
+ *
+ * O valor de um pagamento não se altera (T-06.13): corrigir valor é estornar
+ * (POST /payments/:id/void, com motivo) e lançar de novo — o lançamento errado fica no
+ * histórico. `amount` só é aceito igual ao gravado (cliente que reenvia o objeto inteiro).
+ * Como valor, reserva e conta não mudam, o saldo das contas também não: não há acerto.
+ *
+ * Allowlist: só PAID se corrige. VOIDED é histórico; PENDING, EXPIRED e FAILED, e todo
+ * pagamento de PSP, são do provedor — 409. Status e trilha de estorno nunca vêm do corpo.
  */
 export default async function UpdatePaymentController(request, response) {
     try {
         const { amount, method, paid_at } = request.body;
+        const tenantId = request.user.tenantId;
         // Mesma regra do POST (D-49).
         if (amount !== undefined && !isValidPaymentAmount(amount)) {
             return response.status(400).json({ error: INVALID_AMOUNT_MESSAGE });
         }
+        if (method !== undefined && !isValidPaymentMethod(method)) {
+            return response.status(400).json({ error: INVALID_METHOD_MESSAGE });
+        }
+        // Pagamento PAID tem data (CHECK payments_paid_has_paid_at): paid_at nulo o tiraria da
+        // receita sem estorno nem motivo (🟡-1 do qa-redteam). Presente, precisa ser data válida.
+        if (paid_at !== undefined && !isValidPaidAt(paid_at)) {
+            return response.status(400).json({ error: INVALID_PAID_AT_MESSAGE });
+        }
+        if (!isUuid(request.params.id)) return response.status(404).json({ error: 'Pagamento não encontrado.' });
 
         const transaction = await sequelize.transaction();
         try {
-            const payment = await PaymentModel.findOne({
-                where: { id: request.params.id, tenant_id: request.user.tenantId },
+            const refuse = async (status, error) => {
+                await transaction.rollback();
+                return response.status(status).json({ error });
+            };
+
+            // Trava contra um estorno simultâneo. unscoped: provider diz se é de PSP.
+            const payment = await PaymentModel.unscoped().findOne({
+                where: { id: request.params.id, tenant_id: tenantId },
+                lock: transaction.LOCK.UPDATE,
                 transaction
             });
-
-            if (!payment) {
-                await transaction.rollback();
-                return response.status(404).json({ error: 'Pagamento não encontrado.' });
+            if (!payment) return refuse(404, 'Pagamento não encontrado.');
+            if (!EDITABLE_STATUSES.includes(payment.status) || payment.provider) {
+                return refuse(409, `Pagamento ${payment.status}${payment.provider ? ' do PSP' : ''} não se altera.`);
+            }
+            if (amount !== undefined && toCents(amount) !== toCents(payment.amount)) {
+                return refuse(409, 'O valor de um pagamento não se altera: estorne (POST /payments/:id/void) e lance de novo.');
             }
 
-            await payment.update({ amount, method, paid_at }, { transaction });
-            await settlePaymentAccount(payment, transaction);
+            // PAID antigo sem data (anterior ao CHECK NOT VALID payments_paid_has_paid_at): o banco
+            // confere toda linha atualizada, e um PUT só de método virava 500. A correção
+            // possível é informar a data (reauditoria delta, 🟢-2).
+            if (payment.paid_at === null && paid_at === undefined) {
+                return refuse(422, 'Pagamento PAID sem data: informe paid_at para corrigir o lançamento.');
+            }
+
+            // Pela instância, com a linha inteira: a validação do model (PAID exige paid_at)
+            // enxerga o status real, e só os campos enviados mudam.
+            const changes = Object.fromEntries(Object.entries({ method, paid_at }).filter(([, v]) => v !== undefined));
+            await payment.update(changes, { transaction });
+            const updated = await PaymentModel.findOne({ where: { id: payment.id, tenant_id: tenantId }, transaction });
             await transaction.commit();
 
-            return response.json(payment);
+            return response.json(updated);
         } catch (error) {
             await transaction.rollback();
             throw error;
         }
     } catch (error) {
-        console.error('UpdatePaymentController error:', error);
+        console.error('UpdatePaymentController error:', error.message);
         return response.status(500).json({ error: 'Erro ao atualizar pagamento.' });
     }
 }

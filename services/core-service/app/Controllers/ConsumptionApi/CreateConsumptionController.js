@@ -2,13 +2,12 @@ import sequelize from '../../../database/connections/sequelize.js';
 import AccountModel from '../../Models/AccountModel.js';
 import AccountItemModel from '../../Models/AccountItemModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
-import reservationRoomAccount from '../../utils/reservationRoomAccount.js';
+import reservationRoomAccount, { CLOSED_STAY_STATUSES } from '../../utils/reservationRoomAccount.js';
 import itemAsConsumption from '../../utils/itemAsConsumption.js';
 import { MAX_PRICE } from '../../utils/productValidation.js';
 
 const MAX_DESCRIPTION = 200;
 const TWO_DECIMALS = /^\d+(\.\d{1,2})?$/;
-const CLOSED_STAY_STATUSES = ['CHECKED_OUT', 'CANCELLED'];
 
 /**
  * POST /reservations/:id/consumptions
@@ -61,6 +60,8 @@ export default async function CreateConsumptionController(request, response) {
         }
 
         const account = await reservationRoomAccount(reservation);
+        // A estadia encerrou enquanto o lançamento esperava a trava da reserva.
+        if (!account) return response.status(422).json({ error: 'Reserva encerrada não recebe consumo novo' });
         const cents = Math.round(value * 100);
 
         let item;

@@ -38,3 +38,30 @@ Origem: `docs/qa/redteam_t042-consumption-migration_delta_19out2026.md`, achado 
 **Onde:** `services/core-service/app/Controllers/WebhookApi/PixWebhookController.js:70` (estado terminal → `already_processed`).
 **Cenário:** uma cobrança confirmada (PAID) recebe depois uma notificação REFUNDED ou CHARGEBACK do PSP (o Asaas já traduz para FAILED). O webhook responde "already_processed" e o pagamento continua PAID. Com a T-04.4, a conta titular também continua PAID e o bill mostra um dinheiro que voltou ao hóspede.
 **Correção sugerida:** tratar PAID → estorno como transição própria (status `VOIDED` da T-06.13, ou o estorno com trilha da D-2 de 04/10). Na mesma transação, chamar `settlePaymentAccount(payment, transaction)` para a conta voltar a CLOSED.
+
+---
+
+## Tratamento — 21/10/2026 (Gabriel, branch `fix/repasses-gabriel-out`)
+
+**Tratados:** os dois 🟡 de troca/remoção de quarto (o original e o complemento da T-04.3). Os dois 🟢 do acréscimo da T-04.4 (catálogo `reservation_id: null` e estorno depois de PAID) **não** foram tratados aqui: o estorno fica para a T-06.13 (status de estorno), e o catálogo segue pendente.
+
+- **Troca do quarto principal** (`UpdateReservationController`): na mesma transação da troca do `room_id`, as contas `ROOM` **OPEN** do quarto que sai passam para o quarto novo (a de diária e as divididas sem diária). O rótulo gerado pelo sistema acompanha; o escolhido pela recepção fica. Conta fechada ou paga não muda (D-23). Se o quarto novo já tem conta de diária desta reserva (só em dado legado), a troca responde 409 (RN-005).
+- **Remoção de quarto extra** (`RemoveRoomFromReservationController`): conta OPEN vazia (sem item e sem pagamento não excluídos) é desligada (soft delete). Conta OPEN com item ou pagamento recusa a remoção com **409** e `account_ids`. Conta fechada não bloqueia nem é tocada.
+- Utilitário: `services/core-service/app/utils/roomChangeAccounts.js`. Swagger atualizado.
+- Cenário do repasse reproduzido em `tests/reservation-room-accounts.test.js`: RED em `9402818`, GREEN em `568bc7a`.
+- Relatório: `docs/historico_sessao/gabriel/repasses_conta_quarto_webhook_21102026.md`.
+
+### Tratamento — complemento de 21/10 (auditoria `docs/qa/redteam_repasses-gabriel-out_21out2026.md`)
+A regra da **remoção de quarto extra** mudou. Ela substitui o "desliga a vazia / 409 na com item" descrito acima.
+- As contas `ROOM` OPEN do extra passam para o **quarto principal**, com itens e pagamentos.
+- Se o principal já tem conta de diária da reserva, a conta movida passa a `charges_lodging: false` (RN-005). Se não tem, ela segue cobrando a diária.
+- Nenhuma conta é apagada, e a remoção não é mais bloqueada por conta aberta.
+- RED em `0041651`, GREEN em `4f0e2f7`.
+
+O 409 RN-005 da troca de quarto passou a trazer `account_ids` (mesmos commits). Essa regra toca `accounts` (dono: Sirlande) e precisa do conhecimento dele.
+
+### Tratamento — complemento de 24/10 (reauditoria delta `docs/qa/redteam_repasses-gabriel-out_delta_21out2026.md`)
+- **N-1:** `POST /accounts` de conta ROOM trava a reserva antes da RN-005 (`d17250b`). Na remoção, um deadlock 40P01 leva a uma nova tentativa e, se repetir, a 409 (`ff3457a`).
+- **N-2:** a conta movida sem diária ganha a origem no rótulo do sistema, "Suíte 701 · ex-702" (`ff3457a`).
+- **N-3:** teste do principal só com conta sem diária (`1de70ad`).
+- O RED está em `1de70ad`. O `CreateAccountController` é do Sirlande e precisa do aval dele.

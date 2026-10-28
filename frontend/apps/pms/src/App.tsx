@@ -13,6 +13,8 @@ import {
   ReservationReceiptPage,
   ReservationsListPage,
 } from './features/reservations/index.js';
+import { AccountsListPage } from './features/accounts/AccountsListPage.js';
+import { AccountPage } from './features/accounts/AccountPage.js';
 
 /**
  * Árvore de rotas. Duas camadas de proteção: ProtectedRoute exige sessão; RequireRole exige
@@ -41,7 +43,8 @@ export function App() {
 
             {/* Comanda: recepção, admin e garçom */}
             <Route element={<RequireRole allow={['ADMIN', 'RECEPTIONIST', 'WAITER']} />}>
-              <Route path="comanda" element={<Placeholder title="Comanda" phase="Fase 2 — Consumo" />} />
+              <Route path="comanda" element={<AccountsListPage />} />
+              <Route path="comanda/:id" element={<AccountPage />} />
             </Route>
 
             {/* Configurações: só admin */}

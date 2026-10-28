@@ -27,7 +27,7 @@ Verificado em `frontend/apps/pms/src/App.tsx`:
 | `/hospedes` · `/novo` · `/:id` · `/:id/editar` | ✅ Implementadas — CRUD com busca e ficha de histórico |
 | `/` (Hoje) | 🔲 **`<Placeholder title="Hoje" />`** |
 | `/reservas` | 🔲 **`<Placeholder title="Reservas" />`** |
-| `/comanda` | 🔲 **`<Placeholder title="Comanda" />`** |
+| `/comanda` | ✅ Comanda do garçom — Fase A (T-05.5, 26/10) |
 | `/config/usuarios` | 🔲 **`<Placeholder title="Usuários" />`** |
 
 Não existem telas de quartos, categorias, check-in/out, rack, financeiro, analytics nem B2B.
@@ -150,21 +150,21 @@ Tela inicial da recepção. Substitui o placeholder.
 
 ---
 
-### T-05.5 — Comanda do garçom 🔲 *(~4 dias)*
+### T-05.5 — Comanda do garçom 🟡 *(~4 dias — Fase A, CA-a a j, concluída em 26/10/2026; decisões em `anexos/SPEC-05-decisoes-T-05.5.md`; k, l, m são a Fase B)*
 
 **DEP:** ⛔ **SPEC-04 T-04.3** (endpoints `/accounts` e `/products`)
 
 **Critérios de aceitação**
-- [ ] **CA-05.5.a** — Tela inicial do garçom **é** a lista de contas abertas, sem tela intermediária
-- [ ] **CA-05.5.b** — Cardápio em grade, categorias como chips, preço visível
-- [ ] **CA-05.5.c** — Um toque no produto lança quantidade 1; quantidade só se diferente
-- [ ] **CA-05.5.d** — Rodapé fixo com total da conta
-- [ ] **CA-05.5.e** — **Fila offline** com `client_item_id` — reconexão não duplica
-- [ ] **CA-05.5.f** — Confirmação otimista; erro de rede não aparece como falha
-- [ ] **CA-05.5.g** — **Desfazer** em vez de diálogo de confirmação
-- [ ] **CA-05.5.h** — Cortesia exibida com **preço riscado e rótulo**, somando zero
-- [ ] **CA-05.5.i** — Alvo ≥ 48px; ações na metade inferior — uso com uma mão
-- [ ] **CA-05.5.j** — `WAITER` não vê nada além da comanda
+- [x] **CA-05.5.a** — Tela inicial do garçom **é** a lista de contas abertas, sem tela intermediária *(26/10 — `/comanda`, busca por mesa/suíte)*
+- [x] **CA-05.5.b** — Cardápio em grade, categorias como chips, preço visível *(26/10 — `MenuGrid`)*
+- [x] **CA-05.5.c** — Um toque no produto lança quantidade 1; quantidade só se diferente *(26/10 — toques no mesmo produto na janela somam na linha)*
+- [x] **CA-05.5.d** — Rodapé fixo com total da conta *(26/10 — total do servidor + fila, "inclui R$ X na fila")*
+- [x] **CA-05.5.e** — **Fila offline** com `client_item_id` — reconexão não duplica *(26/10 — `queueCore`/`queueStore`; offline com recarga sem duplicata, verificado no navegador)*
+- [x] **CA-05.5.f** — Confirmação otimista; erro de rede não aparece como falha *(26/10 — sem rede vira "Na fila"; rede ruim mantém a tela)*
+- [x] **CA-05.5.g** — **Desfazer** em vez de diálogo de confirmação *(26/10 — janela de 5 s antes do envio; o garçom não exclui item gravado, D-8)*
+- [x] **CA-05.5.h** — Cortesia exibida com **preço riscado e rótulo**, somando zero *(26/10)*
+- [x] **CA-05.5.i** — Alvo ≥ 48px; ações na metade inferior — uso com uma mão *(26/10 — alvos ≥ 48 px conferidos no navegador; cardápio e total na metade de baixo)*
+- [x] **CA-05.5.j** — `WAITER` não vê nada além da comanda *(26/10 — bill e fechamento só para recepção/admin)*
 - [ ] **CA-05.5.k** — Produtos mais lançados em destaque, acima do cardápio completo — a curva de uso é curta e repetitiva (RT-36)
 - [ ] **CA-05.5.l** — Transferir item entre contas e conta inteira entre quartos ou mesas (RT-37)
 - [ ] **CA-05.5.m** — Dividir a conta por pessoa **no fechamento**, não só na abertura (RT-38)
