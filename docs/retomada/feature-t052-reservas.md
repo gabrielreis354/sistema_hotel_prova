@@ -1,19 +1,30 @@
 # Retomada — T-05.2 Reservas e check-in/out (feature/t052-reservas)
 
-**Atualizado:** 24/10/2026 · **Por:** agente executor de frontend (trilha do Gabriel)
+**Atualizado:** 28/10/2026 · **Por:** agente executor de frontend (trilha do Gabriel)
 **Worktree:** /home/gabri/wt-t052 · **Portas:** PG 5445 · backend 3052 · Vite 5252
-**Containers:** pg-t052, **parado** e removido no fim da rodada (para subir de novo, ver "Comandos úteis")
+**Containers:** pg-t052 (sobe para os testes de backend da rodada; remover no fim)
 
 ## Objetivo
 SPEC-05 T-05.2, CA-05.2.a a m: reservas, check-in/out, conta e comprovante no `apps/pms`.
-Sem PR e sem merge; o Gabriel conduz o merge.
+Rodada atual: ressalvas da reauditoria delta (`docs/qa/redteam_t052-reservas_delta_24out2026.md`, commit `7bc2ffe`). Sem PR.
+
+**Ordem de integração** (parecer do Sirlande, 28/10): `fix/tenant-fk-validation` → `feature/analytics-service` → `feature/t051` → `feature/t052`. O merge da t052 em develop está previsto para 30/10.
+**Quando a t051 entrar na develop**, esta branch precisa de mais um merge da develop seguido de `pnpm gen:api`. Conflito esperado em `App.tsx`: manter os dois blocos. **Nunca resolva `openapi.json`/`schema.d.ts` à mão — regenere.** Depois disso, promover `Money`, `ErrorState`, `Notice`, `ButtonLink` e o badge (via `StatusBadge tone/label`) para `packages/ui` e registrar no `CATALOGO.md`.
 
 ## Onde estou
-- Último commit: `docs(reservations): ressalvas do qa-redteam tratadas e decisao de 24/10 na SPEC-05` (com push). Para confirmar: `git log -1`
-- Passo atual: rodada de ressalvas do qa-redteam **concluída**. Todos os 🟡 e 🟢 do escopo foram tratados e a decisão de 24/10 está aplicada
-- Próximo passo: aguardar o Gabriel. Opções: reauditoria (qa-redteam delta) ou merge. Depois do merge da T-05.1, fazer merge de `develop` aqui, resolver os conflitos de `App.tsx` e da SPEC-05 §5, e promover `Money`, `ErrorState`, `Notice`, `ButtonLink` e o badge (via `StatusBadge tone/label`) para `packages/ui`, registrando no `CATALOGO.md`
+- Último commit: `c68db33 fix(reservations): estorno VOIDED e metodos da T-06.13 legiveis; comprovante sem estorno` (com push)
+- Feito nesta rodada: merge da develop (`9da9dc5`, api-client regenerado e idêntico ao da develop) e 🟡-2 (`c68db33`)
+- Próximo passo, em ordem:
+  1. 🟡-1 backend: `GET /guests?q=&limit=`, com testes no `pg-t052` e Swagger, em commits separados
+  2. Frontend do 🟡-1: `GuestPicker` com `?q=&limit=`, chave `['guests','search',q]`, mais o teste
+  3. 🟢-1 mutações sobreviventes
+  4. 🟢-2/3/4
+  5. Portões: frontend e suíte completa do core
+  6. Relatório, SPEC-05 e esta retomada
 
 ## Feito
+- [x] Merge de `origin/develop` (PRs #100, #101 e comanda T-05.5) — `9da9dc5`
+- [x] 🟡-2 da delta: VOIDED, CARTAO_CREDITO/DEBITO e comprovante sem estorno — `c68db33`
 - [x] Módulo entregue (CA a–i, k, l, m) — `0be2e0d`..`3b1e41a`, docs em `3efd467`
 - [x] qa-redteam: APROVADO COM RESSALVAS — `e3972c0`
 - [x] 🟡-2 e 🟢-2 tratados, mais `RESERVATION_STATUSES` do domínio — `50aa4f8`
