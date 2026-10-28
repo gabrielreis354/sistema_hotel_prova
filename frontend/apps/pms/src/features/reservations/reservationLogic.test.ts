@@ -7,6 +7,7 @@ import {
   pageCount,
   presetRange,
   quoteStay,
+  receiptEntries,
   reservationActions,
   roomConflictMessage,
   splitLodging,
@@ -145,6 +146,52 @@ describe('buildBillTimeline — conta em linha do tempo', () => {
     expect(expired?.label).toMatch(/expirado/);
     expect(t.entries.find((e) => e.key === 'payment-f1')?.label).toMatch(/falhou/);
     expect(t.balanceCents).toBe(30550 - 10000);
+  });
+
+  it('estorno (VOIDED): rótulo "estornado" com o motivo, não abate, não soma e fica fora do comprovante', () => {
+    const t = buildBillTimeline({
+      ...bill,
+      payments: [
+        {
+          id: 'v1',
+          amount: 200,
+          method: 'CARTAO_CREDITO',
+          kind: 'FULL',
+          status: 'VOIDED',
+          paid_at: '2026-10-22T14:00:00.000Z',
+          void_reason: 'lançado no quarto errado',
+        },
+        { id: 'k1', amount: 200, method: 'DINHEIRO', kind: 'FULL', status: 'PAID', paid_at: '2026-10-22T15:00:00.000Z' },
+        { id: 'e1', amount: 50, method: 'PIX', kind: 'DEPOSIT', status: 'EXPIRED', paid_at: null },
+        { id: 'p1', amount: 30, method: 'PIX', kind: 'BALANCE', status: 'PENDING', paid_at: null },
+      ],
+    });
+    const voided = t.entries.find((e) => e.key === 'payment-v1');
+    expect(voided).toMatchObject({ voided: true, notCounted: true, awaiting: false, onReceipt: false });
+    expect(voided?.label).toBe('Pagamento · Cartão de crédito (estornado: lançado no quarto errado)');
+    expect(t.paidCents).toBe(20000);
+    expect(t.pendingCents).toBe(3000);
+    expect(t.balanceCents).toBe(30550 - 20000);
+    // Comprovante: diárias, consumo, o PAID e o PIX pendente; nada de estorno nem de PIX morto.
+    expect(receiptEntries(t).map((e) => e.key)).toEqual([
+      'lodging-2026-10-22',
+      'payment-k1',
+      'consumption-c1',
+      'lodging-2026-10-23',
+      'payment-p1',
+    ]);
+  });
+
+  it('métodos da T-06.13 e status desconhecido nunca saem como enum cru', () => {
+    const t = buildBillTimeline({
+      ...bill,
+      payments: [
+        { id: 'd1', amount: 10, method: 'CARTAO_DEBITO', kind: 'FULL', status: 'PAID', paid_at: '2026-10-22T15:00:00.000Z' },
+        { id: 'x1', amount: 10, method: 'PIX', kind: 'FULL', status: 'REFUNDED', paid_at: '2026-10-22T16:00:00.000Z' },
+      ],
+    });
+    expect(t.entries.find((e) => e.key === 'payment-d1')?.label).toBe('Pagamento · Cartão de débito');
+    expect(t.entries.find((e) => e.key === 'payment-x1')?.label).toBe('Pagamento · PIX (situação desconhecida)');
   });
 
   it('o saldo da linha do tempo bate com o balance_due do servidor', () => {

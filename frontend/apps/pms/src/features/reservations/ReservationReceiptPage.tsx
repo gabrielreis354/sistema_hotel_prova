@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { RESERVATION_STATUS_LABEL, formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { Button, Spinner } from '@hotel/ui';
 import { useBill, useReservation } from './queries.js';
-import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, safeNights } from './reservationLogic.js';
+import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, receiptEntries, safeNights } from './reservationLogic.js';
 import { BackLink, ErrorState, Money } from './components/primitives.js';
 
 /**
@@ -72,7 +72,7 @@ export function ReservationReceiptPage() {
             </tr>
           </thead>
           <tbody>
-            {timeline.entries.map((e) => (
+            {receiptEntries(timeline).map((e) => (
               <tr key={e.key} className="border-b border-gray-100">
                 <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
                   {e.at ? (e.dateOnly ? formatDateBR(e.at) : formatDateTimeBR(e.at)) : '—'}

@@ -54,7 +54,9 @@ export function BillTimeline({ timeline, balanceCents }: { timeline: Timeline; b
                   </span>
                 </td>
                 <td className="py-2 pr-3 text-right">
-                  <Money cents={e.amountCents} />
+                  {/* Estorno riscado: o valor foi anulado e não deve ler como pagamento. O rótulo
+                      já diz "estornado: motivo" — o risco não é o único sinal. */}
+                  <Money cents={e.amountCents} className={cn(e.voided && 'line-through')} />
                   {e.notCounted && <span className="sr-only"> (não abate o saldo)</span>}
                 </td>
                 <td className="py-2 text-right">

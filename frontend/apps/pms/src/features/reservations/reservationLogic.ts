@@ -149,6 +149,8 @@ export interface BillLike {
     kind?: string;
     status?: string;
     paid_at?: string | null;
+    /** Motivo do estorno (T-06.13); nulo se não estornado. */
+    void_reason?: string | null;
   }[];
 }
 
@@ -171,6 +173,16 @@ export interface TimelineEntry {
    * e também não somam — é cobrança morta, igual ao `total_pending` do GetBillController.
    */
   awaiting: boolean;
+  /**
+   * Pagamento estornado (VOIDED, T-06.13): lançamento feito por engano e anulado pela gerência.
+   * Não abate nem soma; a tela mostra riscado, com o motivo, para não parecer pagamento.
+   */
+  voided: boolean;
+  /**
+   * Linha que compõe o saldo apresentado ao hóspede: diárias, consumos, pagamentos PAID e PIX
+   * ainda PENDING. EXPIRED, FAILED e VOIDED ficam de fora do comprovante (ver receiptEntries).
+   */
+  onReceipt: boolean;
   /** Saldo depois desta linha — só o que conta entra. */
   balanceCents: Cents;
 }
@@ -190,15 +202,19 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CREDIT_CARD: 'Cartão de crédito',
   DEBIT_CARD: 'Cartão de débito',
   CASH: 'Dinheiro',
-  // `method` é TEXT livre no PaymentModel; o seed e lançamentos antigos usam o nome em português.
-  CARTAO: 'Cartão',
+  // Allowlist da API desde a T-06.13 (paymentEnums.PAYMENT_METHODS).
+  CARTAO_CREDITO: 'Cartão de crédito',
+  CARTAO_DEBITO: 'Cartão de débito',
   DINHEIRO: 'Dinheiro',
+  // Linha antiga: `method` era TEXT livre e o seed usa 'CARTAO'.
+  CARTAO: 'Cartão',
 };
 
 const PAYMENT_STATUS_NOTE: Record<string, string> = {
   PENDING: 'aguardando confirmação',
   EXPIRED: 'expirado',
   FAILED: 'falhou',
+  VOIDED: 'estornado',
 };
 
 /** Número (como o /bill devolve) para centavos — via @hotel/domain, nunca aritmética de float. */
@@ -239,6 +255,8 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       amountCents: amount,
       notCounted: false,
       awaiting: false,
+      voided: false,
+      onReceipt: true,
     });
   });
 
@@ -252,12 +270,18 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       amountCents: cents(c.amount),
       notCounted: false,
       awaiting: false,
+      voided: false,
+      onReceipt: true,
     });
   }
 
   for (const p of bill.payments ?? []) {
     const method = p.method ? (PAYMENT_METHOD_LABEL[p.method] ?? p.method) : 'Pagamento';
-    const note = p.status && p.status !== 'PAID' ? PAYMENT_STATUS_NOTE[p.status] ?? p.status : undefined;
+    const voided = p.status === 'VOIDED';
+    const reason = voided && p.void_reason?.trim() ? `: ${p.void_reason.trim()}` : '';
+    // Status desconhecido aparece como "situação desconhecida", nunca como enum cru.
+    const note =
+      p.status && p.status !== 'PAID' ? `${PAYMENT_STATUS_NOTE[p.status] ?? 'situação desconhecida'}${reason}` : undefined;
     const kind = p.kind === 'DEPOSIT' ? 'Sinal' : 'Pagamento';
     raw.push({
       key: `payment-${p.id}`,
@@ -268,6 +292,8 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       amountCents: -cents(p.amount),
       notCounted: p.status !== 'PAID',
       awaiting: p.status === 'PENDING',
+      voided,
+      onReceipt: p.status === 'PAID' || p.status === 'PENDING',
     });
   }
 
@@ -294,6 +320,20 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
   });
 
   return { entries, chargesCents: charges, paidCents: paid, pendingCents: pending, balanceCents: balance };
+}
+
+/**
+ * Linhas do comprovante entregue ao hóspede: só o que compõe o saldo apresentado.
+ *
+ * Estorno (VOIDED) fica FORA, de propósito: é a anulação de um lançamento feito por engano pela
+ * equipe — o hóspede não pagou aquele valor, e nada saiu nem entrou na gaveta. No papel, uma
+ * linha "−R$ 200,00" riscada ainda lê como pagamento, e o hóspede somaria o que não pagou. O
+ * mesmo vale para PIX expirado ou falho: cobrança morta. O histórico completo, com o motivo do
+ * estorno, continua na aba Conta, que é da equipe. PIX ainda PENDING fica, rotulado
+ * "aguardando confirmação", porque ainda pode entrar e aparece em "aguardando".
+ */
+export function receiptEntries(timeline: BillTimeline): TimelineEntry[] {
+  return timeline.entries.filter((e) => e.onReceipt);
 }
 
 /** Saldo oficial: o do servidor quando existe; a soma local é só a demonstração linha a linha. */
