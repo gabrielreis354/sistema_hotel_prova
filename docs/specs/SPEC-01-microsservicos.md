@@ -241,7 +241,7 @@ Primeiro serviço a sair: não altera estado do hotel, então a extração não 
 
 **No broker**
 - [x] **CA-01.4.e** — RabbitMQ no `infra/k8s/` e no Docker Compose, com fila durável do analytics e fila de mensagens mortas — *H.1: `infra/k8s/rabbitmq-setup.sh`, usuário por serviço com menor privilégio (catálogo §8)*
-- [ ] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8) — *H.1: Prometheus já raspa `/metrics/per-object` (profundidade de cada fila, inclusive DLQ); falta o painel no Grafana (T-02.4, Weslley). Atraso de consumo só existe com o consumidor (H.2)*
+- [x] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8) — *dashboard `gesway-rabbitmq` (Gesway — Mensageria) e alertas de DLQ com mensagem e de broker fora, em `infra/k8s/observability/`, no compose e no k8s (28/10, Weslley). O atraso de consumo aparece como mensagens prontas e em processamento na fila principal e como vazão publicadas × confirmadas; o atraso em segundos exige o core publicar com a propriedade `timestamp` (pendência no relatório da sessão)*
 
 **No analytics**
 - [ ] **CA-01.4.g** — Serviço em processo próprio, com `package.json`, `Dockerfile` e banco PostgreSQL próprios
