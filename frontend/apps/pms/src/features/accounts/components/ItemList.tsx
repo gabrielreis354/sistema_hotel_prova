@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import { Button } from '@hotel/ui';
 import { decimalToCents, formatBRL, multiplyCents } from '@hotel/domain';
 import type { AccountItem } from '../accountsApi.js';
-import { canUndo, undoLabel, type QueueEntry } from '../queueCore.js';
+import { canUndo, type QueueEntry } from '../queueCore.js';
 import { useNow } from '../queueStore.js';
-import { itemLine } from '../accountTotals.js';
+import { itemLine, undoLabel } from '../accountTotals.js';
 
 
 const ENTRY_STATE: Record<QueueEntry['status'], { label: string; dot: string }> = {

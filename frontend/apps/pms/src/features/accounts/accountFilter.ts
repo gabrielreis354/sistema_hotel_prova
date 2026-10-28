@@ -46,13 +46,19 @@ export function menuCategories(products: Product[]): Category[] {
 }
 
 /**
- * Ordem da lista de contas: a mais antiga primeiro, desempate pelo id. A conta que outro garçom
- * abre entra no fim e não empurra as outras para baixo do dedo de quem está tocando (P1 da
- * revisão Impeccable). O backend devolve a mais nova primeiro, que mexe a lista a cada abertura.
+ * Ordem da lista de contas: primeiro as do turno (mesa, balcão, day-use), depois as suítes, que
+ * nascem no check-in e ficam abertas por dias (🟡-5 do qa-redteam). Dentro de cada grupo, a mais
+ * antiga primeiro, desempate pelo id: a conta que outro garçom abre entra no fim do grupo e não
+ * empurra as outras para baixo do dedo de quem está tocando (P1 da revisão Impeccable). O backend
+ * devolve a mais nova primeiro, que mexe a lista a cada abertura.
  */
 export function sortAccounts(accounts: Account[]): Account[] {
+  const group = (a: Account) => (a.type === 'ROOM' ? 1 : 0);
   return [...accounts].sort(
-    (a, b) => (a.opened_at ?? '').localeCompare(b.opened_at ?? '') || (a.id ?? '').localeCompare(b.id ?? ''),
+    (a, b) =>
+      group(a) - group(b) ||
+      (a.opened_at ?? '').localeCompare(b.opened_at ?? '') ||
+      (a.id ?? '').localeCompare(b.id ?? ''),
   );
 }
 

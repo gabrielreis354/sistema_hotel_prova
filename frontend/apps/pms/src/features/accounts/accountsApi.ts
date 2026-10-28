@@ -82,9 +82,11 @@ export async function getAccountBill(id: string): Promise<AccountBill> {
   return data;
 }
 
-export async function closeAccount(id: string): Promise<void> {
-  const { error, response } = await api.PUT('/accounts/{id}/close', { params: { path: { id } } });
+/** Fecha a conta e devolve o bill final: a recepção vê o saldo depois de fechar (🟡-1). */
+export async function closeAccount(id: string): Promise<AccountBill | undefined> {
+  const { data, error, response } = await api.PUT('/accounts/{id}/close', { params: { path: { id } } });
   if (error || !response.ok) {
     throw new ApiError(backendMessage(error, 'Não foi possível fechar a conta.'), response.status);
   }
+  return data;
 }

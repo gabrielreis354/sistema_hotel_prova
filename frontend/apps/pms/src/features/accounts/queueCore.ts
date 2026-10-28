@@ -261,8 +261,3 @@ export function isQueueEntry(value: unknown): value is QueueEntry {
     (record.sendingSince === undefined || typeof record.sendingSince === 'number')
   );
 }
-
-/** Texto do botão: numa linha com 2× ou mais, desfazer tira só um, e o botão diz isso. */
-export function undoLabel(quantity: number): string {
-  return quantity > 1 ? 'Desfazer 1' : 'Desfazer';
-}
