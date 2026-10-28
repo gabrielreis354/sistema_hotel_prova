@@ -65,14 +65,17 @@ export function OpenAccountForm({
           aria-describedby={same ? 'account-label-same' : undefined}
         />
       </Field>
-      {same && (
-        <p id="account-label-same" className="text-sm text-gray-700">
-          Já existe uma conta aberta com esse nome ({openedAtLabel(same.opened_at)}).{' '}
-          <Link to={`/comanda/${same.id}`} className="inline-flex min-h-touch items-center font-medium text-brand underline">
-            Ir para essa conta
-          </Link>
-        </p>
-      )}
+      {/* Região sempre montada: leitor de tela só anuncia o aviso que entra numa região que já existia (🟢-1). */}
+      <p id="account-label-same" role="status" className="text-sm text-gray-700 empty:hidden">
+        {same && (
+          <>
+            Já existe uma conta aberta com esse nome ({openedAtLabel(same.opened_at)}).{' '}
+            <Link to={`/comanda/${same.id}`} className="inline-flex min-h-touch items-center font-medium text-brand underline">
+              Ir para essa conta
+            </Link>
+          </>
+        )}
+      </p>
       <div className="grid grid-cols-2 gap-2">
         <Button variant="ghost" onClick={onCancel}>
           Cancelar

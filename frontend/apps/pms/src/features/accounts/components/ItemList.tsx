@@ -27,9 +27,15 @@ function EntryState({ status }: { status: QueueEntry['status'] }) {
   );
 }
 
-function Row({ children }: { children: React.ReactNode }) {
-  return <li className="flex min-h-touch items-center gap-3 px-3 py-2">{children}</li>;
+function Row({ children, entryId }: { children: React.ReactNode; entryId?: string }) {
+  return (
+    <li data-entry={entryId} className="flex min-h-touch items-center gap-3 px-3 py-2">
+      {children}
+    </li>
+  );
 }
+
+const isSettled = (e: QueueEntry) => e.status === 'rejected' || e.status === 'excluded';
 
 /**
  * Itens da conta: os do servidor e, embaixo, os deste aparelho que ainda não estão lá. Cada
@@ -55,12 +61,30 @@ export function ItemList({
   const box = useRef<HTMLDivElement>(null);
   // Relógio só enquanto há janela de desfazer aberta: o botão some quando o prazo vence (🟡-1).
   const now = useNow(entries.some((e) => e.status === 'undo'));
-  // Só toque novo (linha nova ou quantidade maior) rola a caixa; mudança de estado da fila, não,
-  // para não puxar a lista de quem subiu para conferir um item antigo.
-  const taps = items.length + entries.reduce((sum, e) => sum + e.quantity, 0);
+  // Rola até o fim ao abrir a conta e a cada toque deste aparelho — e só aí (🟡-2 do qa-redteam).
+  // Cada toque renova o undoUntil; envio, item de outro aparelho e refetch não, e por isso não
+  // puxam a lista de quem subiu para conferir um item antigo.
+  const lastTap = entries.reduce((max, e) => Math.max(max, e.undoUntil), 0);
+  const seenTap = useRef(-1);
   useEffect(() => {
-    if (box.current) box.current.scrollTop = box.current.scrollHeight;
-  }, [taps]);
+    if (lastTap > seenTap.current && box.current) box.current.scrollTop = box.current.scrollHeight;
+    seenTap.current = Math.max(seenTap.current, lastTap);
+  }, [lastTap]);
+
+  // Lançamento recusado ou excluído entra na vista, mesmo acima da área visível: senão o consumo
+  // fica sem cobrança sem ninguém ver (🟡-3 do qa-redteam). Só a recusa nova move a caixa.
+  const settledIds = entries.filter(isSettled).map((e) => e.clientItemId).join(' ');
+  const seenSettled = useRef(new Set<string>());
+  useEffect(() => {
+    const fresh = settledIds.split(' ').find((id) => id && !seenSettled.current.has(id));
+    for (const id of settledIds.split(' ')) if (id) seenSettled.current.add(id);
+    const row = fresh && box.current?.querySelector<HTMLElement>(`[data-entry="${fresh}"]`);
+    if (!row || !box.current) return;
+    const top = row.offsetTop;
+    const bottom = top + row.offsetHeight;
+    const view = box.current;
+    if (top < view.scrollTop || bottom > view.scrollTop + view.clientHeight) view.scrollTop = top;
+  }, [settledIds]);
 
   return (
     <div
@@ -68,7 +92,7 @@ export function ItemList({
       role="region"
       aria-label="Itens lançados"
       tabIndex={0}
-      className="h-44 shrink-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      className="relative h-44 shrink-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       {items.length === 0 && entries.length === 0 ? (
         <p className="flex h-full items-center justify-center px-4 text-center text-sm text-gray-600">
@@ -96,16 +120,20 @@ export function ItemList({
 
         {entries.map((entry) => {
           const price = multiplyCents(decimalToCents(entry.unitPrice), entry.quantity);
-          const settled = entry.status === 'rejected' || entry.status === 'excluded';
+          const settled = isSettled(entry);
           return (
-            <Row key={entry.clientItemId}>
+            <Row key={entry.clientItemId} entryId={entry.clientItemId}>
               <div className="min-w-0 flex-1">
                 <p className={`truncate text-sm ${settled ? 'text-gray-500 line-through' : ''}`}>
                   {entry.quantity !== 1 && <span className="mr-1 font-medium tabular-nums">{entry.quantity}×</span>}
                   {entry.description}
                 </p>
                 <EntryState status={entry.status} />
-                {entry.reason && <p className="text-xs text-status-maintenance">{entry.reason}</p>}
+                {entry.reason && (
+                  <p role="alert" className="text-xs text-status-maintenance">
+                    {entry.reason}
+                  </p>
+                )}
               </div>
               {canUndo(entry, now) && (
                 <Button
