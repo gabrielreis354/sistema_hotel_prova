@@ -81,4 +81,8 @@ describe('closedNotice — o que a recepção cobra depois de fechar (🟡-1 do 
   it('sem bill na resposta: só diz que fechou', () => {
     expect(closedNotice('Mesa 3', undefined)).toBe('Mesa 3 fechada.');
   });
+
+  it('bill sem saldo (resposta incompleta): não inventa valor', () => {
+    expect(closedNotice('Mesa 3', { total: '50.00' })).toBe('Mesa 3 fechada.');
+  });
 });
