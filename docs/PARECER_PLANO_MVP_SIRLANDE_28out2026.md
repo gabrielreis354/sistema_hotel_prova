@@ -50,7 +50,7 @@ As quatro branches abaixo estão paradas desde 24/10. A regra do plano (§6, ite
 
 Não é falha de ninguém. As quatro foram feitas em paralelo, a partir da `develop` de 19/10, enquanto a comanda entrava. Mas cada dia sem merge aumenta o conflito, e a T-05.3 (painel Hoje) depende de t051 e t052.
 
-### 2.3 Sem branch nem commit até 28/10
+### 2.3 Não começou ou está parado em 28/10
 
 | Item do plano | Dono no plano | Semana no plano |
 |---|---|---|
@@ -59,7 +59,7 @@ Não é falha de ninguém. As quatro foram feitas em paralelo, a partir da `deve
 | T-05.6: financeiro e indicadores (passo 7) | Weslley | 2–3 |
 | T-01.5: CI por serviço | Weslley | 2 |
 | Doc 08: reescrita com a grade real | Weslley | 3 |
-| Docs 05 e 07: versão final (05 está em v1.1 sugerida; 07 está no PR #97, aberto) | Gabriel | 2 |
+| Docs 05 e 07, versão final: o 05 tem a v1.1 sugerida na `develop`; o 07 está no PR #97, aberto e sem commit novo desde 21/10 | Gabriel | 2 |
 
 O último commit do Weslley no repositório é de 17/10.
 
