@@ -70,6 +70,19 @@ describe('sortAccounts — mesas antes das suítes (🟡-5 do qa-redteam)', () =
   });
 });
 
+describe('sortAccounts — ordem do salão (P1 do critique de 27/10)', () => {
+  it('mesa e balcão → day-use → suítes → internas, mesmo que as antigas sejam mais velhas', () => {
+    const list: Account[] = [
+      { id: 'i', type: 'INTERNAL', label: 'Equipe e perdas', opened_at: '2026-06-01T11:00:00Z' },
+      { id: 'd', type: 'DAY_USE', label: 'Day-use', opened_at: '2026-06-17T13:00:00Z' },
+      { id: 's', type: 'ROOM', label: 'Suíte 201', opened_at: '2026-06-14T17:00:00Z' },
+      { id: 'm', type: 'TABLE', label: 'Mesa 3', opened_at: '2026-10-27T22:00:00Z' },
+      { id: 'b', type: 'DIRECT', label: 'Balcão', opened_at: '2026-10-27T21:00:00Z' },
+    ];
+    expect(sortAccounts(list).map((a) => a.id)).toEqual(['b', 'm', 'd', 's', 'i']);
+  });
+});
+
 describe('openWithSameLabel — aviso de conta repetida (P1)', () => {
   const open: Account[] = [{ id: '1', label: 'Mesa 3' }, { id: '2', label: 'Suíte 201' }];
 
