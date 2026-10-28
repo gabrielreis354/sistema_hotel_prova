@@ -24,7 +24,8 @@ usage() {
     echo "  down      Remove o namespace hotel-system (destrói tudo)"
     echo "  status    Mostra pods, services e deployments"
     echo "  logs      Streaming de logs do backend (ctrl+c para sair)"
-    echo "  migrate   Executa migrations no cluster"
+    echo "  migrate   Executa migrations no cluster (Job com a imagem do backend)"
+    echo "  deploy    Atualiza o backend: migrate, rollout e migrate de novo [imagem opcional]"
     echo "  seed      Aplica o seed de 165 registros no banco"
     echo "  test      Expõe postgres via port-forward e roda a suite de testes"
     echo "  tunnel    Inicia port-forward nginx → localhost:8080"
@@ -88,11 +89,57 @@ cmd_logs() {
 }
 
 # =============================================================================
+# Roda o migrate num Job (infra/k8s/jobs/backend-migrate.yaml) com a imagem dada e espera o
+# fim. Job, e não `kubectl exec deploy/backend`: o exec usa o código dos pods que já estão no
+# ar, e antes de um rollout esse código é o antigo (repasse de 19/10). Código 1 do migrate =
+# reservas com dado inválido, listadas no log — tratado como falha (o deploy para aqui).
+run_migrate_job() {
+    local image="$1" job status
+    info "Migrate com a imagem $image..."
+    job=$(sed "s|__IMAGE__|$image|" infra/k8s/jobs/backend-migrate.yaml | kubectl create -f - -o name)
+    # Sem `kubectl wait`: esperar só por complete ficaria preso até o timeout num Job falho.
+    while :; do
+        status=$(kubectl get -n "$NS" "$job" -o jsonpath='{.status.succeeded}/{.status.failed}')
+        case "$status" in
+            1/*) break ;;
+            */1) kubectl logs -n "$NS" "$job" --tail=100 || true
+                 err "Migrate falhou ($job). Corrija a causa no log acima e rode de novo." ;;
+        esac
+        sleep 3
+    done
+    kubectl logs -n "$NS" "$job" --tail=100 || true
+    log "Migrate concluído ($job)."
+}
+
+backend_image() {
+    kubectl get deploy/backend -n "$NS" -o jsonpath='{.spec.template.spec.containers[0].image}'
+}
+
 cmd_migrate() {
     check_kubectl
-    info "Executando migrations no cluster..."
-    kubectl exec -n "$NS" deploy/backend -- node command.js migrate
-    log "Migrations executadas."
+    run_migrate_job "$(backend_image)"
+}
+
+# =============================================================================
+# Atualização do backend sem janela de dado fora do lugar (repasse de 19/10):
+#   1. migrate com a imagem NOVA, antes de os pods novos receberem tráfego;
+#   2. rollout e espera terminar;
+#   3. migrate de novo: durante o rollout os pods ANTIGOS ainda gravam no formato velho
+#      (ex.: consumo em `consumptions`). O migrate é idempotente e só pega esse intervalo.
+# Sem imagem, reinicia com a do manifest (tag latest: a imagem local recém-construída).
+cmd_deploy() {
+    check_kubectl
+    local image="${1:-$(backend_image)}"
+    run_migrate_job "$image"
+    if [ -n "${1:-}" ]; then
+        kubectl set image deploy/backend backend="$image" -n "$NS"
+    else
+        kubectl rollout restart deploy/backend -n "$NS"
+    fi
+    info "Aguardando o rollout do backend..."
+    kubectl rollout status deploy/backend -n "$NS" --timeout=300s
+    run_migrate_job "$image"
+    log "Backend atualizado com $image."
 }
 
 # =============================================================================
@@ -146,6 +193,7 @@ case "${1:-help}" in
     status)  cmd_status ;;
     logs)    cmd_logs ;;
     migrate) cmd_migrate ;;
+    deploy)  cmd_deploy "${2:-}" ;;
     seed)    cmd_seed ;;
     test)    cmd_test ;;
     tunnel)  cmd_tunnel ;;
