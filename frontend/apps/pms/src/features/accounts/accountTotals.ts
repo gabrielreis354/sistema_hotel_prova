@@ -54,13 +54,20 @@ export function undoLabel(quantity: number): string {
 }
 
 /**
- * Aviso depois de fechar: o saldo, não o total (🟡-1 do qa-redteam). Com pagamento parcial, o
- * total da confirmação não é o que falta cobrar. Saldo negativo é crédito, sem sinal de menos.
+ * O saldo em linguagem de balcão: é ele, não o total, que diz o que falta cobrar quando já houve
+ * pagamento (P1 do critique de 27/10, 🟡-1 do qa-redteam). Saldo negativo é crédito, sem sinal
+ * de menos. Sem saldo na resposta, vazio: a tela não inventa valor.
  */
-export function closedNotice(label: string, bill: Partial<AccountBill> | undefined): string {
-  if (!bill?.balance) return `${label} fechada.`;
+export function balanceLine(bill: Partial<AccountBill> | undefined): string {
+  if (!bill?.balance) return '';
   const cents = decimalToCents(bill.balance);
-  if (cents > 0) return `${label} fechada. Saldo a receber: ${formatBRL(cents)}.`;
-  if (cents < 0) return `${label} fechada. Crédito do hóspede: ${formatBRL(-cents)}.`;
-  return `${label} fechada. Nada a receber.`;
+  if (cents > 0) return `Saldo a receber: ${formatBRL(cents)}`;
+  if (cents < 0) return `Crédito do hóspede: ${formatBRL(-cents)}`;
+  return 'Nada a receber';
+}
+
+/** Aviso depois de fechar, com o saldo do bill que o `PUT /close` devolve. */
+export function closedNotice(label: string, bill: Partial<AccountBill> | undefined): string {
+  const balance = balanceLine(bill);
+  return balance ? `${label} fechada. ${balance}.` : `${label} fechada.`;
 }

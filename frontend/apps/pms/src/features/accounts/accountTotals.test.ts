@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { billableCents, closedNotice, footerTotals, itemLine, undoLabel } from './accountTotals.js';
+import { balanceLine, billableCents, closedNotice, footerTotals, itemLine, undoLabel } from './accountTotals.js';
 import { addTap, markSending, applyOutcome } from './queueCore.js';
 
 const item = (total: string, billable = true, quantity = 1, reason: string | null = null) => ({
@@ -84,5 +84,24 @@ describe('closedNotice — o que a recepção cobra depois de fechar (🟡-1 do 
 
   it('bill sem saldo (resposta incompleta): não inventa valor', () => {
     expect(closedNotice('Mesa 3', { total: '50.00' })).toBe('Mesa 3 fechada.');
+  });
+});
+
+describe('balanceLine — o saldo que decide o fechamento (P1 do critique de 27/10)', () => {
+  it('saldo positivo: a receber', () => {
+    expect(balanceLine({ balance: '365.00' })).toBe('Saldo a receber: R$\u00a0365,00');
+  });
+
+  it('saldo negativo: crédito do hóspede, sem sinal de menos', () => {
+    expect(balanceLine({ balance: '-15.50' })).toBe('Crédito do hóspede: R$\u00a015,50');
+  });
+
+  it('saldo zero: nada a receber', () => {
+    expect(balanceLine({ balance: '0.00' })).toBe('Nada a receber');
+  });
+
+  it('sem saldo na resposta: vazio, a tela não inventa valor', () => {
+    expect(balanceLine(undefined)).toBe('');
+    expect(balanceLine({ total: '10.00' })).toBe('');
   });
 });

@@ -5,7 +5,7 @@ import { decimalToCents, formatBRL } from '@hotel/domain';
 import type { AccountDetail } from '../accountsApi.js';
 import { useAccountBill, useCloseAccount } from '../queries.js';
 import { confirmArmed } from '../closeGuard.js';
-import { closedNotice } from '../accountTotals.js';
+import { balanceLine, closedNotice } from '../accountTotals.js';
 
 /**
  * Por que a conta não pode ser fechada agora. Mesma regra do backend, para o botão nascer
@@ -30,8 +30,9 @@ const BILL_ROWS: { key: 'room_charges' | 'consumptions' | 'total' | 'payments_ma
  * Bill e fechamento — só recepção e gerência (CA-05.5.j). O garçom nem vê estes botões: o
  * backend também recusaria (requireRole em /bill e /close).
  *
- * Fechar pede confirmação: é irreversível (conta fechada não recebe item). A confirmação mostra
- * o total e troca os botões de lugar — "Sim, fechar" à esquerda, "Voltar" onde estava "Fechar
+ * Fechar pede confirmação: é irreversível (conta fechada não recebe item). A confirmação busca o
+ * bill e mostra o total e o **saldo** — com pagamento parcial, é o saldo que diz o que falta cobrar
+ * (P1 do critique de 27/10); "Sim, fechar" espera o saldo chegar. Ela troca os botões de lugar — "Sim, fechar" à esquerda, "Voltar" onde estava "Fechar
  * conta" — e ignora toques nos primeiros 400 ms. Antes, a confirmação nascia no mesmo lugar e o
  * toque duplo fechava a conta (P0 da revisão Impeccable). Fechada, volta para a lista com o saldo
  * e o caminho para a conta fechada (🟡-1 do qa-redteam).
@@ -60,7 +61,18 @@ export function StaffActions({
   const wasConfirming = useRef(false);
   const navigate = useNavigate();
   const id = account.id ?? '';
-  const bill = useAccountBill(id, showBill);
+  // O bill carrega para "Ver conta" e para a confirmação, que precisa do saldo.
+  const bill = useAccountBill(id, showBill || confirming);
+  // A confirmação só usa um bill buscado depois de ela abrir: o cache (staleTime de 30 s) pode
+  // não ter um pagamento que acabou de entrar (🟡-1 do qa-redteam de saldo/ordem).
+  const armedAt = useRef(0);
+  const settledAt = Math.max(bill.dataUpdatedAt, bill.errorUpdatedAt);
+  const fresh = confirming && settledAt >= armedAt.current;
+  const freshError = fresh && bill.errorUpdatedAt > bill.dataUpdatedAt;
+  const offline = confirming && !fresh && bill.fetchStatus === 'paused';
+  const balance = balanceLine(bill.data);
+  // Total e saldo do mesmo bill, para os dois números baterem (🟢-1).
+  const confirmTotal = fresh && !freshError && bill.data?.total ? decimalToCents(bill.data.total) : totalCents;
   const close = useCloseAccount(id);
   const blocked = closeBlockedReason(account, pendingCount);
 
@@ -71,6 +83,12 @@ export function StaffActions({
     if (!confirming || close.isPending) return;
     if (blocked || totalCents !== confirmedTotal.current) setConfirming(false);
   }, [confirming, blocked, totalCents, close.isPending]);
+
+  // A trava de 400 ms recomeça quando o saldo chega: o toque que vinha para o botão desabilitado
+  // não fecha a conta sem o saldo ter sido visto (🟢-2).
+  useEffect(() => {
+    if (fresh) shownAt.current = performance.now();
+  }, [fresh]);
 
   // Saindo da confirmação, o foco volta para "Fechar conta", em vez de cair no body.
   useEffect(() => {
@@ -115,13 +133,22 @@ export function StaffActions({
         <div role="group" aria-labelledby="close-confirm-text" className="space-y-2">
           <p id="close-confirm-text" className="text-sm text-gray-700">
             Fechar <span className="font-medium">{account.label}</span>? Total{' '}
-            <span className="font-semibold tabular-nums">{formatBRL(totalCents)}</span>. Depois de fechada, a conta
-            não recebe item.
+            <span className="tabular-nums">{formatBRL(confirmTotal)}</span>.{' '}
+            <span aria-live="polite">
+              {offline
+                ? 'Sem conexão: o saldo aparece quando a rede voltar.'
+                : !fresh
+                  ? 'Carregando o saldo…'
+                  : freshError || !balance
+                    ? 'Não foi possível carregar o saldo; ele aparece no aviso depois de fechar.'
+                    : <span className="font-semibold tabular-nums">{balance}.</span>}
+            </span>{' '}
+            Depois de fechada, a conta não recebe item.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="danger"
-              disabled={close.isPending}
+              disabled={close.isPending || !fresh}
               onClick={() => {
                 if (!confirmArmed(shownAt.current, performance.now())) return;
                 close.mutate(undefined, {
@@ -154,6 +181,9 @@ export function StaffActions({
             onClick={() => {
               shownAt.current = performance.now();
               confirmedTotal.current = totalCents;
+              // Saldo do momento, não o do cache: um pagamento pode ter entrado.
+              armedAt.current = Date.now();
+              void bill.refetch();
               setConfirming(true);
             }}
           >

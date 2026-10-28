@@ -133,3 +133,24 @@ A delegação pedia **Impeccable** (`audit`, `critique`) e **emil-design-eng**. 
 | 3 | P2 | Dentro da conta, duas "Mesa 3" são iguais (sem hora de abertura); conta fechada sem selo e com o cardápio desabilitado inteiro |
 | 4 | P2 | A caixa de itens corta a primeira linha ao meio; no balcão desperdiça espaço |
 | 5 | P2 | A janela de desfazer esconde o preço e não mostra quanto tempo resta |
+
+### 6.1 Rodada dos P1 do critique (27/10/2026)
+
+Escopo escolhido pelo Sirlande depois do critique: só os 2 P1. Decisão de produto: **fechar a conta é fim do consumo**, e pode fechar com saldo em aberto. Branch `feature/t055-saldo-ordem`.
+
+| # | Decisão | Por quê |
+|---|---|---|
+| **C-19** | A confirmação de fechar busca o bill ao abrir e mostra "Total R$ Y. Saldo a receber: R$ Z" (ou "Crédito do hóspede" / "Nada a receber"). Total e saldo saem do mesmo bill. Só vale um bill buscado **depois** de a confirmação abrir: "Sim, fechar" espera por ele e a trava de 400 ms recomeça quando ele chega. Com erro, a tela diz que o saldo aparece no aviso depois de fechar. Sem rede, diz que o saldo aparece quando a rede voltar e não deixa fechar. `balanceLine` em `accountTotals.ts`, reaproveitado pelo aviso pós-fechamento | P1: com pagamento parcial, o total não é o que falta cobrar. 🟡-1 e 🟡-2 do qa-redteam: cache de 30 s e erro de refetch mostravam saldo velho |
+| **C-20** | Ordem da lista por grupo do salão: mesa e balcão → day-use → suítes → internas (tipo desconhecido no fim); a mais antiga primeiro dentro de cada grupo. Substitui o agrupamento de C-14 | P1: contas internas e de day-use antigas ficavam acima das mesas do turno |
+
+**Pendência de produto:** o aviso depois de fechar mostra o saldo, mas não diz **onde receber**. O PMS ainda não tem tela de pagamento: o pagamento existe só na API (`POST /payments` com `account_id`, T-04.4). Não entrou texto apontando para uma tela que não existe.
+
+**Verificação:**
+- Vitest: 74 testes. Mutação manual: 7 mutantes, todos mortos.
+- Playwright: 24 checagens, incluindo um pagamento parcial de R$ 50 pela API ("Total R$ 256,00. Saldo a receber: R$ 206,00.") e a ordem do salão.
+- O cenário do 🟡-1 (bill em cache antes do pagamento) **não reproduziu** no navegador: a versão anterior também mostrou o saldo novo, por causa não identificada. A correção segue a leitura do código do TanStack Query.
+
+**Auditoria:** `docs/qa/redteam_t055-saldo-ordem_27out2026.md` encontrou 0 🔴, 2 🟡 e 7 🟢. Foram corrigidos os 2 🟡 e os 🟢 1, 2, 3 e 6. Ficam:
+- 🟢-4: mensagem sem rede e mutação pausada;
+- 🟢-5: regra do "Crédito do hóspede" duplicada no "Ver conta";
+- 🟢-7: falta teste de componente do `StaffActions`.
