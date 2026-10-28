@@ -65,8 +65,9 @@ export function OpenAccountForm({
           aria-describedby={same ? 'account-label-same' : undefined}
         />
       </Field>
-      {/* Região sempre montada: leitor de tela só anuncia o aviso que entra numa região que já existia (🟢-1). */}
-      <p id="account-label-same" role="status" className="text-sm text-gray-700 empty:hidden">
+      {/* Região sempre montada e na árvore de acessibilidade (sem display:none): leitor de tela só
+          anuncia o aviso que entra numa região que já existia (🟢-1). Vazia, devolve o espaçamento. */}
+      <p id="account-label-same" role="status" className="text-sm text-gray-700 empty:-mt-3">
         {same && (
           <>
             Já existe uma conta aberta com esse nome ({openedAtLabel(same.opened_at)}).{' '}

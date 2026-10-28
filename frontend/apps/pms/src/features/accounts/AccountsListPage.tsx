@@ -14,8 +14,9 @@ import { OpenAccountForm } from './components/OpenAccountForm.js';
  * Tela inicial do garçom: as contas abertas, sem tela intermediária (CA-05.5.a). Um toque na
  * conta abre o cardápio. "Abrir conta" fica embaixo, ao alcance do polegar (CA-05.5.i).
  *
- * Ordem estável, a mais antiga primeiro, e a hora de abertura em cada linha: duas "Mesa 3"
- * ficam distinguíveis e a lista não se mexe quando alguém abre conta (P1 da revisão Impeccable).
+ * Ordem estável (contas do turno antes das suítes; a mais antiga primeiro dentro de cada grupo)
+ * e a hora de abertura em cada linha: duas "Mesa 3" ficam distinguíveis e a lista não se mexe
+ * quando alguém abre conta (P1 da revisão Impeccable, 🟡-5 do qa-redteam).
  */
 export function AccountsListPage() {
   useQueueRunner();

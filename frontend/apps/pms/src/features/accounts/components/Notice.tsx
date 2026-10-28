@@ -17,7 +17,7 @@ export function Notice({ children, focus = false }: { children: ReactNode; focus
       ref={ref}
       role="status"
       tabIndex={focus ? -1 : undefined}
-      className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 focus:outline-none"
+      className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand"
     >
       {children}
     </p>

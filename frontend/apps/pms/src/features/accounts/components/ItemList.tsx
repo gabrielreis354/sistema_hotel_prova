@@ -74,11 +74,18 @@ export function ItemList({
   // Lançamento recusado ou excluído entra na vista, mesmo acima da área visível: senão o consumo
   // fica sem cobrança sem ninguém ver (🟡-3 do qa-redteam). Só a recusa nova move a caixa.
   const settledIds = entries.filter(isSettled).map((e) => e.clientItemId).join(' ');
-  const seenSettled = useRef(new Set<string>());
+  // Recusas que já estavam lá ao abrir a conta não contam como novas: sem rolagem e sem alerta
+  // repetido a cada visita (🟢-2 da delta).
+  const seenSettled = useRef<Set<string> | null>(null);
+  seenSettled.current ??= new Set(entries.filter(isSettled).map((e) => e.clientItemId));
+  const freshSettled = new Set(
+    entries.filter((e) => isSettled(e) && !seenSettled.current!.has(e.clientItemId)).map((e) => e.clientItemId),
+  );
   useEffect(() => {
-    const fresh = settledIds.split(' ').find((id) => id && !seenSettled.current.has(id));
-    for (const id of settledIds.split(' ')) if (id) seenSettled.current.add(id);
-    const row = fresh && box.current?.querySelector<HTMLElement>(`[data-entry="${fresh}"]`);
+    const seen = seenSettled.current!;
+    const fresh = settledIds.split(' ').find((id) => id && !seen.has(id));
+    for (const id of settledIds.split(' ')) if (id) seen.add(id);
+    const row = fresh && box.current?.querySelector<HTMLElement>(`[data-entry="${CSS.escape(fresh)}"]`);
     if (!row || !box.current) return;
     const top = row.offsetTop;
     const bottom = top + row.offsetHeight;
@@ -130,7 +137,10 @@ export function ItemList({
                 </p>
                 <EntryState status={entry.status} />
                 {entry.reason && (
-                  <p role="alert" className="text-xs text-status-maintenance">
+                  <p
+                    role={freshSettled.has(entry.clientItemId) ? 'alert' : undefined}
+                    className="text-xs text-status-maintenance"
+                  >
                     {entry.reason}
                   </p>
                 )}

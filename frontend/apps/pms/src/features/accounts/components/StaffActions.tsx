@@ -64,10 +64,13 @@ export function StaffActions({
   const close = useCloseAccount(id);
   const blocked = closeBlockedReason(account, pendingCount);
 
-  // A confirmação cai se surgir um bloqueio (item novo na fila).
+  // A confirmação cai se surgir um bloqueio (item novo na fila) ou se o total mudar com ela aberta:
+  // a recepção confirma o valor que leu, não um que trocou sozinho (🟢-4 da delta).
+  const confirmedTotal = useRef(totalCents);
   useEffect(() => {
-    if (confirming && blocked && !close.isPending) setConfirming(false);
-  }, [confirming, blocked, close.isPending]);
+    if (!confirming || close.isPending) return;
+    if (blocked || totalCents !== confirmedTotal.current) setConfirming(false);
+  }, [confirming, blocked, totalCents, close.isPending]);
 
   // Saindo da confirmação, o foco volta para "Fechar conta", em vez de cair no body.
   useEffect(() => {
@@ -150,6 +153,7 @@ export function StaffActions({
             aria-describedby={blocked ? 'close-blocked-reason' : othersPending > 0 ? 'close-others-warning' : undefined}
             onClick={() => {
               shownAt.current = performance.now();
+              confirmedTotal.current = totalCents;
               setConfirming(true);
             }}
           >
