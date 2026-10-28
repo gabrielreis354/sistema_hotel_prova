@@ -46,14 +46,20 @@ export function menuCategories(products: Product[]): Category[] {
 }
 
 /**
- * Ordem da lista de contas: primeiro as do turno (mesa, balcão, day-use), depois as suítes, que
- * nascem no check-in e ficam abertas por dias (🟡-5 do qa-redteam). Dentro de cada grupo, a mais
- * antiga primeiro, desempate pelo id: a conta que outro garçom abre entra no fim do grupo e não
- * empurra as outras para baixo do dedo de quem está tocando (P1 da revisão Impeccable). O backend
- * devolve a mais nova primeiro, que mexe a lista a cada abertura.
+ * Grupo de cada tipo na lista, na ordem do salão: mesa e balcão (o turno) → day-use → suítes
+ * (abertas no check-in, ficam dias) → internas (perdas da equipe, ficam o mês). P1 do critique de
+ * 27/10 e 🟡-5 do qa-redteam: as contas antigas enterravam as mesas.
+ */
+const SALON_GROUP: Record<AccountType, number> = { TABLE: 0, DIRECT: 0, DAY_USE: 1, ROOM: 2, INTERNAL: 3 };
+
+/**
+ * Ordem da lista de contas: por grupo (`SALON_GROUP`) e, dentro dele, a mais antiga primeiro,
+ * desempate pelo id: a conta que outro garçom abre entra no fim do grupo e não empurra as outras
+ * para baixo do dedo de quem está tocando (P1 da revisão Impeccable). O backend devolve a mais
+ * nova primeiro, que mexe a lista a cada abertura.
  */
 export function sortAccounts(accounts: Account[]): Account[] {
-  const group = (a: Account) => (a.type === 'ROOM' ? 1 : 0);
+  const group = (a: Account) => (a.type ? SALON_GROUP[a.type] : 0);
   return [...accounts].sort(
     (a, b) =>
       group(a) - group(b) ||
