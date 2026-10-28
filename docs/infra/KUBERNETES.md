@@ -118,3 +118,29 @@ até 5 minutos.
 | Renomear `MINIO_PRESIGN_USER` | Mude também o nome em `X-Amz-Credential=gesway-pdf-leitor%2F` no `nginx.yaml` **e** no `docker/nginx/default.conf` (o `qa_checks.sh` confere que as duas cópias batem) |
 
 Para provar o comportamento contra um ambiente local: `scripts/verificar_download_pdf.sh`.
+
+## Atualizar o backend — migrate antes e depois do rollout
+
+Desde a T-04.2 o `migrate` também migra **dados** (consumo de `consumptions` para `account_items`).
+Por isso a troca de versão do backend passa sempre pelo `./start.sh deploy`, nunca por um
+`rollout restart` solto:
+
+```bash
+./start.sh deploy                                   # reinicia com a imagem do manifest (latest local)
+./start.sh deploy sistema-gestao-hotel-backend:v2   # troca para a imagem informada
+```
+
+| Etapa | Por quê |
+|---|---|
+| 1. `migrate` num Job com a imagem **nova** | O código novo procura o consumo em `account_items`; sem o migrate antes, o bill dessas reservas responde `503` até alguém rodar o migrate |
+| 2. Rollout e espera terminar | — |
+| 3. `migrate` de novo | Durante o rolling update os pods **antigos** ainda gravam em `consumptions`. O migrate é idempotente e só pega esse intervalo |
+
+- O Job é `infra/k8s/jobs/backend-migrate.yaml`, fora do `kustomization` (Job é imutável; cada
+  execução ganha nome novo). Label `app: backend-migrate`, liberado no `postgres-ingress` da
+  `networkpolicy.yaml`.
+- Falha do Job (inclusive o código 1 = reservas com dado inválido, listadas no log) **para o deploy
+  antes do rollout**. Corrija a causa e rode de novo. O pod fica 1 h no cluster para o `kubectl logs`.
+- `./start.sh migrate` sozinho roda o mesmo Job com a imagem que está no ar.
+- Trocar só configuração (ConfigMap, Secret) com a mesma imagem não exige migrate: os `rollout
+  restart` da seção acima continuam valendo.
