@@ -5,7 +5,7 @@ import { decimalToCents, formatBRL } from '@hotel/domain';
 import type { AccountDetail } from '../accountsApi.js';
 import { useAccountBill, useCloseAccount } from '../queries.js';
 import { confirmArmed } from '../closeGuard.js';
-import { closedNotice } from '../accountTotals.js';
+import { balanceLine, closedNotice } from '../accountTotals.js';
 
 /**
  * Por que a conta não pode ser fechada agora. Mesma regra do backend, para o botão nascer
@@ -30,8 +30,9 @@ const BILL_ROWS: { key: 'room_charges' | 'consumptions' | 'total' | 'payments_ma
  * Bill e fechamento — só recepção e gerência (CA-05.5.j). O garçom nem vê estes botões: o
  * backend também recusaria (requireRole em /bill e /close).
  *
- * Fechar pede confirmação: é irreversível (conta fechada não recebe item). A confirmação mostra
- * o total e troca os botões de lugar — "Sim, fechar" à esquerda, "Voltar" onde estava "Fechar
+ * Fechar pede confirmação: é irreversível (conta fechada não recebe item). A confirmação busca o
+ * bill e mostra o total e o **saldo** — com pagamento parcial, é o saldo que diz o que falta cobrar
+ * (P1 do critique de 27/10); "Sim, fechar" espera o saldo chegar. Ela troca os botões de lugar — "Sim, fechar" à esquerda, "Voltar" onde estava "Fechar
  * conta" — e ignora toques nos primeiros 400 ms. Antes, a confirmação nascia no mesmo lugar e o
  * toque duplo fechava a conta (P0 da revisão Impeccable). Fechada, volta para a lista com o saldo
  * e o caminho para a conta fechada (🟡-1 do qa-redteam).
@@ -60,7 +61,9 @@ export function StaffActions({
   const wasConfirming = useRef(false);
   const navigate = useNavigate();
   const id = account.id ?? '';
-  const bill = useAccountBill(id, showBill);
+  // O bill carrega para "Ver conta" e para a confirmação, que precisa do saldo.
+  const bill = useAccountBill(id, showBill || confirming);
+  const balance = balanceLine(bill.data);
   const close = useCloseAccount(id);
   const blocked = closeBlockedReason(account, pendingCount);
 
@@ -115,13 +118,20 @@ export function StaffActions({
         <div role="group" aria-labelledby="close-confirm-text" className="space-y-2">
           <p id="close-confirm-text" className="text-sm text-gray-700">
             Fechar <span className="font-medium">{account.label}</span>? Total{' '}
-            <span className="font-semibold tabular-nums">{formatBRL(totalCents)}</span>. Depois de fechada, a conta
-            não recebe item.
+            <span className="tabular-nums">{formatBRL(totalCents)}</span>.{' '}
+            {bill.isFetching ? (
+              'Carregando o saldo…'
+            ) : balance ? (
+              <span className="font-semibold tabular-nums">{balance}.</span>
+            ) : (
+              'Não foi possível carregar o saldo.'
+            )}{' '}
+            Depois de fechada, a conta não recebe item.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="danger"
-              disabled={close.isPending}
+              disabled={close.isPending || bill.isFetching}
               onClick={() => {
                 if (!confirmArmed(shownAt.current, performance.now())) return;
                 close.mutate(undefined, {
@@ -154,6 +164,8 @@ export function StaffActions({
             onClick={() => {
               shownAt.current = performance.now();
               confirmedTotal.current = totalCents;
+              // Saldo do momento, não o do último "Ver conta": um pagamento pode ter entrado.
+              if (showBill) void bill.refetch();
               setConfirming(true);
             }}
           >
