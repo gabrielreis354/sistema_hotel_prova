@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { billableCents, footerTotals, itemLine } from './accountTotals.js';
+import { billableCents, closedNotice, footerTotals, itemLine, undoLabel } from './accountTotals.js';
 import { addTap, markSending, applyOutcome } from './queueCore.js';
 
 const item = (total: string, billable = true, quantity = 1, reason: string | null = null) => ({
@@ -50,5 +50,35 @@ describe('footerTotals — rodapé honesto sobre a fila (CA-05.5.d, f)', () => {
     let q = addTap([], { ownerId: 'g', accountId: 'm', productId: 'p', description: 'x', unitPrice: '12.00' }, T0, 'a');
     q = applyOutcome(markSending(q, 'a', T0), 'a', { kind: 'rejected', reason: 'x' }, T0);
     expect(footerTotals('10.00', q, 'm')).toEqual({ serverCents: 1000, pendingCents: 0, totalCents: 1000 });
+  });
+});
+
+describe('undoLabel — "Desfazer" diz quanto tira (P1)', () => {
+  it('linha com 1: "Desfazer"', () => {
+    expect(undoLabel(1)).toBe('Desfazer');
+  });
+
+  it('linha com mais de 1: "Desfazer 1", porque tira só um', () => {
+    expect(undoLabel(2)).toBe('Desfazer 1');
+  });
+});
+
+describe('closedNotice — o que a recepção cobra depois de fechar (🟡-1 do qa-redteam)', () => {
+  it('saldo a receber: o valor que falta, não o total', () => {
+    expect(closedNotice('Day-use João', { total: '300.00', payments_made: '200.00', balance: '100.00' })).toBe(
+      'Day-use João fechada. Saldo a receber: R$ 100,00.',
+    );
+  });
+
+  it('saldo negativo é crédito do hóspede, sem sinal de menos', () => {
+    expect(closedNotice('Mesa 3', { balance: '-15.50' })).toBe('Mesa 3 fechada. Crédito do hóspede: R$ 15,50.');
+  });
+
+  it('saldo zero: nada a receber', () => {
+    expect(closedNotice('Mesa 3', { balance: '0.00' })).toBe('Mesa 3 fechada. Nada a receber.');
+  });
+
+  it('sem bill na resposta: só diz que fechou', () => {
+    expect(closedNotice('Mesa 3', undefined)).toBe('Mesa 3 fechada.');
   });
 });

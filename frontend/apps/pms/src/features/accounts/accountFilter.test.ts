@@ -59,6 +59,17 @@ describe('sortAccounts — ordem estável da lista (P1 da revisão Impeccable)',
   });
 });
 
+describe('sortAccounts — mesas antes das suítes (🟡-5 do qa-redteam)', () => {
+  it('contas do turno (mesa, balcão, day-use) primeiro; suítes, abertas no check-in, depois', () => {
+    const list: Account[] = [
+      { id: 's', type: 'ROOM', label: 'Suíte 201', opened_at: '2026-10-20T14:00:00Z' },
+      { id: 'm', type: 'TABLE', label: 'Mesa 3', opened_at: '2026-10-26T22:00:00Z' },
+      { id: 'b', type: 'DIRECT', label: 'Balcão', opened_at: '2026-10-26T21:00:00Z' },
+    ];
+    expect(sortAccounts(list).map((a) => a.id)).toEqual(['b', 'm', 's']);
+  });
+});
+
 describe('openWithSameLabel — aviso de conta repetida (P1)', () => {
   const open: Account[] = [{ id: '1', label: 'Mesa 3' }, { id: '2', label: 'Suíte 201' }];
 
