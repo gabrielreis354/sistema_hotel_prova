@@ -54,3 +54,10 @@ Quartos e categorias devolvem `code` estável: `CATEGORY_NOT_FOUND`, `ROOM_NUMBE
 
 ## Próxima fila (depois das frentes acima)
 H.3 (cutover do analytics) · T-05.3 painel Hoje · T-05.6 financeiro · T-04.5/T-04.6a/T-04.7 · Doc 05 com a auditoria · entrega dos Docs 05/06/07. Prompts prontos no painel, §8.
+
+## Checkpoint 28/10/2026 — parecer do Sirlande
+
+- Parecer do Sirlande (28/10) respondido em docs/delegacoes/resposta_gabriel_parecer_sirlande_28out2026.md; decisão final no ponto de controle de 03/11.
+- Integração confirmada: 29/10 fix/tenant-fk-validation e feature/analytics-service; 30/10 t051 e depois t052 (regenerar api-client após cada merge). As 4 branches estão recebendo merge da develop (109 commits de T-04.5/6/7 e T-05.5).
+- Auditoria de coerência dos 8 docs em docs/auditoria_coerencia_documentos_28out2026.md (16 contradições). Reentregas: Doc 02 v1.4 e Doc 03 v1.3 (sugestão para o Sirlande); 05 v1.2, 06 v1.2 e 07 v1.1 num pacote; 08 v1.1.
+- Próximas frentes do Gabriel: H.3 a partir de 30/10 (2 ou 3 indicadores próprios); T-05.3 a partir de 31/10; PR de release até 03/11.
