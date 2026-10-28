@@ -3,6 +3,7 @@
 **Autor:** Sirlande Martins · **Data:** 28/10/2026 (quarta, início da semana 2)
 **Sobre:** `docs/PLANO_MVP_ATE_10DEZ2026.md` (Gabriel, 21/10, PR #99) e o boletim do time publicado a partir dele.
 **Natureza:** proposta de ajuste, para decidir no ponto de controle da semana 2. Não altera o plano sozinho: o que for aceito entra no `PLANO_MVP` e no painel.
+**Revisão de 28/10:** o registro de pagamento já estava planejado como CA-05.6.a (T-05.6, Weslley). A primeira versão dizia que ele não tinha dono.
 
 ---
 
@@ -10,7 +11,7 @@
 
 1. O plano está certo no essencial. O roteiro de 7 passos define o escopo, o congelamento é em 24/11 e a nuvem fica para o 5º semestre. Nada disso muda.
 2. A grade das semanas já não descreve o projeto. A minha frente está cerca de 2 semanas adiantada. As frentes de quartos, reservas e analytics estão prontas, mas fora da `develop` desde 24/10.
-3. **Um passo do roteiro não tem dono.** No passo 5, "o pagamento é registrado" no check-out, mas ninguém está fazendo a tela de registrar pagamento.
+3. **O pagamento do passo 5 não começou.** No check-out, "o pagamento é registrado". Isso está planejado como CA-05.6.a, na T-05.6 do Weslley, mas ainda não tem branch. Proponho assumir essa parte.
 4. Proponho que cada meta tenha **um dono, um critério de pronto e uma data**, como na §4 abaixo. Hoje a grade diz o que cada pessoa faz na semana, mas não diz quando cada passo do roteiro está pronto.
 
 ---
@@ -71,7 +72,8 @@ O último commit do Weslley no repositório é de 17/10.
 | Sirlande: T-05.5 até a semana 2, T-04.5 na 2, T-04.6 e T-04.7 na 3 | Tudo entregue até 27/10 | Liberar a minha capacidade das semanas 2 a 4 para as lacunas da §4 |
 | Risco "comanda depender do Sirlande sozinho" | Resolvido: a Fase A está entregue | Tirar da lista de riscos |
 | Passo 3, "inclusive sem rede", sem desenho | Resolvido pela fila offline da comanda (`queueCore`/`queueStore`) | Registrar como atendido |
-| Passo 5 atribuído a "T-05.2 + SPEC-04 (pronta)" | A T-05.2 mostra a conta e faz o check-out, mas não registra pagamento. O backend existe (T-04.4); a tela, não | Criar a meta M5-b (§4) com dono |
+| Passo 5 atribuído a "T-05.2 + SPEC-04 (pronta)" | A T-05.2 mostra a conta e faz o check-out, mas não registra pagamento. O registro está na T-05.6 (CA-05.6.a, Weslley), ainda sem branch | O Sirlande assume o CA-05.6.a (M5-b). O Weslley fica com os indicadores da T-05.6 |
+| Passo 6: "o hóspede faz reserva direta" | O backend está pronto, mas o app `frontend/apps/booking` está vazio e foi marcado como pós-TCC | Decidir por onde o hóspede reserva na demonstração (§7) |
 | CA-05.2.j (estorno visível com `deleted_by`) | Bloqueado: os endpoints de bill só devolvem itens vivos | O backend da comanda é meu: assumo o endpoint |
 | `App.tsx` e `nav.ts` só aceitam acréscimo, "o que evita conflitos" | Não evitou: t051 e t052 já conflitam | Merge na ordem da §5 e regenerar o `api-client` após cada merge, nunca editar à mão |
 
@@ -88,9 +90,9 @@ O último commit do Weslley no repositório é de 17/10.
 | **M3** · Comanda no celular | 3 | T-05.5 | Sirlande | — | ✅ Fase A na `develop`. Falta: os 3 P2 do critique e os achados 7 e 8 | P2 até 17/11 |
 | **M4** · Painel do dia | 4 | T-05.3 | Gabriel | — | Chegadas, saídas e risco de no-show na tela | 10/11 |
 | **M5-a** · Conta no check-out | 5 | T-05.2 (linha do tempo) | Gabriel | — | Já está na `feature/t052`. Entra com M2 | 30/10 |
-| **M5-b** · Registrar pagamento no check-out | 5 | **Nova:** tela de pagamento (balcão) sobre `POST /payments` (T-04.4) | **Sirlande** | Gabriel (revisão, porque a tela fica na página dele) | Registra método e valor. O saldo do bill zera. A conta passa a PAID pelo `settlePaymentAccount`. A estadia fecha. O aviso pós-fechamento da comanda aponta para essa tela | 07/11 |
+| **M5-b** · Registrar pagamento no check-out | 5 | **CA-05.6.a**, hoje na T-05.6 do Weslley: tela de pagamento (balcão) sobre `POST /payments` (T-04.4) | **Sirlande** (proposta) | Gabriel (revisão, porque a tela fica na página dele) | Registra método e valor. O saldo do bill zera. A conta passa a PAID pelo `settlePaymentAccount`. A estadia fecha. O aviso pós-fechamento da comanda aponta para essa tela | 07/11 |
 | **M5-c** · Estorno visível na linha do tempo | 5 | CA-05.2.j: endpoint que lista itens excluídos com `deleted_by` | **Sirlande** (backend) | Gabriel (tela) | Endpoint com tenant e teste. A tela mostra quem autorizou | 10/11 |
-| **M6** · Reserva direta com PIX | 6 | SPEC-03 (pronto) | Weslley | Gabriel | Ensaio no sandbox com o webhook confirmando. Plano B com provedor simulado testado | 17/11 |
+| **M6** · Reserva direta com PIX | 6 | SPEC-03 (pronto) | Weslley | Gabriel | Ensaio no sandbox com o webhook confirmando. Plano B com provedor simulado testado. Falta decidir por onde o hóspede reserva: o app `booking` está vazio | 17/11 |
 | **M7-a** · Analytics na `develop` | 7 | H.2 | Gabriel | — | `feature/analytics-service` na `develop` | 29/10 |
 | **M7-b** · Consultas e indicadores | 7 | H.3 + T-05.6 | Gabriel (H.3) · Weslley (T-05.6) | — | O gerente abre a tela e os números vêm do `analytics-service` | 14/11 |
 | **M8** · Roteiro inteiro sobe localmente | todos | `docker compose up` + seed da demonstração | Weslley (compose) · **Sirlande** (seed) | Gabriel | Banco vazio → `up` → seed → os 7 passos funcionam sem passo manual | 17/11 |
@@ -100,7 +102,7 @@ O último commit do Weslley no repositório é de 17/10.
 ### Por que M5-b, M5-c e o seed ficam comigo
 
 - **É o meu domínio.** Conta, pagamento ligado à conta, `settlePaymentAccount` e as travas reserva → conta são da SPEC-04. Uma tela de pagamento feita sem esse contexto corre o risco de deixar CLOSED/PAID desatualizado, que foi o tipo de 🔴 que o qa-redteam achou nas T-04.3 e T-04.4.
-- **Tenho capacidade.** As minhas entregas das semanas 2 e 3 já estão na `develop`.
+- **Tenho capacidade e alivio a T-05.6.** As minhas entregas das semanas 2 e 3 já estão na `develop`. Sem o CA-05.6.a, o Weslley fica com os indicadores da T-05.6. O fechamento de caixa (T-05.11) continua dele.
 - **Fecha uma pendência minha.** A comanda fecha a conta com saldo em aberto (C-19). Hoje o aviso não pode dizer onde receber, porque essa tela não existe.
 - **O seed já é meu.** Sou dono de `seed/` e fiz o seed da comanda na T-04.7. Estendê-lo para o roteiro inteiro é natural.
 
@@ -121,7 +123,8 @@ O último commit do Weslley no repositório é de 17/10.
 |---|---|---|
 | Integração atrasada (4 branches fora) | **Novo, alto** | Ordem da §5. Merge diário a partir daqui |
 | Frente do Weslley sem atividade visível desde 17/10 (T-05.6, T-01.5, Doc 08, compose) | **Novo, alto** | Confirmar no ponto de controle. Se a T-05.6 não tiver branch até 04/11, aplicar a mitigação do plano: a H.3 entrega 2 ou 3 indicadores e a tela fica com quem tiver capacidade |
-| Passo 5 sem pagamento | **Novo, alto** | M5-b com dono (§4) |
+| Registro de pagamento (CA-05.6.a) sem branch | **Novo, alto** | O Sirlande assume o CA-05.6.a (M5-b), se o Weslley concordar |
+| Passo 6 sem tela para o hóspede | **Novo, médio** | Decisão no ponto de controle (§7) |
 | Gabriel concentra H.3, T-05.3, integração, Docs 05 a 07 e o congelamento | **Aumentou** | Eu assumo M5-b, M5-c e o seed. O Gabriel fica no caminho crítico |
 | Comanda depender do Sirlande sozinho | **Resolvido** | — |
 | Requisito offline sem desenho | **Resolvido** | Fila offline da T-05.5 |
@@ -133,11 +136,12 @@ O último commit do Weslley no repositório é de 17/10.
 ## 7. Decisões que peço ao time
 
 1. **Aceitar a tabela da §4** como a forma de acompanhar o plano, com o painel apontando para ela.
-2. **Aprovar M5-b, M5-c e o seed (M8) comigo.**
+2. **Aprovar comigo:** M5-b (o CA-05.6.a sai da T-05.6), M5-c e o seed (M8).
 3. **Ordem e datas da integração da §5**, com o Gabriel confirmando que 29–30/10 é viável.
 4. **Weslley:** confirmar T-05.6, T-01.5, Doc 08 e o compose, ou devolver o que não couber até 04/11.
-5. **Produto (comanda):** o fechamento de conta fica só no balcão? Conta INTERNAL aceita item faturável?
-6. **Ferramenta:** entra `e2e/` com Playwright no CI? O dono dos workflows é o Weslley. Hoje cada frente tem o roteiro de verificação fora do repositório.
+5. **Passo 6:** por onde o hóspede faz a reserva direta na demonstração? O app `booking` está vazio e é pós-TCC. As opções são uma tela mínima ou a chamada pela API.
+6. **Produto (comanda):** o fechamento de conta fica só no balcão? Conta INTERNAL aceita item faturável?
+7. **Ferramenta:** entra `e2e/` com Playwright no CI? O dono dos workflows é o Weslley. Hoje cada frente tem o roteiro de verificação fora do repositório.
 
 ---
 
