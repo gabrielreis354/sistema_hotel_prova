@@ -1,7 +1,7 @@
 # SPEC-05 · Anexo — Decisões da T-05.5 (comanda do garçom, Fase A)
 
 **Responsável:** Sirlande (orquestrando Claude Code) · **Data:** 26/10/2026
-**Estado da tarefa:** ✅ Fase A concluída (CA-05.5.a a j), aprovada na 2ª reauditoria delta — Fase B (k, l, m) depende de backend
+**Estado da tarefa:** ✅ Fase A concluída (CA-05.5.a a j), aprovada na 2ª reauditoria delta; correções da revisão Impeccable em 27/10 (§6) — Fase B (k, l, m) depende de backend
 **Fonte:** delegação `docs/delegacoes/t055_comanda_frontend_sirlande_21out2026.md` (PR #99) e relatório `docs/historico_sessao/sirlande/t055_comanda_frontend_26102026.md`
 
 > Primeiro anexo de decisões da SPEC-05. Numeração própria desta tarefa (C-1 em diante), para não confundir com a SPEC-04 (D-n).
@@ -34,8 +34,8 @@ Testes: 43 no app (Vitest, lógica pura). Verificação no navegador (Playwright
 | **C-5** | Rodapé = total do servidor + pendentes do aparelho, com "inclui R$ X na fila" | A tela não finge que gravou (DESIGN_PMS §5). Na conta da suíte, o rótulo é "Consumo": a diária está no bill |
 | **C-6** | Fila separada por usuário: cada um vê, soma, desfaz e envia só o que lançou | Aparelho compartilhado na troca de turno. Enviar a fila de outro com o login atual gravaria `created_by` errado. A lista avisa, sem nome, quando há lançamento de outro usuário esperando |
 | **C-7** | Cada lançamento numa chave própria do `localStorage`, com o evento `storage` entre abas | Com uma chave só, duas abas gravavam a fila uma por cima da outra (🟡-5) |
-| **C-8** | Recepção e gerência veem bill e fechamento na mesma tela; "Fechar conta" desabilitado com o motivo (conta de diária, conta não aberta, fila pendente) e confirmado em dois toques que expiram em 5 s | Ação irreversível pede confirmação (DESIGN_PMS §5); ação indisponível mostra o motivo (RNF-026) |
-| **C-9** | Conta longa mostra os 3 últimos itens e "Ver todos" | O cardápio fica perto do polegar (CA-05.5.i) |
+| **C-8** | Recepção e gerência veem bill e fechamento na mesma tela; "Fechar conta" desabilitado com o motivo (conta de diária, conta não aberta, fila pendente) e confirmado em dois toques ~~que expiram em 5 s~~ (revisto em C-12) | Ação irreversível pede confirmação (DESIGN_PMS §5); ação indisponível mostra o motivo (RNF-026) |
+| **C-9** | ~~Conta longa mostra os 3 últimos itens e "Ver todos"~~ (substituída por C-11) | O cardápio fica perto do polegar (CA-05.5.i) |
 | **C-10** | Movimento: só o "afundar" de 150 ms no toque do produto; nenhuma animação de entrada nos itens | Lançado dezenas de vezes por turno — movimento repetido atrasa (emil-design-eng). Respeita `prefers-reduced-motion` |
 
 **Fora da Fase A, de propósito:** lançar cortesia pela tela (o CA-h pede exibir; a recepção lança pela API) e o `ErrorState` em `packages/ui` (nasceu local; o segundo módulo que precisar promove).
@@ -61,7 +61,7 @@ A delegação pedia **Impeccable** (`audit`, `critique`) e **emil-design-eng**. 
 | 1 | Fase B: mais lançados (k), transferir item/conta (l), dividir no fechamento (m) — dependem de backend | Delegação própria |
 | 2 | A fila só anda com a comanda aberta | Se virar problema no ensaio, mover o runner para o layout (é do Gabriel) |
 | 3 | Lançamento de outro usuário só sai quando ele logar de novo no aparelho | Operação: o aviso na lista. Mudar exigiria registrar quem lançou à parte de quem envia |
-| 4 | Instalar o Impeccable e rodar `audit`/`critique` | Antes do congelamento (24/11) |
+| 4 | ~~Instalar o Impeccable e rodar `audit`/`critique`~~ | Feito em 26/10; correções em 27/10 (§6) |
 
 ---
 
@@ -91,3 +91,45 @@ A delegação pedia **Impeccable** (`audit`, `critique`) e **emil-design-eng**. 
 - O aviso do D-1 só existe **no aparelho** onde os itens estão parados. Fechar a conta pelo computador do balcão não avisa. É o preço de avisar sem bloquear: bloquear prenderia a conta se o garçom nunca mais entrasse naquele aparelho.
 - Aba congelada por mais de 15 s pode ter o envio refeito pela outra aba. O `client_item_id` impede cobrança em dobro; custa só um POST a mais.
 - `flush`, `commit` e `readDisk` são cobertos pelo roteiro do navegador, não por teste unitário (pendência 3 do relatório).
+
+---
+
+## 6. Correções da revisão Impeccable (27/10/2026)
+
+**Origem:** audit 15/20 e critique 24/40 de 26/10 (`docs/historico_sessao/sirlande/t055_revisao_impeccable_26out2026.md`). Escopo aprovado pelo Sirlande: achados 1 a 6 (P0, P1, contraste e busca). Os achados 7 (aviso de offline pelo `onlineManager`) e 8 (formulário abaixo da dobra, bill no rodapé fixo) ficaram de fora.
+**Branch:** `feature/t055-correcoes-impeccable`.
+
+| # | Decisão | Por quê |
+|---|---|---|
+| **C-11** | Itens da conta numa caixa de altura fixa (`h-44`) com rolagem própria, vazia ou cheia; ela rola até o fim ao abrir e a cada toque **deste aparelho** (o `undoUntil` máximo cresce), e só aí | P0: a lista crescia a cada toque, o cardápio descia e o toque seguinte caía no produto errado. Rolar também em envio e refetch puxava quem estava conferindo (🟡-2) |
+| **C-12** | Fechar: a confirmação diz "Fechar X? Total R$ Y", troca os botões de lugar ("Sim, fechar" à esquerda, "Voltar" onde estava "Fechar conta", com foco), ignora toques nos primeiros 400 ms (`closeGuard.ts`) e **não expira mais por tempo**: cai com "Voltar", com um bloqueio novo ou se o total mudar com ela aberta | P0: o toque duplo (120 ms) fechava a conta. O prazo de 5 s apagava a confirmação de quem usa leitor de tela e o "Fechando…" em rede lenta (🟡-4, WCAG 2.2.1). O total que muda com a confirmação aberta derruba a confirmação, para ninguém confirmar um valor que não leu (🟢-4 da delta) |
+| **C-13** | Depois de fechar, a tela volta para a lista com o **saldo** do bill que o `PUT /close` devolve ("Mesa 3 fechada. Saldo a receber: R$ X" / "Crédito do hóspede" / "Nada a receber") e o link "Ver conta fechada"; o aviso recebe o foco | 🟡-1: a recepção perdia o bill e podia cobrar o total, não o saldo. Nenhuma outra tela lista conta fechada |
+| **C-14** | Lista: contas do turno (mesa, balcão, day-use, interna) antes das suítes; a mais antiga primeiro dentro de cada grupo, desempate pelo id; hora de abertura no lugar do tipo | P1: a ordem do backend (mais nova primeiro) mexia a lista quando alguém abria conta. 🟡-5: com "mais antiga primeiro" puro, as suítes do check-in enterravam as mesas |
+| **C-15** | Nome igual ao de uma conta aberta **avisa, não bloqueia**, com o link "Ir para essa conta"; comparação sem caixa, acento e espaço sobrando | P1: duas "Mesa 3" iguais. Pode ser outra mesa 3 de fato, e o backend aceita. "Mesa 03" e "Mesa3" não avisam (🟢-2, KISS: entra se acontecer) |
+| **C-16** | "Aguardando envio" com ponto neutro no lugar de "Lançado" com ponto verde; "Desfazer 1" em linha com 2× ou mais | P1: verde dizia "gravado" antes do envio; o desfazer tira uma unidade e o botão não dizia |
+| **C-17** | Item recusado ou excluído **novo** entra na vista da caixa e o motivo é anunciado (`role="alert"` só na recusa nova); recusas antigas não rolam nem alertam a cada visita | 🟡-3: a recusa podia ficar acima da área visível, e o consumo, sem cobrança. 🟢-2 da delta: N alertas a cada abertura |
+| **C-18** | Contraste: preço riscado e placeholder do `Input` compartilhado em `gray-500` (4,8:1); busca com 48 px | P2, WCAG AA e RNF-024. O placeholder vale para todo o app |
+
+**Recusados ou adiados, com motivo:**
+- Fonte Inter (`overused-font` do detector): decisão do preset compartilhado.
+- "Fechar mesmo assim" quebra em duas linhas a 375 px: só aparece com lançamento de outro usuário parado no aparelho (raro).
+- `formatTimeBR` no `@hotel/domain` (🟢-4): `openedAtLabel` usa o `formatDateTimeBR` que já existe; mexer no pacote compartilhado fica para quando outro módulo precisar.
+- Teste de componente da ligação dos P0 com a tela (🟢-3): o PMS não tem jsdom nem testing-library. Cobertura pelo roteiro Playwright abaixo.
+
+**Verificação:**
+- Vitest: 69 testes no app (eram 42 antes da branch). Mutação manual: 20 mutantes na lógica nova, todos mortos depois de 3 testes acrescentados.
+- Playwright, 375 × 812, backend real no banco descartável, 23 checagens: busca com 48 px; contraste do placeholder; hora de abertura; aviso de nome repetido, link e sumiço; cardápio parado em 8 toques e depois do envio; "Aguardando envio"; "Desfazer 1"; caixa no último item; envio que não puxa a caixa; recusa (422 forçado) que entra na vista; mesas antes das suítes; toque duplo de 120 ms não fecha; toque com menos de 400 ms ignorado; total na confirmação; confirmação viva depois de 6 s; foco de volta em "Fechar conta"; aviso com saldo; foco no aviso; link para a conta fechada; aviso que não volta ao recarregar.
+- Detector do Impeccable: código limpo; páginas logadas (lista, conta, confirmação, a 375 e 1280) só com `overused-font`.
+- `qa_checks.sh`: sem erro bloqueante. O aviso de bloco repetido da comanda virou o componente local `Notice`.
+
+**Auditoria:** qa-redteam `docs/qa/redteam_t055-correcoes-impeccable_27out2026.md` (0 🔴, 5 🟡, 4 🟢: os 🟡 corrigidos) e delta `..._delta_27out2026.md` (0 🔴, 0 🟡, 5 🟢: os 🟢-1 a 4 corrigidos; o 🟢-5, foco que cai no `body` quando a conta é fechada em outro aparelho, ficou registrado).
+
+**Critique depois das correções:** **26/40** (era 24/40), 0 P0. Achados novos que **não** entraram nesta rodada e ficam para decisão do Sirlande:
+
+| # | Sev. | Achado |
+|---|---|---|
+| 1 | P1 | A confirmação mostra o Total, e a decisão depende do Saldo; depois de fechar, não há caminho para receber |
+| 2 | P1 | Contas internas e de day-use antigas ficam no topo, acima das mesas do turno |
+| 3 | P2 | Dentro da conta, duas "Mesa 3" são iguais (sem hora de abertura); conta fechada sem selo e com o cardápio desabilitado inteiro |
+| 4 | P2 | A caixa de itens corta a primeira linha ao meio; no balcão desperdiça espaço |
+| 5 | P2 | A janela de desfazer esconde o preço e não mostra quanto tempo resta |
