@@ -63,7 +63,16 @@ export function StaffActions({
   const id = account.id ?? '';
   // O bill carrega para "Ver conta" e para a confirmação, que precisa do saldo.
   const bill = useAccountBill(id, showBill || confirming);
+  // A confirmação só usa um bill buscado depois de ela abrir: o cache (staleTime de 30 s) pode
+  // não ter um pagamento que acabou de entrar (🟡-1 do qa-redteam de saldo/ordem).
+  const armedAt = useRef(0);
+  const settledAt = Math.max(bill.dataUpdatedAt, bill.errorUpdatedAt);
+  const fresh = confirming && settledAt >= armedAt.current;
+  const freshError = fresh && bill.errorUpdatedAt > bill.dataUpdatedAt;
+  const offline = confirming && !fresh && bill.fetchStatus === 'paused';
   const balance = balanceLine(bill.data);
+  // Total e saldo do mesmo bill, para os dois números baterem (🟢-1).
+  const confirmTotal = fresh && !freshError && bill.data?.total ? decimalToCents(bill.data.total) : totalCents;
   const close = useCloseAccount(id);
   const blocked = closeBlockedReason(account, pendingCount);
 
@@ -74,6 +83,12 @@ export function StaffActions({
     if (!confirming || close.isPending) return;
     if (blocked || totalCents !== confirmedTotal.current) setConfirming(false);
   }, [confirming, blocked, totalCents, close.isPending]);
+
+  // A trava de 400 ms recomeça quando o saldo chega: o toque que vinha para o botão desabilitado
+  // não fecha a conta sem o saldo ter sido visto (🟢-2).
+  useEffect(() => {
+    if (fresh) shownAt.current = performance.now();
+  }, [fresh]);
 
   // Saindo da confirmação, o foco volta para "Fechar conta", em vez de cair no body.
   useEffect(() => {
@@ -118,20 +133,22 @@ export function StaffActions({
         <div role="group" aria-labelledby="close-confirm-text" className="space-y-2">
           <p id="close-confirm-text" className="text-sm text-gray-700">
             Fechar <span className="font-medium">{account.label}</span>? Total{' '}
-            <span className="tabular-nums">{formatBRL(totalCents)}</span>.{' '}
-            {bill.isFetching ? (
-              'Carregando o saldo…'
-            ) : balance ? (
-              <span className="font-semibold tabular-nums">{balance}.</span>
-            ) : (
-              'Não foi possível carregar o saldo.'
-            )}{' '}
+            <span className="tabular-nums">{formatBRL(confirmTotal)}</span>.{' '}
+            <span aria-live="polite">
+              {offline
+                ? 'Sem conexão: o saldo aparece quando a rede voltar.'
+                : !fresh
+                  ? 'Carregando o saldo…'
+                  : freshError || !balance
+                    ? 'Não foi possível carregar o saldo; ele aparece no aviso depois de fechar.'
+                    : <span className="font-semibold tabular-nums">{balance}.</span>}
+            </span>{' '}
             Depois de fechada, a conta não recebe item.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="danger"
-              disabled={close.isPending || bill.isFetching}
+              disabled={close.isPending || !fresh}
               onClick={() => {
                 if (!confirmArmed(shownAt.current, performance.now())) return;
                 close.mutate(undefined, {
@@ -164,8 +181,9 @@ export function StaffActions({
             onClick={() => {
               shownAt.current = performance.now();
               confirmedTotal.current = totalCents;
-              // Saldo do momento, não o do último "Ver conta": um pagamento pode ter entrado.
-              if (showBill) void bill.refetch();
+              // Saldo do momento, não o do cache: um pagamento pode ter entrado.
+              armedAt.current = Date.now();
+              void bill.refetch();
               setConfirming(true);
             }}
           >

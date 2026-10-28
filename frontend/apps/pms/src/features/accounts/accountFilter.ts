@@ -59,7 +59,7 @@ const SALON_GROUP: Record<AccountType, number> = { TABLE: 0, DIRECT: 0, DAY_USE:
  * nova primeiro, que mexe a lista a cada abertura.
  */
 export function sortAccounts(accounts: Account[]): Account[] {
-  const group = (a: Account) => (a.type ? SALON_GROUP[a.type] : 0);
+  const group = (a: Account) => (a.type ? (SALON_GROUP[a.type] ?? 3) : 0);
   return [...accounts].sort(
     (a, b) =>
       group(a) - group(b) ||
