@@ -8,6 +8,7 @@ import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 
@@ -31,9 +32,7 @@ const get = (token, path = '') =>
     request(app).get(`/accounts${path}`).set('Authorization', `Bearer ${token}`);
 
 async function checkIn(token, reservationId) {
-    const res = await request(app)
-        .put(`/reservations/${reservationId}/check-in`)
-        .set('Authorization', `Bearer ${token}`);
+    const res = await checkInWithoutAccount(app, token, reservationId);
     if (res.status !== 200) throw new Error(`check-in falhou: ${res.status} ${JSON.stringify(res.body)}`);
 }
 

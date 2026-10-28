@@ -202,13 +202,42 @@ CREATE TABLE IF NOT EXISTS payments (
   pix_qr_code        TEXT,
   pix_expiration     TIMESTAMPTZ,
   paid_at            TIMESTAMPTZ,
+  -- Trilha do estorno (T-06.13): nulos em todo pagamento não anulado
+  void_reason        TEXT,
+  voided_by          UUID REFERENCES users(id),
+  voided_at          TIMESTAMPTZ,
   deleted_at         TIMESTAMPTZ,
   created_at         TIMESTAMPTZ DEFAULT now(),
   updated_at         TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0),
-  CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'FAILED')),
+  -- Mesma lista de app/utils/paymentEnums.js; mesmos nomes de applyPaymentStatusConstraints
+  CONSTRAINT payments_status_allowlist CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'FAILED', 'VOIDED')),
+  CONSTRAINT payments_voided_has_trail CHECK (status <> 'VOIDED' OR (void_reason IS NOT NULL AND btrim(void_reason) <> ''
+                                              AND voided_by IS NOT NULL AND voided_at IS NOT NULL)),
+  CONSTRAINT payments_trail_only_voided CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL)),
+  -- PAID tem data: a receita conta pelo paid_at e o saldo das contas pelo status
+  CONSTRAINT payments_paid_has_paid_at CHECK (status <> 'PAID' OR paid_at IS NOT NULL),
   CHECK (kind IN ('FULL', 'DEPOSIT', 'BALANCE'))
 );
+-- T-06.13: banco criado antes do estorno. O CHECK antigo (nome automático, sem VOIDED) sai.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_reason TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voided_by   UUID REFERENCES users(id);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voided_at   TIMESTAMPTZ;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_allowlist;
+ALTER TABLE payments ADD  CONSTRAINT payments_status_allowlist
+  CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'FAILED', 'VOIDED'));
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_voided_has_trail;
+ALTER TABLE payments ADD  CONSTRAINT payments_voided_has_trail
+  CHECK (status <> 'VOIDED' OR (void_reason IS NOT NULL AND btrim(void_reason) <> ''
+                                AND voided_by IS NOT NULL AND voided_at IS NOT NULL));
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_trail_only_voided;
+ALTER TABLE payments ADD  CONSTRAINT payments_trail_only_voided
+  CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL));
+-- NOT VALID: banco antigo pode ter PAID sem data; a linha fica, só não entra nova
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_paid_has_paid_at;
+ALTER TABLE payments ADD  CONSTRAINT payments_paid_has_paid_at
+  CHECK (status <> 'PAID' OR paid_at IS NOT NULL) NOT VALID;
 
 -- =============================================================================
 -- 9b) Consumos extras (frigobar, restaurante, bar, spa) lançados na reserva
@@ -306,6 +335,11 @@ ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
 ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
   CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+-- Webhook PIX acha o pagamento só pelo id da cobrança do PSP: único entre os vivos,
+-- global (sem tenant_id). Mesmo nome de applyDbConstraints (indicesParciais).
+CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_charge_id_unique
+  ON payments (provider_charge_id)
+  WHERE deleted_at IS NULL;
 -- Pagamento com conta tem a reserva e o tenant da conta, e nunca é de conta INTERNAL
 CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
 DECLARE
