@@ -31,9 +31,9 @@ export default function itemAsConsumption(item, reservationId) {
  * excluídos, de TODAS as contas da reserva (inclusive a conta dividida de um
  * acompanhante), em ordem de consumo. Cortesia fica de fora: não é consumo cobrado,
  * e o formato antigo não tem como dizer "este não conta". Usado pela lista e pelo bill,
- * para os dois nunca divergirem.
+ * para os dois nunca divergirem. `transaction` opcional: o bill lê tudo na mesma foto (D-57).
  */
-export function reservationConsumptionItems(reservationId, tenantId) {
+export function reservationConsumptionItems(reservationId, tenantId, transaction) {
     return AccountItemModel.findAll({
         where: { tenant_id: tenantId, billable: true },
         include: [{
@@ -42,6 +42,7 @@ export function reservationConsumptionItems(reservationId, tenantId) {
             where: { reservation_id: reservationId, tenant_id: tenantId },
             attributes: []
         }],
-        order: [['consumed_at', 'ASC'], ['created_at', 'ASC']]
+        order: [['consumed_at', 'ASC'], ['created_at', 'ASC']],
+        transaction
     });
 }

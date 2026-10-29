@@ -1,8 +1,8 @@
 # Retomada — validação de tenant nas FKs do corpo + R-2 a R-6 (fix/tenant-fk-validation)
 
-**Atualizado:** 24/10/2026 · **Por:** agente executor (trilha Gabriel)
-**Worktree:** /home/gabri/wt-fk-tenant · **Portas:** PG 5451
-**Containers:** pg-fk (subir de novo com: `docker run --rm -d --name pg-fk -e POSTGRES_USER=hotel_user -e POSTGRES_PASSWORD=hotel_password -p 5451:5432 postgres:17`)
+**Atualizado:** 29/10/2026 · **Por:** agente executor (trilha Gabriel)
+**Worktree:** /home/gabri/wt-fk-tenant · **Portas:** PG 5459 (antes 5451)
+**Containers:** pg-fkint (subir de novo com: `docker run --rm -d --name pg-fkint -e POSTGRES_USER=hotel_user -e POSTGRES_PASSWORD=hotel_password -p 5459:5432 postgres:17`; `.env.test` com `POSTGRES_PORT=5459`)
 
 ## Objetivo
 Fechar o vazamento entre hotéis por chave estrangeira vinda do corpo (R-1 do qa-redteam de
@@ -10,9 +10,15 @@ Fechar o vazamento entre hotéis por chave estrangeira vinda do corpo (R-1 do qa
 categorias (repasse `docs/qa/repasses/para_sirlande_21102026.md`). Sem PR e sem merge.
 
 ## Onde estou
-- Último commit: docs do relatório e do Tratamento do repasse (push: sim)
-- Passo atual: GREEN completo — 41 arquivos, 901 passam, 1 skip, cobertura 84.32% statements
-- Próximo passo: frente entregue — aguarda revisão da Sirlande, qa-redteam e decisão de merge do Gabriel
+- Último commit: `merge: develop na fix/tenant-fk-validation` (origin/develop@94f7abf) (push: sim)
+- Passo atual: integração com a develop concluída — 47 arquivos, 1054 passam, 1 skip, cobertura 85.21% statements; qa_checks 3 avisos, nenhum erro
+- Próximo passo: integração na develop marcada para 29/10 (parecer da Sirlande de 28/10); qa-redteam em paralelo em /tmp/qafk-merge — se ele empurrar relatório, fazer pull antes do push
+
+## Integração com a develop (28–29/10)
+- Merge (não rebase) de `origin/develop@94f7abf` (117 commits: T-04.5, T-04.6, T-04.7, T-05.5, T-06.13, repasses de schema, migrate no rollout).
+- Conflito textual: nenhum. `config/swagger.js` mesclou sozinho (trechos diferentes); conferido que carrega.
+- Conflito semântico: 1 — `tests/tenant-fk-isolation.test.js` usava `method: 'CASH'`; a T-06.13 pôs `method` em allowlist (`PIX | CARTAO_CREDITO | CARTAO_DEBITO | DINHEIRO`) e o teste passou a receber 400 antes da checagem do tenant. Trocado para `DINHEIRO`; o teste volta a provar o 404 do hotel alheio.
+- Rotas novas verificadas (nenhuma recebe FK de outra entidade no corpo sem validar tenant): `POST /payments/:id/void` (busca com tenant e trava; teste de isolamento em `payment-void`), `GET /reservations/:id/accounts` (reserva com tenant; teste em `checkin-account`), `GET /analytics/internal-consumption` (SQL com `tenant_id`, só query de datas). Controllers alterados (CheckIn com conta da suíte, Create/UpdatePayment, CreateAccount com trava, Remove/UpdateReservation com mudança de contas) continuam filtrando por tenant; utilitários novos (`roomChangeAccounts`, `reservationBill`) também. A T-05.5 (comanda) é frontend sobre endpoints existentes. Nenhuma validação nova foi necessária.
 
 ## Feito
 - [x] RED do R-1 — 5c7692c

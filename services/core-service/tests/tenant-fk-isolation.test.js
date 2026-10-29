@@ -193,7 +193,7 @@ describe('Varredura — FKs do corpo já corretas, agora com teste de regressão
             check_out_date: '2027-09-03'
         });
         const res = await request(app).post('/payments').set(auth(A.jwt))
-            .send({ reservation_id: reservationB.id, amount: '10.00', method: 'CASH' });
+            .send({ reservation_id: reservationB.id, amount: '10.00', method: 'DINHEIRO' });
         expect(res.status).toBe(404);
     });
 

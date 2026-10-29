@@ -6,6 +6,7 @@ import GuestModel from '../../Models/GuestModel.js';
 import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
+import { moveRoomAccounts } from '../../utils/roomChangeAccounts.js';
 
 // Campos permitidos para atualização via PUT.
 // Mudanças de status são exclusividade dos endpoints dedicados:
@@ -81,13 +82,21 @@ export default async function UpdateReservationController(request, response) {
             if (conflicting.length > 0) return await fail(409, { error: ROOM_OCCUPIED_MESSAGE, room_ids: conflicting });
         }
 
+        const previousRoomId = reservation.room_id;
         if (guest_id !== undefined)       reservation.guest_id = guest_id;
         if (roomChanged)                  reservation.room_id = newRoomId;
         if (check_in_date !== undefined)  reservation.check_in_date = check_in_date;
         if (check_out_date !== undefined) reservation.check_out_date = check_out_date;
 
-        // Reserva + pivô (trocado pelo trigger ao mudar o room_id) + total, juntos.
+        // Reserva + pivô (trocado pelo trigger ao mudar o room_id) + contas do quarto + total, juntos.
         await reservation.save({ transaction });
+        if (roomChanged) {
+            // A conta aberta do quarto que sai vai para o quarto novo (RN-005 / D-3, D-5 —
+            // repasse do qa-redteam de 19/10): sem isso, a diária ficava numa conta de um
+            // quarto que o hóspede deixou.
+            const moved = await moveRoomAccounts(reservation, previousRoomId, newRoomId, transaction);
+            if (moved.error) return await fail(moved.error.status, { error: moved.error.message, account_ids: moved.error.accountIds });
+        }
         if (roomChanged || datesChanged) {
             const recalculated = await recalculateReservationTotal(reservation, tenantId, transaction);
             if (recalculated.error) return await fail(recalculated.error.status, { error: recalculated.error.message });

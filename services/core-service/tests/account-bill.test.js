@@ -13,6 +13,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
+import { checkInWithoutAccount } from './helpers/legacyStay.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -43,7 +44,7 @@ const addItem = async (accountId, body) => {
 };
 
 async function checkIn(reservationId) {
-    const res = await request(app).put(`/reservations/${reservationId}/check-in`).set(auth(jwt));
+    const res = await checkInWithoutAccount(app, jwt, reservationId);
     if (res.status !== 200) throw new Error(`check-in falhou: ${res.status} ${JSON.stringify(res.body)}`);
 }
 
@@ -267,6 +268,9 @@ describe('Diária rateada entre os quartos da reserva (D-33)', () => {
         expect(swap.status).toBe(200);
         // Estado que o repasse ao Gabriel descreve: a conta antiga não acompanhou a troca, e uma
         // segunda conta de diária nasceu no quarto novo (gravada direto, sem o realinhamento da D-32).
+        // Desde a correção do repasse (19/10) a troca leva a conta junto; o estado aqui é o dado
+        // legado de antes dela, reconstruído direto no banco.
+        await AccountModel.update({ room_id: oldRoom.id }, { where: { id: stale.id } });
         const fresh = await AccountModel.create({
             tenant_id: tenantId, type: 'ROOM', reservation_id: reservation.id, room_id: newRoomOfStay.id,
             guest_id: guest.id, label: 'Nova', charges_lodging: true
