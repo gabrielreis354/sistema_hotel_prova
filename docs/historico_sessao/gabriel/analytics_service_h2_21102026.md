@@ -136,6 +136,35 @@ espera o laço terminar.
 
 A pendência 4 (retenção de `processed_events`, 🟢-5) continua aberta.
 
+#### Integração com a develop (28–29/10/2026)
+
+- **Merge** de `origin/develop` (109 commits: T-04.5, T-04.6, T-04.7, T-05.5, T-06.13, repasses de
+  schema) — `35cf86f`, **sem conflitos**. Conferidos à mão os dois merges automáticos: o catálogo (a
+  develop reescreveu as linhas de `payment.*` da T-06.13; a branch, a de `reservation_id`, o §5.3, o §6
+  e o histórico — linhas diferentes) e o `command.js` (o `outbox-initial-load` continua). Os triggers e o
+  `outbox_payload` em `applyDbConstraints.js` ficaram intactos; a develop só acrescentou CHECKs de payments.
+- **Triggers com os fluxos novos:** `tests/outbox-develop-flows.test.js` — check-in que cria a conta da
+  suíte (T-04.6) emite `reservation.status_changed` (CHECKED_IN) e `room.updated` (OCCUPIED), e só tipos
+  do catálogo; conta de day-use, item e fechamento não emitem nada; o pagamento da conta sem reserva sai
+  como `payment.created` com `reservation_id: null`. O estorno (`payment.status_changed` → VOIDED) já é
+  coberto pelo `tests/outbox.test.js` da develop.
+- **Catálogo 1.1.1:** texto do `payment.deleted` alinhado ao código — `DELETE /payments/:id` responde 405,
+  o estorno é `POST /payments/:id/void` e nenhuma rota emite mais `payment.deleted` (nota na §9.1, ressalva
+  no §6). Só documentação.
+
+**Lacunas de evento trazidas pela develop** (nenhum evento novo implementado — fora do catálogo):
+
+| # | Mudança de estado na develop | Situação no catálogo v1.1 | Impacto |
+|---|---|---|---|
+| L-1 | `GET /analytics/internal-consumption` (T-04.7) agrupa consumo interno lendo `account_items` e `accounts` | `accounts`/`account_items` não geram evento (§4.7: "consumo entra quando um indicador precisar dele" — agora precisa) | **Bloqueia o CA-01.4.k para esse 8º endpoint**: na H.3 ele não sai das projeções. Decisão do Gabriel: evento novo `account_item.*`/`account.*` (versão do catálogo) ou manter o endpoint no core |
+| L-2 | Conta da suíte criada no check-in (T-04.6), abertura, itens e fechamento de conta da comanda (T-05.5) | Sem evento (§4.7) | Nenhum dos 7 indicadores atuais usa; só L-1 |
+| L-3 | Pagamento de conta sem reserva (T-04.4) e estorno (T-06.13) | Cobertos: `payment.*` com `reservation_id: null` e `payment.status_changed` → VOIDED | Nenhum |
+
+**Saída real depois do merge** (PG 5460, RabbitMQ 5697, próprios):
+- analytics — `Test Files 7 passed (7)` · `Tests 84 passed (84)` · Statements **95.53%**, Branches 89.47%, Functions 90.54%, Lines 95.07%
+- core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.78%, Functions 89.8%, Lines 86.7%
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
 #### Estimativa da H.3 (k, n, o, p, q)
 
 Cerca de **2 a 3 dias de trabalho humano**: as 7 consultas sobre as projeções (NUMERIC até a resposta,
