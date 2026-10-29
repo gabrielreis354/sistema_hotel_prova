@@ -1346,10 +1346,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lista hóspedes */
+        /**
+         * Lista hóspedes ou busca por termo
+         * @description Sem `q`: todos os hóspedes do hotel (contrato antigo). Com `q`: busca no servidor por nome, CPF, e-mail ou telefone (ILIKE com `%`, `_` e `\` literais; termo numérico casa CPF/telefone só pelos dígitos), sempre no hotel do token, ordenada por nome, até `limit`. `q` vazio devolve lista vazia.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /**
+                     * @description Termo de busca: parte do nome, CPF, e-mail ou telefone
+                     * @example ana
+                     */
+                    q?: string;
+                    /** @description Só com `q`. Inválido cai no padrão; acima de 20 vira 20 */
+                    limit?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1363,6 +1374,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Guest"][];
+                    };
+                };
+                /** @description `q` com mais de 100 caracteres */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
