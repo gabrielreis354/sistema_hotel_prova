@@ -271,8 +271,10 @@ testar. Rodar a carga duas vezes não duplica nada (§5.2).
 
 > **Registro com exclusão lógica sai como `*.deleted`**, com o mesmo retrato (desvio aceito pelo
 > Gabriel em 21/10/2026, H.2). Com `*.updated`, ele entraria vivo na projeção: um pagamento excluído
-> voltaria a contar como receita, contra a **D-2**, e um quarto excluído entraria na contagem de
-> ocupação. O retrato continua necessário porque reservas antigas apontam para hóspede, quarto e
+> antes da T-06.13 voltaria a contar como receita, contra a **D-2**, e um quarto excluído entraria na
+> contagem de ocupação. (Pagamento estornado não é exclusão: sai como `payment.status_changed`
+> com `status: VOIDED`, e a projeção já o tira da receita por contar só `PAID`.) O retrato continua
+> necessário porque reservas antigas apontam para hóspede, quarto e
 > categoria excluídos (alertas, receita por categoria). O `deleted_at` da projeção recebe o instante da
 > carga, não o da exclusão original — nenhuma consulta usa essa data.
 >
@@ -331,6 +333,13 @@ Cloud, Mews, Apaleo e Cloudbeds — não citação de documentação).
 | **D-2** | **Aceita.** `payment.deleted` tira o pagamento da receita na projeção | **Lançamento financeiro não se apaga — se estorna**, com motivo, usuário e horário, e o original fica no histórico | A correção de fundo é trocar `DELETE /payments/:id` por estorno. Registrado como tarefa nova da SPEC-06; quando existir, a receita fica certa sem filtro |
 | **D-3** | **Aceita, refinada em dois indicadores** | O mercado separa **garantia recebida** de **saldo devedor** | **Risco de *no-show***: reserva sem nenhum pagamento `PAID` — a garantia não chegou. **Valores em aberto** (`revenue.unpaid`): reserva com **saldo > 0**, isto é, `total_amount` − soma dos `PAID`. Uma reserva com sinal de 30% pago continua devendo 70%. Os campos necessários já estão nos eventos de §4.5 e §4.6 — o *payload* não muda; muda a consulta sobre a projeção |
 | **D-4** | **Aceita: manter nesta extração** | **Cada quarto é uma reserva própria**, dentro de um agrupador (*booking* ou grupo), com tarifa e status próprios | O modelo atual — `room_id` principal mais o pivô `reservation_rooms` — é a causa comum de D-4 e das pendências **P-1** e **P-4** (§11). Registrado como ADR candidata; combina com a SPEC-07 |
+
+> **Estado em 21/10/2026 — T-06.13 (estorno) implementada:** a correção de fundo da D-2 existe.
+> `DELETE /payments/:id` responde **`405`**; o caminho é `POST /payments/:id/void` (motivo obrigatório,
+> só ADMIN), que leva o pagamento a `VOIDED` e publica **`payment.status_changed`** com
+> `previous_status: "PAID"` (§4.6). Nenhuma rota emite mais `payment.deleted`: ele só sai se um
+> `deleted_at` for gravado por fora da API, ou na carga inicial (§6) para pagamentos excluídos antes da
+> T-06.13. O consumidor continua tratando os dois: `VOIDED` e excluído ficam fora da receita.
 
 **Dinheiro nas consultas sobre a projeção.** As consultas atuais do analytics convertem valor
 para ponto flutuante (`total_amount::float`), contra a regra do projeto. As consultas da T-01.4
@@ -516,3 +525,4 @@ os da projeção.
 | 30/09/2026 | 0.1 | Proposta inicial — agente executor, trilha do Gabriel (delegação `rodada2_gabriel_28set2026.md`, etapa C) |
 | 04/10/2026 | 1.0 | **Aprovado pelo Gabriel.** Decisões D-1 a D-4 registradas na §9.1, com o critério de mercado. D-3 refinada em garantia × saldo. Regra de gravação do *outbox* depois da escrita de domínio (§6). Dinheiro sem `float` nas consultas sobre a projeção |
 | 24/10/2026 | 1.1 | Desvios registrados na H.2 (T-01.4): §6 carga inicial emite `*.deleted` para excluídos (D-2) e tem `lock_timeout`; §4.6 `reservation_id` pode ser `null` (T-04.4) — aceitos pelo Gabriel em 21/10. §5.3: banco do analytics fora do ar pausa o consumo sem gastar tentativa (ressalva 🟡-3 do qa-redteam). Nenhum `version` de evento muda: o core já publicava assim |
+| 29/10/2026 | 1.1.1 | Texto alinhado ao código da T-06.13: `DELETE /payments/:id` responde `405`, o estorno é `POST /payments/:id/void` (`payment.status_changed` → `VOIDED`) e `payment.deleted` não sai mais de nenhuma rota (nota na §9.1; ressalva no §6). Só documentação — nenhum evento muda |
