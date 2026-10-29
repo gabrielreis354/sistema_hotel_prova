@@ -21,7 +21,9 @@ export default async function GetPaymentMixController(request, response) {
                 )::float                            AS pct
             FROM payments
             WHERE tenant_id = :tenantId
-              AND paid_at IS NOT NULL
+              -- Receita é a soma dos efetivados (T-06.13, CA-06.13.f): VOIDED guarda o paid_at
+              -- como histórico, e o excluído antigo (D-2 do catálogo) também não conta.
+              AND status = 'PAID' AND paid_at IS NOT NULL AND deleted_at IS NULL
               ${dateFilter}
             GROUP BY method
             ORDER BY total DESC

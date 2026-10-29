@@ -1,7 +1,7 @@
 # SPEC-04 — Módulo de Consumo (Comanda)
 
 **Prioridade:** 🟠 Alta — diferencial de produto
-**Estado:** 🟡 Parcialmente implementado — **6 de 9 fatias concluídas** (T-04.1 a T-04.4 em 19/10/2026)
+**Estado:** 🟡 Escopo do MVP concluído — **8 de 9 fatias concluídas e a fatia 4 parcial** (T-04.1 a T-04.4 em 19/10/2026; T-04.5, T-04.6 a/c/d e T-04.7 em 26/10/2026); falta só o CA-04.6.b (5º semestre)
 **Criado em:** 26/08/2026
 **Bloqueia:** SPEC-05 Fase 2 (comanda no frontend)
 
@@ -23,13 +23,13 @@ Módulo que dá ao sistema a capacidade de registrar consumo de bar e restaurant
 | 2b — Migração do `Consumption` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `database/migrateConsumptions.js`, rotas antigas via conta |
 | 3a — Bill da conta + close | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `/accounts/:id/bill`, `/accounts/:id/close`, contas fecham no encerramento da estadia |
 | 3b — `Payment` ↔ `Account` | 🔲 Pendente | ✅ **Mergeada** em 19/10 — `payments.account_id`, `payments_made` real, `CLOSED ↔ PAID`, crédito da reserva rateado entre as contas |
-| 3c — Delegação do bill da reserva | 🔲 Pendente | 🔲 Pendente |
-| 4 — Check-in + Split Bill + Day-use | 🔲 Pendente | 🔲 Pendente |
-| 5 — Seed, Swagger e testes | 🔲 Pendente | 🔲 Pendente |
+| 3c — Delegação do bill da reserva | 🔲 Pendente | ✅ **Mergeada** em 26/10 — `/reservations/:id/bill` soma as contas (`app/utils/reservationBill.js`), contrato idêntico |
+| 4 — Check-in + Split Bill + Day-use | 🔲 Pendente | 🟡 **Parcial** em 26/10 — check-in cria a conta da suíte e `/reservations/:id/accounts` (CA-a, c, d); day-use já atendido (e, f); split no check-in (b) no 5º semestre |
+| 5 — Seed, Swagger e testes | 🔲 Pendente | ✅ **Mergeada** em 26/10 — `/analytics/internal-consumption`, `seed/seed_consumo.sql`, Swagger, isolamento de Account e Product |
 
 **Evidência do que existe:** `services/core-service/app/Models/ProductModel.js`, `services/core-service/app/Controllers/ProductApi/` (5 controllers), rota `/products` registrada, `services/core-service/tests/products.test.js` com 36 testes, tabela `products` em `services/core-service/db/schema.sql` com índice único parcial.
 
-**Evidência do que falta (19/10):** o bill da reserva ainda não soma as contas (T-04.5); o check-in ainda não cria conta (T-04.6).
+**Evidência do que falta (26/10):** check-in com várias contas (CA-04.6.b, 5º semestre).
 
 ---
 
@@ -43,10 +43,10 @@ Completar o módulo de comanda, entregando os quatro cenários operacionais que 
 
 | Cenário | Como o modelo resolve | Estado |
 |---------|----------------------|--------|
-| Família hospedada consome na conta da suíte | Conta `ROOM` vinculada à reserva | 🔲 |
-| Pessoas diferentes na mesma suíte, contas separadas | Múltiplas contas com o mesmo `room_id`; só uma com `charges_lodging = true` | 🔲 |
-| *Day-use* — consome sem se hospedar | Conta `DAY_USE` com `reservation_id` nulo | 🔲 |
-| Consumo interno — cortesia, refeição de funcionário, perda | Conta `INTERNAL` ou item com `billable = false` e `reason` | 🔲 |
+| Família hospedada consome na conta da suíte | Conta `ROOM` vinculada à reserva | ✅ *(T-04.1; aberta no check-in desde a T-04.6)* |
+| Pessoas diferentes na mesma suíte, contas separadas | Múltiplas contas com o mesmo `room_id`; só uma com `charges_lodging = true` | ✅ *(T-04.1, RN-005; várias contas no check-in é o CA-04.6.b, 5º semestre)* |
+| *Day-use* — consome sem se hospedar | Conta `DAY_USE` com `reservation_id` nulo | ✅ *(T-04.1)* |
+| Consumo interno — cortesia, refeição de funcionário, perda | Conta `INTERNAL` ou item com `billable = false` e `reason` | ✅ *(relatório na T-04.7)* |
 
 ---
 
@@ -165,46 +165,46 @@ Aditiva. **Não tocar no `ConsumptionModel` ainda.**
 
 ---
 
-### T-04.5 — Delegação do bill da reserva 🔲 *(fatia 3c · ~1-2 dias)*
+### T-04.5 — Delegação do bill da reserva ✅ *(fatia 3c · ~1-2 dias — concluída em 26/10/2026; decisões em `anexos/SPEC-04-decisoes-T-04.5.md`)*
 
 **DEP:** T-04.4 · ⚠️ refatoração
 
 > **Herdado da T-04.4:** o pagamento feito na reserva sem conta é crédito rateado entre as contas (D-45), e o bill da reserva cancelada já não cobra diária (D-46). Com isso, a soma dos saldos das contas é o `balance_due` da reserva — `expectAccountsMatchReservation`, em `tests/account-payments.test.js`, é a base para o CA-04.5.a.
 
 **Critérios de aceitação**
-- [ ] **CA-04.5.a** — `GET /reservations/:id/bill` soma as `Accounts` da reserva
-- [ ] **CA-04.5.b** — **Contrato de resposta idêntico** ao atual
-- [ ] **CA-04.5.c** — `services/core-service/tests/bill-consumptions.test.js` passa sem alteração
+- [x] **CA-04.5.a** — `GET /reservations/:id/bill` soma as `Accounts` da reserva *(26/10 — diária sem conta fica na reserva, D-54)*
+- [x] **CA-04.5.b** — **Contrato de resposta idêntico** ao atual *(26/10)*
+- [x] **CA-04.5.c** — `services/core-service/tests/bill-consumptions.test.js` passa sem alteração *(26/10)*
 
 ---
 
-### T-04.6 — Check-in cria conta + split bill + day-use 🔲 *(fatia 4 · ~3 dias)*
+### T-04.6 — Check-in cria conta + split bill + day-use 🟡 *(fatia 4 · ~3 dias — a, c, d concluídos em 26/10/2026; b no 5º semestre; decisões em `anexos/SPEC-04-decisoes-T-04.6.md`)*
 
 **DEP:** T-04.5
 
 **Critérios de aceitação**
-- [ ] **CA-04.6.a** — Check-in sem body cria 1 `Account`, com `guest_id` e `label` derivados da reserva
-- [ ] **CA-04.6.b** — Check-in com `accounts: [...]` cria N contas **na mesma transação**
-- [ ] **CA-04.6.c** — Falha em qualquer conta faz **rollback do check-in inteiro**
-- [ ] **CA-04.6.d** — `GET /reservations/:id/accounts` lista as contas
-- [ ] **CA-04.6.e** — `POST /accounts` com `type: DAY_USE` e `reservation_id: null` funciona
-- [ ] **CA-04.6.f** — Bill de day-use traz `room_charges: 0`
+- [x] **CA-04.6.a** — Check-in sem body cria 1 `Account`, com `guest_id` e `label` derivados da reserva *(26/10 — reaproveita conta de diária existente, D-58)*
+- [ ] **CA-04.6.b** — Check-in com `accounts: [...]` cria N contas **na mesma transação** *(5º semestre — fora do MVP, painel de 21/10)*
+- [x] **CA-04.6.c** — Falha em qualquer conta faz **rollback do check-in inteiro** *(26/10, para a conta única do CA-a)*
+- [x] **CA-04.6.d** — `GET /reservations/:id/accounts` lista as contas *(26/10)*
+- [x] **CA-04.6.e** — `POST /accounts` com `type: DAY_USE` e `reservation_id: null` funciona *(já atendido na T-04.1 — `tests/accounts.test.js`)*
+- [x] **CA-04.6.f** — Bill de day-use traz `room_charges: 0` *(já atendido na T-04.3; teste em `tests/checkin-account.test.js`)*
 
 > **Herdado da T-04.3 (D-40):** a diária da reserva é dividida entre as contas que cobram diária. A conta única do CA-04.6.a leva o total, o que está certo. No CA-04.6.b, ao menos uma das contas precisa ter `charges_lodging: true`, senão o total da reserva fica sem conta. Ver `anexos/SPEC-04-decisoes-T-04.3.md`, ponto em aberto 5.
 
 ---
 
-### T-04.7 — Seed, Swagger, relatório e testes 🔲 *(fatia 5 · ~2,5 dias)*
+### T-04.7 — Seed, Swagger, relatório e testes ✅ *(fatia 5 · ~2,5 dias — concluída em 26/10/2026; decisões em `anexos/SPEC-04-decisoes-T-04.7.md`)*
 
 **DEP:** T-04.6
 
 **Critérios de aceitação**
-- [ ] **CA-04.7.a** — `GET /analytics/internal-consumption?start=&end=` agrupa por `reason`, com valor e contagem
-- [ ] **CA-04.7.b** — Considera itens `billable: false` de qualquer conta **mais** todos os itens de contas `INTERNAL`
-- [ ] **CA-04.7.c** — Requer `ADMIN`
-- [ ] **CA-04.7.d** — `seed/seed_consumo.sql` idempotente, com cardápio, conta aberta, day-use, `INTERNAL` e cortesia
-- [ ] **CA-04.7.e** — Swagger completo de `/accounts`, **com schema de resposta** (ver SPEC-06)
-- [ ] **CA-04.7.f** — `services/core-service/tests/tenant-isolation.test.js` expandido com `Account` e `Product`
+- [x] **CA-04.7.a** — `GET /analytics/internal-consumption?start=&end=` agrupa por `reason`, com valor e contagem *(26/10 — dia do consumo no horário de Brasília, D-64 e D-68)*
+- [x] **CA-04.7.b** — Considera itens `billable: false` de qualquer conta **mais** todos os itens de contas `INTERNAL` *(26/10 — INTERNAL sem motivo no grupo `null`, D-63)*
+- [x] **CA-04.7.c** — Requer `ADMIN` *(26/10)*
+- [x] **CA-04.7.d** — `seed/seed_consumo.sql` idempotente, com cardápio, conta aberta, day-use, `INTERNAL` e cortesia *(26/10 — mais a conta da suíte de cada CHECKED_IN e um garçom, D-66)*
+- [x] **CA-04.7.e** — Swagger completo de `/accounts`, **com schema de resposta** (ver SPEC-06) *(26/10 — já estava; 64/64 respostas 2xx da API com schema)*
+- [x] **CA-04.7.f** — `services/core-service/tests/tenant-isolation.test.js` expandido com `Account` e `Product` *(26/10)*
 
 > O endpoint de relatório está aqui menos pela feature e mais porque **escrever a query prova que o modelo funciona**. Se agrupar por motivo for difícil, o modelo está errado.
 
@@ -251,3 +251,4 @@ Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e pre
 | Versão | Data | Autor | Alteração |
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Substitui o plano de 02/08, cuja tabela de status estava desatualizada — 2 fatias já mergeadas constavam como pendentes |
+| 1.1 | 26/10/2026 | Sirlande | T-04.7 concluída (D-63 a D-68); cenários do §3 marcados com a fatia que os entregou |

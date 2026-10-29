@@ -92,12 +92,15 @@ async function seed() {
         await sequelize.authenticate();
         console.log('✅ Conexão com o banco de dados estabelecida.');
 
-        // seed_hotels.sql é idempotente (ON CONFLICT DO NOTHING) e já traz seu próprio
+        // Cada arquivo é idempotente (ON CONFLICT / NOT EXISTS) e traz seu próprio
         // BEGIN/COMMIT — uma única chamada via o client pg por trás do Sequelize
         // (protocolo simples, sem bind de parâmetros) roda o arquivo inteiro.
-        const sqlPath = path.join(__dirname, 'seed', 'seed_hotels.sql');
-        const sql = await readFile(sqlPath, 'utf-8');
-        await sequelize.query(sql);
+        // A ordem importa: a comanda (T-04.7) usa hotéis, quartos e reservas do primeiro.
+        for (const file of ['seed_hotels.sql', 'seed_consumo.sql']) {
+            const sql = await readFile(path.join(__dirname, 'seed', file), 'utf-8');
+            await sequelize.query(sql);
+            console.log(`   ${file} aplicado.`);
+        }
 
         console.log('✅ Seed executado com sucesso.');
     } catch (error) {
