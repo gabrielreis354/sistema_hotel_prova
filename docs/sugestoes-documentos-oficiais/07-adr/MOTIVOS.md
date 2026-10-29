@@ -1,5 +1,9 @@
 # Documento 07 (ADR) — motivos
 
+> **Atualização de 29/10/2026 — v1.1 transcrita no fork.** O arquivo `versao-sugerida_v1.0.md` contém
+> hoje a **versão 1.1** (o nome foi mantido para não quebrar referências). Ela foi transcrita na branch
+> `entrega-7-adr` do fork, e a seção "Versão v1.1" ao final deste arquivo diz o que mudou e de onde vem.
+>
 > **Atualização de 14/10/2026 — o Documento 07 passou ao Gabriel.** A versão completa para entrega
 > está em `versao-sugerida_v1.0.md` e tem seção própria ao final deste arquivo. As seções abaixo,
 > até ela, registram a proposta da ADR-006 (22/09), quando o dono era o Weslley; ficam como histórico.
@@ -115,3 +119,46 @@ As afirmações de cada ADR foram conferidas contra a `develop` em 14/10/2026.
   004 e 005; a linha 8 da §5 do Doc 06 deve citar a ADR-008.
 - **Ordem de entrega.** O 07 é entregue depois do 05 e do 06. Até lá, o documento é atualizado a cada
   decisão nova; quando for transcrito no fork, esta pasta registra a data.
+
+---
+
+## Versão v1.1 (29/10/2026)
+
+**Arquivo:** `versao-sugerida_v1.0.md`, agora na versão 1.1 (commit `98e8213` desta branch).
+**Transcrita no fork em 29/10/2026:** branch `entrega-7-adr`, criada de `upstream/main`, arquivo
+`Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md`. A `upstream/main` ainda tinha o modelo em
+branco, e não a v0.1 com a ADR-003; a transcrição substitui o modelo inteiro. A única diferença em
+relação a esta pasta é o `<br>` no fim das linhas do cabeçalho, como nos Documentos 05 e 06.
+**Desde 29/10**, os 8 documentos são do grupo e podem ser editados direto no fork.
+
+### O que mudou e de onde vem
+
+| ADR | Mudança na v1.1 | Fonte |
+|---|---|---|
+| 004 — Nuvem | Um único EC2 `t3.small` com k3s em servidor único, numa conta no plano gratuito de créditos criada perto do 5º semestre. Dois `t3.micro` (10/10) e o nó faseado (16/09) viram alternativas, com motivo. RNF-003 como exceção consciente na nuvem | Decisão do Gabriel de 24/10/2026; Doc 05 v1.2 do fork (`ff69a36`), §2 e §6; preços da AWS Price List de `sa-east-1` consultados em 24/10/2026 |
+| 001 e 005 | Sem os "nós de 1 GiB" e sem "fora do free-tier"; título da ADR-005 igual ao do índice | Consequência da ADR-004; auditoria de coerência de 28/10 |
+| 003 | Nota: `ACCOUNTS` e `ACCOUNT_ITEMS` implementadas a partir de 14/10 | `git log` dos *models* `Account`/`AccountItem` (14/10) |
+| 008 | Autenticidade do *webhook* por assinatura **ou token**, conforme o provedor | `AsaasPixProvider.js` (`asaas-access-token`, sem HMAC) |
+| 009 | Implementada; conta aberta no check-in e ordem de trava reserva → contas | SPEC-04 (T-04.1 a T-04.7); anexos da T-04.6 (D-58, D-62) e D-48 |
+| 010 | Implementada em 24/10/2026 | PR #100 (T-06.13): `POST /payments/:id/void` e `DELETE` com `405` |
+
+### Conferência da ADR-004 contra o Doc 05 v1.2
+
+Os mesmos números aparecem nos dois documentos: US$ 0,0336/h do `t3.small` = 2 × US$ 0,0168/h do
+`t3.micro`; 944 Mi de `requests` do Gesway e 1.014 Mi com o CoreDNS; cerca de US$ 0,35 por sessão de 4 h;
+cerca de US$ 28 no uso previsto dos 6 meses; US$ 100 de crédito na criação e até mais US$ 100 por
+atividades; um IPv4 público; AWS Budgets sobre o custo antes dos créditos; `app-pms` servido pelo nginx;
+D-003 do `analytics-service` no RDS.
+
+### Avaliados e não incorporados
+
+- **Walk-in (`PENDING → CHECKED_IN`, 24/10):** regra de negócio, não decisão de arquitetura. A correção
+  é nos Docs 01, 02 (RF-011) e 06.
+- **D-51 a D-62:** regras de cálculo e de concorrência do módulo de contas. Só a D-58 e a D-62 (com a
+  D-48) entraram, na ADR-009; as demais ficam nos anexos da SPEC-04.
+
+### Pontos em aberto
+
+- **RNF-003 × nuvem:** a exceção já está na ADR-004 e no Doc 05 v1.2; o Doc 02 v1.4 precisa declará-la.
+- **Entrega ao professor:** o PR do fork só sai com autorização do Gabriel. O Doc 05 v1.2 e o 07 v1.1
+  devem ir juntos, porque a ADR-004 e o Doc 05 descrevem a mesma decisão.
