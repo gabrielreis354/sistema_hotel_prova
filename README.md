@@ -115,6 +115,10 @@ No Kubernetes, variáveis de ambiente são separadas em dois recursos:
 | `MINIO_PRESIGN_PASSWORD` | `leitura_pdf_academico_2026` |
 | `RABBITMQ_DEFAULT_USER` | `hotel_broker` |
 | `RABBITMQ_DEFAULT_PASS` | `rabbitmq_secreto_academico_2026` |
+| `RABBITMQ_CORE_USER` | `hotel_core_publisher` — só publica na exchange `gesway.core.events` (T-01.4, catálogo §8) |
+| `RABBITMQ_CORE_PASSWORD` | `rabbitmq_core_academico_2026` |
+| `RABBITMQ_ANALYTICS_USER` | `hotel_analytics_consumer` — só lê a fila `analytics.core-events` |
+| `RABBITMQ_ANALYTICS_PASSWORD` | `rabbitmq_analytics_academico_2026` |
 
 > Em produção, substitua os valores do `secret.yaml` por credenciais reais e **nunca commite o arquivo com senhas reais**. Para este projeto acadêmico os valores estão no repositório para facilitar a avaliação.
 
@@ -234,7 +238,7 @@ kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
 Com o cluster rodando, crie todas as tabelas no banco:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 Saída esperada:
@@ -294,7 +298,8 @@ Acesse a documentação completa da API: **http://localhost/api-docs**
 
 ```bash
 cp .env.example .env
-# edite o .env: PIX_WEBHOOK_SECRET, MINIO_ROOT_PASSWORD e MINIO_PRESIGN_PASSWORD são obrigatórios
+# edite o .env: PIX_WEBHOOK_SECRET, MINIO_ROOT_PASSWORD, MINIO_PRESIGN_PASSWORD,
+# RABBITMQ_CORE_PASSWORD e RABBITMQ_ANALYTICS_PASSWORD são obrigatórios
 # (o compose recusa subir sem eles; senhas do MinIO com 8+ caracteres).
 # Porta 3000 do host já em uso por outra coisa na máquina? defina BACKEND_HOST_PORT=<porta>
 # no .env — mas aí o Vite do frontend (abaixo) também precisa apontar pra essa porta.
@@ -463,7 +468,7 @@ kubectl delete pvc postgres-data -n hotel-system
 | Tipo | Recurso | O que armazena |
 |---|---|---|
 | ConfigMap | `hotel-config` | Variáveis não sensíveis (host, porta, nome do banco) |
-| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, `MINIO_PRESIGN_USER`/`MINIO_PRESIGN_PASSWORD` e `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
+| Secret | `hotel-secret` | `POSTGRES_PASSWORD`, `PIX_WEBHOOK_SECRET`, `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, `MINIO_PRESIGN_USER`/`MINIO_PRESIGN_PASSWORD` `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS`, `RABBITMQ_CORE_USER`/`RABBITMQ_CORE_PASSWORD` e `RABBITMQ_ANALYTICS_USER`/`RABBITMQ_ANALYTICS_PASSWORD` (versionado, valores acadêmicos — ver tabela de variáveis sensíveis) |
 | Secret | `jwt-rsa-keys` | Chave privada/pública RS256 do JWT (ADR-006) — **não versionado**, gerado por ambiente e criado por `scripts/k8s_garantir_secret_jwt.sh` (chamado por `infra_up.sh` e `start.sh up`) |
 
 Os Pods leem essas variáveis via `envFrom` (ConfigMap), `env.valueFrom.secretKeyRef` (Secret `hotel-secret`) e um volume montado a partir do Secret `jwt-rsa-keys`. Nenhuma credencial está hardcoded nas imagens.
@@ -794,7 +799,7 @@ As consultas estão organizadas em `queries/`:
 O schema completo está em `services/core-service/db/schema.sql`. Para criar ou atualizar todas as tabelas:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 O comando usa `sequelize.sync({ alter: true })` — cria tabelas inexistentes e adiciona colunas novas sem derrubar dados existentes.
@@ -1139,7 +1144,7 @@ Causas comuns:
 As migrations não foram executadas após subir o cluster:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 ### Backend não consegue conectar ao PostgreSQL
@@ -1182,7 +1187,7 @@ Se precisar recriar tudo do zero:
 kubectl delete -k infra/k8s/
 kubectl apply -k infra/k8s/
 kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 ---

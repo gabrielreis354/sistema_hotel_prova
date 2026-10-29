@@ -1,9 +1,19 @@
 import crypto from 'crypto';
 import PixProvider from './PixProvider.js';
 import { PixProviderUnavailableError, InvalidWebhookSignatureError } from './errors.js';
+import { CHARGE_STATUS } from './chargeStatus.js';
 
 const MP_API_URL = 'https://api.mercadopago.com/v1/payments';
 const TIMEOUT_MS = 10000;
+
+// Vocabulário do Mercado Pago → status normalizado. Allowlist (fail-safe): só "approved" é
+// pago, só cancelled/rejected encerram; pending, in_process, authorized e qualquer status
+// desconhecido ficam PENDING — sem efeito, aguardando a próxima notificação.
+function toChargeStatus(mpStatus) {
+    if (mpStatus === 'approved') return CHARGE_STATUS.PAID;
+    if (['cancelled', 'rejected'].includes(mpStatus)) return CHARGE_STATUS.FAILED;
+    return CHARGE_STATUS.PENDING;
+}
 
 /**
  * MercadoPagoPixProvider — cobrança PIX real via Mercado Pago (checkout API).
@@ -155,6 +165,6 @@ export default class MercadoPagoPixProvider extends PixProvider {
             console.error('MercadoPagoPixProvider.getChargeStatus: approved sem transaction_amount', providerChargeId);
             throw new PixProviderUnavailableError('Mercado Pago não informou o valor da cobrança');
         }
-        return { status: data.status, amount: data.transaction_amount ?? null, amountVerifiable: true };
+        return { status: toChargeStatus(data.status), amount: data.transaction_amount ?? null, amountVerifiable: true };
     }
 }

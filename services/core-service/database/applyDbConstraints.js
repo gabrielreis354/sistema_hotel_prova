@@ -1,5 +1,7 @@
+import { QueryTypes } from 'sequelize';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
-import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS } from '../app/utils/accountEnums.js';
+import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
+import { PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
 
 /**
  * Objetos de banco que o `sequelize.sync()` NÃO gera: extensões, constraints
@@ -68,6 +70,8 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     `);
 
     await applyAccountConstraints(sequelize);
+    await applyPaymentAccountConstraints(sequelize);
+    await applyPaymentStatusConstraints(sequelize);
 
     // Índices únicos PARCIAIS em models paranoid — mesmo mecanismo da EXCLUDE acima,
     // agora para os 8 índices auditados na SPEC-06 (users, room_categories, rooms,
@@ -100,12 +104,17 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
         { tabela: 'guests',             colunas: ['email', 'tenant_id'],   nome: 'guests_email_tenant_unique' },
         { tabela: 'corporate_clients',  colunas: ['cnpj', 'tenant_id'],    nome: 'corporate_clients_cnpj_tenant_unique' },
         { tabela: 'corporate_clients',  colunas: ['cpf', 'tenant_id'],     nome: 'corporate_clients_cpf_tenant_unique' },
-        { tabela: 'products',           colunas: ['name', 'tenant_id'],    nome: 'products_name_tenant_unique' }
+        { tabela: 'products',           colunas: ['name', 'tenant_id'],    nome: 'products_name_tenant_unique' },
+        // Global, sem tenant_id, de propósito: o id da cobrança vem do PSP e o webhook PIX
+        // (rota pública) acha o pagamento só por ele. Duas linhas vivas com o mesmo id
+        // deixariam o webhook confirmar uma qualquer — até de outro hotel. Nulo (pagamento
+        // manual) não disputa: NULLs são distintos no índice único.
+        { tabela: 'payments',           colunas: ['provider_charge_id'],   nome: 'payments_provider_charge_id_unique' }
     ];
 
     // Índice a índice, não tudo-ou-nada: um índice que falhe (duplicata viva legada
-    // nas colunas — ver comentário do catch abaixo) não pode impedir a cura dos outros
-    // 6, nem dos índices compostos de performance logo depois deste laço. Falhas são
+    // nas colunas — ver comentário do catch abaixo) não pode impedir a cura dos
+    // outros, nem dos índices compostos de performance logo depois deste laço. Falhas são
     // acumuladas e relançadas ao final, com tabela+colunas+índice de cada uma — Fail
     // Fast na *reportagem*, mas Fail Safe na *execução*: o resto do banco sai curado.
     const falhas = [];
@@ -182,6 +191,13 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     // Por último: num banco legado com quarto vendido duas vezes, a ocupação recusa criar o
     // EXCLUDE — e isso não pode impedir a cura dos índices e CHECKs acima. Erro guardado e
     // reportado junto com os outros.
+    let falhaOutbox = null;
+    try {
+        await applyOutbox(sequelize);
+    } catch (error) {
+        falhaOutbox = error;
+    }
+
     let falhaOcupacao = null;
     try {
         await applyRoomOccupancy(sequelize, log);
@@ -198,12 +214,140 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
             `provavelmente há linhas VIVAS duplicadas nas colunas abaixo, e não é seguro ` +
             `decidir sozinho qual manter:\n${detalhe}\n` +
             `O restante das constraints e índices foi aplicado normalmente.` +
-            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '')
+            (falhaOcupacao ? `\n\nOcupação de quartos: ${falhaOcupacao.message}` : '') +
+            (falhaOutbox ? `\n\nOutbox: ${falhaOutbox.message}` : '')
         );
     }
-    if (falhaOcupacao) throw falhaOcupacao;
+    if (falhaOcupacao && falhaOutbox) {
+        throw new Error(`${falhaOcupacao.message}\n\nOutbox: ${falhaOutbox.message}`);
+    }
+    if (falhaOcupacao || falhaOutbox) throw falhaOcupacao ?? falhaOutbox;
 
     log('✅ Constraints, CHECKs e índices compostos aplicados.');
+}
+
+/**
+ * Pagamento ligado à conta (T-04.4, CA-04.4.b).
+ *
+ * - `reservation_id` deixa de ser obrigatório. O DROP NOT NULL é explícito pelo mesmo
+ *   motivo do `account_items.created_by`: com FK na coluna, o sync({ alter }) só refaz a
+ *   FK e deixa o NOT NULL de um banco anterior.
+ * - Todo pagamento tem reserva ou conta.
+ * - Trigger payments_account_consistency: pagamento com conta tem a reserva e o tenant
+ *   da conta, e nunca é de conta INTERNAL. O banco recusa um pagamento que aponte para a conta de uma reserva e para
+ *   outra reserva, ou que deixe a reserva nula na conta da suíte. Trigger, não FK
+ *   composta: a FK precisaria de um UNIQUE (id, reservation_id) total em accounts, que a
+ *   regra dos paranoid proíbe (tests/db-constraints.test.js), e com MATCH SIMPLE não
+ *   pegaria a reserva nula.
+ */
+async function applyPaymentAccountConstraints(sequelize) {
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'account_id')
+               AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'accounts') THEN
+                ALTER TABLE payments ALTER COLUMN reservation_id DROP NOT NULL;
+
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
+                ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
+                    CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
+
+                CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+            END IF;
+
+            -- Valor não negativo. O schema.sql já tinha (nome automático payments_amount_check);
+            -- o banco do sync não. NOT VALID: vale para o que entra daqui em diante, sem
+            -- travar o migrate por uma linha antiga (🟡-4 do qa-redteam da T-04.4).
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_amount_check') THEN
+                ALTER TABLE payments ADD CONSTRAINT payments_amount_check CHECK (amount >= 0) NOT VALID;
+            END IF;
+        END $$;
+
+        CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
+        DECLARE
+            conta accounts%ROWTYPE;
+        BEGIN
+            IF NEW.account_id IS NULL THEN
+                RETURN NEW;
+            END IF;
+            SELECT * INTO conta FROM accounts WHERE id = NEW.account_id;
+            IF conta.tenant_id IS DISTINCT FROM NEW.tenant_id
+               OR conta.reservation_id IS DISTINCT FROM NEW.reservation_id THEN
+                RAISE EXCEPTION 'payments_account_consistency: o pagamento precisa ter a reserva e o tenant da conta %', NEW.account_id
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            -- Consumo interno nunca é receita (RN-006)
+            IF conta.type = 'INTERNAL' THEN
+                RAISE EXCEPTION 'payments_account_consistency: conta INTERNAL não recebe pagamento (%)', NEW.account_id
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            RETURN NEW;
+        END $$ LANGUAGE plpgsql;
+    `);
+
+    // Sem lista de colunas ("UPDATE OF ..."): mesma lição do outbox — o sync({ alter })
+    // reemite ALTER TYPE e o PostgreSQL recusa em coluna citada num trigger.
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'account_id') THEN
+                DROP TRIGGER IF EXISTS payments_account_consistency ON payments;
+                CREATE TRIGGER payments_account_consistency
+                    BEFORE INSERT OR UPDATE ON payments
+                    FOR EACH ROW EXECUTE FUNCTION payments_account_consistency();
+            END IF;
+        END $$;
+    `);
+}
+
+/**
+ * Status do pagamento e trilha do estorno (T-06.13, CA-06.13.e).
+ *
+ * - `payments_status_allowlist`: a lista de app/utils/paymentEnums.js, com VOIDED. DROP + ADD
+ *   pelo mesmo motivo dos CHECKs de products: a allowlist muda. O CHECK de nome automático
+ *   que o schema.sql antigo criava (`payments_status_check`, sem VOIDED) sai — senão o banco
+ *   provisionado por ele recusaria todo estorno só em produção.
+ * - `payments_voided_has_trail`: VOIDED tem motivo não vazio, autor e horário.
+ * - `payments_trail_only_voided`: os três ficam nulos em todo pagamento não anulado.
+ * - `payments_paid_has_paid_at`: pagamento PAID tem `paid_at` (ressalva 🟡-1 do qa-redteam).
+ *
+ * NOT VALID: vale para o que entra daqui em diante, sem travar o migrate por uma linha antiga
+ * (mesmo critério do payments_amount_check). Nenhuma linha anterior tem as colunas novas.
+ */
+async function applyPaymentStatusConstraints(sequelize) {
+    const statuses = PAYMENT_STATUSES.map((s) => `'${s}'`).join(', ');
+    await sequelize.query(`
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'payments' AND column_name = 'voided_at') THEN
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_allowlist;
+                ALTER TABLE payments ADD  CONSTRAINT payments_status_allowlist
+                    CHECK (status IN (${statuses})) NOT VALID;
+
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_voided_has_trail;
+                ALTER TABLE payments ADD  CONSTRAINT payments_voided_has_trail
+                    CHECK (status <> 'VOIDED' OR (void_reason IS NOT NULL AND btrim(void_reason) <> ''
+                                                  AND voided_by IS NOT NULL AND voided_at IS NOT NULL)) NOT VALID;
+
+                ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_trail_only_voided;
+                ALTER TABLE payments ADD  CONSTRAINT payments_trail_only_voided
+                    CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL)) NOT VALID;
+            END IF;
+
+            -- PAID tem data (🟡-1 do qa-redteam da T-06.13): a receita conta pelo paid_at, e o
+            -- saldo das contas pelo status — um PAID sem data quitava conta sem ser receita.
+            -- NOT VALID: um banco antigo pode ter PAID sem data; a linha fica, só não entra nova
+            -- nem se apaga a data de quem tem. Conferir com
+            -- SELECT id FROM payments WHERE status = 'PAID' AND paid_at IS NULL.
+            ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_paid_has_paid_at;
+            ALTER TABLE payments ADD  CONSTRAINT payments_paid_has_paid_at
+                CHECK (status <> 'PAID' OR paid_at IS NOT NULL) NOT VALID;
+        END $$;
+    `);
 }
 
 /**
@@ -253,6 +397,16 @@ async function applyAccountConstraints(sequelize) {
                 ALTER TABLE accounts ADD  CONSTRAINT accounts_no_guest_table_internal
                     CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL);
 
+                -- D-39: a diária gravada é do fechamento; conta aberta calcula na hora.
+                -- Não exige o contrário (fechada => gravada): as contas fechadas antes da
+                -- T-04.3 só recebem o valor no fim do migrate (closeEndedStayAccounts).
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_closed_room_charges_only_closed;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_closed_room_charges_only_closed
+                    CHECK (status <> 'OPEN' OR closed_room_charges IS NULL);
+                ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_closed_room_charges_non_negative;
+                ALTER TABLE accounts ADD  CONSTRAINT accounts_closed_room_charges_non_negative
+                    CHECK (closed_room_charges IS NULL OR closed_room_charges >= 0);
+
                 CREATE INDEX IF NOT EXISTS idx_accounts_tenant_status ON accounts (tenant_id, status);
                 CREATE INDEX IF NOT EXISTS idx_accounts_reservation   ON accounts (reservation_id);
             END IF;
@@ -279,6 +433,28 @@ async function applyAccountConstraints(sequelize) {
                 ALTER TABLE account_items ADD  CONSTRAINT account_items_reason_required
                     CHECK (billable OR reason IS NOT NULL);
 
+                -- D-25: origem do item; só o consumo antigo migrado fica sem autor.
+                -- O DROP NOT NULL é explícito porque, com FK na coluna, o sync({ alter })
+                -- só refaz a FK e deixa o NOT NULL de um banco anterior à T-04.2.
+                ALTER TABLE account_items ALTER COLUMN created_by DROP NOT NULL;
+                -- D-26: ninguém consome depois de o lançamento ser gravado. Item anterior à
+                -- coluna recebeu o horário do migrate; volta para o created_at. A folga de 1
+                -- minuto ignora a diferença de relógio entre a aplicação e o banco, e é a
+                -- mesma que a rota antiga aceita no futuro — lançamento válido nunca é tocado.
+                -- Só origin ACCOUNT: o consumo antigo migrado guarda o horário que tinha,
+                -- inclusive agendado (qa-redteam 19/10, 🟡-1).
+                UPDATE account_items SET consumed_at = created_at
+                 WHERE origin = 'ACCOUNT' AND created_at IS NOT NULL
+                   AND consumed_at > created_at + interval '1 minute';
+
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_origin_allowlist;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_origin_allowlist
+                    CHECK (origin IN (${lista(ITEM_ORIGINS)}));
+
+                ALTER TABLE account_items DROP CONSTRAINT IF EXISTS account_items_created_by_required;
+                ALTER TABLE account_items ADD  CONSTRAINT account_items_created_by_required
+                    CHECK (created_by IS NOT NULL OR origin = 'LEGACY_CONSUMPTION');
+
                 -- RN-008 com a D-6: índice TOTAL, exceção deliberada à regra dos paranoid.
                 -- O item excluído continua barrando o reenvio do mesmo client_item_id —
                 -- se o índice fosse parcial, a fila offline do garçom recriaria o item
@@ -287,6 +463,12 @@ async function applyAccountConstraints(sequelize) {
                     ON account_items (tenant_id, client_item_id);
 
                 CREATE INDEX IF NOT EXISTS idx_account_items_account ON account_items (account_id);
+            END IF;
+
+            -- Tabela legada (T-04.2, D-27): a checagem do 503 (pendingLegacyConsumption)
+            -- roda a cada bill e lista; sem índice era seq scan (reauditoria N-3).
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'consumptions') THEN
+                CREATE INDEX IF NOT EXISTS idx_consumptions_reservation ON consumptions (reservation_id);
             END IF;
         END $$;
     `);
@@ -432,4 +614,119 @@ async function applyRoomOccupancy(sequelize, log = () => {}) {
                 daterange(check_in_date, check_out_date, '[)') WITH &&
             ) WHERE (blocks_room);
     `);
+}
+
+/**
+ * Outbox transacional por TRIGGER (T-01.4/H.1, decisão do Gabriel de 14/10) — contrato no catálogo
+ * de eventos v1.0 (docs/specs/anexos/SPEC-01-catalogo-eventos.md).
+ *
+ * Por que no banco, e não nos controllers: são mais de 20 caminhos de escrita nas 6 tabelas
+ * (CRUD, check-in/out, cancelamentos, webhook PIX, contrato, reserva pública, escrita em lote).
+ * Um que esquecesse de gravar o evento deixaria o analytics divergente sem erro nenhum — o mesmo
+ * risco que gerou a P-1. O trigger também cumpre a regra do §6 por construção: é AFTER, então a
+ * linha do outbox (e o número da sequência, o aggregate_version) vem DEPOIS da escrita de
+ * domínio, sob o lock da linha.
+ *
+ * Payload: só os campos do §4 — minimização (o hóspede leva só o nome). Dinheiro como texto
+ * ("1250.00"), data como "YYYY-MM-DD", instante como ISO-8601 UTC. Uma atualização que não muda
+ * nenhum campo do payload não gera evento (ex.: telefone do hóspede, preço da categoria).
+ */
+async function applyOutbox(sequelize) {
+    // Trigger apontando para uma tabela que não existe derruba TODA escrita nas 6 tabelas. O
+    // migrate tolera falha no sync — então confere antes e recusa com mensagem clara.
+    const [{ existe }] = await sequelize.query(
+        "SELECT to_regclass('public.outbox') IS NOT NULL AS existe",
+        { type: QueryTypes.SELECT }
+    );
+    if (!existe) {
+        throw new Error('tabela outbox não existe (o sync falhou antes de criá-la) — triggers do outbox NÃO criados');
+    }
+
+    await sequelize.query(`
+        CREATE OR REPLACE FUNCTION outbox_iso(ts timestamptz) RETURNS text AS $$
+            SELECT to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        $$ LANGUAGE sql IMMUTABLE;
+
+        -- Payload do §4 a partir de uma linha — o mesmo para o estado atual e o anterior.
+        CREATE OR REPLACE FUNCTION outbox_payload(agregado text, l jsonb) RETURNS jsonb AS $$
+            SELECT CASE agregado
+                WHEN 'tenant'        THEN jsonb_build_object('status', l->>'status')
+                WHEN 'room_category' THEN jsonb_build_object('name', l->>'name')
+                WHEN 'room'          THEN jsonb_build_object('category_id', l->>'category_id', 'number', l->>'number', 'status', l->>'status')
+                WHEN 'guest'         THEN jsonb_build_object('full_name', l->>'full_name')
+                WHEN 'reservation'   THEN jsonb_build_object(
+                    'guest_id', l->>'guest_id', 'room_id', l->>'room_id', 'status', l->>'status',
+                    'check_in_date', l->>'check_in_date', 'check_out_date', l->>'check_out_date',
+                    'total_amount', l->>'total_amount',
+                    'created_at', outbox_iso((l->>'created_at')::timestamptz))
+                WHEN 'payment'       THEN jsonb_build_object(
+                    'reservation_id', l->>'reservation_id', 'amount', l->>'amount', 'method', l->>'method',
+                    'status', l->>'status',
+                    'paid_at', CASE WHEN l->>'paid_at' IS NULL THEN NULL ELSE outbox_iso((l->>'paid_at')::timestamptz) END)
+            END
+        $$ LANGUAGE sql IMMUTABLE;
+
+        CREATE OR REPLACE FUNCTION outbox_grava_evento() RETURNS trigger AS $$
+        DECLARE
+            novo     jsonb := CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE to_jsonb(NEW) END;
+            velho    jsonb := CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE to_jsonb(OLD) END;
+            atual    jsonb := COALESCE(novo, velho);
+            agregado text;
+            fato     text;
+            dados    jsonb;
+            tenant   uuid;
+        BEGIN
+            agregado := CASE TG_TABLE_NAME
+                WHEN 'tenants'         THEN 'tenant'
+                WHEN 'room_categories' THEN 'room_category'
+                WHEN 'rooms'           THEN 'room'
+                WHEN 'guests'          THEN 'guest'
+                WHEN 'reservations'    THEN 'reservation'
+                WHEN 'payments'        THEN 'payment'
+            END;
+            dados := outbox_payload(agregado, atual);
+
+            IF TG_OP = 'INSERT' THEN
+                fato := 'created';
+            ELSIF TG_OP = 'DELETE' AND agregado = 'guest' THEN
+                -- Hóspede só sai fisicamente do banco por eliminação a pedido do titular (T-06.11):
+                -- §4.4 manda guest.erased com payload VAZIO — o nome não pode viajar de novo.
+                fato := 'erased';
+                dados := '{}'::jsonb;
+            ELSIF TG_OP = 'DELETE' THEN
+                fato := 'deleted';
+            ELSIF velho->>'deleted_at' IS NULL AND novo->>'deleted_at' IS NOT NULL THEN
+                fato := 'deleted';                                   -- exclusão lógica (paranoid)
+            ELSE
+                IF dados = outbox_payload(agregado, velho)
+                   AND (velho->>'deleted_at') IS NOT DISTINCT FROM (novo->>'deleted_at') THEN
+                    RETURN NULL;                                     -- nada que o analytics use mudou
+                END IF;
+
+                IF agregado IN ('reservation', 'payment') AND (velho->>'status') IS DISTINCT FROM (novo->>'status') THEN
+                    fato := 'status_changed';
+                    dados := dados || jsonb_build_object('previous_status', velho->>'status');
+                ELSE
+                    fato := 'updated';
+                END IF;
+            END IF;
+
+            tenant := CASE WHEN agregado = 'tenant' THEN (atual->>'id')::uuid ELSE (atual->>'tenant_id')::uuid END;
+
+            INSERT INTO outbox (event_id, type, version, tenant_id, aggregate_id, payload, occurred_at)
+            VALUES (gen_random_uuid(), agregado || '.' || fato, 1, tenant, (atual->>'id')::uuid, dados, now());
+            RETURN NULL;
+        END $$ LANGUAGE plpgsql;
+    `);
+
+    // Sem lista de colunas ("UPDATE OF ..."): o sync({ alter }) do migrate reemite ALTER TYPE a
+    // cada execução e o PostgreSQL recusa isso em coluna citada num trigger (lição da etapa F).
+    for (const tabela of ['tenants', 'room_categories', 'rooms', 'guests', 'reservations', 'payments']) {
+        await sequelize.query(`
+            DROP TRIGGER IF EXISTS ${tabela}_outbox ON ${tabela};
+            CREATE TRIGGER ${tabela}_outbox
+                AFTER INSERT OR UPDATE OR DELETE ON ${tabela}
+                FOR EACH ROW EXECUTE FUNCTION outbox_grava_evento();
+        `);
+    }
 }

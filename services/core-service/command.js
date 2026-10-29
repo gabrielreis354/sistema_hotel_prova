@@ -47,6 +47,24 @@ async function migrate() {
         }
 
         if (erroSync) throw erroSync;
+
+        // Dados da T-04.3: contas que ficaram abertas em estadias já encerradas. Antes da
+        // migração de consumo, que pode sair com erro (D-31) e não deve impedir esta.
+        const { default: closeEndedStayAccounts } = await import('./database/closeEndedStayAccounts.js');
+        await closeEndedStayAccounts(sequelize, { log: console.log });
+
+        // Dados da T-04.2: consumo antigo → itens de conta. Idempotente; num banco já
+        // migrado ou sem a tabela `consumptions`, não faz nada. Só depois do sync e das
+        // constraints, porque precisa das colunas e dos CHECKs novos de account_items.
+        const { default: migrateConsumptions } = await import('./database/migrateConsumptions.js');
+        try {
+            await migrateConsumptions(sequelize, { log: console.log });
+        } finally {
+            // De novo, depois da migração: as contas que ela cria já CLOSED (D-30) ganham a
+            // diária gravada (D-39) nesta mesma rodada (N-3). No finally: a migração que deixa
+            // reservas para trás (D-31) grava as válidas e só então lança (N-7).
+            await closeEndedStayAccounts(sequelize, { log: console.log });
+        }
     } catch (error) {
         console.error('❌ Erro ao executar migrations:', error.message);
         process.exit(1);
@@ -74,12 +92,15 @@ async function seed() {
         await sequelize.authenticate();
         console.log('✅ Conexão com o banco de dados estabelecida.');
 
-        // seed_hotels.sql é idempotente (ON CONFLICT DO NOTHING) e já traz seu próprio
+        // Cada arquivo é idempotente (ON CONFLICT / NOT EXISTS) e traz seu próprio
         // BEGIN/COMMIT — uma única chamada via o client pg por trás do Sequelize
         // (protocolo simples, sem bind de parâmetros) roda o arquivo inteiro.
-        const sqlPath = path.join(__dirname, 'seed', 'seed_hotels.sql');
-        const sql = await readFile(sqlPath, 'utf-8');
-        await sequelize.query(sql);
+        // A ordem importa: a comanda (T-04.7) usa hotéis, quartos e reservas do primeiro.
+        for (const file of ['seed_hotels.sql', 'seed_consumo.sql']) {
+            const sql = await readFile(path.join(__dirname, 'seed', file), 'utf-8');
+            await sequelize.query(sql);
+            console.log(`   ${file} aplicado.`);
+        }
 
         console.log('✅ Seed executado com sucesso.');
     } catch (error) {

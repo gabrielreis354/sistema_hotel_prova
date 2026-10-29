@@ -83,6 +83,13 @@ const AccountModel = sequelize.define(
         closed_at: {
             type: DataTypes.DATE,
             allowNull: true
+        },
+        // Diária apresentada no fechamento (D-39). Conta fechada não muda de valor depois
+        // (D-23): nem se o preço da categoria ou o total da reserva mudarem. Nula na conta
+        // aberta, que calcula na hora (CHECK em applyDbConstraints).
+        closed_room_charges: {
+            type: DataTypes.DECIMAL(12, 2),
+            allowNull: true
         }
     },
     {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import sequelize from '../database/connections/sequelize.js';
 import { truncateAll } from './helpers/db.js';
 
@@ -8,6 +8,17 @@ import { truncateAll } from './helpers/db.js';
 // permissivo que o de produção — e um INSERT inválido só quebraria lá.
 //
 // Estes testes provam que os dois caminhos de provisionamento convergem.
+async function createTenant(name) {
+    const [[tenant]] = await sequelize.query(`
+        INSERT INTO tenants (id, name, subdomain, status, created_at, updated_at)
+        VALUES (gen_random_uuid(), :name, 'db-check-' || floor(random() * 1000000000), 'ACTIVE', now(), now())
+        RETURNING id
+    `, { replacements: { name } });
+    return tenant.id;
+}
+
+const dropTenant = (id) => sequelize.query('DELETE FROM tenants WHERE id = :id', { replacements: { id } });
+
 describe('Constraints de banco no ambiente de teste', () => {
     it('products tem os CHECK de price e category', async () => {
         const [rows] = await sequelize.query(`
@@ -20,24 +31,33 @@ describe('Constraints de banco no ambiente de teste', () => {
         expect(nomes).toContain('products_category_allowlist');
     });
 
+    // Cada teste cria o próprio tenant: db-constraints é o 1º arquivo da suíte e o banco
+    // acabou de sair do sync({ force: true }). O `if (!tenant) return` de antes deixava
+    // estes dois testes verdes sem nenhuma asserção (repasse de 07/10).
     it('o banco rejeita category fora da allowlist, mesmo contornando a aplicação', async () => {
-        const [[tenant]] = await sequelize.query('SELECT id FROM tenants LIMIT 1');
-        if (!tenant) return; // sem tenant seedado neste ponto da suíte
-
-        await expect(sequelize.query(`
-            INSERT INTO products (id, tenant_id, name, price, category, active, created_at, updated_at)
-            VALUES (gen_random_uuid(), '${tenant.id}', 'Direto No Banco', 10, 'SOBREMESA', true, now(), now())
-        `)).rejects.toThrow();
+        expect.assertions(1);
+        const tenantId = await createTenant('Tenant Check Category');
+        try {
+            await expect(sequelize.query(`
+                INSERT INTO products (id, tenant_id, name, price, category, active, created_at, updated_at)
+                VALUES (gen_random_uuid(), '${tenantId}', 'Direto No Banco', 10, 'SOBREMESA', true, now(), now())
+            `)).rejects.toThrow(/products_category_allowlist/);
+        } finally {
+            await dropTenant(tenantId);
+        }
     });
 
     it('o banco rejeita price negativo, mesmo contornando a aplicação', async () => {
-        const [[tenant]] = await sequelize.query('SELECT id FROM tenants LIMIT 1');
-        if (!tenant) return;
-
-        await expect(sequelize.query(`
-            INSERT INTO products (id, tenant_id, name, price, category, active, created_at, updated_at)
-            VALUES (gen_random_uuid(), '${tenant.id}', 'Preco Negativo Direto', -5, 'OTHER', true, now(), now())
-        `)).rejects.toThrow();
+        expect.assertions(1);
+        const tenantId = await createTenant('Tenant Check Price');
+        try {
+            await expect(sequelize.query(`
+                INSERT INTO products (id, tenant_id, name, price, category, active, created_at, updated_at)
+                VALUES (gen_random_uuid(), '${tenantId}', 'Preco Negativo Direto', -5, 'OTHER', true, now(), now())
+            `)).rejects.toThrow(/products_price_non_negative/);
+        } finally {
+            await dropTenant(tenantId);
+        }
     });
 
     it('o índice único de products é parcial (não queima nome de produto deletado)', async () => {
@@ -208,6 +228,40 @@ describe('Constraints de banco no ambiente de teste', () => {
             expect(depois[0].indexdef).toContain('deleted_at IS NULL');
         });
 
+        // 🟢-1 do qa-redteam (26/10): o índice de payments vive só aqui e no schema.sql —
+        // não no model, para uma duplicata legada não parar o sync({ alter }) no meio.
+        // Dois cenários de banco antigo: sem índice nenhum, e com índice TOTAL.
+        it('payments.provider_charge_id: banco sem o índice recebe o parcial', async () => {
+            await sequelize.query('DROP INDEX IF EXISTS payments_provider_charge_id_unique');
+
+            const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+            await applyDbConstraints(sequelize);
+
+            const [depois] = await sequelize.query(`
+                SELECT indexdef FROM pg_indexes WHERE indexname = 'payments_provider_charge_id_unique'
+            `);
+            expect(depois).toHaveLength(1);
+            expect(depois[0].indexdef).toContain('deleted_at IS NULL');
+        });
+
+        it('payments.provider_charge_id: índice TOTAL legado vira parcial', async () => {
+            await sequelize.query(`
+                DROP INDEX IF EXISTS payments_provider_charge_id_unique;
+                CREATE UNIQUE INDEX payments_provider_charge_legado ON payments (provider_charge_id);
+            `);
+
+            const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+            await applyDbConstraints(sequelize);
+
+            const [indices] = await sequelize.query(`
+                SELECT indexname, indexdef FROM pg_indexes
+                WHERE tablename = 'payments' AND indexdef ILIKE '%(provider_charge_id)%'
+            `);
+            expect(indices).toHaveLength(1);
+            expect(indices[0].indexname).toBe('payments_provider_charge_id_unique');
+            expect(indices[0].indexdef).toContain('deleted_at IS NULL');
+        });
+
         it('ciclo criar → deletar → recriar funciona depois da cura (prova funcional)', async () => {
             // Cria o próprio tenant em vez de depender de um já existente: neste ponto
             // da suíte (db-constraints roda antes de qualquer registerAndLogin) pode não
@@ -272,5 +326,77 @@ describe('Constraints de banco no ambiente de teste', () => {
         expect(rows[0].def).toContain('WHERE');
         expect(rows[0].def).toContain('CANCELLED');
         expect(rows[0].def).toContain('deleted_at IS NULL');
+    });
+});
+
+// Repasse de 21/09: o webhook PIX (rota pública, sem tenant) acha o pagamento só pelo
+// provider_charge_id. Duas linhas vivas com o mesmo id deixariam o webhook confirmar
+// uma qualquer — inclusive de outro hotel. Índice único global e parcial (só vivas).
+describe('payments.provider_charge_id é único entre pagamentos vivos', () => {
+    let tenantId, reservationId;
+
+    const insertPayment = (chargeId, { deleted = false } = {}) => sequelize.query(`
+        INSERT INTO payments (id, tenant_id, reservation_id, amount, method, status, kind,
+                              provider, provider_charge_id, deleted_at, created_at, updated_at)
+        VALUES (gen_random_uuid(), :tenantId, :reservationId, 100, 'PIX', 'PENDING', 'FULL',
+                'fake', :chargeId, ${deleted ? 'now()' : 'NULL'}, now(), now())
+    `, { replacements: { tenantId, reservationId, chargeId } });
+
+    beforeAll(async () => {
+        tenantId = await createTenant('Tenant Charge Id');
+        const [[category]] = await sequelize.query(`
+            INSERT INTO room_categories (id, tenant_id, name, price_per_night, capacity, created_at, updated_at)
+            VALUES (gen_random_uuid(), :tenantId, 'Standard', 100, 2, now(), now()) RETURNING id
+        `, { replacements: { tenantId } });
+        const [[room]] = await sequelize.query(`
+            INSERT INTO rooms (id, tenant_id, category_id, number, status, created_at, updated_at)
+            VALUES (gen_random_uuid(), :tenantId, :categoryId, '101', 'AVAILABLE', now(), now()) RETURNING id
+        `, { replacements: { tenantId, categoryId: category.id } });
+        const [[guest]] = await sequelize.query(`
+            INSERT INTO guests (id, tenant_id, full_name, cpf, created_at, updated_at)
+            VALUES (gen_random_uuid(), :tenantId, 'Hóspede PIX', '52998224725', now(), now()) RETURNING id
+        `, { replacements: { tenantId } });
+        const [[reservation]] = await sequelize.query(`
+            INSERT INTO reservations (id, tenant_id, guest_id, room_id, check_in_date, check_out_date,
+                                      status, total_amount, created_at, updated_at)
+            VALUES (gen_random_uuid(), :tenantId, :guestId, :roomId, '2027-01-10', '2027-01-12',
+                    'PENDING', 200, now(), now()) RETURNING id
+        `, { replacements: { tenantId, guestId: guest.id, roomId: room.id } });
+        reservationId = reservation.id;
+    });
+
+    afterAll(async () => {
+        await sequelize.query('DELETE FROM payments WHERE tenant_id = :tenantId', { replacements: { tenantId } });
+        await dropTenant(tenantId);
+    });
+
+    it('o índice existe, é único e parcial', async () => {
+        const [rows] = await sequelize.query(`
+            SELECT indexdef FROM pg_indexes WHERE indexname = 'payments_provider_charge_id_unique'
+        `);
+        expect(rows).toHaveLength(1);
+        expect(rows[0].indexdef).toMatch(/UNIQUE INDEX .* \(provider_charge_id\) WHERE \(deleted_at IS NULL\)/);
+    });
+
+    it('o banco recusa dois pagamentos vivos com o mesmo provider_charge_id', async () => {
+        expect.assertions(1);
+        await insertPayment('charge-duplicada');
+        // O Sequelize embrulha o erro ("Validation error"); o nome do índice vem no original.
+        await expect(insertPayment('charge-duplicada'))
+            .rejects.toMatchObject({ original: { constraint: 'payments_provider_charge_id_unique' } });
+    });
+
+    it('pagamento manual (provider_charge_id nulo) não disputa unicidade', async () => {
+        await insertPayment(null);
+        await insertPayment(null);
+        const [[{ n }]] = await sequelize.query(
+            'SELECT COUNT(*)::int AS n FROM payments WHERE tenant_id = :tenantId AND provider_charge_id IS NULL',
+            { replacements: { tenantId } });
+        expect(n).toBe(2);
+    });
+
+    it('pagamento excluído não queima o provider_charge_id', async () => {
+        await insertPayment('charge-excluida', { deleted: true });
+        await expect(insertPayment('charge-excluida')).resolves.toBeDefined();
     });
 });

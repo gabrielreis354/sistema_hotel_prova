@@ -1,5 +1,6 @@
 import FakePixProvider from './FakePixProvider.js';
 import MercadoPagoPixProvider from './MercadoPagoPixProvider.js';
+import AsaasPixProvider from './AsaasPixProvider.js';
 
 /**
  * Factory do provider PIX. Seleciona a implementação pelo env PIX_PROVIDER.
@@ -12,7 +13,8 @@ import MercadoPagoPixProvider from './MercadoPagoPixProvider.js';
  */
 const PROVIDERS = {
     fake: FakePixProvider,
-    mercadopago: MercadoPagoPixProvider
+    mercadopago: MercadoPagoPixProvider,
+    asaas: AsaasPixProvider
 };
 
 let instance = null;

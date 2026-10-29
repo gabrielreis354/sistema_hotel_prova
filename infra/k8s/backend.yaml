@@ -78,6 +78,17 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: MINIO_PRESIGN_PASSWORD
+            # Publicador do outbox (T-01.4): credencial do core, que só publica na exchange do core.
+            - name: RABBITMQ_CORE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_CORE_USER
+            - name: RABBITMQ_CORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_CORE_PASSWORD
           readinessProbe:
             httpGet:
               path: /health

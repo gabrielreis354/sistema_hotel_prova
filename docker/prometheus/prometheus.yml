@@ -14,3 +14,11 @@ scrape_configs:
       credentials_file: /prometheus/metrics_token
     static_configs:
       - targets: ['backend:3000']
+
+  # RabbitMQ (T-01.4/H.1, CA-01.4.f): plugin rabbitmq_prometheus, já ativo na imagem. O
+  # /metrics/per-object traz a profundidade de CADA fila — inclusive a de mensagens mortas
+  # (analytics.core-events.dlq), que o painel do Grafana precisa mostrar (catálogo §5.3).
+  - job_name: rabbitmq
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ['rabbitmq:15692']

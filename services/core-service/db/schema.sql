@@ -191,7 +191,8 @@ CREATE TABLE IF NOT EXISTS reservation_rooms (
 CREATE TABLE IF NOT EXISTS payments (
   id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id          UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  reservation_id     UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+  -- Reserva OU conta (T-04.4): account_id entra depois de accounts, na seção 9d
+  reservation_id     UUID REFERENCES reservations(id) ON DELETE CASCADE,
   amount             NUMERIC(12, 2) NOT NULL,
   method             TEXT NOT NULL,
   status             TEXT NOT NULL DEFAULT 'PAID',
@@ -201,17 +202,50 @@ CREATE TABLE IF NOT EXISTS payments (
   pix_qr_code        TEXT,
   pix_expiration     TIMESTAMPTZ,
   paid_at            TIMESTAMPTZ,
+  -- Trilha do estorno (T-06.13): nulos em todo pagamento não anulado
+  void_reason        TEXT,
+  voided_by          UUID REFERENCES users(id),
+  voided_at          TIMESTAMPTZ,
   deleted_at         TIMESTAMPTZ,
   created_at         TIMESTAMPTZ DEFAULT now(),
   updated_at         TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0),
-  CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'FAILED')),
+  -- Mesma lista de app/utils/paymentEnums.js; mesmos nomes de applyPaymentStatusConstraints
+  CONSTRAINT payments_status_allowlist CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'FAILED', 'VOIDED')),
+  CONSTRAINT payments_voided_has_trail CHECK (status <> 'VOIDED' OR (void_reason IS NOT NULL AND btrim(void_reason) <> ''
+                                              AND voided_by IS NOT NULL AND voided_at IS NOT NULL)),
+  CONSTRAINT payments_trail_only_voided CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL)),
+  -- PAID tem data: a receita conta pelo paid_at e o saldo das contas pelo status
+  CONSTRAINT payments_paid_has_paid_at CHECK (status <> 'PAID' OR paid_at IS NOT NULL),
   CHECK (kind IN ('FULL', 'DEPOSIT', 'BALANCE'))
 );
+-- T-06.13: banco criado antes do estorno. O CHECK antigo (nome automático, sem VOIDED) sai.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_reason TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voided_by   UUID REFERENCES users(id);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voided_at   TIMESTAMPTZ;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_allowlist;
+ALTER TABLE payments ADD  CONSTRAINT payments_status_allowlist
+  CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'FAILED', 'VOIDED'));
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_voided_has_trail;
+ALTER TABLE payments ADD  CONSTRAINT payments_voided_has_trail
+  CHECK (status <> 'VOIDED' OR (void_reason IS NOT NULL AND btrim(void_reason) <> ''
+                                AND voided_by IS NOT NULL AND voided_at IS NOT NULL));
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_trail_only_voided;
+ALTER TABLE payments ADD  CONSTRAINT payments_trail_only_voided
+  CHECK (status = 'VOIDED' OR (void_reason IS NULL AND voided_by IS NULL AND voided_at IS NULL));
+-- NOT VALID: banco antigo pode ter PAID sem data; a linha fica, só não entra nova
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_paid_has_paid_at;
+ALTER TABLE payments ADD  CONSTRAINT payments_paid_has_paid_at
+  CHECK (status <> 'PAID' OR paid_at IS NOT NULL) NOT VALID;
 
 -- =============================================================================
 -- 9b) Consumos extras (frigobar, restaurante, bar, spa) lançados na reserva
--- Model: app/Models/ConsumptionModel.js  |  tableName: 'consumptions'
+-- LEGADO (T-04.2): o model saiu do código e o consumo vive em account_items. A
+-- tabela fica, sem escrita, como trilha para auditoria e rollback; o
+-- `node command.js migrate` copia o conteúdo dela (database/migrateConsumptions.js).
+-- O DROP é pendência registrada no anexo de decisões da SPEC-04.
+-- Era: app/Models/ConsumptionModel.js  |  tableName: 'consumptions'
 -- Compõem o fechamento de conta: (diária + consumos) − pagamentos.
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS consumptions (
@@ -227,6 +261,8 @@ CREATE TABLE IF NOT EXISTS consumptions (
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CHECK (amount >= 0)
 );
+-- Checagem do 503 durante a migração (T-04.2) roda a cada bill.
+CREATE INDEX IF NOT EXISTS idx_consumptions_reservation ON consumptions (reservation_id);
 
 -- =============================================================================
 -- 9b) Catálogo de produtos (cardápio) — base do módulo de consumo
@@ -273,6 +309,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   charges_lodging BOOLEAN NOT NULL DEFAULT true,
   opened_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   closed_at       TIMESTAMPTZ,
+  closed_room_charges NUMERIC(12, 2),
   deleted_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ DEFAULT now(),
   updated_at      TIMESTAMPTZ DEFAULT now(),
@@ -283,8 +320,50 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- D-5: vínculos exigidos por tipo
   CONSTRAINT accounts_room_requires_stay CHECK (type <> 'ROOM' OR (reservation_id IS NOT NULL AND room_id IS NOT NULL AND guest_id IS NOT NULL)),
   CONSTRAINT accounts_reservation_only_room CHECK (type = 'ROOM' OR reservation_id IS NULL),
-  CONSTRAINT accounts_no_guest_table_internal CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL)
+  CONSTRAINT accounts_no_guest_table_internal CHECK (type NOT IN ('TABLE', 'INTERNAL') OR guest_id IS NULL),
+  -- D-39: diária gravada no fechamento; conta aberta calcula na hora
+  CONSTRAINT accounts_closed_room_charges_only_closed CHECK (status <> 'OPEN' OR closed_room_charges IS NULL),
+  CONSTRAINT accounts_closed_room_charges_non_negative CHECK (closed_room_charges IS NULL OR closed_room_charges >= 0)
 );
+-- T-04.3: banco criado antes desta coluna
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS closed_room_charges NUMERIC(12, 2);
+
+-- T-04.4: pagamento da conta. Mesmos nomes de applyPaymentAccountConstraints.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES accounts(id) ON DELETE RESTRICT;
+ALTER TABLE payments ALTER COLUMN reservation_id DROP NOT NULL;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_reservation_or_account;
+ALTER TABLE payments ADD  CONSTRAINT payments_reservation_or_account
+  CHECK (reservation_id IS NOT NULL OR account_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_payments_account ON payments (account_id);
+-- Webhook PIX acha o pagamento só pelo id da cobrança do PSP: único entre os vivos,
+-- global (sem tenant_id). Mesmo nome de applyDbConstraints (indicesParciais).
+CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_charge_id_unique
+  ON payments (provider_charge_id)
+  WHERE deleted_at IS NULL;
+-- Pagamento com conta tem a reserva e o tenant da conta, e nunca é de conta INTERNAL
+CREATE OR REPLACE FUNCTION payments_account_consistency() RETURNS trigger AS $$
+DECLARE
+  conta accounts%ROWTYPE;
+BEGIN
+  IF NEW.account_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+  SELECT * INTO conta FROM accounts WHERE id = NEW.account_id;
+  IF conta.tenant_id IS DISTINCT FROM NEW.tenant_id
+     OR conta.reservation_id IS DISTINCT FROM NEW.reservation_id THEN
+    RAISE EXCEPTION 'payments_account_consistency: o pagamento precisa ter a reserva e o tenant da conta %', NEW.account_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF conta.type = 'INTERNAL' THEN
+    RAISE EXCEPTION 'payments_account_consistency: conta INTERNAL não recebe pagamento (%)', NEW.account_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS payments_account_consistency ON payments;
+CREATE TRIGGER payments_account_consistency
+  BEFORE INSERT OR UPDATE ON payments
+  FOR EACH ROW EXECUTE FUNCTION payments_account_consistency();
 
 -- RN-005 (D-3): uma conta cobrando diária por quarto DA ESTADIA. Parcial: conta
 -- excluída não disputa; a próxima estadia no mesmo quarto cobra a sua.
@@ -304,11 +383,17 @@ CREATE TABLE IF NOT EXISTS account_items (
   billable       BOOLEAN NOT NULL DEFAULT true,
   reason         TEXT,
   client_item_id UUID,
-  created_by     UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  -- Nulo só no consumo antigo migrado (D-25): autoria desconhecida não é inventada
+  created_by     UUID REFERENCES users(id) ON DELETE RESTRICT,
   deleted_by     UUID REFERENCES users(id) ON DELETE RESTRICT,
+  origin         TEXT NOT NULL DEFAULT 'ACCOUNT',
+  -- Quando o hóspede consumiu (D-26); created_at é quando o servidor gravou
+  consumed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT account_items_origin_allowlist        CHECK (origin IN ('ACCOUNT', 'LEGACY_CONSUMPTION')),
+  CONSTRAINT account_items_created_by_required     CHECK (created_by IS NOT NULL OR origin = 'LEGACY_CONSUMPTION'),
   CONSTRAINT account_items_quantity_positive       CHECK (quantity > 0),
   CONSTRAINT account_items_unit_price_non_negative CHECK (unit_price >= 0),
   -- CA-04.1.c: total sempre quantity × unit_price (implica total >= 0)
@@ -317,6 +402,12 @@ CREATE TABLE IF NOT EXISTS account_items (
   -- RN-007: cortesia exige motivo
   CONSTRAINT account_items_reason_required         CHECK (billable OR reason IS NOT NULL)
 );
+
+-- T-04.2: banco provisionado antes das colunas novas. As constraints delas chegam
+-- pelo `node command.js migrate` (applyAccountConstraints).
+ALTER TABLE account_items ALTER COLUMN created_by DROP NOT NULL;
+ALTER TABLE account_items ADD COLUMN IF NOT EXISTS origin      TEXT NOT NULL DEFAULT 'ACCOUNT';
+ALTER TABLE account_items ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 -- RN-008 (D-6): índice TOTAL de propósito — exceção à regra dos paranoid. O item
 -- excluído continua barrando o reenvio do mesmo client_item_id da fila offline.

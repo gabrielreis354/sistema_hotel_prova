@@ -1,6 +1,6 @@
-import { DataTypes } from 'sequelize';
+import { DataTypes, literal } from 'sequelize';
 import sequelize from '../../database/connections/sequelize.js';
-import { ITEM_REASONS } from '../utils/accountEnums.js';
+import { ITEM_REASONS, ITEM_ORIGINS } from '../utils/accountEnums.js';
 
 // Linha de consumo lançada numa conta (MER 4.12). Substitui `consumptions` na T-04.2.
 // Os CHECKs financeiros (total = quantity × unit_price, motivo obrigatório na
@@ -81,12 +81,33 @@ const AccountItemModel = sequelize.define(
             type: DataTypes.UUID,
             allowNull: true
         },
-        // Quem lançou — trilha de auditoria
+        // Quem lançou — trilha de auditoria. Nulo só no consumo antigo migrado, que não
+        // registrava autor (D-25); o CHECK account_items_created_by_required garante.
         created_by: {
             type: DataTypes.UUID,
-            allowNull: false,
+            allowNull: true,
             references: { model: 'users', key: 'id' },
             onDelete: 'RESTRICT'
+        },
+        origin: {
+            type: DataTypes.TEXT,
+            allowNull: false,
+            defaultValue: 'ACCOUNT',
+            validate: {
+                isIn: {
+                    args: [ITEM_ORIGINS],
+                    msg: `origin deve ser um de: ${ITEM_ORIGINS.join(', ')}`
+                }
+            }
+        },
+        // Quando o hóspede consumiu, que pode ser antes do lançamento chegar ao servidor
+        // (fila offline do garçom) — created_at é quando o servidor gravou (D-26).
+        // literal('now()') e não DataTypes.NOW: só o literal vira DEFAULT no banco, e é
+        // ele que deixa o sync adicionar a coluna NOT NULL numa tabela que já tem linhas.
+        consumed_at: {
+            type: DataTypes.DATE,
+            allowNull: false,
+            defaultValue: literal('now()')
         },
         // Quem excluiu o lançamento (D-7) — trilha de auditoria financeira, como em
         // consumptions; a T-04.2 migra o deleted_by dos consumos para cá.

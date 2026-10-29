@@ -77,6 +77,13 @@ data:
             action: keep
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
+
+      # RabbitMQ (T-01.4/H.1, CA-01.4.f): plugin rabbitmq_prometheus, já ativo na imagem. O
+      # /metrics/per-object traz a profundidade de CADA fila — inclusive a de mensagens mortas.
+      - job_name: rabbitmq
+        metrics_path: /metrics/per-object
+        static_configs:
+          - targets: ['rabbitmq:15692']
 ---
 apiVersion: apps/v1
 kind: Deployment
