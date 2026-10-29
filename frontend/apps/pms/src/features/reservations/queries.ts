@@ -19,15 +19,22 @@ export const reservationKeys = {
   available: (checkIn: string, checkOut: string) => ['rooms', 'available', checkIn, checkOut] as const,
 };
 
-export function useReservationList(params: ReservationListParams, enabled = true) {
-  return useQuery({
+/**
+ * Opções da lista. A regra "período inválido (de > até) não vai ao servidor" mora aqui, e não
+ * no chamador, para não poder ser esquecida — e o teste a prende (reservationQueries.test.ts).
+ */
+export function reservationListOptions(params: ReservationListParams) {
+  return {
     queryKey: reservationKeys.list(params),
     queryFn: () => listReservations(params),
-    // Período inválido (de > até) não vai ao servidor.
-    enabled,
+    enabled: params.from <= params.to,
     // Ao trocar de página a tabela anterior fica na tela até a próxima chegar — sem piscar vazio.
     placeholderData: keepPreviousData,
-  });
+  };
+}
+
+export function useReservationList(params: ReservationListParams) {
+  return useQuery(reservationListOptions(params));
 }
 
 export function useReservation(id: string | undefined) {

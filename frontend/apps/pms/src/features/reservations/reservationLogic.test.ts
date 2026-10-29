@@ -242,6 +242,9 @@ describe('maskCpf — comprovante não imprime o CPF inteiro', () => {
 
   it('omite o que não é CPF de 11 dígitos', () => {
     expect(maskCpf('1234')).toBeNull();
+    // Um dígito a menos ou a mais não é CPF: omitir, nunca imprimir uma fatia errada.
+    expect(maskCpf('1234567890')).toBeNull();
+    expect(maskCpf('123456789001')).toBeNull();
     expect(maskCpf('')).toBeNull();
     expect(maskCpf(null)).toBeNull();
     expect(maskCpf(undefined)).toBeNull();

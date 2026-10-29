@@ -24,7 +24,7 @@ export function ReservationsListPage() {
   const page = Math.max(1, Number.parseInt(params.get('pagina') ?? '1', 10) || 1);
   const rangeOk = from <= to;
 
-  const query = useReservationList({ from, to, page, limit: PAGE_SIZE }, rangeOk);
+  const query = useReservationList({ from, to, page, limit: PAGE_SIZE });
   const result = rangeOk ? query.data : undefined;
   const pages = result ? pageCount(result.total, result.limit) : 1;
 
