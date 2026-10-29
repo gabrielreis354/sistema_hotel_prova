@@ -238,7 +238,7 @@ kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
 Com o cluster rodando, crie todas as tabelas no banco:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 Saída esperada:
@@ -799,7 +799,7 @@ As consultas estão organizadas em `queries/`:
 O schema completo está em `services/core-service/db/schema.sql`. Para criar ou atualizar todas as tabelas:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 O comando usa `sequelize.sync({ alter: true })` — cria tabelas inexistentes e adiciona colunas novas sem derrubar dados existentes.
@@ -1144,7 +1144,7 @@ Causas comuns:
 As migrations não foram executadas após subir o cluster:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 ### Backend não consegue conectar ao PostgreSQL
@@ -1187,7 +1187,7 @@ Se precisar recriar tudo do zero:
 kubectl delete -k infra/k8s/
 kubectl apply -k infra/k8s/
 kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 ---
