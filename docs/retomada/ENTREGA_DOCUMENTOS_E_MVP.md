@@ -55,7 +55,7 @@ Antes de cada PR, conferir o documento contra:
 | Ordem | Branch | Meta | Data | Situação | Próximo passo |
 |---|---|---|---|---|---|
 | 1 | `fix/tenant-fk-validation` @ `02ab6f4` | segurança | 29/10 | develop integrada, 1054 testes verdes, linhas 87% | **qa-redteam em curso** → autorização → merge |
-| 2 | `feature/analytics-service` @ `f09af9d` | M7-a | 29/10 | develop integrada sem conflito; analytics com 84 testes (95% de linhas), core com 1006; catálogo 1.1.1 com `payment.deleted` corrigido | Veredito da reauditoria → merge. **Decisão L-1 aberta:** o consumo interno (T-04.7) não tem evento no catálogo |
+| 2 | `feature/analytics-service` @ `f09af9d` | M7-a | 29/10 | develop integrada sem conflito; analytics com 84 testes (95% de linhas), core com 1006; catálogo 1.1.1 com `payment.deleted` corrigido | Reauditoria em `8c74407`: APROVADO COM RESSALVAS. A correção do 🟡-A (perda silenciosa acima de 20 entregas na fila quorum) está em curso → depois, autorização e merge. **Decisão L-1 aberta:** o consumo interno (T-04.7) não tem evento no catálogo |
 | 3 | `feature/t051-quartos-categorias` @ `6501a9a` | M1 | 30/10 | develop integrada (989 testes, frontend 111/111, build ok); rotas isoladas em `routes/roomsRoutes.tsx` | Depois do merge da 1: segundo merge da develop + `pnpm gen:api` (passo a passo na retomada da branch) |
 | 4 | `feature/t052-reservas` | M2, M5-a | 30/10 | Fechando as ressalvas e recebendo a develop | Depois da 3: merge da develop + `pnpm gen:api` |
 
