@@ -1,35 +1,36 @@
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Button, Card, Field, Input, Spinner } from '@hotel/ui';
-import { filterGuests, useCreateGuest, useGuests, type Guest } from '../../guests/index.js';
+import { MIN_SEARCH_TERM, searchTermOf, useCreateGuest, useGuestSearch, type Guest } from '../../guests/index.js';
 import { ApiError } from '../../../lib/http.js';
 import { guestDraftFromTerm, type GuestDraft } from '../reservationLogic.js';
 
-const MAX_MATCHES = 6;
-// Três caracteres: com menos, quase todo nome casa e a consulta não filtra nada.
-const MIN_TERM = 3;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Espera o recepcionista parar de digitar antes de consultar: uma requisição por termo, não por tecla.
+const SEARCH_DEBOUNCE_MS = 250;
 
 /**
  * Escolha do hóspede da reserva (CA-05.2.l): primeiro procura na base por nome, CPF, e-mail ou
  * telefone; se não achar, cadastra ali mesmo — o período e o quarto já escolhidos na página
  * não se perdem, porque este componente não navega.
  *
- * Limite conhecido: o backend não tem busca de hóspede (`GET /guests` devolve o tenant
- * inteiro). A busca é a mesma da tela de hóspedes, em memória, e troca por `?q=` na T-05.12.
+ * A busca é do servidor (`GET /guests?q=&limit=`): o navegador recebe no máximo os poucos
+ * resultados que mostra, nunca o cadastro do hotel (princípio 7, LGPD art. 6º, III).
  */
 export function GuestPicker({ selected, onSelect }: { selected: Guest | null; onSelect: (g: Guest | null) => void }) {
   const [term, setTerm] = useState('');
+  const [debounced, setDebounced] = useState('');
   const [creating, setCreating] = useState(false);
-  const searched = term.trim().length >= MIN_TERM;
-  // Paliativo do princípio 7 (qa-redteam 🟡-4): abrir a tela não baixa o cadastro — a consulta só
-  // parte depois que o recepcionista digita. A solução definitiva é  (T-05.12).
-  const guests = useGuests({ enabled: searched });
   const resultsId = useId();
 
-  const matches = useMemo(
-    () => (term.trim().length >= MIN_TERM ? filterGuests(guests.data ?? [], term).slice(0, MAX_MATCHES) : []),
-    [guests.data, term],
-  );
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(term), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [term]);
+
+  const searched = searchTermOf(term) !== null;
+  const guests = useGuestSearch(debounced);
+  // Resultado de um termo que o usuário já apagou não aparece.
+  const matches = searched ? (guests.data ?? []) : [];
 
   if (selected) {
     return (
@@ -60,8 +61,6 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
     );
   }
 
-
-
   return (
     <div className="space-y-3">
       <Field label="Buscar hóspede">
@@ -76,16 +75,17 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
       </Field>
 
       <div id={resultsId} aria-live="polite">
-        {guests.isLoading && <Spinner label="Carregando hóspedes…" />}
-        {guests.isError && (
+        {searched && guests.isLoading && <Spinner label="Procurando hóspedes…" />}
+        {/* Erro só enquanto há termo: apagar a busca limpa a mensagem (🟢-3 da delta). */}
+        {searched && guests.isError && (
           <p role="alert" className="text-sm text-status-maintenance">
             Não foi possível consultar os hóspedes. Você ainda pode cadastrar um novo.
           </p>
         )}
         {!searched && (
-          <p className="text-sm text-gray-600">Digite ao menos {MIN_TERM} caracteres para procurar na base.</p>
+          <p className="text-sm text-gray-600">Digite ao menos {MIN_SEARCH_TERM} caracteres para procurar na base.</p>
         )}
-        {searched && guests.data && matches.length === 0 && (
+        {searched && !guests.isFetching && guests.data && matches.length === 0 && (
           <p className="text-sm text-gray-600">Nenhum hóspede encontrado para “{term.trim()}”.</p>
         )}
       </div>

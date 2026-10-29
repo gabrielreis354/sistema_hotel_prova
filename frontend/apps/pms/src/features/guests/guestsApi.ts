@@ -18,6 +18,16 @@ export async function listGuests(): Promise<Guest[]> {
   return data ?? [];
 }
 
+/**
+ * Busca no servidor (`GET /guests?q=&limit=`): nome, CPF, e-mail ou telefone, sempre no hotel do
+ * token, no máximo `limit` resultados. Nunca baixa o cadastro para filtrar no navegador.
+ */
+export async function searchGuests(q: string, limit: number): Promise<Guest[]> {
+  const { data, error, response } = await api.GET('/guests', { params: { query: { q, limit } } });
+  if (error || !response.ok) throw new ApiError('Falha ao buscar hóspedes.', response.status);
+  return data ?? [];
+}
+
 export async function getGuest(id: string): Promise<Guest> {
   const { data, error, response } = await api.GET('/guests/{id}', {
     params: { path: { id } },
