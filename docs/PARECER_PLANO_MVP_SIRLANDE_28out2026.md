@@ -61,7 +61,7 @@ Não é falha de ninguém. As quatro foram feitas em paralelo, a partir da `deve
 | Doc 08: reescrita com a grade real | Weslley | 3 |
 | Docs 05 e 07, versão final: o 05 tem a v1.1 sugerida na `develop`; o 07 está no PR #97, aberto e sem commit novo desde 21/10 | Gabriel | 2 |
 
-O último commit do Weslley no repositório é de 17/10.
+**Atualização (28/10, noite):** o Weslley entregou hoje o `migrate` antes e depois do rollout (repasse de 19/10, na `develop`) e o painel do RabbitMQ no Grafana (CA-01.4.f, na branch `feature/grafana-rabbitmq`, aguardando qa-redteam). O relatório dele diz que a T-05.6 espera a decisão do CA-05.6.a.
 
 ---
 
@@ -122,13 +122,13 @@ O último commit do Weslley no repositório é de 17/10.
 | Risco | Situação em 28/10 | Mitigação |
 |---|---|---|
 | Integração atrasada (4 branches fora) | **Novo, alto** | Ordem da §5. Merge diário a partir daqui |
-| Frente do Weslley sem atividade visível desde 17/10 (T-05.6, T-01.5, Doc 08, compose) | **Novo, alto** | Confirmar no ponto de controle. Se a T-05.6 não tiver branch até 04/11, aplicar a mitigação do plano: a H.3 entrega 2 ou 3 indicadores e a tela fica com quem tiver capacidade |
+| T-05.6, T-01.5, Doc 08 e compose ainda sem branch | **Médio** (era alto; o Weslley voltou a entregar em 28/10) | Fechar o CA-05.6.a antes de 03/11, para a T-05.6 começar. Se ela não tiver branch até 04/11, aplicar a mitigação do plano: a H.3 entrega 2 ou 3 indicadores |
 | Registro de pagamento (CA-05.6.a) sem branch | **Novo, alto** | O Sirlande assume o CA-05.6.a (M5-b), se o Weslley concordar |
 | Passo 6 sem tela para o hóspede | **Novo, médio** | Decisão no ponto de controle (§7) |
 | Gabriel concentra H.3, T-05.3, integração, Docs 05 a 07 e o congelamento | **Aumentou** | Eu assumo M5-b, M5-c e o seed. O Gabriel fica no caminho crítico |
 | Comanda depender do Sirlande sozinho | **Resolvido** | — |
 | Requisito offline sem desenho | **Resolvido** | Fila offline da T-05.5 |
-| Chave de produção do Asaas | **Registrada como excluída** (16/10) | O Weslley confirma no ponto de controle que a revogação foi feita no painel do Asaas |
+| Chave de produção do Asaas | **Resolvido** | Excluída no painel do Asaas em 16/10, e a de sandbox foi trocada (relatório do Weslley de 15/10) |
 | Feriado de 02/11 (Finados) na semana 2 | Novo, baixo | Ponto de controle da semana 2 em 03/11 |
 
 ---
