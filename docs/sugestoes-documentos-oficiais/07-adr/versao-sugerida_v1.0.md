@@ -78,7 +78,7 @@ A estrutura que o Express não impõe é definida por convenção do projeto (`d
 |-------------|------|---------|
 | **Node.js + Express — escolhida** | Conhecido pela equipe; mesma linguagem do frontend; leve em contêiner; I/O assíncrono adequado à carga | Estrutura mínima — a organização depende de convenção da equipe; sem tipagem no backend |
 | Node.js + NestJS | Tipagem com TypeScript, módulos e injeção de dependência prontos | Curva de aprendizado e mais código cerimonial para uma API de porte médio; o projeto já tinha base em Express quando a arquitetura foi revista |
-| Java + Spring Boot | Robusto e maduro, forte em ambiente corporativo | Verboso; *startup* e memória altos em contêiner — pesa num nó de 1 GiB (ADR-004) |
+| Java + Spring Boot | Robusto e maduro, forte em ambiente corporativo | Verboso; *startup* e memória altos em contêiner — pesa num nó de 2 GiB que divide a memória com o k3s e outros oito pods (ADR-004) |
 | Go | Alta performance, binários leves | Ecossistema web menor e linguagem nova para a equipe |
 | Python + FastAPI | Produtividade e boa documentação automática | Linguagem diferente do frontend; desempenho inferior em alta concorrência |
 
@@ -86,7 +86,7 @@ A estrutura que o Express não impõe é definida por convenção do projeto (`d
 
 - **Positivas:**
   - Uma linguagem só em todo o sistema, do backend ao frontend.
-  - Imagem pequena e *startup* rápido, compatíveis com os nós de 1 GiB da ADR-004.
+  - Imagem pequena e *startup* rápido, compatíveis com o nó único de 2 GiB da ADR-004, onde cada serviço reserva 128 Mi.
   - Transações explícitas no Sequelize nas operações que atravessam tabelas.
 - **Negativas:**
   - Sem tipagem estática no backend: erros de forma de dado aparecem em teste, não em compilação.
@@ -253,56 +253,63 @@ A propagação de identidade entre serviços é tratada em decisão própria, a 
 
 ### ADR-004: Provedor de Nuvem e Serviços
 
-**Data:** 16/09/2026 — revista em 10/10/2026
+**Data:** 16/09/2026 — revista em 10/10/2026 e em 24/10/2026
 **Status:** Aceita
-**Autores:** Weslley Lucas — revisão de 10/10 com a equipe
+**Autores:** Weslley Lucas — revisão de 10/10 com a equipe; revisão de 24/10 por Gabriel Reis Cunha
 
 #### Contexto
 
-O Termo de Aceite exige deploy em nuvem pública com infraestrutura provisionada por Terraform. O projeto tem uma regra absoluta: **permanecer sempre no free-tier**, sem exceção por valor, e destruir os recursos ao fim de cada uso. A arquitetura da ADR-003 leva ao cluster três serviços, o RabbitMQ, o nginx e a observabilidade; só os `requests` de memória somam mais de 1 GiB, antes do consumo do próprio Kubernetes.
+O Termo de Aceite exige deploy em nuvem pública com infraestrutura provisionada por Terraform, como entrega do 5º semestre (§7). O projeto tem uma regra absoluta: a conta fica **sempre no plano gratuito** da AWS, sem *upgrade* para o plano pago, e todo recurso é destruído ao fim de cada uso. A arquitetura da ADR-003 leva ao cluster três serviços, o RabbitMQ, o nginx e a observabilidade. Os `requests` dos manifests somam 944 Mi de memória, e 1.014 Mi com o CoreDNS do k3s, antes do consumo do próprio sistema operacional e do k3s.
 
-A primeira versão desta decisão, de 16/09, previa um nó único que começaria em `t3.micro` e passaria a `t3.small` quando o RabbitMQ e a observabilidade entrassem. A `t3.small` não tem garantia de estar no free-tier, o que conflita com a regra do projeto. A revisão de 10/10 resolve o conflito.
+A AWS trocou o free-tier para contas criadas a partir de 15/07/2025. O modelo antigo, de 12 meses com limites mensais por serviço, vale só para contas anteriores. Uma conta nova entra no **plano gratuito de créditos**: US$ 100 na criação e até mais US$ 100 por atividades, por **6 meses** ou até o crédito acabar, e a conta é **fechada** ao fim. Nesse plano a `t3.small` é elegível, e o uso é descontado do crédito pelo preço da hora.
+
+A decisão passou por três versões. A de 16/09 previa um nó único que começaria em `t3.micro` e passaria a `t3.small`. A de 10/10 trocou por dois nós de 1 GiB, porque, no modelo de 12 meses, a `t3.small` não era elegível. A de 24/10, abaixo, parte do plano de créditos, que é o que vale para a conta do projeto.
 
 #### Decisão
 
-Utilizaremos **AWS, região `sa-east-1`**, com:
+Utilizaremos **AWS, região `sa-east-1`**, numa conta no **plano gratuito de créditos**, criada **perto do início do 5º semestre** para que os 6 meses do plano cubram o *deploy* em nuvem e a defesa. A infraestrutura tem:
 
-- **k3s em dois EC2 de 1 GiB** — um *server* e um *agent* —, e não EKS. O tipo é `t2.micro` ou `t3.micro`, o que for elegível ao free-tier da conta, conferido antes do primeiro `terraform apply`.
-- **RDS PostgreSQL 17** (`db.t3.micro`, Single-AZ) em subnet privada, com um *database* e um usuário por serviço.
+- **k3s num único EC2 `t3.small`** (2 vCPU, 2 GiB), em modo servidor único, e não EKS. O k3s é instalado sem Traefik e sem metrics-server, com reservas de memória para o sistema e para o próprio k3s. A instância usa `cpu_credits = "standard"`, para nunca cobrar CPU excedente.
+- **RDS PostgreSQL 17** (`db.t3.micro`, Single-AZ) em subnet privada, com SSL obrigatório e um *database* e um usuário por serviço — inclusive o do `analytics-service` (D-003).
 - **S3** para os PDFs, no lugar do MinIO local, e para o *state* do Terraform.
-- **ECR** para as imagens dos serviços.
-- **Sem NAT Gateway, sem ALB e sem Multi-AZ.** O nginx dentro do cluster é a entrada única.
-- **Ciclo efêmero**: `terraform apply` no início de cada sessão e `terraform destroy` ao fim. O que precisa sobreviver entre sessões — o *state* do Terraform e o alerta de custo — fica num *bootstrap* criado uma única vez.
-- **AWS Budgets** com alerta a partir de US$ 1, e uso de usuário IAM, nunca o `root` da conta.
+- **ECR** para as imagens, com *push* pelo CI via OIDC, sem chave guardada.
+- **Sem NAT Gateway, sem ALB e sem Multi-AZ.** O nginx dentro do cluster é a entrada única e serve também o *build* do `app-pms`.
+- **Uma réplica por serviço na nuvem**, como **exceção consciente ao RNF-003**: num nó único, réplicas não protegem contra a queda do nó. O RNF-003 continua valendo no Kubernetes local.
+- **Ciclo efêmero**: `terraform apply` no início de cada sessão e `terraform destroy` ao fim, na mesma hora. O que precisa sobreviver entre sessões — o *state* do Terraform, o ECR e o alerta de custo — fica num *bootstrap* criado uma única vez.
+- **AWS Budgets** sobre o custo antes dos créditos, e uso de usuário IAM, nunca o `root` da conta.
 
-O desenho completo, com rede, Security Groups e custos, está no Documento 05.
+O desenho completo, com a conta de memória, a rede, os Security Groups e o consumo de crédito por sessão, está no Documento 05 (v1.2).
 
 #### Alternativas Consideradas
 
 | Alternativa | Prós | Contras |
 |-------------|------|---------|
-| **AWS com k3s em dois EC2 de 1 GiB — escolhida** | Dentro do free-tier; Kubernetes real; sem custo de *control plane* | Memória apertada por nó; a equipe opera o cluster |
-| AWS EKS | Kubernetes gerenciado, padrão de mercado | *Control plane* custa cerca de US$ 73/mês mesmo parado, e nunca entra no free-tier |
-| AWS ECS Fargate | Contêineres sem gerenciar servidor | Cobrança por vCPU e memória, fora do free-tier; não é Kubernetes, o que afasta a nuvem dos manifests locais |
-| k3s num único EC2, faseado de `t3.micro` para `t3.small` (decisão de 16/09) | Um nó só, mais simples de operar | A `t3.small` não tem elegibilidade garantida ao free-tier — conflito com a regra absoluta do projeto |
-| GCP (GKE) | Boa experiência de desenvolvedor, Kubernetes nativo | Menor familiaridade da equipe; o free-tier cobre um cluster *autopilot* com limites diferentes dos que o projeto já mediu |
-| Azure (AKS) | Créditos acadêmicos | Menor familiaridade da equipe; créditos têm prazo e não substituem a regra de free-tier |
+| **AWS com k3s num único EC2 `t3.small`, plano de créditos — escolhida** | No plano gratuito; Kubernetes real; sem custo de *control plane*; um nó só, sem rede entre nós; os `requests` cabem com folga | Um nó é ponto único de falha; o crédito tem prazo e, se acabar, fecha a conta |
+| k3s em dois EC2 de 1 GiB, `t3.micro` (decisão de 10/10) | Elegível também no modelo antigo de 12 meses | No plano de créditos custa o mesmo que um `t3.small` (2 × US$ 0,0168/h = US$ 0,0336/h), mas usa um IPv4 público a mais, exige regras de rede entre *server* e *agent* e *swapfile* para caber, e deixa o *server* abaixo dos 2 GB que o k3s recomenda. A sobrecarga do sistema e do k3s se repete em cada nó |
+| k3s num único EC2, faseado de `t3.micro` para `t3.small` (decisão de 16/09) | Começa no menor custo | Um nó de 1 GiB não comporta o *control plane* e os pods; trocar o tipo no meio do semestre muda a capacidade sob a equipe. Com a `t3.small` elegível desde o início, a fase em `t3.micro` não traz economia que compense |
+| AWS EKS | Kubernetes gerenciado, padrão de mercado | *Control plane* custa cerca de US$ 73/mês mesmo parado; consumiria o crédito em pouco mais de um mês |
+| AWS ECS Fargate | Contêineres sem gerenciar servidor | Cobrança por vCPU e memória a cada tarefa; não é Kubernetes, o que afasta a nuvem dos manifests locais |
+| GCP (GKE) | Boa experiência de desenvolvedor, Kubernetes nativo | Menor familiaridade da equipe; o crédito gratuito tem regras próprias, que o projeto não avaliou |
+| Azure (AKS) | Créditos acadêmicos | Menor familiaridade da equipe; créditos têm prazo e não substituem a regra do plano gratuito |
 
 #### Consequências
 
 - **Positivas:**
-  - Custo zero dentro do free-tier, com alerta se algo escapar.
-  - O banco fica em subnet privada, fora do cluster, e libera memória dos nós.
-  - Os mesmos manifests do ambiente local rodam na nuvem.
+  - Sem cobrança: o uso sai do crédito, cerca de US$ 0,35 por sessão de 4 horas, e o uso previsto nos 6 meses fica perto de US$ 28 dos US$ 100 garantidos.
+  - O banco fica em subnet privada, fora do cluster, e libera memória do nó.
+  - Os mesmos manifests de base rodam no cluster local e na nuvem, com um *overlay* do `kustomize` para cada ambiente.
+  - Um IPv4 público e nenhuma regra de rede entre nós.
 - **Negativas:**
-  - Os nós têm pouca folga de memória; o k3s precisa ser instalado sem componentes dispensáveis.
+  - Na nuvem, cada serviço roda com uma réplica, abaixo das três do RNF-003: é exceção consciente, e a continuidade durante atualização fica demonstrada só no Kubernetes local.
+  - O nó único é ponto único de falha.
   - Os dados da nuvem são efêmeros: banco e PDFs são recriados a cada sessão pelo `seed`.
-  - Na nuvem, cada serviço roda com uma réplica, abaixo das três que o RNF-003 prevê para o ambiente Kubernetes local.
-  - O endereço público muda a cada sessão.
+  - O endereço público muda a cada sessão, e com ele a URL do *webhook* do Asaas, que é configurada por conta.
+  - O plano dura 6 meses: a conta precisa ser criada no momento certo, e não serve de ambiente permanente.
 - **Riscos mitigados:**
-  - Falta de memória se resolve retirando a observabilidade ou réplicas, nunca aumentando o tipo da instância.
-  - Recurso esquecido ligado: `destroy` ao fim de cada sessão e alerta do AWS Budgets.
-  - Nuvem indisponível no dia da defesa: o sistema sobe localmente pelo Docker Compose (ADR-005).
+  - Falta de memória se resolve retirando a observabilidade do cluster, nunca aumentando o tipo da instância além do `t3.small`.
+  - Crédito acabar fecha a conta: alerta do AWS Budgets muito antes do fim do saldo e conferência semanal do saldo.
+  - Recurso esquecido ligado: `destroy` ao fim de cada sessão, conferência no console e alerta do AWS Budgets no mesmo dia.
+  - Nuvem indisponível, ou plano encerrado, no dia da defesa: o sistema sobe localmente pelo Docker Compose (ADR-005).
 
 ---
 
@@ -328,8 +335,8 @@ O Termo de Aceite pede microsserviços em contêineres e orquestração. O siste
 | Alternativa | Prós | Contras |
 |-------------|------|---------|
 | **Docker + Kubernetes, com Compose de contingência — escolhida** | Padrão de mercado; mesmos manifests local e nuvem; plano B que não depende de nuvem | Duas descrições do ambiente para manter em sincronia |
-| ECS Fargate | Contêineres sem gerenciar servidor | Fora do free-tier (ADR-004); específico da AWS, sem equivalente local |
-| EKS | Kubernetes gerenciado | Custo do *control plane* fora do free-tier (ADR-004) |
+| ECS Fargate | Contêineres sem gerenciar servidor | Cobrança por tarefa, que consome o crédito do plano gratuito (ADR-004); específico da AWS, sem equivalente local |
+| EKS | Kubernetes gerenciado | O *control plane* custa cerca de US$ 73/mês mesmo parado (ADR-004) |
 | Docker Swarm | Mais simples que Kubernetes | Pouco usado no mercado; não atende à expectativa de Kubernetes do projeto |
 | EC2 com Docker Compose, sem orquestrador | Simples de operar | Sem *probes*, reinício orquestrado nem `NetworkPolicy`; gerenciamento manual |
 
@@ -647,7 +654,7 @@ O sistema tem públicos diferentes: a equipe do hotel, que usa o PMS durante o t
 | ADR-001 | Linguagem e Framework do Backend | Aceita | 13/05/2026 |
 | ADR-002 | Escolha do Banco de Dados | Aceita | 21/05/2026 |
 | ADR-003 | Recorte de Serviços, Propriedade de Dados e Comunicação | Aceita | 14/09/2026 |
-| ADR-004 | Provedor de Nuvem e Serviços | Aceita | 16/09/2026 (revista em 10/10/2026) |
+| ADR-004 | Provedor de Nuvem e Serviços | Aceita | 16/09/2026 (revista em 10/10/2026 e em 24/10/2026) |
 | ADR-005 | Containerização e Orquestração | Aceita | 10/06/2026 |
 | ADR-006 | Propagação de Identidade entre Serviços | Aceita | 24/09/2026 |
 | ADR-007 | Uma Reserva por Quarto, dentro de um Agrupador | Proposta — adiada para o 5º semestre | 12/10/2026 (adiada em 21/10/2026) |
