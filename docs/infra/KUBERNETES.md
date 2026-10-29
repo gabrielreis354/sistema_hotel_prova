@@ -126,21 +126,40 @@ Por isso a troca de versão do backend passa sempre pelo `./start.sh deploy`, nu
 `rollout restart` solto:
 
 ```bash
-./start.sh deploy                                   # reinicia com a imagem do manifest (latest local)
+./start.sh deploy                                   # reinicia com a imagem que está no Deployment
 ./start.sh deploy sistema-gestao-hotel-backend:v2   # troca para a imagem informada
 ```
 
 | Etapa | Por quê |
 |---|---|
 | 1. `migrate` num Job com a imagem **nova** | O código novo procura o consumo em `account_items`; sem o migrate antes, o bill dessas reservas responde `503` até alguém rodar o migrate |
-| 2. Rollout e espera terminar | — |
+| 2. Rollout, e espera os pods antigos **saírem** | O `rollout status` volta com os pods antigos ainda em Terminating (até 60 s), atendendo pelas conexões keepalive do nginx |
 | 3. `migrate` de novo | Durante o rolling update os pods **antigos** ainda gravam em `consumptions`. O migrate é idempotente e só pega esse intervalo |
 
 - O Job é `infra/k8s/jobs/backend-migrate.yaml`, fora do `kustomization` (Job é imutável; cada
   execução ganha nome novo). Label `app: backend-migrate`, liberado no `postgres-ingress` da
   `networkpolicy.yaml`.
-- Falha do Job (inclusive o código 1 = reservas com dado inválido, listadas no log) **para o deploy
-  antes do rollout**. Corrija a causa e rode de novo. O pod fica 1 h no cluster para o `kubectl logs`.
 - `./start.sh migrate` sozinho roda o mesmo Job com a imagem que está no ar.
 - Trocar só configuração (ConfigMap, Secret) com a mesma imagem não exige migrate: os `rollout
   restart` da seção acima continuam valendo.
+
+### Quando algo falha
+
+| Onde falhou | Estado do cluster | O que fazer |
+|---|---|---|
+| 1º migrate (inclusive código 1 = reservas com dado inválido; imagem que não baixa) | Pods antigos intactos, nada trocado | O script mostra condição, eventos e log do Job. Corrija a causa e rode o `deploy` de novo. O pod do Job fica 1 h para o `kubectl logs` |
+| Rollout passou de 300 s | Deployment **misto** (pods novos e antigos) e sem o 2º migrate | `kubectl -n hotel-system rollout undo deploy/backend` para voltar, ou corrija e rode o `deploy` de novo. Nos dois casos termine com `./start.sh migrate` |
+| Pods antigos não saíram em 120 s | Pods novos no ar; o 2º migrate roda mesmo assim, com aviso | Quando os antigos saírem, `./start.sh migrate` |
+| 2º migrate | Pods **novos já no ar**; o bill das reservas afetadas responde `503` (fail-safe, sem valor errado) | Corrija os dados listados no log e rode `./start.sh migrate` |
+
+### Cuidados
+
+- **`kubectl apply -k infra/k8s/` volta a imagem para a do manifest** (`:latest`). Se o backend
+  estava numa tag posta por `./start.sh deploy <imagem>`, o apply dispara um rollout de outro código
+  sem migrate. Depois de um apply, rode `./start.sh deploy <imagem>` de novo.
+- **Remover ou renomear coluna exige duas releases (expand/contract).** O 1º migrate roda com o
+  model novo enquanto os pods antigos ainda atendem, e o `sync({ alter: true })` apaga a coluna que
+  saiu do model: os pods antigos passam a dar `500`. Release 1: o código para de usar a coluna.
+  Release 2: o model deixa de declarar a coluna.
+- Fora do kind, use tag imutável no `deploy`: com `:latest` e `imagePullPolicy: IfNotPresent`, o Job e
+  os pods podem rodar builds diferentes.
