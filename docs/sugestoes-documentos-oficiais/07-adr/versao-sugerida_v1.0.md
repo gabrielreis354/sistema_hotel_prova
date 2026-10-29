@@ -6,8 +6,8 @@
 **Grupo:** Gesway — Gabriel Reis Cunha (6325149)
 · Sirlande Martins (6325269)
 · Weslley Lucas (6325226)
-**Data:** 14/10/2026
-**Versão:** 1.0
+**Data:** 29/10/2026
+**Versão:** 1.1
 
 ---
 
@@ -176,9 +176,11 @@ O critério de fronteira é a **consistência transacional**, não o tipo de dad
 
 | Serviço | Entidades | Banco |
 |---|---|---|
-| **core-service** | TENANTS, USERS, ROOM_CATEGORIES, ROOMS, GUESTS, RESERVATIONS, RESERVATION_ROOMS, PAYMENTS, CONSUMPTIONS, PRODUCTS, ACCOUNTS 🔷, ACCOUNT_ITEMS 🔷 | PostgreSQL próprio |
+| **core-service** | TENANTS, USERS, ROOM_CATEGORIES, ROOMS, GUESTS, RESERVATIONS, RESERVATION_ROOMS, PAYMENTS, CONSUMPTIONS, PRODUCTS, ACCOUNTS, ACCOUNT_ITEMS | PostgreSQL próprio |
 | **b2b-service** | CORPORATE_CLIENTS, EVENT_QUOTES, QUOTE_SERVICES, CONTRACTS, CONTRACT_INSTALLMENTS | PostgreSQL próprio |
 | **analytics-service** | nenhuma entidade de domínio — mantém projeções de leitura | PostgreSQL próprio, alimentado por eventos do `core-service` |
+
+> **Nota de 29/10/2026:** quando esta decisão foi tomada, `ACCOUNTS` e `ACCOUNT_ITEMS` eram planejadas. Foram implementadas no `core-service` a partir de 14/10/2026 (ADR-009), com as chaves estrangeiras normais previstas abaixo. O recorte não muda.
 
 **Referências que cruzam a fronteira.** Restam seis, todas partindo do `b2b-service`:
 
@@ -313,7 +315,7 @@ O desenho completo, com a conta de memória, a rede, os Security Groups e o cons
 
 ---
 
-### ADR-005: Estratégia de Containerização e Orquestração
+### ADR-005: Containerização e Orquestração
 
 **Data:** 10/06/2026 — contingência acrescentada em 16/09/2026
 **Status:** Aceita
@@ -476,7 +478,7 @@ O Gesway depende de dois serviços externos: o **PSP** (provedor de pagamento PI
 
 Cada integração fica **atrás de uma interface própria**, com a implementação escolhida por variável de ambiente:
 
-- **`PixProvider`** — criar cobrança, validar a assinatura do *webhook* e consultar o status da cobrança. Implementações: um **provedor simulado**, padrão em desenvolvimento e testes, e dois provedores reais, **Mercado Pago** (`PIX_PROVIDER=mercadopago`) e **Asaas** (`PIX_PROVIDER=asaas`). Cada provedor traduz o status da sua cobrança para um conjunto único de status do contrato, para que os fluxos não dependam do vocabulário de nenhum PSP.
+- **`PixProvider`** — criar cobrança, validar a autenticidade do *webhook* (assinatura ou token, conforme o provedor) e consultar o status da cobrança. Implementações: um **provedor simulado**, padrão em desenvolvimento e testes, e dois provedores reais, **Mercado Pago** (`PIX_PROVIDER=mercadopago`) e **Asaas** (`PIX_PROVIDER=asaas`). Cada provedor traduz o status da sua cobrança para um conjunto único de status do contrato, para que os fluxos não dependam do vocabulário de nenhum PSP.
 - **`AddressProvider`** — consultar CEP. Implementação: **ViaCEP**.
 
 Regras comuns:
@@ -484,7 +486,7 @@ Regras comuns:
 - *Controllers* conhecem só a interface, nunca o provedor.
 - Erros do provedor viram **erros tipados**, traduzidos em respostas previsíveis — CEP inexistente em `404`, provedor indisponível em `503`.
 - Toda chamada externa tem **tempo limite**.
-- O *webhook* do PSP só tem efeito depois de validada a assinatura, e o status do pagamento é **confirmado no próprio PSP** antes de ser gravado (RNF-012).
+- O *webhook* do PSP só tem efeito depois de validada a sua autenticidade — assinatura ou token, conforme o provedor; o Asaas, por exemplo, não assina o corpo e envia o token cadastrado no cabeçalho `asaas-access-token`, comparado em tempo constante —, e o status do pagamento é **confirmado no próprio PSP** antes de ser gravado (RNF-012).
 - Os testes **não usam rede**: o provedor simulado cobre os fluxos, e o `fetch` é substituído por *mock* nos testes das implementações reais.
 
 #### Alternativas Consideradas
@@ -514,7 +516,7 @@ Regras comuns:
 ### ADR-009: Módulo de Consumo por Contas
 
 **Data:** 07/08/2026
-**Status:** Aceita — em implementação
+**Status:** Aceita — implementada: contas e itens criados em 14/10/2026, migração do consumo e pagamento ligado à conta em 19/10/2026, conta aberta no check-in e bill da reserva pelas contas em 26/10/2026. Várias contas abertas no check-in ficam para o 5º semestre
 **Autores:** Equipe Gesway — implementação conduzida por Sirlande Martins
 
 #### Contexto
@@ -534,6 +536,8 @@ O consumo passa a ser registrado em **contas** (`ACCOUNTS`) com **itens** (`ACCO
 
 A migração do consumo existente preserva valores, datas e a trilha de exclusão, e o contrato atual da API de consumo da reserva continua respondendo.
 
+**Contas e estadia.** O check-in abre a conta de suíte do quarto principal, cobrando a diária, na mesma transação que muda a reserva para `CHECKED_IN`. Toda operação que mexe na reserva e nas suas contas trava sempre na mesma ordem — primeiro a reserva, depois as contas —, para que check-in, lançamento de consumo e fechamento concorrentes não entrem em *deadlock*. No encerramento, as contas são fechadas na ordem em que o crédito da reserva é aplicado, titular primeiro.
+
 #### Alternativas Consideradas
 
 | Alternativa | Prós | Contras |
@@ -550,19 +554,20 @@ A migração do consumo existente preserva valores, datas e a trilha de exclusã
   - Regras de dinheiro valem mesmo que um *controller* erre, porque o banco recusa.
   - Menor privilégio do garçom garantido por padrão.
 - **Negativas:**
-  - Migração de dados do consumo existente.
+  - Migração de dados do consumo existente, feita em 19/10/2026.
   - O identificador de lançamento com unicidade total é a única exceção à regra de índices parciais do projeto.
   - Desconto por item, se um dia existir, exigirá rever a constraint de total.
 - **Riscos mitigados:**
   - Quebra de contrato na migração: o teste existente do consumo da reserva precisa passar sem alteração.
   - Exceção de índice esquecida ou copiada: fica num único lugar, nomeada no teste de guarda.
+  - *Deadlock* entre check-in e lançamento de consumo: a ordem de trava reserva → contas vale para todas as rotas, inclusive a rota antiga de consumo da reserva, com teste que falha sem ela.
 
 ---
 
 ### ADR-010: Lançamento Financeiro Estornado, nunca Apagado
 
 **Data:** 04/10/2026
-**Status:** Aceita — implementação planejada
+**Status:** Aceita — implementada em 24/10/2026: `POST /payments/:id/void` (papel de administração) e `DELETE /payments/:id` respondendo `405` com o caminho do estorno
 **Autores:** Gabriel Reis Cunha
 
 #### Contexto
@@ -659,8 +664,8 @@ O sistema tem públicos diferentes: a equipe do hotel, que usa o PMS durante o t
 | ADR-006 | Propagação de Identidade entre Serviços | Aceita | 24/09/2026 |
 | ADR-007 | Uma Reserva por Quarto, dentro de um Agrupador | Proposta — adiada para o 5º semestre | 12/10/2026 (adiada em 21/10/2026) |
 | ADR-008 | Integrações Externas atrás de Interface | Aceita | 27/06/2026 |
-| ADR-009 | Módulo de Consumo por Contas | Aceita | 07/08/2026 |
-| ADR-010 | Lançamento Financeiro Estornado, nunca Apagado | Aceita | 04/10/2026 |
+| ADR-009 | Módulo de Consumo por Contas | Aceita — implementada | 07/08/2026 (implementada de 14/10 a 26/10/2026) |
+| ADR-010 | Lançamento Financeiro Estornado, nunca Apagado | Aceita — implementada | 04/10/2026 (implementada em 24/10/2026) |
 | ADR-011 | Frontend em SPA e Monorepo | Aceita | 07/08/2026 |
 
 ---
@@ -680,6 +685,7 @@ O sistema tem públicos diferentes: a equipe do hotel, que usa o PMS durante o t
 |--------|------|-------|------------------------|
 | 0.1 | 14/09/2026 | Gabriel Reis Cunha | Versão parcial. Registra o **ADR-003** — recorte em `core-service`, `b2b-service` e `analytics-service`, propriedade de dados e comunicação entre serviços. ADR-001, ADR-002, ADR-004 e ADR-005 permanecem como modelo, a preencher; a propagação de identidade entre serviços será registrada como ADR-006 |
 | 1.0 | 14/10/2026 | Gabriel Reis Cunha | Registra ADR-001, 002, 004 e 005 e a ADR-006 (identidade entre serviços); acrescenta ADR-007 (proposta: uma reserva por quarto), ADR-008 (integrações externas), ADR-009 (consumo por contas), ADR-010 (estorno financeiro) e ADR-011 (frontend). ADR-004 já incorpora a revisão de 10/10, com dois nós de 1 GiB no lugar do `t3.small` |
+| 1.1 | 29/10/2026 | Gabriel Reis Cunha | **ADR-004** revista pela decisão de 24/10/2026: um único EC2 `t3.small` com k3s em servidor único, numa conta no plano gratuito de créditos criada perto do 5º semestre; dois EC2 `t3.micro` e o nó único faseado passam às alternativas, e o RNF-003 fica como exceção consciente na nuvem (coerente com o Documento 05 v1.2). Estado real conferido contra o código em 29/10: **ADR-009** e **ADR-010** marcadas como implementadas, com a abertura de conta no check-in e a ordem de trava reserva → contas na ADR-009; **ADR-003** com nota sobre `ACCOUNTS` e `ACCOUNT_ITEMS` implementadas; **ADR-008** com a autenticidade do *webhook* por assinatura ou token, conforme o provedor (Asaas: token); ADR-001 e ADR-005 sem os nós de 1 GiB; título da ADR-005 igual ao do índice. ADR-007 segue adiada para o 5º semestre |
 
 ---
 
