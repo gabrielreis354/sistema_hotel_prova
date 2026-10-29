@@ -807,8 +807,16 @@ const options = {
             },
             '/guests': {
                 get: {
-                    tags: ['Hóspedes'], summary: 'Lista hóspedes',
-                    responses: { 200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Guest' } } } } } }
+                    tags: ['Hóspedes'], summary: 'Lista hóspedes ou busca por termo',
+                    description: 'Sem `q`: todos os hóspedes do hotel (contrato antigo). Com `q`: busca no servidor por nome, CPF, e-mail ou telefone (ILIKE com `%`, `_` e `\\` literais; termo numérico casa CPF/telefone só pelos dígitos), sempre no hotel do token, ordenada por nome, até `limit`. `q` vazio devolve lista vazia.',
+                    parameters: [
+                        { in: 'query', name: 'q', required: false, schema: { type: 'string', maxLength: 100 }, description: 'Termo de busca: parte do nome, CPF, e-mail ou telefone', example: 'ana' },
+                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 }, description: 'Só com `q`. Inválido cai no padrão; acima de 20 vira 20' }
+                    ],
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Guest' } } } } },
+                        400: { description: '`q` com mais de 100 caracteres', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 },
                 post: {
                     tags: ['Hóspedes'], summary: 'Cria hóspede',
