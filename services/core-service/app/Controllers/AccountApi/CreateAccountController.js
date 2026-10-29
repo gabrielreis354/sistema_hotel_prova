@@ -1,3 +1,4 @@
+import sequelize from '../../../database/connections/sequelize.js';
 import AccountModel from '../../Models/AccountModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
@@ -73,6 +74,11 @@ function typeRuleError(body) {
  * Abre uma conta (comanda). Toda conta nasce OPEN — fechar é a T-04.3.
  */
 export default async function CreateAccountController(request, response) {
+    let transaction;
+    const fail = async (status, body) => {
+        await transaction.rollback();
+        return response.status(status).json(body);
+    };
     try {
         const tenantId = request.user.tenantId;
         const body = request.body ?? {};
@@ -105,24 +111,38 @@ export default async function CreateAccountController(request, response) {
         const chargesLodging = type === 'ROOM' ? body.charges_lodging ?? true : false;
 
         if (type === 'ROOM') {
-            const reservation = await ReservationModel.findOne({
-                where: { id: reservation_id, tenant_id: tenantId }
+            const found = await ReservationModel.findOne({
+                where: { id: reservation_id, tenant_id: tenantId }, attributes: ['id']
             });
-            if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
+            if (!found) return response.status(404).json({ error: 'Reserva não encontrada' });
+
+            // Conta da suíte depende dos quartos da estadia e das outras contas dela: trava a
+            // reserva antes de checar, na ordem do projeto (D-48: reserva → contas). Sem isso,
+            // uma remoção de quarto extra que move a conta de diária para o principal e esta
+            // criação se cruzavam (trava da reserva × índice único) e o banco derrubava uma
+            // delas com deadlock — 500 (N-1 da reauditoria delta de 21/10). Com a trava, quem
+            // chega depois espera e enxerga o que o outro gravou.
+            transaction = await sequelize.transaction();
+            const reservation = await ReservationModel.findOne({
+                where: { id: reservation_id, tenant_id: tenantId },
+                lock: transaction.LOCK.UPDATE,
+                transaction
+            });
+            if (!reservation) return await fail(404, { error: 'Reserva não encontrada' });
 
             // Consumo na suíte só durante a estadia: antes do check-in o hóspede não está
             // no hotel; depois do check-out a conta da suíte já deveria estar fechada.
             if (reservation.status !== 'CHECKED_IN') {
-                return response.status(422).json({
+                return await fail(422, {
                     error: `Conta ROOM exige reserva com check-in feito (status atual: ${reservation.status})`
                 });
             }
 
             // reservation_rooms tem todos os quartos da reserva, inclusive o principal
             // (trigger reservations_sincroniza_quartos) — cobre a reserva multiquarto.
-            const roomInStay = await ReservationRoomModel.findOne({ where: { reservation_id, room_id } });
+            const roomInStay = await ReservationRoomModel.findOne({ where: { reservation_id, room_id }, transaction });
             if (!roomInStay) {
-                return response.status(422).json({ error: 'O quarto não pertence a esta reserva' });
+                return await fail(422, { error: 'O quarto não pertence a esta reserva' });
             }
 
             // RN-005 (D-3): uma conta cobrando a diária por quarto da estadia. Checagem
@@ -130,13 +150,17 @@ export default async function CreateAccountController(request, response) {
             if (chargesLodging) {
                 // Uma troca de quarto pode ter deixado a conta da diária no quarto antigo:
                 // realinhada antes, a checagem abaixo a enxerga (D-32, reauditoria N-1).
+                // Fora desta transação, como sempre foi (o realinhamento trata a própria
+                // corrida pelo índice, e o erro abortaria a transação em volta). Não espera a
+                // trava acima: só muda room_id/label de conta, sem tocar a linha da reserva.
                 await realignStaleLodgingAccount(reservation);
 
                 const lodging = await AccountModel.findOne({
-                    where: { tenant_id: tenantId, reservation_id, room_id, charges_lodging: true }
+                    where: { tenant_id: tenantId, reservation_id, room_id, charges_lodging: true },
+                    transaction
                 });
                 if (lodging) {
-                    return response.status(422).json({
+                    return await fail(422, {
                         error: 'Já existe uma conta cobrando a diária deste quarto nesta estadia (RN-005)'
                     });
                 }
@@ -153,10 +177,12 @@ export default async function CreateAccountController(request, response) {
             guest_id: guest_id ?? null,
             charges_lodging: chargesLodging,
             status: 'OPEN'
-        });
+        }, { transaction });
+        if (transaction) await transaction.commit();
 
         return response.status(201).json(account);
     } catch (error) {
+        if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
         const violation = accountRuleViolation(error, response);
         if (violation) return violation;
         console.error('CreateAccountController:', error.message);

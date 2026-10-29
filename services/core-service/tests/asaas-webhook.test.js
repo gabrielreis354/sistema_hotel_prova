@@ -25,6 +25,7 @@ let chargeSeq = 1;
 // Estado "real" de cada cobrança no Asaas simulado — cada teste ajusta antes do webhook.
 const asaasCharges = new Map();
 let asaasDown = false;
+let statusGate = null; // (chargeId) => Promise<corpo da cobrança> | undefined
 
 const fetchMock = vi.fn(async (url, options = {}) => {
     const json = (body, status = 200) => ({ ok: status < 300, status, json: async () => body });
@@ -40,6 +41,9 @@ const fetchMock = vi.fn(async (url, options = {}) => {
     const qrMatch = url.match(/\/payments\/(pay_\d+)\/pixQrCode$/);
     if (qrMatch) return json({ payload: `00020126-copia-e-cola-${qrMatch[1]}`, encodedImage: 'iVBOR', expirationDate: '2027-12-31 23:59:59' });
     const getMatch = url.match(/\/payments\/(pay_\d+)$/);
+    // Consulta controlada pelo teste (corrida entre notificações): devolve a resposta no tempo dele.
+    const gated = getMatch && statusGate?.(getMatch[1]);
+    if (gated) return json(await gated);
     if (getMatch && asaasCharges.has(getMatch[1])) return json(asaasCharges.get(getMatch[1]));
     return json({ errors: [{ code: 'not_found' }] }, 404);
 });
@@ -69,6 +73,7 @@ function useAsaas() {
 
 afterEach(() => {
     asaasDown = false;
+    statusGate = null;
     fetchMock.mockClear();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
@@ -303,5 +308,68 @@ describe('POST /webhooks/pix — provider Asaas', () => {
         // O status público do hotel B não enxerga a reserva do hotel A.
         const crossTenant = await request(app).get(`/public/${hotelB.subdomain}/bookings/${bookingA.body.reservation.id}/status`);
         expect(crossTenant.status).toBe(404);
+    });
+});
+
+// Repasse do qa-redteam de 17/10 (docs/qa/repasses/para_gabriel_17102026.md): duas notificações
+// da mesma cobrança em paralelo, e o status no Asaas muda entre as duas consultas. As duas leem
+// o pagamento PENDING antes de qualquer trava; a consulta ao Asaas é segurada até as duas
+// chegarem nela, e a segunda resposta só sai quando a primeira notificação GRAVOU o pagamento
+// (sinal no save, não tempo — 🟢-3 da auditoria de 21/10): a ordem não depende da velocidade
+// do CI. Gravou mas ainda não fez commit: a segunda fica na trava da linha (código corrigido)
+// ou no UPDATE da instância velha (código antigo), e o resultado é o da ordem do teste.
+describe('POST /webhooks/pix — PAID e FAILED simultâneos (repasse 17/10)', () => {
+    function race(chargeId, firstStatus, laterStatus) {
+        let arrived = 0;
+        let releaseFirst;
+        let signalFirstWrote;
+        const bothArrived = new Promise((resolve) => { releaseFirst = resolve; });
+        const firstWrote = new Promise((resolve) => { signalFirstWrote = resolve; });
+
+        // Durante a corrida, só as duas notificações gravam pagamento; restaurado no afterEach.
+        const originalSave = PaymentModel.prototype.save;
+        vi.spyOn(PaymentModel.prototype, 'save').mockImplementation(async function save(...args) {
+            const saved = await originalSave.apply(this, args);
+            signalFirstWrote();
+            return saved;
+        });
+
+        statusGate = (id) => {
+            if (id !== chargeId) return undefined;
+            arrived += 1;
+            const charge = asaasCharges.get(chargeId);
+            if (arrived === 1) return bothArrived.then(() => ({ ...charge, status: firstStatus }));
+            releaseFirst();
+            return firstWrote.then(() => ({ ...charge, status: laterStatus }));
+        };
+        return Promise.all([
+            notify(chargeId),
+            notify(chargeId, { event: 'PAYMENT_REFUNDED', bodyStatus: 'REFUNDED' })
+        ]);
+    }
+
+    it('PAID grava primeiro: o FAILED atrasado não sobrescreve — reserva CONFIRMED com sinal PAID', async () => {
+        const booking = await book(hotelA, '2027-09-10', '2027-09-11');
+        const chargeId = booking.body.pix.provider_charge_id;
+
+        const responses = await race(chargeId, 'RECEIVED', 'REFUNDED');
+
+        expect(responses.map((r) => r.status)).toEqual([200, 200]);
+        expect(responses.map((r) => r.body.status).sort()).toEqual(['already_processed', 'confirmed']);
+        const { payment, reservation } = await stateOf(booking);
+        expect(payment.status).toBe('PAID');
+        expect(reservation.status).toBe('CONFIRMED');
+    });
+
+    it('FAILED grava primeiro: o PAID atrasado não confirma — reserva PENDING com sinal FAILED', async () => {
+        const booking = await book(hotelA, '2027-09-12', '2027-09-13');
+        const chargeId = booking.body.pix.provider_charge_id;
+
+        const responses = await race(chargeId, 'REFUNDED', 'RECEIVED');
+
+        expect(responses.map((r) => r.body.status).sort()).toEqual(['already_processed', 'not_approved']);
+        const { payment, reservation } = await stateOf(booking);
+        expect(payment.status).toBe('FAILED');
+        expect(reservation.status).toBe('PENDING');
     });
 });
