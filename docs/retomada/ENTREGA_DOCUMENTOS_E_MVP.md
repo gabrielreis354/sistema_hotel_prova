@@ -35,9 +35,9 @@ Fork: `C:\Users\gabri\unifaat_4sem\UniFAAT-projeto-experimental-2027-1` (`origin
 | 02 Requisitos | v1.3 (09/09) | `entrega-2-requisitos-v14` | Em redação (agente) | Os 🔴 e 🟡 da auditoria. **Reentrega obrigatória** |
 | 03 DFD | v1.2 (09/10) | `entrega-3-dfd-v13` | Em redação (agente) | 🔷 indevidos, PDF de orçamento no D-005, D-001 completo. **Reentrega obrigatória** |
 | 04 MER | v1.3 (15/10) | `entrega-4-mer-v13-historico` | Em redação (agente) | Retirar 🔷 de payments/VOIDED, §10.4 e allowlist. Conferir as tabelas novas do schema |
-| 05 Arquitetura em nuvem | — (v1.1 em 19/10) | `entrega-5-arquitetura-nuvem` | Em redação (agente) | v1.2: 1× t3.small, créditos, SG de saída, token do PSP, avaliar diagrama com ícones da AWS |
+| 05 Arquitetura em nuvem | — (v1.1 em 19/10) | `entrega-5-arquitetura-nuvem` @ `ff69a36` | **Pronto (v1.2)**: 1× t3.small, cerca de US$ 0,35 por sessão de 4 h, conta de memória com folga de cerca de 125 MiB | Decidir sobre o diagrama com ícones oficiais da AWS (precisa baixar o pacote). Confirmar no console se ECR e RDS estão disponíveis no plano gratuito |
 | 06 C4 | — (v1.1 em 19/10) | `entrega-6-c4` | Em redação (agente) | v1.2: walk-in, token do PSP, §5 #5, porta 3001, categorias |
-| 07 ADR | — | hotel `docs/doc07-adr` (PR #97) → transcrever para o fork | Em redação (agente) | v1.1: ADR-004 revista, ADR-001 sem "1 GiB", status das ADR-009 e 010, cabeçalho |
+| 07 ADR | — | hotel `docs/doc07-adr` @ `98e8213` (PR #97) → fork `entrega-7-adr` | v1.1 pronta no hotel; transcrição para o fork em curso (agente) | Conferir contra os critérios do Termo depois da transcrição |
 | 08 Sprints | — (v1.0 sugestão em 07/10) | `entrega-8-sprints` @ `4e5b557` | **Pronto (v1.1)** | Revisar o registro da S8 e a situação das metas depois de 03/11 |
 
 Pacote de PRs ao professor (ordem recomendada):
