@@ -54,7 +54,7 @@ Antes de cada PR, conferir o documento contra:
 
 | Ordem | Branch | Meta | Data | Situação | Próximo passo |
 |---|---|---|---|---|---|
-| 1 | `fix/tenant-fk-validation` @ `02ab6f4` | segurança | 29/10 | develop integrada, 1054 testes verdes, linhas 87% | **qa-redteam em curso** → autorização → merge |
+| 1 | `fix/tenant-fk-validation` @ `085b29a` | segurança | 29/10 | qa-redteam: APROVADO COM RESSALVAS. R-1 fechado; varredura dos 91 controllers sem outro vazamento | Correção de 🟡-1 (corrida com a exclusão), 🟡-2 (`number`) e 🟡-3 (id não-UUID dá 500) em curso → autorização → merge |
 | 2 | `feature/analytics-service` @ `f09af9d` | M7-a | 29/10 | develop integrada sem conflito; analytics com 84 testes (95% de linhas), core com 1006; catálogo 1.1.1 com `payment.deleted` corrigido | Reauditoria em `8c74407`: APROVADO COM RESSALVAS. A correção do 🟡-A (perda silenciosa acima de 20 entregas na fila quorum) está em curso → depois, autorização e merge. **Decisão L-1 aberta:** o consumo interno (T-04.7) não tem evento no catálogo |
 | 3 | `feature/t051-quartos-categorias` @ `6501a9a` | M1 | 30/10 | develop integrada (989 testes, frontend 111/111, build ok); rotas isoladas em `routes/roomsRoutes.tsx` | Depois do merge da 1: segundo merge da develop + `pnpm gen:api` (passo a passo na retomada da branch) |
 | 4 | `feature/t052-reservas` @ `e3b54ea` | M2, M5-a | 30/10 | Ressalvas fechadas: backend 998 testes, frontend 115, E2E 49/0. Endpoint novo `GET /guests?q=&limit=`; estorno fora do comprovante; conta em linha do tempo com teste | Depois da 3: merge da develop + `pnpm gen:api` → **qa-redteam delta**, por causa do endpoint novo → merge |
@@ -67,7 +67,7 @@ Antes de cada PR, conferir o documento contra:
 ## 4. Pendências de decisão
 
 **Com o Gabriel:**
-- Merge do PR #99, aberto desde 21/10.
+- PRs #97 e #99 mergeados pelo Gabriel em 29/10. Os commits de retomada posteriores a 093d14b ainda precisam de PR.
 - Merges das integrações.
 - PRs ao professor.
 
