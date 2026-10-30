@@ -69,3 +69,21 @@ develop: router fora do Swagger, botão cru e classes repetidas no frontend.
 | 4 | `POST /public/:subdomain/bookings` escolhe o quarto sem `FOR SHARE` | 🟢 Baixa | É a mesma classe do 🟡-1, mas fora da lista do auditor e do coordenador. Um quarto excluído durante a reserva pública ainda pode ser gravado. A correção é ler o quarto escolhido com `LOCK.SHARE` dentro da transação |
 | 5 | `GET /rooms/:id` e `GET /room-categories/:id` com id não-UUID → 500 | 🟢 Baixa | Repassado pelo auditor à Sirlande (`para_sirlande_30102026.md`) |
 | 6 | Check-in em quarto MAINTENANCE | 🟢 Baixa | Fora desta branch (nota do 🟢-1 do auditor) |
+
+#### Complemento — reserva pública e conta avulsa (pedido do coordenador, mesma data)
+
+Fecha a pendência 4 acima. O `grep` de `room_id`/`category_id` nos controllers achou mais um
+ponto da mesma classe: a conta avulsa com `room_id`. Os outros pontos que gravam essas
+referências já leem com trava, ou copiam o quarto da própria estadia ativa, que o R-6 protege
+(`reservationRoomAccount`, `roomChangeAccounts`, `openStayAccount` no check-in).
+
+| Ponto | RED | GREEN | Comportamento |
+|---|---|---|---|
+| `POST /public/:subdomain/bookings` | `da95122`: 201, reserva sem quarto | `261ffb7` | O quarto escolhido é relido com `LOCK.SHARE` na transação. Se tiver sido excluído no meio → 409 `{"error":"Sem disponibilidade na categoria para o período"}`, a mesma mensagem pública de sempre e sem detalhe interno. A cobrança no PSP fica no log como órfã, igual ao rollback que já existia |
+| `POST /accounts` (avulsa com `room_id`) | `da95122`: 201, conta apontando para quarto excluído | `261ffb7` | `LOCK.SHARE` na transação do INSERT → 404. A conta ROOM não trava, porque a estadia CHECKED_IN já segura a exclusão e travar o quarto antes da reserva inverteria a ordem reserva → quarto do check-out |
+
+Suíte final: `Test Files 49 passed (49)` · `Tests 1089 passed | 1 skipped (1090)`. Cobertura:
+instruções 85.35%, branches 82.33%, funções 89.1%, linhas 87.14%. `qa_checks`: 3 avisos, os mesmos
+da develop, e nenhum erro.
+
+A pendência 4 desta tabela está **resolvida**.

@@ -10,14 +10,15 @@ Fechar o vazamento entre hotéis por chave estrangeira vinda do corpo (R-1 do qa
 categorias (repasse `docs/qa/repasses/para_sirlande_21102026.md`). Sem PR e sem merge.
 
 ## Onde estou
-- Último commit: `docs(historico)` das ressalvas do qa-redteam de 30/10 (push: sim)
-- Passo atual: ressalvas do qa-redteam (🟡-1, 🟡-2, 🟡-3, 🟢-2, 🟢-3, 🟢-4, 🟢-5) corrigidas com RED → GREEN — 49 arquivos, 1087 passam, 1 skip, cobertura 85.36% statements; qa_checks 3 avisos, nenhum erro; container pg-fkint removido
+- Último commit: `docs(historico)` da reserva pública e da conta avulsa (push: sim)
+- Passo atual: ressalvas do qa-redteam (🟡-1, 🟡-2, 🟡-3, 🟢-2, 🟢-3, 🟢-4, 🟢-5) e a mesma classe do 🟡-1 na reserva pública e na conta avulsa corrigidas com RED → GREEN — 49 arquivos, 1089 passam, 1 skip, cobertura 85.35% statements; qa_checks 3 avisos, nenhum erro; container pg-fkint removido
 - Próximo passo: decisão de PR/merge do Gabriel; regenerar api-client com a T-05.1 depois do merge
 
 ## Ressalvas do qa-redteam de 30/10 (relatório `docs/qa/redteam_tenant-fk-validation_24out2026.md`)
 - 🟡-1 + 🟢-2: RED `b6d0906` → GREEN `a6489ef`. FOR SHARE em quem referencia o quarto ou a categoria (CreateReservation, AddRoom, UpdateReservation, SignContract, CreateRoom, UpdateRoom); FOR UPDATE no DeleteRoomCategory; testes de corrida em `tests/rooms-race.test.js`, que também matam as mutações M5 e M6.
 - 🟡-2, 🟡-3, 🟢-3, 🟢-5: RED `8af65e0` → GREEN `b8a9f8a` (`numberError`, `findInTenant` no `:id`, `name.trim()`, `category.id`).
 - 🟢-4: RED `4e13785` → GREEN `ab04841` (requestBody de `PUT /rooms/{id}`; api-client fica com a T-05.1).
+- Mesma classe do 🟡-1, fora da lista do auditor: RED `da95122` → GREEN `261ffb7`. `POST /public/:subdomain/bookings` relê o quarto escolhido com FOR SHARE (excluído no meio → 409 com a mensagem pública de sempre) e `POST /accounts` avulsa com `room_id` lê o quarto com FOR SHARE (→ 404). O grep de `room_id`/`category_id` não achou outro ponto.
 - Fora desta rodada, por ordem do coordenador: CLEANING → MAINTENANCE e o repasse para a Sirlande.
 - Relatório da sessão: `docs/historico_sessao/gabriel/tenant_fk_ressalvas_qa_30102026.md`.
 
