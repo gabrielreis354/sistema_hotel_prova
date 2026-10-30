@@ -3,6 +3,7 @@ import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { VALID_ROLES } from '../app/utils/roles.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
 import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
+import { ROOM_STATUSES } from '../app/utils/roomRules.js';
 
 const options = {
     definition: {
@@ -784,7 +785,7 @@ const options = {
                     }}}}},
                     responses: {
                         201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'code INVALID_INPUT — category_id ou number ausentes, floor não inteiro ou status fora de AVAILABLE | MAINTENANCE', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        400: { description: 'code INVALID_INPUT — category_id ou number ausentes, number que não é texto não vazio, floor não inteiro ou status fora de AVAILABLE | MAINTENANCE', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         404: { description: 'code CATEGORY_NOT_FOUND — Categoria não encontrada — inexistente, excluída, de outro hotel ou id inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         409: { description: 'code ROOM_NUMBER_TAKEN — Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
@@ -815,9 +816,15 @@ const options = {
                 },
                 put: {
                     tags: ['Quartos'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Todos os campos são opcionais: só o que vier é alterado', properties: {
+                        category_id: { type: 'string', format: 'uuid', description: 'Categoria do próprio hotel, não excluída' },
+                        number: { type: 'string', example: '101', description: 'Texto não vazio; gravado aparado' },
+                        floor: { type: 'integer', nullable: true, description: '0 é o térreo; null tira o andar' },
+                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'code INVALID_INPUT — status fora da lista ou floor não inteiro', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        400: { description: 'code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         404: { description: 'code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/RoomError' }, { $ref: '#/components/schemas/Error' }] } } } },
                         409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
