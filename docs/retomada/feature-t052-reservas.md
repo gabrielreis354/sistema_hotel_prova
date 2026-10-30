@@ -9,7 +9,7 @@ SPEC-05 T-05.2, CA-05.2.a a m: reservas, check-in/out, conta e comprovante no `a
 Rodada atual: ressalvas da reauditoria delta (`docs/qa/redteam_t052-reservas_delta_24out2026.md`, commit `7bc2ffe`). Sem PR.
 
 **Ordem de integração** (parecer do Sirlande, 28/10): `fix/tenant-fk-validation` → `feature/analytics-service` → `feature/t051` → `feature/t052`. O merge da t052 em develop está previsto para 30/10.
-**Quando a t051 entrar na develop**, esta branch precisa de mais um merge da develop seguido de `pnpm gen:api`. Conflito esperado em `App.tsx`: manter os dois blocos. **Nunca resolva `openapi.json`/`schema.d.ts` à mão — regenere.** Depois disso, promover `Money`, `ErrorState`, `Notice`, `ButtonLink` e o badge (via `StatusBadge tone/label`) para `packages/ui` e registrar no `CATALOGO.md`.
+**Quando a t051 entrar na develop**, esta branch precisa de mais um merge da develop seguido de `pnpm gen:api`.  A t051 já recebeu a develop (6501a9a) e isolou as rotas de quartos em `routes/roomsRoutes.tsx`, então o conflito em `App.tsx` deve se resumir a um import e uma linha de rotas. **Nunca resolva `openapi.json`/`schema.d.ts` à mão — regenere.** Depois disso, promover `Money`, `ErrorState`, `Notice`, `ButtonLink` e o badge (via `StatusBadge tone/label`) para `packages/ui` e registrar no `CATALOGO.md`.
 
 ## Onde estou
 - Último commit: `docs(reservations): reauditoria delta tratada — SPEC-05, relatorio e retomada` (com push). Para confirmar: `git log -1`
