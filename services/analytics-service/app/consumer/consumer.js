@@ -75,6 +75,17 @@ export function isInfrastructureFailure(error) {
     return typeof code === 'string' && SQLSTATE_CONEXAO.test(code);
 }
 
+/**
+ * Teto de devoluções por "banco fora" antes de contar tentativa (🟡-A). Bem abaixo do `delivery-limit`
+ * padrão (20) da fila quorum: com 10, sobram as 5 tentativas do §5.3 com folga.
+ */
+export const MAX_INFRA_REDELIVERIES = 10;
+
+/** Quantas vezes o broker já entregou esta mensagem nesta fila (cabeçalho da fila quorum). */
+export function deliveryCount(msg) {
+    return Number(msg.properties?.headers?.['x-delivery-count']) || 0;
+}
+
 /** ack/nack que nunca lança: com o canal fechado, o broker já devolveu a mensagem à fila. */
 function semLancar(acao, logger, descricao) {
     try {
@@ -92,7 +103,7 @@ function semLancar(acao, logger, descricao) {
  * Falha de infraestrutura (banco fora): nem ack, nem nack — avisa o consumidor, que fecha a conexão.
  * O broker devolve as mensagens não confirmadas à fila SEM `x-death`, e nenhuma tentativa é gasta.
  */
-export function createMessageHandler({ channel, apply = applyEvent, parse = parseEvent, logger = console, onInfrastructureFailure = () => {} }) {
+export function createMessageHandler({ channel, apply = applyEvent, parse = parseEvent, logger = console, onInfrastructureFailure = () => {}, maxInfraRedeliveries = MAX_INFRA_REDELIVERIES }) {
     return async function handleMessage(msg) {
         if (msg === null) return;   // consumidor cancelado pelo broker (fila apagada)
         const attempts = previousFailures(msg) + 1;
@@ -102,7 +113,7 @@ export function createMessageHandler({ channel, apply = applyEvent, parse = pars
             await apply(event);
         } catch (error) {
             try {
-                await tratarFalha({ channel, msg, event, error, attempts, logger, onInfrastructureFailure });
+                await tratarFalha({ channel, msg, event, error, attempts, logger, onInfrastructureFailure, maxInfraRedeliveries });
             } catch (inesperado) {
                 logger.error(`Analytics: erro inesperado ao tratar falha (${inesperado.message}).`);
             }
@@ -113,11 +124,15 @@ export function createMessageHandler({ channel, apply = applyEvent, parse = pars
     };
 }
 
-async function tratarFalha({ channel, msg, event, error, attempts, logger, onInfrastructureFailure }) {
+async function tratarFalha({ channel, msg, event, error, attempts, logger, onInfrastructureFailure, maxInfraRedeliveries }) {
     // Log sem payload: o payload de hóspede tem o nome (LGPD) — só id e tipo.
     const quem = event ? `${event.type} ${event.eventId}` : `mensagem ${msg.properties?.messageId ?? '(sem id)'}`;
 
-    if (isInfrastructureFailure(error)) {
+    // A pausa devolve a mensagem sem ack/nack, e cada devolução soma no `x-delivery-count` da fila quorum.
+    // No `delivery-limit` (20 por padrão) o broker DESCARTA a mensagem — ciclo de dead-letter sem
+    // 'rejected', fora da DLQ (reauditoria delta da H.2, 🟡-A). Por isso a pausa tem teto: acima dele, ou
+    // se a mensagem já voltou uma vez da fila de espera, o erro de conexão conta como tentativa comum.
+    if (isInfrastructureFailure(error) && previousFailures(msg) === 0 && deliveryCount(msg) < maxInfraRedeliveries) {
         logger.warn(`Analytics: ${quem} não aplicado — banco do analytics indisponível (${error.message}); pausando o consumo.`);
         onInfrastructureFailure(error);
         return;
@@ -150,16 +165,24 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * consumir — sem as tabelas, toda mensagem iria parar na DLQ depois de 5 tentativas; e é por ele que
  * o consumo volta depois de uma pausa por banco fora do ar (🟡-3).
  *
+ * A espera cresce só com falhas SEGUIDAS de `ready()`/`connect()`; quando o consumo volta, zera
+ * (reauditoria delta, 🟢-C) — senão, depois de algumas quedas do banco, toda pausa esperaria 30 s.
+ *
  * `status()`: 'stopped' | 'connecting' | 'consuming' — o /health usa (degradado → 503).
  * `stop()`: desligamento ordenado (SIGTERM) — cancela o consumo, espera as mensagens em andamento
- * terminarem (com ack) até `stopTimeoutMs`, e só então fecha a conexão.
+ * terminarem (com ack) até `stopTimeoutMs`, e só então fecha a conexão. Interrompe também a espera do
+ * backoff e não fica preso num `connect()`/`ready()` que não responde (🟢-B).
  */
-export function createConsumer({ connect, ready = async () => {}, apply, logger = console, sleep = defaultSleep, maxBackoffMs = 30000, stopTimeoutMs = 10000 }) {
+export function createConsumer({
+    connect, ready = async () => {}, apply, logger = console, sleep = defaultSleep,
+    maxBackoffMs = 30000, stopTimeoutMs = 10000, maxInfraRedeliveries = MAX_INFRA_REDELIVERIES
+}) {
     let running = false;
     let estado = 'stopped';
     let atual = null;
     let consumerTag = null;
     let laco = null;
+    let acordar = null;
     const emAndamento = new Set();
 
     function pausarPorInfraestrutura() {
@@ -169,6 +192,12 @@ export function createConsumer({ connect, ready = async () => {}, apply, logger 
         atual.close().catch(() => {});
     }
 
+    /** Espera do backoff que o stop() interrompe. */
+    function esperar(ms) {
+        return Promise.race([sleep(ms), new Promise((resolve) => { acordar = resolve; })])
+            .finally(() => { acordar = null; });
+    }
+
     async function executar() {
         let backoff = 0;
         let ultimoErro = null;
@@ -176,9 +205,18 @@ export function createConsumer({ connect, ready = async () => {}, apply, logger 
             try {
                 estado = 'connecting';
                 await ready();
+                if (!running) break;
                 atual = await connect();
+                if (!running) {        // stop() chegou durante o connect(): fecha a conexão que chegou e sai
+                    await atual.close().catch(() => {});
+                    atual = null;
+                    break;
+                }
                 await atual.channel.prefetch(PREFETCH);
-                const handler = createMessageHandler({ channel: atual.channel, apply, logger, onInfrastructureFailure: pausarPorInfraestrutura });
+                const handler = createMessageHandler({
+                    channel: atual.channel, apply, logger,
+                    onInfrastructureFailure: pausarPorInfraestrutura, maxInfraRedeliveries
+                });
                 const rastreado = (msg) => {
                     const p = handler(msg);
                     emAndamento.add(p);
@@ -187,12 +225,11 @@ export function createConsumer({ connect, ready = async () => {}, apply, logger 
                 };
                 ({ consumerTag } = (await atual.channel.consume(QUEUE, rastreado, { noAck: false })) ?? {});
                 estado = 'consuming';
+                backoff = 0;           // 🟢-C: o consumo voltou — a próxima falha recomeça de 1 s
                 logger.info(`Analytics: consumindo ${QUEUE} (prefetch ${PREFETCH}).`);
                 ultimoErro = null;
                 await atual.closed;   // fica aqui até a conexão cair (ou ser fechada pela pausa)
-                const pausado = Boolean(atual?.pausando);
-                if (running && !pausado) logger.warn('Analytics: conexão com o RabbitMQ caiu — reconectando.');
-                if (!pausado) backoff = 0;
+                if (running && !atual?.pausando) logger.warn('Analytics: conexão com o RabbitMQ caiu — reconectando.');
             } catch (error) {
                 if (error.message !== ultimoErro) {
                     logger.warn(`Analytics: consumidor aguardando (${error.message}); tentando de novo.`);
@@ -207,8 +244,8 @@ export function createConsumer({ connect, ready = async () => {}, apply, logger 
             }
             if (!running) break;
             estado = 'connecting';
-            backoff = backoff ? Math.min(backoff * 2, maxBackoffMs) : 1000;
-            await sleep(backoff);
+            backoff = backoff ? Math.min(backoff * 2, maxBackoffMs) : Math.min(1000, maxBackoffMs);
+            await esperar(backoff);
         }
         estado = 'stopped';
     }
@@ -221,22 +258,25 @@ export function createConsumer({ connect, ready = async () => {}, apply, logger 
 
     async function stop() {
         running = false;
+        acordar?.();
         const conexao = atual;
         if (conexao) {
             if (consumerTag) await conexao.channel.cancel(consumerTag).catch(() => {});
-            let prazo;
-            await Promise.race([
-                Promise.allSettled([...emAndamento]),
-                new Promise((resolve) => { prazo = setTimeout(resolve, stopTimeoutMs); })
-            ]);
-            clearTimeout(prazo);
+            await comPrazo(Promise.allSettled([...emAndamento]), stopTimeoutMs);
             await conexao.close().catch(() => {});
         }
-        if (laco) await laco;
+        // connect()/ready() que não responde não segura o desligamento além do prazo.
+        if (laco) await comPrazo(laco, stopTimeoutMs);
         estado = 'stopped';
     }
 
     return { start, stop, status: () => estado };
+}
+
+async function comPrazo(promessa, ms) {
+    let prazo;
+    await Promise.race([promessa, new Promise((resolve) => { prazo = setTimeout(resolve, ms); })]);
+    clearTimeout(prazo);
 }
 
 /**

@@ -152,3 +152,109 @@ describe('🟢-4 — desligamento ordenado', () => {
         expect(consumidor.status()).toBe('stopped');
     });
 });
+
+// Reauditoria delta da H.2 (docs/qa/redteam_analytics-service-h2_delta_24out2026.md).
+const comEntregas = (deliveryCount, rejeicoes = 0) => {
+    const m = mensagem();
+    m.properties.headers = { 'x-delivery-count': deliveryCount };
+    if (rejeicoes) m.properties.headers['x-death'] = [{ queue: 'analytics.core-events', reason: 'rejected', count: rejeicoes }];
+    return m;
+};
+const canalOk = () => ({ ack: vi.fn(), nack: vi.fn(), publish: vi.fn(), waitForConfirms: vi.fn(async () => {}) });
+
+describe('🟡-A — teto de x-delivery-count no caminho de infraestrutura', () => {
+    const falhaDeConexao = async () => { throw erroDeConexao(); };
+
+    it('abaixo do teto: pausa (sem ack/nack)', async () => {
+        const canal = canalOk();
+        const aviso = vi.fn();
+        await createMessageHandler({ channel: canal, apply: falhaDeConexao, logger: silencioso, onInfrastructureFailure: aviso, maxInfraRedeliveries: 10 })(comEntregas(9));
+        expect(aviso).toHaveBeenCalledTimes(1);
+        expect(canal.nack).not.toHaveBeenCalled();
+    });
+
+    it('no teto: vira falha transitória comum — nack sem reenfileirar (rejected, x-death contado), sem pausar', async () => {
+        const canal = canalOk();
+        const aviso = vi.fn();
+        const msg = comEntregas(10);
+        await createMessageHandler({ channel: canal, apply: falhaDeConexao, logger: silencioso, onInfrastructureFailure: aviso, maxInfraRedeliveries: 10 })(msg);
+        expect(aviso).not.toHaveBeenCalled();
+        expect(canal.nack).toHaveBeenCalledWith(msg, false, false);
+    });
+
+    it('mensagem que já foi rejeitada (voltou da fila de espera) não pausa mais: conta tentativa até a DLQ', async () => {
+        const canal = canalOk();
+        const aviso = vi.fn();
+        await createMessageHandler({ channel: canal, apply: falhaDeConexao, logger: silencioso, onInfrastructureFailure: aviso })(comEntregas(0, 2));
+        expect(aviso).not.toHaveBeenCalled();
+        expect(canal.nack).toHaveBeenCalledTimes(1);
+
+        const naQuinta = canalOk();
+        await createMessageHandler({ channel: naQuinta, apply: falhaDeConexao, logger: silencioso, onInfrastructureFailure: aviso })(comEntregas(0, 4));
+        expect(naQuinta.publish.mock.calls[0][0]).toBe('analytics.dlx');
+        expect(naQuinta.publish.mock.calls[0][3].headers).toMatchObject({ 'x-error-kind': 'transient', 'x-attempts': 5 });
+    });
+
+    it('o teto padrão fica bem abaixo do delivery-limit padrão (20) da fila quorum', async () => {
+        const canal = canalOk();
+        await createMessageHandler({ channel: canal, apply: falhaDeConexao, logger: silencioso })(comEntregas(10));
+        expect(canal.nack).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('🟢-C — o backoff zera quando o consumo volta', () => {
+    it('duas pausas separadas esperam o mesmo 1 s, não 1 s e depois 2 s', async () => {
+        const conexoes = [conexaoFalsa(), conexaoFalsa(), conexaoFalsa()];
+        const connect = vi.fn();
+        conexoes.forEach((c) => connect.mockResolvedValueOnce(c.conexao));
+        const esperas = [];
+        const consumidor = createConsumer({
+            connect, apply: async () => { throw erroDeConexao(); }, logger: silencioso,
+            sleep: async (ms) => { esperas.push(ms); }
+        });
+        const laco = consumidor.start();
+        for (const c of conexoes.slice(0, 2)) {
+            await vi.waitFor(() => expect(c.handlers).toHaveLength(1));
+            await c.handlers[0](mensagem());          // pausa por banco fora
+            await vi.waitFor(() => expect(c.conexao.close).toHaveBeenCalled());
+        }
+        await vi.waitFor(() => expect(conexoes[2].channel.consume).toHaveBeenCalled());
+        expect(esperas).toEqual([1000, 1000]);
+        await consumidor.stop();
+        await laco;
+    });
+});
+
+describe('🟢-B — stop() durante connect(), ready() ou a espera do backoff', () => {
+    it('stop() enquanto connect() está em andamento resolve e fecha a conexão que chegar depois', async () => {
+        const { conexao } = conexaoFalsa();
+        let completar;
+        const consumidor = createConsumer({ connect: () => new Promise((r) => { completar = () => r(conexao); }), logger: silencioso, sleep: async () => {} });
+        consumidor.start();
+        await vi.waitFor(() => expect(completar).toBeTypeOf('function'));
+        const parando = consumidor.stop();
+        completar();
+        await expect(Promise.race([parando.then(() => 'resolveu'), new Promise((r) => setTimeout(() => r('travou'), 2000))])).resolves.toBe('resolveu');
+        expect(conexao.close).toHaveBeenCalled();
+        expect(consumidor.status()).toBe('stopped');
+    });
+
+    it('stop() durante a espera do backoff interrompe a espera', async () => {
+        const consumidor = createConsumer({
+            connect: async () => { throw new Error('broker fora'); }, logger: silencioso,
+            sleep: () => new Promise(() => {})        // espera que nunca termina sozinha
+        });
+        consumidor.start();
+        await new Promise((r) => setTimeout(r, 50));
+        const r = await Promise.race([consumidor.stop().then(() => 'resolveu'), new Promise((res) => setTimeout(() => res('travou'), 2000))]);
+        expect(r).toBe('resolveu');
+    });
+
+    it('stop() com connect() que nunca responde resolve no prazo (stopTimeoutMs)', async () => {
+        const consumidor = createConsumer({ connect: () => new Promise(() => {}), logger: silencioso, stopTimeoutMs: 200 });
+        consumidor.start();
+        await new Promise((r) => setTimeout(r, 20));
+        const r = await Promise.race([consumidor.stop().then(() => 'resolveu'), new Promise((res) => setTimeout(() => res('travou'), 2000))]);
+        expect(r).toBe('resolveu');
+    });
+});
