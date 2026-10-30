@@ -8,6 +8,7 @@ import { ACCOUNT_TYPES } from '../../utils/accountEnums.js';
 import { realignStaleLodgingAccount } from '../../utils/reservationRoomAccount.js';
 import accountRuleViolation from '../../utils/accountRuleViolation.js';
 import isUuid from '../../utils/isUuid.js';
+import findInTenant from '../../utils/findInTenant.js';
 
 const LINK_FIELDS = ['reservation_id', 'room_id', 'guest_id'];
 
@@ -101,7 +102,16 @@ export default async function CreateAccountController(request, response) {
             const guest = await GuestModel.findOne({ where: { id: guest_id, tenant_id: tenantId } });
             if (!guest) return response.status(404).json({ error: 'Hóspede não encontrado' });
         }
-        if (provided(room_id)) {
+        if (provided(room_id) && type !== 'ROOM') {
+            // Conta avulsa (day-use, mesa, balcão, interna) que aponta para um quarto: lido com
+            // FOR SHARE na transação do INSERT (🟡-1 do qa-redteam de 30/10). A FK não enxerga
+            // deleted_at; sem a trava, um quarto excluído no meio era gravado na conta. Na conta
+            // ROOM não precisa: o quarto está numa estadia CHECKED_IN, que segura a exclusão
+            // (R-6) — e travar o quarto antes da reserva inverteria a ordem reserva → quarto.
+            transaction = await sequelize.transaction();
+            const room = await findInTenant(RoomModel, room_id, tenantId, { transaction, lock: transaction.LOCK.SHARE });
+            if (!room) return await fail(404, { error: 'Quarto não encontrado' });
+        } else if (provided(room_id)) {
             const room = await RoomModel.findOne({ where: { id: room_id, tenant_id: tenantId } });
             if (!room) return response.status(404).json({ error: 'Quarto não encontrado' });
         }
