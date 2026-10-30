@@ -39,6 +39,8 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
     const tenantId = randomUUID();
     const falhasTransitorias = new Map();   // aggregate_id → nº de chamadas que falharam
     const bancoForaPara = new Map();        // aggregate_id → quantas entregas ainda acham o banco fora
+    const conexaoSempreFalha = new Map();   // aggregate_id → entregas (banco "meio no ar": SELECT 1 passa, a transação não)
+    const TETO_INFRA = 3;                   // teto de x-delivery-count do caminho de infraestrutura (🟡-A), baixo para o teste
     let conexaoCore;
     let canalCore;
     let conexaoLeitura;
@@ -68,6 +70,10 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
 
         // O apply real, com falha transitória simulada para os agregados marcados no teste.
         const apply = async (evento) => {
+            if (conexaoSempreFalha.has(evento.aggregateId)) {
+                conexaoSempreFalha.set(evento.aggregateId, conexaoSempreFalha.get(evento.aggregateId) + 1);
+                throw Object.assign(new Error('connection terminated (simulado)'), { name: 'SequelizeConnectionRefusedError' });
+            }
             if ((bancoForaPara.get(evento.aggregateId) ?? 0) > 0) {
                 bancoForaPara.set(evento.aggregateId, bancoForaPara.get(evento.aggregateId) - 1);
                 throw Object.assign(new Error('connect ECONNREFUSED (simulado)'), { name: 'SequelizeConnectionRefusedError' });
@@ -78,7 +84,10 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
             }
             return applyEvent(evento);
         };
-        consumidor = createConsumer({ connect: rabbitConnectFromEnv(process.env), apply, logger: silencioso });
+        consumidor = createConsumer({
+            connect: rabbitConnectFromEnv(process.env), apply, logger: silencioso,
+            maxInfraRedeliveries: TETO_INFRA, maxBackoffMs: 200
+        });
         consumidor.start();
     });
 
@@ -173,6 +182,21 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
         expect(bancoForaPara.get(env.aggregate_id)).toBe(0);
         expect(await canalLeitura.get(DLQ, { noAck: true })).toBe(false);   // nada foi para a DLQ
     }, 60000);
+
+    it('🟡-A: erro de conexão que nunca passa (banco meio no ar) não some em silêncio — acima do teto vira tentativa e vai para a DLQ', async () => {
+        // Sem o teto, cada pausa devolve a mensagem sem ack/nack e soma no x-delivery-count da fila quorum;
+        // na 21ª entrega o broker a descarta ("dead letter cycle without reason 'rejected'"), fora da DLQ.
+        const env = envelope('guest.created', { tenantId, payload: { full_name: 'Banco meio no ar' } });
+        conexaoSempreFalha.set(env.aggregate_id, 0);
+        await publicar(env, { type: env.type });
+
+        const morta = await proximaDaDlq();
+        expect(JSON.parse(morta.content.toString()).event_id).toBe(env.event_id);
+        expect(morta.properties.headers).toMatchObject({ 'x-error-kind': 'transient', 'x-attempts': MAX_ATTEMPTS });
+        // TETO_INFRA pausas sem contar tentativa e depois as 5 tentativas normais: nunca as 21 do descarte.
+        expect(conexaoSempreFalha.get(env.aggregate_id)).toBe(TETO_INFRA + MAX_ATTEMPTS);
+        expect(await GuestProjection.count({ where: { id: env.aggregate_id } })).toBe(0);
+    }, 150000);
 
     it('§8: a credencial do analytics NÃO publica na exchange do core (não fabrica evento)', async () => {
         const conexao = await conectar(process.env.RABBITMQ_ANALYTICS_USER, process.env.RABBITMQ_ANALYTICS_PASSWORD);
