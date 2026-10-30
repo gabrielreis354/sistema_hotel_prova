@@ -6,7 +6,12 @@ import { ROOM_HOLDING_RESERVATION_STATUSES } from '../../utils/roomRules.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 
 export default async function DeleteRoomController(request, response) {
-    // Quarto travado durante a checagem: a inserção de uma reserva para ele (FK no pivô) espera.
+    // Quarto travado (FOR UPDATE) durante a checagem e a exclusão. Isso fecha a corrida nos dois
+    // sentidos só porque quem grava reserva lê o quarto com FOR SHARE na própria transação:
+    // - a reserva chegou antes: esta exclusão espera ela confirmar e a enxerga → 409;
+    // - a exclusão chegou antes: a leitura da reserva espera, reavalia deleted_at e não acha o
+    //   quarto → 404. Sem o FOR SHARE do outro lado, o INSERT só esperava a trava e gravava
+    //   assim mesmo, porque a FK não enxerga deleted_at (🟡-1 do qa-redteam de 30/10).
     let transaction;
     const fail = async (status, body) => {
         await transaction.rollback();

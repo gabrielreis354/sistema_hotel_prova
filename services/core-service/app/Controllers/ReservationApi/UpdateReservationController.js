@@ -7,6 +7,7 @@ import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
 import { moveRoomAccounts } from '../../utils/roomChangeAccounts.js';
+import findInTenant from '../../utils/findInTenant.js';
 
 // Campos permitidos para atualização via PUT.
 // Mudanças de status são exclusividade dos endpoints dedicados:
@@ -49,7 +50,8 @@ export default async function UpdateReservationController(request, response) {
         // texto da requisição deixava passar a troca por um extra da própria reserva (N3).
         let newRoomId = reservation.room_id;
         if (room_id !== undefined) {
-            const room = await RoomModel.findOne({ where: { id: room_id, tenant_id: tenantId }, transaction });
+            // FOR SHARE: a troca não aponta para um quarto excluído no meio (🟡-1 do qa-redteam de 30/10).
+            const room = await findInTenant(RoomModel, room_id, tenantId, { transaction, lock: transaction.LOCK.SHARE });
             if (!room) return await fail(404, { error: 'Quarto não encontrado' });
             newRoomId = room.id;
         }

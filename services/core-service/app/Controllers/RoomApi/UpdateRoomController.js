@@ -35,7 +35,8 @@ export default async function UpdateRoomController(request, response) {
         // o quarto do hotel A passava a apontar para a categoria do hotel B — o GET devolvia
         // nome, diária e tenant_id de B e a reserva era cobrada pela diária de B (R-1).
         if (category_id !== undefined) {
-            const category = await findInTenant(RoomCategoryModel, category_id, tenantId, { transaction });
+            // FOR SHARE: uma categoria excluída no meio não é gravada no quarto (🟡-1 do qa-redteam de 30/10).
+            const category = await findInTenant(RoomCategoryModel, category_id, tenantId, { transaction, lock: transaction.LOCK.SHARE });
             if (!category) return await fail(404, roomError(ROOM_ERROR_CODES.CATEGORY_NOT_FOUND, 'Categoria não encontrada'));
         }
 

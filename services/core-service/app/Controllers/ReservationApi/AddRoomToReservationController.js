@@ -5,6 +5,7 @@ import RoomModel from '../../Models/RoomModel.js';
 import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
+import findInTenant from '../../utils/findInTenant.js';
 
 export default async function AddRoomToReservationController(request, response) {
     const { id } = request.params;
@@ -30,7 +31,8 @@ export default async function AddRoomToReservationController(request, response) 
         const blocked = reservationChangeBlocked(reservation);
         if (blocked) return await fail(blocked.status, { error: blocked.message });
 
-        const room = await RoomModel.findOne({ where: { id: room_id, tenant_id: tenantId }, transaction });
+        // FOR SHARE: um quarto excluído no meio não entra no pivô (🟡-1 do qa-redteam de 30/10).
+        const room = await findInTenant(RoomModel, room_id, tenantId, { transaction, lock: transaction.LOCK.SHARE });
         if (!room) return await fail(404, { error: 'Quarto não encontrado' });
 
         const existing = await ReservationRoomModel.findOne({ where: { reservation_id: id, room_id: room.id }, transaction });

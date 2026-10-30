@@ -6,6 +6,7 @@ import GuestModel from '../../Models/GuestModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
+import findInTenant from '../../utils/findInTenant.js';
 
 // Encontra o hóspede que já representa esse cliente corporativo (por CPF) ou cria um novo.
 // Se telefone/e-mail já pertencerem a outro hóspede do tenant (unique constraint), cria
@@ -62,19 +63,6 @@ export default async function SignContractController(request, response) {
             return response.status(400).json({ error: 'Cliente não possui representante legal cadastrado' });
         }
 
-        // Validar todos os quartos ANTES de escrever qualquer coisa no banco.
-        for (const roomId of uniqueRoomIds) {
-            const room = await RoomModel.findOne({ where: { id: roomId, tenant_id: tenantId } });
-            if (!room) return response.status(404).json({ error: `Quarto não encontrado: ${roomId}` });
-        }
-
-        // Todos os quartos contra todos os ocupados no período — inclusive quartos extras de
-        // outras reservas, que antes eram invisíveis aqui (P-1).
-        const conflictingRoomIds = await findConflictingRooms(uniqueRoomIds, contract.check_in, contract.check_out, null, tenantId);
-        if (conflictingRoomIds.length > 0) {
-            return response.status(409).json({ error: 'Quarto(s) indisponível(is) no período do evento', room_ids: conflictingRoomIds });
-        }
-
         const t = await sequelize.transaction();
         try {
             // Relê o contrato com lock: um cancelamento simultâneo não pode deixar o contrato
@@ -83,6 +71,24 @@ export default async function SignContractController(request, response) {
             if (!locked || locked.status !== 'GENERATED') {
                 await t.rollback();
                 return response.status(409).json({ error: `Contrato não pode ser assinado no status atual (${locked?.status ?? 'removido'})` });
+            }
+
+            // Todos os quartos validados ANTES de escrever, dentro da transação e com FOR SHARE:
+            // um quarto excluído no meio não entra na reserva-bloco (🟡-1 do qa-redteam de 30/10).
+            for (const roomId of uniqueRoomIds) {
+                const room = await findInTenant(RoomModel, roomId, tenantId, { transaction: t, lock: t.LOCK.SHARE });
+                if (!room) {
+                    await t.rollback();
+                    return response.status(404).json({ error: `Quarto não encontrado: ${roomId}` });
+                }
+            }
+
+            // Todos os quartos contra todos os ocupados no período — inclusive quartos extras de
+            // outras reservas, que antes eram invisíveis aqui (P-1).
+            const conflictingRoomIds = await findConflictingRooms(uniqueRoomIds, contract.check_in, contract.check_out, null, tenantId, { transaction: t });
+            if (conflictingRoomIds.length > 0) {
+                await t.rollback();
+                return response.status(409).json({ error: 'Quarto(s) indisponível(is) no período do evento', room_ids: conflictingRoomIds });
             }
 
             const guest = await findOrCreateRepresentanteGuest(tenantId, client, t);
