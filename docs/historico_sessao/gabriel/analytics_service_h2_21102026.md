@@ -165,6 +165,26 @@ A pendência 4 (retenção de `processed_events`, 🟢-5) continua aberta.
 - core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.78%, Functions 89.8%, Lines 86.7%
 - `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
 
+#### Correções da reauditoria delta (30/10/2026)
+
+Auditoria: `docs/qa/redteam_analytics-service-h2_delta_24out2026.md` (`8c74407`, APROVADO COM RESSALVAS).
+
+| Achado | Correção | Teste | Commit |
+|---|---|---|---|
+| 🟡-A pausa por banco fora gastava o `delivery-limit` (20) da fila quorum e o broker descartava a mensagem em silêncio | A pausa só acontece com `x-delivery-count` < `maxInfraRedeliveries` (padrão **10**) e se a mensagem nunca voltou da fila de espera; fora disso, o erro de conexão é tentativa transitória comum (nack, `rejected`, DLQ na 5ª) | **RED** `d54b681`: `rabbitmq.integration.test.js`, apply com erro de conexão perpétuo e `ready()` passando → a mensagem sumiu (log do broker: *"Message dropped … dead letter cycle without reason 'rejected'"*, filas e DLQ vazias). **GREEN** `c87df79`: chega à DLQ com `x-error-kind: transient`, `x-attempts: 5`, depois de 3 pausas (teto do teste) + 5 tentativas, em ~41 s. Unitários do teto em `consumer-resilience.test.js` | `d54b681`, `c87df79` |
+| 🟢-C backoff não zerava depois de uma pausa | `backoff = 0` quando o consumo volta | `consumer-resilience.test.js` (duas pausas → `[1000, 1000]`) | `c87df79` |
+| 🟢-B `stop()` preso durante `connect()`/`ready()`/backoff | Espera do backoff interrompível; conexão que chega depois do stop é fechada; o laço não segura o stop além de `stopTimeoutMs` | 3 testes em `consumer-resilience.test.js` | `c87df79` |
+| §5.3 do catálogo prometia "sem x-death, não conta tentativa" sem limite | Texto com o teto; versão 1.1.2 | — | `20290bf` |
+| 🟢-D "readiness, não liveness" só em comentário | Seção no `docs/infra/KUBERNETES.md` e comentário no `HEALTHCHECK` do Dockerfile; comportamento igual. **[revisão do Weslley]** | — | `a4bdd65` |
+| Repasses da reauditoria sem versionar | `para_weslley_29102026.md` e `para_indefinido_29102026.md` | — | `47e7fb8` |
+
+`infra/k8s/rabbitmq-setup.sh` não foi tocado: o `delivery-limit` explícito da fila é repasse ao Weslley.
+
+**Saída real** (PG 5460, RabbitMQ 5697, próprios):
+- analytics — `Test Files 7 passed (7)` · `Tests 93 passed (93)` · Statements **95.4%**, Branches 89.44%, Functions 90%, Lines 95.23%
+- core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.73%, Functions 89.8%, Lines 86.7%
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
 #### Estimativa da H.3 (k, n, o, p, q)
 
 Cerca de **2 a 3 dias de trabalho humano**: as 7 consultas sobre as projeções (NUMERIC até a resposta,

@@ -1,6 +1,6 @@
 # Retomada — H.2 analytics-service (feature/analytics-service)
 
-**Atualizado:** 29/10/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
+**Atualizado:** 30/10/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
 **Worktree:** /home/gabri/wt-h2-analytics · **Portas (integração de 28–29/10):** PG 5460 · RabbitMQ 5697
 **Containers:** pg-h2int, rmq-h2int — derrubados ao fim de cada sessão (subir com os comandos abaixo; o
 rmq-h2int precisa da topologia). NÃO usar pg-qah2b/rmq-qah2b (reauditoria delta).
@@ -12,9 +12,8 @@ para 29/10). Sem PR.
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: merge da develop feito sem conflitos (`35cf86f`); teste dos triggers com os fluxos novos da
-  develop; catálogo alinhado à T-06.13 (`DELETE /payments/:id` → 405, estorno por `/void`)
-- Próximo passo: se a suíte estiver verde e o push feito, nada — aguardar o Gabriel/reauditoria e o PR
+- Passo atual: ressalvas da reauditoria delta corrigidas (🟡-A, 🟢-B, 🟢-C, 🟢-D) e repasses versionados
+- Próximo passo: nada nesta frente — aguardar o Gabriel (merge da H.2); depois do merge, marcar ENCERRADA
 
 ## Feito
 - [x] H.2 entregue (`93aa1f3`..`30b25cd`); auditoria `fc474e5` APROVADO COM RESSALVAS
@@ -23,18 +22,24 @@ para 29/10). Sem PR.
 - [x] Teste dos triggers com os fluxos novos (check-in que cria conta, comanda, pagamento de conta) — `tests/outbox-develop-flows.test.js`
 - [x] Catálogo 1.1.1: texto do `payment.deleted`/estorno alinhado ao código da T-06.13
 
+- [x] 30/10 — reauditoria delta (`8c74407`, APROVADO COM RESSALVAS): repasses versionados (`47e7fb8`);
+  🟡-A RED (`d54b681`) → GREEN (`c87df79`, teto de `x-delivery-count` 10); 🟢-C e 🟢-B (`c87df79`);
+  catálogo 1.1.2 (`20290bf`); 🟢-D readiness (`a4bdd65`)
+
 ## Falta
 - [ ] (outros donos) lacunas de evento da develop — ver relatório, seção "Integração com a develop"
 
 ## Decisões tomadas nesta frente
 - 21/10 — carga inicial emite `*.deleted` para excluídos e aceita `reservation_id` nulo (aceitas pelo Gabriel)
 - 24/10 — `lock_timeout` padrão 3 s, 5 tentativas a cada 2 s; esgotou → erro claro, rodar de novo fora do pico
+- 30/10 — teto da pausa por banco fora: `x-delivery-count` ≥ 10 ou já rejeitada uma vez → tentativa comum (🟡-A)
 - 28/10 — nenhum evento novo fora do catálogo: `accounts`/`account_items` seguem sem evento (§4.7); listado como lacuna
 
 ## Bloqueios e perguntas abertas
 - `GET /analytics/internal-consumption` (T-04.7, develop) lê `account_items`/`accounts`, que não têm evento:
   na H.3 ele não sai das projeções sem um evento novo no catálogo (decisão do Gabriel)
-- CI do analytics e quorum at-most-once → Weslley
+- CI do analytics, quorum at-most-once e `delivery-limit` explícito na fila do analytics → Weslley
+  (`docs/qa/repasses/para_weslley_23102026.md` e `para_weslley_29102026.md`; não mexer em `infra/k8s/rabbitmq-setup.sh`)
 
 ## Comandos úteis desta frente
 ```bash
