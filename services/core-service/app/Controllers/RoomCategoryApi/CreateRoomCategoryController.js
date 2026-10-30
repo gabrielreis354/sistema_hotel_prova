@@ -16,7 +16,8 @@ export default async function CreateRoomCategoryController(request, response) {
 
         const category = await RoomCategoryModel.create({
             tenant_id: tenantId,
-            name,
+            // Aparado, como o produto (🟢-3): "P " ao lado de "P" eram duas categorias na tela.
+            name: name.trim(),
             // Ausente vale 1. Antes `capacity || 1` trocava 0 por 1 em silêncio; agora 0 é 400.
             capacity: capacity === undefined || capacity === null ? 1 : parseInteger(capacity),
             price_per_night

@@ -3,7 +3,7 @@ import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
-import { CREATABLE_ROOM_STATUSES, floorError, parseInteger } from '../../utils/roomRules.js';
+import { CREATABLE_ROOM_STATUSES, floorError, numberError, parseInteger } from '../../utils/roomRules.js';
 import { ROOM_ERROR_CODES, roomError, invalidInputBody } from '../../utils/roomErrors.js';
 
 export default async function CreateRoomController(request, response) {
@@ -14,7 +14,8 @@ export default async function CreateRoomController(request, response) {
 
         const issues = [];
         if (!category_id) issues.push({ field: 'category_id', message: 'category_id obrigatório' });
-        if (!number)      issues.push({ field: 'number', message: 'number obrigatório' });
+        const invalidNumber = numberError(number);
+        if (invalidNumber) issues.push({ field: 'number', message: invalidNumber });
         const invalidFloor = floorError(floor);
         if (invalidFloor) issues.push({ field: 'floor', message: invalidFloor });
         // Allowlist (R-3): quarto novo não nasce OCCUPIED nem CLEANING — isso é check-in e check-out.
@@ -36,8 +37,10 @@ export default async function CreateRoomController(request, response) {
 
         const room = await RoomModel.create({
             tenant_id: tenantId,
-            category_id,
-            number,
+            // Id canônico do banco, não o texto do corpo (🟢-5): o UUID em maiúsculas passava
+            // e a resposta divergia do GET.
+            category_id: category.id,
+            number: number.trim(),
             // `??`, não `||`: o térreo (0) virava null (R-2).
             floor: floor === undefined || floor === null ? null : parseInteger(floor),
             status: status ?? 'AVAILABLE'

@@ -51,6 +51,20 @@ export function parseInteger(value) {
     return Number.isInteger(n) && Math.abs(n) <= PG_INT_MAX ? n : null;
 }
 
+/**
+ * Erro de validação do número do quarto, ou null (🟡-2 do qa-redteam de 30/10). Só texto com
+ * conteúdo depois de aparar: null, objeto e lista viravam 500, vazio era gravado na edição e
+ * `true` virava o quarto "true". `partial: true` na edição — ausente é "não mudar".
+ * Quem grava usa o valor aparado.
+ */
+export function numberError(number, { partial = false } = {}) {
+    if (partial && number === undefined) return null;
+    // Ausente no cadastro mantém a mensagem de sempre; o cliente antigo lê a lista `errors`.
+    if (!partial && (number === undefined || number === null || number === '')) return 'number obrigatório';
+    if (typeof number !== 'string' || !number.trim()) return 'number deve ser um texto não vazio';
+    return null;
+}
+
 /** Erro de validação do andar, ou null. Ausente/null é "sem andar"; 0 é o térreo. */
 export function floorError(floor) {
     if (floor === undefined || floor === null) return null;

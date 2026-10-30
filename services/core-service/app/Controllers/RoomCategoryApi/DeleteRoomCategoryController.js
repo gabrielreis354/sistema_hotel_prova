@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
+import findInTenant from '../../utils/findInTenant.js';
 
 export default async function DeleteRoomCategoryController(request, response) {
     // Categoria travada (FOR UPDATE) antes da contagem, como o quarto no DeleteRoom: quem grava
@@ -18,7 +19,8 @@ export default async function DeleteRoomCategoryController(request, response) {
         const tenantId = request.user.tenantId;
 
         transaction = await sequelize.transaction();
-        const category = await RoomCategoryModel.findOne({ where: { id, tenant_id: tenantId }, lock: transaction.LOCK.UPDATE, transaction });
+        // findInTenant: :id que não é UUID responde 404, não 500 do cast no Postgres (🟡-3).
+        const category = await findInTenant(RoomCategoryModel, id, tenantId, { transaction, lock: transaction.LOCK.UPDATE });
         if (!category) return await fail(404, { error: 'Categoria não encontrada' });
 
         // R-4: a exclusão é lógica, então a FK (ON DELETE RESTRICT) não barra. O quarto ficava

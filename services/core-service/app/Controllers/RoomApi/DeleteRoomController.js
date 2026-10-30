@@ -3,6 +3,7 @@ import RoomModel from '../../Models/RoomModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { ROOM_HOLDING_RESERVATION_STATUSES } from '../../utils/roomRules.js';
+import findInTenant from '../../utils/findInTenant.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 
 export default async function DeleteRoomController(request, response) {
@@ -22,7 +23,8 @@ export default async function DeleteRoomController(request, response) {
         const tenantId = request.user.tenantId;
 
         transaction = await sequelize.transaction();
-        const room = await RoomModel.findOne({ where: { id, tenant_id: tenantId }, lock: transaction.LOCK.UPDATE, transaction });
+        // findInTenant: :id que não é UUID responde 404, não 500 do cast no Postgres (🟡-3).
+        const room = await findInTenant(RoomModel, id, tenantId, { transaction, lock: transaction.LOCK.UPDATE });
         if (!room) return await fail(404, { error: 'Quarto não encontrado' });
 
         // R-6: excluir um quarto com hóspede dentro, ou prometido a uma reserva (principal ou
