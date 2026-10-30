@@ -297,3 +297,87 @@ describe('R-6 — excluir quarto ocupado ou com reserva ativa', () => {
         expect((await request(app).delete(`/rooms/${room.id}`).set(auth())).status).toBe(204);
     });
 });
+
+describe('🟡-2 (qa-redteam 30/10) — number do quarto validado no POST e no PUT', () => {
+    it.each([
+        ['null', null],
+        ['vazio', ''],
+        ['só espaços', '   '],
+        ['objeto', { a: 1 }],
+        ['lista', ['9']],
+        ['booleano', true],
+        ['número (não é texto)', 101]
+    ])('POST com number %s → 400 INVALID_INPUT (field number)', async (_caso, number) => {
+        expectError(await newRoom({ number }), 400, 'INVALID_INPUT', 'number');
+    });
+
+    it.each([
+        ['null', null],
+        ['vazio', ''],
+        ['só espaços', '   '],
+        ['objeto', { a: 1 }],
+        ['lista', ['1']],
+        ['booleano', true]
+    ])('PUT com number %s → 400 INVALID_INPUT (field number), e o número não muda', async (_caso, number) => {
+        const room = (await newRoom()).body;
+        const res = await request(app).put(`/rooms/${room.id}`).set(auth()).send({ number });
+        expectError(res, 400, 'INVALID_INPUT', 'number');
+        expect((await RoomModel.findByPk(room.id)).number).toBe(room.number);
+    });
+
+    it('number é gravado aparado no POST e no PUT', async () => {
+        const created = await newRoom({ number: '  T-1  ' });
+        expect(created.status).toBe(201);
+        expect(created.body.number).toBe('T-1');
+
+        const put = await request(app).put(`/rooms/${created.body.id}`).set(auth()).send({ number: ' T-2 ' });
+        expect(put.status).toBe(200);
+        expect(put.body.number).toBe('T-2');
+    });
+});
+
+describe('🟡-3 (qa-redteam 30/10) — :id que não é UUID → 404, nunca 500', () => {
+    it.each([
+        ['PUT', '/rooms/abc', { floor: 1 }],
+        ['DELETE', '/rooms/abc'],
+        ['PUT', '/room-categories/abc', { name: 'x' }],
+        ['DELETE', '/room-categories/abc']
+    ])('%s %s → 404', async (method, url, body) => {
+        const req = request(app)[method.toLowerCase()](url).set(auth());
+        const res = body ? await req.send(body) : await req;
+        expect(res.status).toBe(404);
+    });
+});
+
+describe('🟢-3 (qa-redteam 30/10) — name da categoria gravado aparado', () => {
+    it('POST grava sem os espaços, e "P " colide com "P" (409 CATEGORY_NAME_TAKEN)', async () => {
+        const created = await request(app).post('/room-categories').set(auth()).send({ name: '  Z7  ', price_per_night: '50.00' });
+        expect(created.status).toBe(201);
+        expect(created.body.name).toBe('Z7');
+
+        await createCategory(app, jwt, { name: 'P', price_per_night: '50.00' });
+        const dup = await request(app).post('/room-categories').set(auth()).send({ name: 'P ', price_per_night: '50.00' });
+        expectError(dup, 409, 'CATEGORY_NAME_TAKEN');
+    });
+
+    it('PUT grava sem os espaços', async () => {
+        const cat = await createCategory(app, jwt, { name: 'Aparar PUT', price_per_night: '50.00' });
+        const res = await request(app).put(`/room-categories/${cat.id}`).set(auth()).send({ name: '  Aparada  ' });
+        expect(res.status).toBe(200);
+        expect(res.body.name).toBe('Aparada');
+    });
+});
+
+describe('🟢-5 (qa-redteam 30/10) — category_id gravado pelo id canônico do banco', () => {
+    it('POST e PUT com category_id em maiúsculas respondem e gravam o id em minúsculas, igual ao GET', async () => {
+        const created = await newRoom({ category_id: categoryId.toUpperCase() });
+        expect(created.status).toBe(201);
+        expect(created.body.category_id).toBe(categoryId);
+
+        const other = await createCategory(app, jwt, { name: 'Canônica', price_per_night: '50.00' });
+        const put = await request(app).put(`/rooms/${created.body.id}`).set(auth()).send({ category_id: other.id.toUpperCase() });
+        expect(put.status).toBe(200);
+        expect(put.body.category_id).toBe(other.id);
+        expect((await request(app).get(`/rooms/${created.body.id}`).set(auth())).body.category_id).toBe(other.id);
+    });
+});
