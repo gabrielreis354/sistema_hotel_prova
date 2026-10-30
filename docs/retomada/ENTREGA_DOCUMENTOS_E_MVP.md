@@ -34,11 +34,13 @@ Fork: `C:\Users\gabri\unifaat_4sem\UniFAAT-projeto-experimental-2027-1` (`origin
 | 01 Solicitação | v1.0 (23/08) | `entrega-1-solicitacao-v11` @ `99fef8f` | **Pronto (v1.1)** | Entregar junto com o Doc 08 ou depois dele, porque o Doc 01 cita o 08 |
 | 02 Requisitos | v1.3 (09/09) | `entrega-2-requisitos-v14` @ `2fde2bb` | **Pronto (v1.4)**: todos os 🔴, 🟡 e 🟢; RF-014 corrigido para amount > 0 e account_id, como no código | Reentrega obrigatória |
 | 03 DFD | v1.2 (09/10) | `entrega-3-dfd-v13` @ `6f5fcbd` | **Pronto (v1.3)**: revisão do grupo sobre a v1.2 do Sirlande | Reentrega obrigatória. Entregar junto com o 06 ou antes dele. Mermaid não renderizado (só os rótulos mudaram): renderizar antes do PR |
-| 04 MER | v1.3 (15/10) | `entrega-4-mer-v13-historico` @ `aaa5cde` | Ajustes do Histórico prontos; v1.4 em curso (agente) | Colunas e constraints que faltam (closed_room_charges, origin/consumed_at, CHECK paid_at, índice provider_charge_id), texto da CONSUMPTIONS, varredura coluna a coluna. Citações das ADR-007 e 010 dependem da entrega do Doc 07 |
+| 04 MER | v1.3 (15/10) | `entrega-4-mer-v13-historico` @ `16b0d7f` | **Pronto (v1.4)**: varredura coluna a coluna contra o schema da develop 093d14b, sem divergência | As citações das ADR-007 e 010 dependem da entrega do Doc 07 |
 | 05 Arquitetura em nuvem | — (v1.1 em 19/10) | `entrega-5-arquitetura-nuvem` @ `ff69a36` | **Pronto (v1.2)**: 1× t3.small, cerca de US$ 0,35 por sessão de 4 h, conta de memória com folga de cerca de 125 MiB | Decidir sobre o diagrama com ícones oficiais da AWS (precisa baixar o pacote). Confirmar no console se ECR e RDS estão disponíveis no plano gratuito |
 | 06 C4 | — (v1.1 em 19/10) | `entrega-6-c4` @ `449a3f2` | **Pronto (v1.2)** | A branch parte de um upstream antigo (79bcce2): antes do PR, recriar a partir de `upstream/main`. Renderizar o Mermaid |
 | 07 ADR | — | fork `entrega-7-adr` @ `fb11fc6` (hotel `docs/doc07-adr` @ `070c339`, PR #97) | **Pronto (v1.1)**: 11 ADRs; Termo §6 item 7 atendido; ADR-004 bate com o Doc 05 v1.2 | Nada. O PR #97 pode ser fechado ou mergeado depois da entrega ao professor |
 | 08 Sprints | — (v1.0 sugestão em 07/10) | `entrega-8-sprints` @ `4e5b557` | **Pronto (v1.1)** | Revisar o registro da S8 e a situação das metas depois de 03/11 |
+
+**30/10: os 8 documentos estão prontos.** Pacote de entrega em montagem (agente): conferência cruzada final, renderização do Mermaid, Doc 06 recriado sobre `upstream/main` e PLANO_DE_PRS.md com títulos, descrições e comandos. Nenhum PR é aberto sem autorização.
 
 Pacote de PRs ao professor (ordem recomendada):
 1. **05 + 06 + 07**, juntos e coerentes com a ADR-004.
