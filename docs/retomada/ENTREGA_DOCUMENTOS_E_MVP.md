@@ -40,7 +40,23 @@ Fork: `C:\Users\gabri\unifaat_4sem\UniFAAT-projeto-experimental-2027-1` (`origin
 | 07 ADR | — | fork `entrega-7-adr` @ `fb11fc6` (hotel `docs/doc07-adr` @ `070c339`, PR #97) | **Pronto (v1.1)**: 11 ADRs; Termo §6 item 7 atendido; ADR-004 bate com o Doc 05 v1.2 | Nada. O PR #97 pode ser fechado ou mergeado depois da entrega ao professor |
 | 08 Sprints | — (v1.0 sugestão em 07/10) | `entrega-8-sprints` @ `4e5b557` | **Pronto (v1.1)** | Revisar o registro da S8 e a situação das metas depois de 03/11 |
 
-**30/10: os 8 documentos estão prontos.** Pacote de entrega em montagem (agente): conferência cruzada final, renderização do Mermaid, Doc 06 recriado sobre `upstream/main` e PLANO_DE_PRS.md com títulos, descrições e comandos. Nenhum PR é aberto sem autorização.
+**30/10: pacote de entrega montado.** As 16 contradições foram resolvidas, os 15 diagramas Mermaid renderizam e cada branch parte do `upstream/main` atual, tocando só o seu arquivo (o Doc 06 passou para `entrega-6-c4-v12`). Hashes finais:
+- 01 `883e666`
+- 02 `6ccde39`
+- 03 `6f5fcbd`
+- 04 `885d2b4`
+- 05 `ff69a36`
+- 06 `51bf706`
+- 07 `fb11fc6`
+- 08 `381464e`
+
+Plano de PRs e descrições prontas: `docs/entrega-documentos/`. Um PR por documento, todos na mesma rodada.
+
+Em curso: RNF-029 (monitoramento, exigido pelo Termo §5) no Doc 02 e premissas do Doc 01 alinhadas ao Doc 05.
+
+Decisões do Gabriel:
+- diagrama do Doc 05 com ícones oficiais da AWS;
+- PR do Doc 08 só depois de 03/11, por causa das pendências datadas.
 
 Pacote de PRs ao professor (ordem recomendada):
 1. **05 + 06 + 07**, juntos e coerentes com a ADR-004.
