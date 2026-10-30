@@ -203,3 +203,28 @@ describe('🟢-2 — as travas FOR UPDATE do UpdateRoom e do DeleteRoom (mutaç�
         expect(await RoomModel.findByPk(room.id)).not.toBeNull();
     });
 });
+
+describe('🟡-1 (mesma classe) — reserva pública e conta avulsa com o quarto sendo excluído', () => {
+    it('POST /public/:subdomain/bookings com o único quarto da categoria sendo excluído → 409 sem disponibilidade, e nenhuma reserva fica com ele', async () => {
+        const cat = await createCategory(app, session.jwt, { name: 'Site única', capacity: 2, price_per_night: '120.00' });
+        const room = await createRoom(app, session.jwt, cat.id, { number: 'WEB1' });
+        const res = await deletingRoom(room.id, () => request(app).post(`/public/${session.subdomain}/bookings`).send({
+            category_id: cat.id, check_in: '2028-10-01', check_out: '2028-10-03', guests: 1,
+            guest: { full_name: 'Hóspede do Site', email: 'site@race.test' }
+        }));
+        expect(res.status).toBe(409);
+        // Mensagem do contrato público de sempre — nada de quarto, trava ou detalhe interno.
+        expect(res.body).toEqual({ error: 'Sem disponibilidade na categoria para o período' });
+        expect(await pivotsOf(room.id)).toBe(0);
+    });
+
+    it('POST /accounts (DAY_USE) com o quarto sendo excluído → 404, e nenhuma conta aponta para ele', async () => {
+        const room = await newRoom();
+        const res = await deletingRoom(room.id, () => request(app).post('/accounts').set(auth()).send({
+            type: 'DAY_USE', label: 'Day use corrida', room_id: room.id
+        }));
+        expect(res.status).toBe(404);
+        const [{ total }] = await sequelize.query('SELECT count(*)::int AS total FROM accounts WHERE room_id = :id', { replacements: { id: room.id }, type: QueryTypes.SELECT });
+        expect(total).toBe(0);
+    });
+});
