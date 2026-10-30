@@ -1,6 +1,6 @@
 # Retomada — validação de tenant nas FKs do corpo + R-2 a R-6 (fix/tenant-fk-validation)
 
-**Atualizado:** 29/10/2026 · **Por:** agente executor (trilha Gabriel)
+**Atualizado:** 30/10/2026 · **Por:** agente executor (trilha Gabriel)
 **Worktree:** /home/gabri/wt-fk-tenant · **Portas:** PG 5459 (antes 5451)
 **Containers:** pg-fkint (subir de novo com: `docker run --rm -d --name pg-fkint -e POSTGRES_USER=hotel_user -e POSTGRES_PASSWORD=hotel_password -p 5459:5432 postgres:17`; `.env.test` com `POSTGRES_PORT=5459`)
 
@@ -10,9 +10,16 @@ Fechar o vazamento entre hotéis por chave estrangeira vinda do corpo (R-1 do qa
 categorias (repasse `docs/qa/repasses/para_sirlande_21102026.md`). Sem PR e sem merge.
 
 ## Onde estou
-- Último commit: `merge: develop na fix/tenant-fk-validation` (origin/develop@94f7abf) (push: sim)
-- Passo atual: integração com a develop concluída — 47 arquivos, 1054 passam, 1 skip, cobertura 85.21% statements; qa_checks 3 avisos, nenhum erro
-- Próximo passo: integração na develop marcada para 29/10 (parecer da Sirlande de 28/10); qa-redteam em paralelo em /tmp/qafk-merge — se ele empurrar relatório, fazer pull antes do push
+- Último commit: `docs(historico)` das ressalvas do qa-redteam de 30/10 (push: sim)
+- Passo atual: ressalvas do qa-redteam (🟡-1, 🟡-2, 🟡-3, 🟢-2, 🟢-3, 🟢-4, 🟢-5) corrigidas com RED → GREEN — 49 arquivos, 1087 passam, 1 skip, cobertura 85.36% statements; qa_checks 3 avisos, nenhum erro; container pg-fkint removido
+- Próximo passo: decisão de PR/merge do Gabriel; regenerar api-client com a T-05.1 depois do merge
+
+## Ressalvas do qa-redteam de 30/10 (relatório `docs/qa/redteam_tenant-fk-validation_24out2026.md`)
+- 🟡-1 + 🟢-2: RED `b6d0906` → GREEN `a6489ef`. FOR SHARE em quem referencia o quarto ou a categoria (CreateReservation, AddRoom, UpdateReservation, SignContract, CreateRoom, UpdateRoom); FOR UPDATE no DeleteRoomCategory; testes de corrida em `tests/rooms-race.test.js`, que também matam as mutações M5 e M6.
+- 🟡-2, 🟡-3, 🟢-3, 🟢-5: RED `8af65e0` → GREEN `b8a9f8a` (`numberError`, `findInTenant` no `:id`, `name.trim()`, `category.id`).
+- 🟢-4: RED `4e13785` → GREEN `ab04841` (requestBody de `PUT /rooms/{id}`; api-client fica com a T-05.1).
+- Fora desta rodada, por ordem do coordenador: CLEANING → MAINTENANCE e o repasse para a Sirlande.
+- Relatório da sessão: `docs/historico_sessao/gabriel/tenant_fk_ressalvas_qa_30102026.md`.
 
 ## Integração com a develop (28–29/10)
 - Merge (não rebase) de `origin/develop@94f7abf` (117 commits: T-04.5, T-04.6, T-04.7, T-05.5, T-06.13, repasses de schema, migrate no rollout).
