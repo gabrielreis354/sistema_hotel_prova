@@ -41,8 +41,8 @@ Fork: `C:\Users\gabri\unifaat_4sem\UniFAAT-projeto-experimental-2027-1` (`origin
 | 08 Sprints | — (v1.0 sugestão em 07/10) | `entrega-8-sprints` @ `4e5b557` | **Pronto (v1.1)** | Revisar o registro da S8 e a situação das metas depois de 03/11 |
 
 **30/10: pacote de entrega montado.** As 16 contradições foram resolvidas, os 15 diagramas Mermaid renderizam e cada branch parte do `upstream/main` atual, tocando só o seu arquivo (o Doc 06 passou para `entrega-6-c4-v12`). Hashes finais:
-- 01 `883e666`
-- 02 `6ccde39`
+- 01 `866dc91`
+- 02 `3933978`
 - 03 `6f5fcbd`
 - 04 `885d2b4`
 - 05 `ff69a36`
@@ -52,7 +52,7 @@ Fork: `C:\Users\gabri\unifaat_4sem\UniFAAT-projeto-experimental-2027-1` (`origin
 
 Plano de PRs e descrições prontas: `docs/entrega-documentos/`. Um PR por documento, todos na mesma rodada.
 
-Em curso: RNF-029 (monitoramento, exigido pelo Termo §5) no Doc 02 e premissas do Doc 01 alinhadas ao Doc 05.
+Feito: RNF-029 (monitoramento, Termo §5) no Doc 02 e premissas do Doc 01 alinhadas ao Doc 05 (plano em `1a5c038`).
 
 Decisões do Gabriel:
 - diagrama do Doc 05 com ícones oficiais da AWS;
