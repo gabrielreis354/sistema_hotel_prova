@@ -31,10 +31,10 @@ Fork: `C:\Users\gabri\unifaat_4sem\UniFAAT-projeto-experimental-2027-1` (`origin
 
 | Doc | Versão entregue | Branch no fork | Situação 29/10 | Falta |
 |---|---|---|---|---|
-| 01 Solicitação | v1.0 (23/08) | `entrega-1-solicitacao-v11` | Em redação (agente) | Nota dos checkboxes §5.1, walk-in, nota de papéis §8 → v1.1 |
+| 01 Solicitação | v1.0 (23/08) | `entrega-1-solicitacao-v11` @ `99fef8f` | **Pronto (v1.1)** | Entregar junto com o Doc 08 ou depois dele, porque o Doc 01 cita o 08 |
 | 02 Requisitos | v1.3 (09/09) | `entrega-2-requisitos-v14` | Em redação (agente) | Os 🔴 e 🟡 da auditoria. **Reentrega obrigatória** |
 | 03 DFD | v1.2 (09/10) | `entrega-3-dfd-v13` | Em redação (agente) | 🔷 indevidos, PDF de orçamento no D-005, D-001 completo. **Reentrega obrigatória** |
-| 04 MER | v1.3 (15/10) | `entrega-4-mer-v13-historico` | Em redação (agente) | Retirar 🔷 de payments/VOIDED, §10.4 e allowlist. Conferir as tabelas novas do schema |
+| 04 MER | v1.3 (15/10) | `entrega-4-mer-v13-historico` @ `aaa5cde` | Ajustes do Histórico prontos; v1.4 em curso (agente) | Colunas e constraints que faltam (closed_room_charges, origin/consumed_at, CHECK paid_at, índice provider_charge_id), texto da CONSUMPTIONS, varredura coluna a coluna. Citações das ADR-007 e 010 dependem da entrega do Doc 07 |
 | 05 Arquitetura em nuvem | — (v1.1 em 19/10) | `entrega-5-arquitetura-nuvem` @ `ff69a36` | **Pronto (v1.2)**: 1× t3.small, cerca de US$ 0,35 por sessão de 4 h, conta de memória com folga de cerca de 125 MiB | Decidir sobre o diagrama com ícones oficiais da AWS (precisa baixar o pacote). Confirmar no console se ECR e RDS estão disponíveis no plano gratuito |
 | 06 C4 | — (v1.1 em 19/10) | `entrega-6-c4` | Em redação (agente) | v1.2: walk-in, token do PSP, §5 #5, porta 3001, categorias |
 | 07 ADR | — | fork `entrega-7-adr` @ `fb11fc6` (hotel `docs/doc07-adr` @ `070c339`, PR #97) | **Pronto (v1.1)**: 11 ADRs; Termo §6 item 7 atendido; ADR-004 bate com o Doc 05 v1.2 | Nada. O PR #97 pode ser fechado ou mergeado depois da entrega ao professor |
