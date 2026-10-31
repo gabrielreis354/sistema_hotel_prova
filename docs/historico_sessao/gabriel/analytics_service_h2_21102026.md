@@ -214,6 +214,42 @@ Auditoria: `docs/qa/redteam_analytics-service-h2_delta2_30out2026.md` (`9d797dd`
 devolvida sem `rejected` e soma uma entrega. Com o teto de 10 e o `delivery-limit` 20 há folga; o
 `delivery-limit` explícito alto (repasse ao Weslley) aumenta essa margem.
 
+#### Correção da reauditoria delta 3 (31/10/2026)
+
+Auditoria: `docs/qa/redteam_analytics-service-h2_delta3_31out2026.md` (`f3789e8`, APROVADO COM RESSALVAS,
+🟡-A3 e 🟢-E). A pendência anotada na rodada anterior (drenagem que estoura o prazo) era o 🟡-A3.
+
+- **RED (`4e9e5c0`)**:
+  - integração com RabbitMQ real, o cenário `race` do auditor: A leva 1500 ms, com `stopTimeoutMs` de
+    500 ms, contra um fluxo de F que pausam. A chegou à DLQ, mas depois de **23 entregas** (o invariante é
+    teto + 5 = 8);
+  - unitários: a pausa fechava antes de a mensagem lenta decidir; `stop()` com o broker mudo travou (8 s no
+    teste, 83 s na reprodução do auditor);
+  - `database-limits.test.js`: sem `pool.acquire` nem `statement_timeout`; no banco real, `SHOW
+    statement_timeout` deu `0` e `pg_sleep(6)` não foi cancelado.
+- **GREEN (`e3b6d82`)**:
+  - 🟡-A3: a drenagem da pausa usa um prazo próprio (`pauseDrainTimeoutMs`, 60 s), e o `stopTimeoutMs` fica
+    só no `stop()`. No Sequelize do analytics, cada operação tem limite: `pool.acquire` e `statement_timeout`
+    de 5 s, configuráveis por `POSTGRES_ACQUIRE_TIMEOUT_MS` e `POSTGRES_STATEMENT_TIMEOUT_MS` (valor inválido
+    cai no padrão). O `57014` continua fora de "banco fora" e conta como tentativa; o *acquire* estourado
+    segue como pool esgotado (pausa, com teto);
+  - 🟢-E: no `stop()`, o `cancel` e o fechamento ordenado esperam o broker no máximo 2 s
+    (`brokerTimeoutMs`). Estourado o prazo, a conexão é mandada fechar sem esperar e o laço preso no `close`
+    não é aguardado. Teste: canal e conexão que nunca respondem → `stop()` resolve em cerca de 4 s;
+  - resultado na integração: A na DLQ com `x-error-kind: transient` e 5 tentativas, nenhuma mensagem acima
+    de 8 entregas, 0 "dead letter cycle" no log do broker, em 54 s.
+- **Catálogo 1.1.4 (`ccf8eef`)**: o §5.3 traz o prazo próprio da drenagem, os limites de 5 s e o `57014`
+  como tentativa.
+
+**Saída real** (PG 5460 e RabbitMQ 5697, próprios, recriados; RabbitMQ com `--user rabbitmq`):
+- analytics — `Test Files 8 passed (8)` · `Tests 104 passed (104)` · Statements **95.66%**, Branches 90.47%, Functions 89.53%, Lines 95.52%
+- core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.78%, Functions 89.8%, Lines 86.7%
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
+**Efeito colateral a saber:** o `statement_timeout` de 5 s vale para toda a conexão do analytics, inclusive
+as consultas HTTP de `/analytics` e o `migrate`. Hoje as duas ficam bem abaixo desse limite. Se a H.3 trouxer
+uma consulta pesada, o limite sobe por env.
+
 #### Estimativa da H.3 (k, n, o, p, q)
 
 Cerca de **2 a 3 dias de trabalho humano**: as 7 consultas sobre as projeções (NUMERIC até a resposta,

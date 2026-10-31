@@ -12,7 +12,7 @@ para 29/10). Sem PR.
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: 🟡-A2 da reauditoria delta 2 corrigido (pausa que drena + fechamento ordenado)
+- Passo atual: 🟡-A3 e 🟢-E da reauditoria delta 3 corrigidos (prazo próprio da drenagem, limites de 5 s no banco, stop() com prazo para o broker)
 - Próximo passo: nada nesta frente — aguardar o Gabriel (merge da H.2); depois do merge, marcar ENCERRADA
 
 ## Feito
@@ -29,12 +29,18 @@ para 29/10). Sem PR.
 - [x] 31/10 — reauditoria delta 2 (`9d797dd`): 🟡-A2 RED (`c1c954c`) → GREEN (`e097bfb`: a pausa drena e
   fecha o canal antes da conexão); catálogo 1.1.3 (`60ea9f8`)
 
+- [x] 31/10 — reauditoria delta 3 (`f3789e8`): 🟡-A3 e 🟢-E RED (`4e9e5c0`) → GREEN (`e3b6d82`);
+  catálogo 1.1.4 (`ccf8eef`)
+
 ## Falta
 - [ ] (outros donos) lacunas de evento da develop — ver relatório, seção "Integração com a develop"
 
 ## Decisões tomadas nesta frente
 - 21/10 — carga inicial emite `*.deleted` para excluídos e aceita `reservation_id` nulo (aceitas pelo Gabriel)
 - 24/10 — `lock_timeout` padrão 3 s, 5 tentativas a cada 2 s; esgotou → erro claro, rodar de novo fora do pico
+- 31/10 — drenagem da pausa com prazo próprio (60 s); `pool.acquire` e `statement_timeout` de 5 s no analytics
+  (env `POSTGRES_ACQUIRE_TIMEOUT_MS` / `POSTGRES_STATEMENT_TIMEOUT_MS`); 57014 conta como tentativa; `stop()` espera o
+  broker no máximo 2 s por resposta (🟡-A3, 🟢-E)
 - 31/10 — pausa drena e fecha o canal ANTES da conexão (fechar a conexão logo após o nack perde o nack na
   fila quorum, comprovado); `nack` com requeue descartado (no RabbitMQ 4 não soma no `x-delivery-count`)
 - 30/10 — teto da pausa por banco fora: `x-delivery-count` ≥ 10 ou já rejeitada uma vez → tentativa comum (🟡-A)
@@ -49,7 +55,7 @@ para 29/10). Sem PR.
 ## Comandos úteis desta frente
 ```bash
 docker run --rm -d --name pg-h2int -e POSTGRES_USER=hotel_user -e POSTGRES_PASSWORD=hotel_password -p 5460:5432 postgres:17
-docker run --rm -d --name rmq-h2int -p 5697:5672 rabbitmq:4-management-alpine
+docker run --rm -d --user rabbitmq --name rmq-h2int -p 5697:5672 rabbitmq:4-management-alpine   # --user: .erlang.cookie eacces desde o Docker Desktop 29
 # topologia + usuários (senhas de TESTE locais, iguais às do .env.test não versionado):
 docker cp infra/k8s/rabbitmq-setup.sh rmq-h2int:/tmp/setup.sh
 timeout 180 docker exec -e RABBITMQ_API_HOST=localhost -e RABBITMQ_DEFAULT_USER=guest -e RABBITMQ_DEFAULT_PASS=guest \
