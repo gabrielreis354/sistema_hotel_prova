@@ -10,9 +10,9 @@
  * Cada teste segura a trava numa transação própria, na ordem que o auditor reproduziu, dispara
  * a requisição, espera ela ficar bloqueada no banco e só então solta a trava.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
-import { QueryTypes } from 'sequelize';
+import { QueryTypes, DatabaseError } from 'sequelize';
 import sequelize from '../database/connections/sequelize.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
@@ -189,9 +189,9 @@ describe('🟢-2 — as travas FOR UPDATE do UpdateRoom e do DeleteRoom (mutaç�
 
     it('M6: DELETE /rooms/:id enquanto uma reserva está sendo gravada para ele → espera e responde 409 ROOM_IN_USE', async () => {
         const room = await newRoom();
-        // Os passos do CreateReservationController (já com FOR SHARE no quarto) com o DELETE no meio.
+        // Os passos do CreateReservationController (já com FOR KEY SHARE no quarto) com o DELETE no meio.
         const res = await whileLocked({
-            lockSql: 'SELECT id FROM rooms WHERE id = :id FOR SHARE',
+            lockSql: 'SELECT id FROM rooms WHERE id = :id FOR KEY SHARE',
             thenSql: [(t) => ReservationModel.create({
                 tenant_id: session.tenantId, guest_id: guestId, room_id: room.id, user_id: session.userId,
                 check_in_date: '2028-09-01', check_out_date: '2028-09-03', status: 'PENDING', total_amount: '200.00'
@@ -226,5 +226,101 @@ describe('🟡-1 (mesma classe) — reserva pública e conta avulsa com o quarto
         expect(res.status).toBe(404);
         const [{ total }] = await sequelize.query('SELECT count(*)::int AS total FROM accounts WHERE room_id = :id', { replacements: { id: room.id }, type: QueryTypes.SELECT });
         expect(total).toBe(0);
+    });
+});
+
+describe('🟡-D1 — a leitura com trava não entra em deadlock com o UPDATE de status do check-in/check-out', () => {
+    it('POST /reservations (X principal, Y extra) no meio de um check-in que muda Y e depois X → 201, e o check-in também grava', async () => {
+        const x = await newRoom();
+        const y = await newRoom();
+        // O CheckInController de uma reserva com Y principal e X extra: UPDATE de Y, segura, e o
+        // UPDATE de X só depois que a criação já está esperando. Com FOR SHARE a criação trava X,
+        // espera Y, e o UPDATE de X fecha o ciclo: o Postgres derruba um dos lados (40P01).
+        // FOR KEY SHARE não conflita com um UPDATE que não muda a chave, como o de status.
+        const res = await whileLocked({
+            lockSql: "UPDATE rooms SET status = 'OCCUPIED' WHERE id = :y",
+            thenSql: ["UPDATE rooms SET status = 'OCCUPIED' WHERE id = :x"],
+            replacements: { x: x.id, y: y.id }
+        }, () => request(app).post('/reservations').set(auth()).send({
+            guest_id: guestId, room_id: x.id, extra_room_ids: [y.id], check_in_date: '2028-11-01', check_out_date: '2028-11-03'
+        }));
+        expect(res.status).toBe(201);
+        expect((await RoomModel.findByPk(x.id)).status).toBe('OCCUPIED');
+        expect(await pivotsOf(y.id)).toBe(1);
+    });
+
+    it('a leitura com trava continua esperando a exclusão do quarto (FOR KEY SHARE conflita com FOR UPDATE) → 404', async () => {
+        const room = await newRoom();
+        const res = await deletingRoom(room.id, () => request(app).post('/reservations').set(auth()).send({
+            guest_id: guestId, room_id: room.id, check_in_date: '2028-11-05', check_out_date: '2028-11-07'
+        }));
+        expect(res.status).toBe(404);
+        expect(await pivotsOf(room.id)).toBe(0);
+    });
+});
+
+describe('🟢-D2 — deadlock (40P01) não vira "Quarto indisponível"', () => {
+    const deadlock = () => new DatabaseError(Object.assign(new Error('deadlock detected'), { code: '40P01' }));
+    // Rejeita `Model.create` com deadlock nas `times` primeiras chamadas.
+    const deadlockOnCreate = (Model, times) => {
+        const original = Model.create.bind(Model);
+        let thrown = 0;
+        vi.spyOn(Model, 'create').mockImplementation((...args) => {
+            if (thrown < times) {
+                thrown += 1;
+                return Promise.reject(deadlock());
+            }
+            return original(...args);
+        });
+        return () => thrown;
+    };
+    afterEach(() => vi.restoreAllMocks());
+
+    it('POST /reservations: deadlock na 1ª tentativa → tenta de novo e cria (201)', async () => {
+        const room = await newRoom();
+        const thrown = deadlockOnCreate(ReservationModel, 1);
+        const res = await request(app).post('/reservations').set(auth()).send({
+            guest_id: guestId, room_id: room.id, check_in_date: '2028-12-01', check_out_date: '2028-12-03'
+        });
+        expect(thrown()).toBe(1);
+        expect(res.status).toBe(201);
+        expect(await pivotsOf(room.id)).toBe(1);
+    });
+
+    it('POST /reservations: deadlock repetido → 409 "tente de novo", nunca "Quarto indisponível", e nada é gravado', async () => {
+        const room = await newRoom();
+        deadlockOnCreate(ReservationModel, Infinity);
+        const res = await request(app).post('/reservations').set(auth()).send({
+            guest_id: guestId, room_id: room.id, check_in_date: '2028-12-05', check_out_date: '2028-12-07'
+        });
+        expect(res.status).toBe(409);
+        expect(res.body.error).toMatch(/tente de novo/i);
+        expect(res.body.error).not.toMatch(/indisponível/i);
+        vi.restoreAllMocks();
+        expect(await pivotsOf(room.id)).toBe(0);
+    });
+
+    it('POST /reservations/:id/rooms: deadlock na 1ª tentativa → tenta de novo e vincula (201)', async () => {
+        const main = await newRoom();
+        const extra = await newRoom();
+        const reservation = await createReservation(app, session.jwt, guestId, main.id, { check_in_date: '2028-12-10', check_out_date: '2028-12-12' });
+        deadlockOnCreate(ReservationRoomModel, 1);
+        const res = await request(app).post(`/reservations/${reservation.id}/rooms`).set(auth()).send({ room_id: extra.id });
+        expect(res.status).toBe(201);
+        expect(await pivotsOf(extra.id)).toBe(1);
+    });
+
+    it('reserva pública: deadlock não vira "Quarto indisponível" — 500 genérico, sem repetir (a cobrança já foi criada)', async () => {
+        const cat = await createCategory(app, session.jwt, { name: 'Site deadlock', capacity: 2, price_per_night: '120.00' });
+        const room = await createRoom(app, session.jwt, cat.id, { number: 'WEB-DL' });
+        deadlockOnCreate(ReservationModel, Infinity);
+        const res = await request(app).post(`/public/${session.subdomain}/bookings`).send({
+            category_id: cat.id, check_in: '2028-12-15', check_out: '2028-12-17', guests: 1,
+            guest: { full_name: 'Hóspede Deadlock', email: 'deadlock@race.test' }
+        });
+        expect(res.status).toBe(500);
+        expect(res.body).toEqual({ error: 'Erro interno do servidor' });
+        vi.restoreAllMocks();
+        expect(await pivotsOf(room.id)).toBe(0);
     });
 });
