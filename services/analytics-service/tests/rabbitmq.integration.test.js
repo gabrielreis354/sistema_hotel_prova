@@ -10,7 +10,7 @@ import { envelope, toBuffer, truncateAll } from './helpers/events.js';
 // Integração com RabbitMQ DE VERDADE (CA-01.4.h e CA-01.4.i), com a topologia e os usuários do
 // infra/k8s/rabbitmq-setup.sh: publica como o core (credencial hotel_core_publisher, na exchange
 // gesway.core.events) e consome com a credencial do analytics — a mesma separação do §8.
-// Sem RABBITMQ_HOST no .env.test o arquivo é pulado (o CI ainda não tem broker — pendência do Weslley).
+// Sem RABBITMQ_HOST no .env.test o arquivo é pulado. No CI roda: job test-analytics, com services: rabbitmq.
 
 const EXCHANGE = 'gesway.core.events';
 const DLQ = 'analytics.core-events.dlq';
