@@ -12,8 +12,8 @@ para 29/10). Sem PR.
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: 🟡-A3 e 🟢-E da reauditoria delta 3 corrigidos (prazo próprio da drenagem, limites de 5 s no banco, stop() com prazo para o broker)
-- Próximo passo: nada nesta frente — aguardar o Gabriel (merge da H.2); depois do merge, marcar ENCERRADA
+- Passo atual: H.2 aprovada (delta 4, `c533072`); develop atual mesclada (`e26da09`), suítes verdes
+- Próximo passo: o coordenador abre o PR da H.2; depois do merge, marcar ENCERRADA
 
 ## Feito
 - [x] H.2 entregue (`93aa1f3`..`30b25cd`); auditoria `fc474e5` APROVADO COM RESSALVAS
@@ -31,6 +31,8 @@ para 29/10). Sem PR.
 
 - [x] 31/10 — reauditoria delta 3 (`f3789e8`): 🟡-A3 e 🟢-E RED (`4e9e5c0`) → GREEN (`e3b6d82`);
   catálogo 1.1.4 (`ccf8eef`)
+- [x] 31/10 — verificação estreita do delta 4 APROVADA (`c533072`); merge da develop `4234915` (`e26da09`),
+  conflito só no KUBERNETES.md (as duas seções mantidas); §5.3 alinhado à policy delivery-limit 50 (catálogo 1.1.5)
 
 ## Falta
 - [ ] (outros donos) lacunas de evento da develop — ver relatório, seção "Integração com a develop"
@@ -49,7 +51,10 @@ para 29/10). Sem PR.
 ## Bloqueios e perguntas abertas
 - `GET /analytics/internal-consumption` (T-04.7, develop) lê `account_items`/`accounts`, que não têm evento:
   na H.3 ele não sai das projeções sem um evento novo no catálogo (decisão do Gabriel)
-- CI do analytics, quorum at-most-once e `delivery-limit` explícito na fila do analytics → Weslley
+- CI do analytics → Weslley. Quorum *at-most-once* e `delivery-limit` explícito: **resolvidos** pela policy da develop
+  (`28b74f9`/`7a2979b`: *at-least-once*, `delivery-limit` 50 na fila, `-1` na DLQ); trocar 50 por `-1` segue em decisão
+- H.3: ao servir `/analytics/top-guests` pelo analytics-service, repetir `requireRole('ADMIN')` (RT-51); a projeção
+  não tem e-mail
   (`docs/qa/repasses/para_weslley_23102026.md` e `para_weslley_29102026.md`; não mexer em `infra/k8s/rabbitmq-setup.sh`)
 
 ## Comandos úteis desta frente

@@ -250,6 +250,32 @@ Auditoria: `docs/qa/redteam_analytics-service-h2_delta3_31out2026.md` (`f3789e8`
 as consultas HTTP de `/analytics` e o `migrate`. Hoje as duas ficam bem abaixo desse limite. Se a H.3 trouxer
 uma consulta pesada, o limite sobe por env.
 
+#### Merge da develop antes do PR (31/10/2026)
+
+A H.2 foi aprovada na verificação estreita do delta 4 (`c533072`). Trouxe a develop em `4234915`, com 85
+commits: #104 tenant-fk, T-05.6, *policy* do RabbitMQ e Grafana. Merge em `e26da09`.
+
+- **Conflito textual:** `docs/infra/KUBERNETES.md`. Os dois lados acrescentaram uma seção no mesmo ponto.
+  Ficaram as duas: a do migrate antes e depois do rollout (develop) e, em seguida, a de readiness e liveness
+  do analytics.
+- **T-05.6 × `/analytics/*`:** a H.2 não move nenhuma rota. As consultas continuam no core (só a H.3 passa a
+  rotear pelo nginx), e o analytics-service só serve `/health` e `/analytics/health`, que não está no nginx.
+  A tela da T-05.6 continua falando com o core, que já vem com o `top-guests` só para ADMIN e sem e-mail.
+  A projeção de hóspede do analytics não guarda e-mail, então a regra vale também quando a H.3 servir esse
+  dado: só falta repetir o `requireRole('ADMIN')`. Ficou como pendência da H.3.
+- **Policy do RabbitMQ × teto:** a fila do analytics tem `delivery-limit` 50 (*at-least-once*) e a DLQ tem
+  `-1`. O consumidor faz no máximo 15 entregas (10 pausas + 5 tentativas), então a margem passa de 5 para
+  35. O raciocínio continua certo. O §5.3 virou a versão 1.1.5 e o repasse do `delivery-limit` explícito
+  está resolvido (`28b74f9`). A integração com a topologia nova passou com 0 `dead letter cycle`.
+- **#104 × outbox:** os testes do outbox estão verdes (outbox 20, publisher 10, initial-load 6,
+  develop-flows 2), e o `tenant-fk-isolation` também (18).
+
+**Saída real** (PG 5460 e RabbitMQ 5697, próprios, com a topologia da develop):
+- analytics — `Test Files 8 passed (8)` · `Tests 104 passed (104)` · Statements 95.66%, Branches 90.47%, Functions 89.53%, Lines 95.52%
+- core — `Test Files 52 passed (52)` · `Tests 1117 passed | 1 skipped (1118)` · Statements 85.58%, Branches 82.38%, Functions 89.33%, Lines 87.42%
+- frontend (`apps/pms`) — `Test Files 8 passed (8)` · `Tests 101 passed (101)`; `typecheck` com saída 0
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
 #### Estimativa da H.3 (k, n, o, p, q)
 
 Cerca de **2 a 3 dias de trabalho humano**: as 7 consultas sobre as projeções (NUMERIC até a resposta,
