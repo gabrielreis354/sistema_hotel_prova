@@ -55,7 +55,7 @@ describe('createReservation — 409 de corrida', () => {
   });
 
   it('409 sem room_ids (deadlock repetido ou corrida barrada pelo EXCLUDE) pede para tentar de novo, sem acusar quarto ocupado', async () => {
-    // Desde o PR #104 o backend repete a operação uma vez no deadlock (40P01) e, se ele se
+    // Desde o PR 104 o backend repete a operação uma vez no deadlock (40P01) e, se ele se
     // repetir, responde 409 SEM room_ids. Nada foi gravado e o quarto pode estar livre: dizer
     // "outro atendimento reservou" mandava a recepção trocar de quarto à toa.
     for (const body of [
