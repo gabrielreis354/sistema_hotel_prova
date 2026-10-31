@@ -185,11 +185,29 @@ export function createConsumer({
     let acordar = null;
     const emAndamento = new Set();
 
+    /**
+     * Pausa por banco fora DRENANDO antes de fechar (reauditoria delta 2, 🟡-A2): cancela o consumo,
+     * espera cada mensagem em andamento terminar a própria decisão (ack, nack acima do teto, ou pausa) e
+     * só então fecha. Fechar na hora devolvia as vizinhas sem 'rejected' antes de decidirem — uma mensagem
+     * lenta nunca chegava ao próprio teto e o broker a descartava na 21ª entrega. Assim, só volta sem nack
+     * quem escolheu pausar, e cada mensagem pausa no máximo `maxInfraRedeliveries` vezes antes das 5
+     * tentativas do §5.3. Uma vez por conexão: várias mensagens podem falhar juntas.
+     *
+     * O fechamento é ORDENADO (fecharComOrdem): canal primeiro, conexão depois. Fechar a conexão logo depois
+     * dos nack/ack fazia o broker perder o nack recém-enviado da fila quorum — a mensagem voltava sem
+     * `rejected` (comprovado com RabbitMQ real: 21 entregas e descarte). O `channel.close()` espera o
+     * close-ok, e o broker liquida o que o canal enviou antes de encerrá-lo.
+     */
     function pausarPorInfraestrutura() {
-        // Uma vez por conexão: várias mensagens podem falhar juntas.
         if (!atual || atual.pausando) return;
-        atual.pausando = true;
-        atual.close().catch(() => {});
+        const conexao = atual;
+        const tag = consumerTag;
+        conexao.pausando = true;
+        (async () => {
+            if (tag) await conexao.channel.cancel(tag).catch(() => {});
+            await comPrazo(Promise.allSettled([...emAndamento]), stopTimeoutMs);
+            await fecharComOrdem(conexao);
+        })();
     }
 
     /** Espera do backoff que o stop() interrompe. */
@@ -263,7 +281,7 @@ export function createConsumer({
         if (conexao) {
             if (consumerTag) await conexao.channel.cancel(consumerTag).catch(() => {});
             await comPrazo(Promise.allSettled([...emAndamento]), stopTimeoutMs);
-            await conexao.close().catch(() => {});
+            await fecharComOrdem(conexao);   // o ack da última mensagem não se perde no fechamento
         }
         // connect()/ready() que não responde não segura o desligamento além do prazo.
         if (laco) await comPrazo(laco, stopTimeoutMs);
@@ -271,6 +289,16 @@ export function createConsumer({
     }
 
     return { start, stop, status: () => estado };
+}
+
+/** Canal primeiro (espera o close-ok, o broker liquida os ack/nack enviados), conexão depois. */
+async function fecharComOrdem(conexao) {
+    try {
+        await conexao.channel.close();
+    } catch {
+        // canal já fechado (ou objeto de teste sem close): segue para a conexão
+    }
+    await conexao.close().catch(() => {});
 }
 
 async function comPrazo(promessa, ms) {

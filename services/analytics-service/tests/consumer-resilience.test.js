@@ -258,3 +258,49 @@ describe('🟢-B — stop() durante connect(), ready() ou a espera do backoff', 
         expect(r).toBe('resolveu');
     });
 });
+
+describe('🟡-A2 — a pausa drena as mensagens em andamento antes de fechar', () => {
+    it('cancela o consumo, deixa a mensagem lenta acima do teto dar nack e só então fecha a conexão', async () => {
+        const { conexao, channel, handlers } = conexaoFalsa();
+        channel.close = vi.fn(async () => {});   // fechamento ordenado: canal antes da conexão
+        const idLenta = randomUUID();
+        const comAgregado = (aggregateId, entregas) => {
+            const m = comEntregas(entregas);
+            m.content = toBuffer(envelope('guest.created', { tenantId, aggregateId, payload: { full_name: 'X' } }));
+            return m;
+        };
+        let liberarLenta;
+        const apply = vi.fn(async (evento) => {
+            if (evento.aggregateId === idLenta) await new Promise((r) => { liberarLenta = r; });
+            throw erroDeConexao();
+        });
+        // Depois da pausa o laço reconecta: a 2ª conexão é outra (a 1ª já fechou).
+        const segunda = conexaoFalsa();
+        const connect = vi.fn().mockResolvedValueOnce(conexao).mockResolvedValue(segunda.conexao);
+        const consumidor = createConsumer({ connect, apply, logger: silencioso, sleep: async () => {}, maxInfraRedeliveries: 3 });
+        const laco = consumidor.start();
+        await vi.waitFor(() => expect(handlers).toHaveLength(1));
+
+        // A (lenta, já no teto) entra primeiro; F (nova) falha na hora e pede a pausa.
+        const lenta = comAgregado(idLenta, 3);
+        const rapida = comAgregado(randomUUID(), 0);
+        const emA = handlers[0](lenta);
+        await vi.waitFor(() => expect(apply).toHaveBeenCalledTimes(1));
+        await handlers[0](rapida);
+
+        await vi.waitFor(() => expect(channel.cancel).toHaveBeenCalledWith('tag-1'));
+        expect(conexao.close).not.toHaveBeenCalled();     // A ainda decidindo: não fecha
+        liberarLenta();
+        await emA;
+        await vi.waitFor(() => expect(conexao.close).toHaveBeenCalled());
+        expect(channel.nack).toHaveBeenCalledWith(lenta, false, false);        // A seguiu o próprio teto
+        expect(channel.nack).not.toHaveBeenCalledWith(rapida, false, false);   // F escolheu pausar
+        expect(channel.nack.mock.invocationCallOrder[0]).toBeLessThan(channel.close.mock.invocationCallOrder[0]);
+        // O canal fecha (e espera o close-ok) antes da conexão: fechar a conexão logo depois do nack fazia o
+        // broker perder o nack da fila quorum.
+        expect(channel.close.mock.invocationCallOrder[0]).toBeLessThan(conexao.close.mock.invocationCallOrder[0]);
+
+        await consumidor.stop();
+        await laco;
+    });
+});
