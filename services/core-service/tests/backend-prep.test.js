@@ -158,8 +158,10 @@ describe('Role WAITER', () => {
         expect(res.status).toBe(403);
     });
 
-    it('WAITER recebe 403 em GET /analytics/revenue', async () => {
-        const res = await request(app).get('/analytics/revenue').set('Authorization', `Bearer ${waiterJwt}`);
+    // Os 7 indicadores saíram do core na T-01.4/H.3 (o WAITER barrado lá está no analytics-service,
+    // tests/analytics-queries.test.js); o consumo interno é o indicador que ficou aqui.
+    it('WAITER recebe 403 em GET /analytics/internal-consumption', async () => {
+        const res = await request(app).get('/analytics/internal-consumption').set('Authorization', `Bearer ${waiterJwt}`);
         expect(res.status).toBe(403);
     });
 
