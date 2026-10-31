@@ -1,22 +1,27 @@
 # Retomada — T-05.2 Reservas e check-in/out (feature/t052-reservas)
 
-**Atualizado:** 29/10/2026 · **Por:** agente executor de frontend (trilha do Gabriel)
+**Atualizado:** 31/10/2026 · **Por:** agente executor de frontend (trilha do Gabriel)
 **Worktree:** /home/gabri/wt-t052 · **Portas:** PG 5445 · backend 3052 · Vite 5252
-**Containers:** pg-t052, **removido** no fim da rodada de 29/10 (para subir de novo, ver "Comandos úteis"; a suíte do core usa o banco gestao_hotel_test no mesmo container, via .env.test local)
+**Containers:** pg-t052, **removido** no fim da rodada de 31/10 (para subir de novo, ver "Comandos úteis"; a suíte do core usa o banco gestao_hotel_test no mesmo container, via .env.test local)
 
 ## Objetivo
 SPEC-05 T-05.2, CA-05.2.a a m: reservas, check-in/out, conta e comprovante no `apps/pms`.
-Rodada atual: ressalvas da reauditoria delta (`docs/qa/redteam_t052-reservas_delta_24out2026.md`, commit `7bc2ffe`). Sem PR.
+Rodada atual (31/10): merge da develop com o PR #104, o PR #105, a T-05.6 e o CI por serviço, mais o conflito semântico com o #104 na criação da reserva. Sem PR; depois vem uma reauditoria curta.
 
 **Ordem de integração** (parecer do Sirlande, 28/10): `fix/tenant-fk-validation` → `feature/analytics-service` → `feature/t051` → `feature/t052`. O merge da t052 em develop está previsto para 30/10.
-**Quando a t051 entrar na develop**, esta branch precisa de mais um merge da develop seguido de `pnpm gen:api`.  A t051 já recebeu a develop (6501a9a) e isolou as rotas de quartos em `routes/roomsRoutes.tsx`, então o conflito em `App.tsx` deve se resumir a um import e uma linha de rotas. **Nunca resolva `openapi.json`/`schema.d.ts` à mão — regenere.** Depois disso, promover `Money`, `ErrorState`, `Notice`, `ButtonLink` e o badge (via `StatusBadge tone/label`) para `packages/ui` e registrar no `CATALOGO.md`.
+A `fix/tenant-fk-validation` (#104) e o `analytics-service` (#105) já estão na develop e nesta branch (merge `e12f32a`, 31/10).
+**Quando a t051 entrar na develop**, esta branch precisa de mais um merge da develop seguido de `pnpm gen:api`. A t051 isolou as rotas de quartos em `routes/roomsRoutes.tsx`, então o conflito em `App.tsx` deve se resumir a um import e uma linha de rotas. **Nunca resolva `openapi.json`/`schema.d.ts` à mão — regenere.**
+**Promoção para `packages/ui`:** o `ErrorState` já subiu com a T-05.6 e as telas de reservas usam o do pacote (`43cc07e`). `Money`, `ButtonLink` e o selo de status continuam locais: nenhum segundo módulo os usa ainda, e a regra do `CATALOGO.md` é subir no segundo. O `Notice` não é mecânico: a comanda tem um `Notice` próprio com outra API (neutro, prop `focus`) e o de reservas tem `tone` e `forwardRef`. Unificar pede decisão de design. Fica como pendência.
 
 ## Onde estou
-- Último commit: `docs(reservations): reauditoria delta tratada — SPEC-05, relatorio e retomada` (com push). Para confirmar: `git log -1`
-- Passo atual: ressalvas da reauditoria delta **concluídas** (29/10). Portões verdes: frontend 31 + 115, core 998 (1 skipped), E2E 49 PASS
-- Próximo passo: aguardar a T-05.1 entrar na develop. Depois, merge da develop + `pnpm gen:api`, conflito em `App.tsx` (manter os dois blocos) e na SPEC-05 §5, mais a promoção dos componentes para `packages/ui`. Merge da t052 previsto para 30/10
+- Último commit: `docs(retomada): merge do #104/#105/T-05.6 e respostas novas da criacao` (com push). Para confirmar: `git log -1`
+- Passo atual: merge de 31/10 **concluído**. Portões verdes: frontend 31 + 145, core 1126 (1 skipped), E2E 54 PASS
+- Próximo passo: reauditoria curta do Gabriel. Quando a T-05.1 entrar na develop: merge da develop + `pnpm gen:api`, com conflito em `App.tsx` (manter os dois blocos) e na SPEC-05 §5
 
 ## Feito
+- [x] Merge de `origin/develop` (#104, #105, T-05.6, CI por serviço) — `e12f32a`; api-client regenerado, `GET /guests?q=&limit=` preservado
+- [x] `ErrorState` do `@hotel/ui` no lugar da cópia local — `43cc07e`
+- [x] Respostas novas da criação (#104): RED `c2e8433`, GREEN `df71f65`; 409 sem `room_ids` → "nada foi gravado, tente de novo"; 404 → mensagem sem id cru
 - [x] Merge de `origin/develop` (PRs #100, #101 e comanda T-05.5) — `9da9dc5`
 - [x] 🟡-2 da delta: VOIDED, CARTAO_CREDITO/DEBITO e comprovante sem estorno — `c68db33`
 - [x] 🟡-1 da delta: `GET /guests?q=&limit=` (RED `c603320`, GREEN `618b5a4`, Swagger `b4c2103`), cliente `1e1ef7b`, GuestPicker `98bee0b`
@@ -33,7 +38,8 @@ Rodada atual: ressalvas da reauditoria delta (`docs/qa/redteam_t052-reservas_del
 - [x] E2E sem SQL: 41 PASS / 0 FAIL; portões verdes; SPEC-05, repasse e relatório atualizados
 
 ## Falta
-- [ ] (depois da T-05.1) merge de `develop` e promoção dos componentes para `packages/ui`
+- [ ] (depois da T-05.1) merge de `develop` + `pnpm gen:api`
+- [ ] Promover `Money`, `ButtonLink` e o selo quando um segundo módulo precisar; unificar os dois `Notice` (reservas e comanda) com decisão de design
 - [ ] CA-05.2.j: depende de endpoint no backend
 
 ## Decisões tomadas nesta frente
@@ -43,6 +49,7 @@ Rodada atual: ressalvas da reauditoria delta (`docs/qa/redteam_t052-reservas_del
 - 24/10 — o comprovante mascara o CPF (LGPD art. 6º, III); a tela de operação continua mostrando o CPF inteiro
 - 29/10 — estorno (VOIDED) fica fora do comprovante e aparece riscado com o motivo na aba Conta
 - 29/10 — `GET /guests` sem `q` mantém o contrato antigo (tela de hóspedes); a busca é opt-in por `q`
+- 31/10 — a criação decide pelo **status e pela presença de `room_ids`**, nunca pelo texto: 409 com `room_ids` = quarto ocupado (sai da seleção); 409 sem `room_ids` = deadlock repetido ou corrida do EXCLUDE (seleção fica, tentar de novo); 404 = quarto, categoria ou hóspede excluído ou de outro tenant. O deadlock não tem `code` no backend
 - 24/10 — E2E não versionado: o repo não tem pasta convencionada para E2E; o roteiro está registrado no relatório
 
 ## Bloqueios e perguntas abertas
