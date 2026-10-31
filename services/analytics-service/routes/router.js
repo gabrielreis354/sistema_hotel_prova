@@ -4,6 +4,13 @@ import authMiddleware from '../middlewares/auth.middleware.js';
 import tenantMiddleware from '../middlewares/tenant.middleware.js';
 import { requireRole } from '../middlewares/role.middleware.js';
 import GetProjectionStatusController from '../app/Controllers/StatusApi/GetProjectionStatusController.js';
+import GetRevenueController from '../app/Controllers/AnalyticsApi/GetRevenueController.js';
+import GetOccupancyController from '../app/Controllers/AnalyticsApi/GetOccupancyController.js';
+import GetAlertsController from '../app/Controllers/AnalyticsApi/GetAlertsController.js';
+import GetSeasonalityController from '../app/Controllers/AnalyticsApi/GetSeasonalityController.js';
+import GetRevenueByCategoryController from '../app/Controllers/AnalyticsApi/GetRevenueByCategoryController.js';
+import GetPaymentMixController from '../app/Controllers/AnalyticsApi/GetPaymentMixController.js';
+import GetTopGuestsController from '../app/Controllers/AnalyticsApi/GetTopGuestsController.js';
 
 // Estados do consumidor em que o serviço está pronto. 'disabled' = sem RABBITMQ_HOST, de propósito.
 const CONSUMIDOR_PRONTO = ['consuming', 'disabled'];
@@ -39,11 +46,20 @@ export default function createRouter({
         });
     });
 
-    // Indicadores são dado gerencial — só ADMIN e RECEPTIONIST, como no core (analyticsRouter.js).
-    // As 7 consultas entram neste router na H.3 (CA-01.4.k).
+    // Indicadores são dado gerencial — só ADMIN e RECEPTIONIST, como eram no core (WAITER fica de
+    // fora). As 7 consultas sobre as projeções (H.3, CA-01.4.k): o nginx roteia /analytics/ para cá,
+    // menos /analytics/internal-consumption, que segue no core (decisão L-1 pendente).
     const analyticsRouter = Router();
     analyticsRouter.use(authMiddleware, tenantMiddleware, requireRole('ADMIN', 'RECEPTIONIST'));
-    analyticsRouter.get('/health', GetProjectionStatusController);
+    analyticsRouter.get('/health',              GetProjectionStatusController);
+    analyticsRouter.get('/revenue',             GetRevenueController);
+    analyticsRouter.get('/occupancy',           GetOccupancyController);
+    analyticsRouter.get('/alerts',              GetAlertsController);
+    analyticsRouter.get('/seasonality',         GetSeasonalityController);
+    analyticsRouter.get('/revenue-by-category', GetRevenueByCategoryController);
+    analyticsRouter.get('/payment-mix',         GetPaymentMixController);
+    // Ranking de hóspedes é dado pessoal (nome com quanto gastou): só o gerente (RT-51), como no core.
+    analyticsRouter.get('/top-guests',          requireRole('ADMIN'), GetTopGuestsController);
 
     router.use('/analytics', analyticsRouter);
     return router;
