@@ -73,7 +73,7 @@ Antes de cada PR, conferir o documento contra:
 | Ordem | Branch | Meta | Data | Situação | Próximo passo |
 |---|---|---|---|---|---|
 | 1 | `fix/tenant-fk-validation` | segurança | 29/10 | ✅ **Mergeada em 31/10** (PR #104, `4234915`), CI verde | Rodar em staging a consulta da pendência 1 de 24/10 |
-| 2 | `feature/analytics-service` | M7-a | 29/10 | ✅ **Mergeada em 31/10** (PR #105, `fbe086d`), 8 checks do CI verdes | H.3 (cutover, `feature/analytics-cutover`, pg 5462 / rmq 5698) iniciada em 31/10; /analytics/internal-consumption fica no core até a decisão L-1 |
+| 2 | `feature/analytics-service` | M7-a | 29/10 | ✅ **Mergeada em 31/10** (PR #105, `fbe086d`), 8 checks do CI verdes | H.3 (cutover) **implementada** em `feature/analytics-cutover` @ `5376786`: as 7 rotas no analytics-service, o core com 404, nginx com exceção para internal-consumption, k8s renderizado; analytics 162 testes, core 1126; Playwright /indicadores ok. qa-redteam em curso (pg 5463 / rmq 5699); /analytics/internal-consumption fica no core até a decisão L-1 |
 | 3 | `feature/t051-quartos-categorias` @ `5ea262f` | M1 | 30/10 | **Pronta.** Reauditoria delta 2 APROVADO; develop até fbe086d; 🟢-1/🟢-2 corrigidos; frontend 154 testes, core 1117 | Autorização do Gabriel → PR → CI → merge. A barra do celular com 7 itens vai para a T-05.3 |
 | 4 | `feature/t052-reservas` @ `483fe55` | M2, M5-a | 30/10 | develop até fbe086d; respostas do #104 tratadas (409 com e sem room_ids, 404); frontend 145 testes, core 1126, E2E 54/0 | Reauditoria delta 2 em curso → merge pequeno depois da t051 (gen:api, App.tsx) → autorização → merge |
 
