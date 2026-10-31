@@ -9,7 +9,34 @@
  *
  * Lógica pura — testada em errorMessages.test.ts.
  */
+import type { components } from '@hotel/api-client';
 import { ApiError } from '../../lib/http.js';
+
+/** Os codes do contrato, como o api-client gera de `RoomError` (swagger.js). */
+export type RoomErrorCode = components['schemas']['RoomError']['code'];
+
+/**
+ * Os mesmos codes em runtime, para validar o que chega no corpo. `satisfies` barra code que
+ * o backend não tem; `MissingCode` barra code do backend que ficou de fora daqui — se o
+ * swagger ganhar ou renomear um code, o typecheck quebra em vez de a tela cair calada na
+ * mensagem genérica.
+ */
+export const ROOM_ERROR_CODES = [
+  'INVALID_INPUT',
+  'CATEGORY_NOT_FOUND',
+  'CATEGORY_IN_USE',
+  'CATEGORY_NAME_TAKEN',
+  'ROOM_NUMBER_TAKEN',
+  'ROOM_IN_USE',
+  'ROOM_STATUS_TRANSITION_NOT_ALLOWED',
+] as const satisfies readonly RoomErrorCode[];
+type MissingCode = Exclude<RoomErrorCode, (typeof ROOM_ERROR_CODES)[number]>;
+const allCodesListed: [MissingCode] extends [never] ? true : MissingCode = true;
+void allCodesListed;
+
+function isRoomErrorCode(v: string | undefined): v is RoomErrorCode {
+  return ROOM_ERROR_CODES.some((c) => c === v);
+}
 
 /** Texto para qualquer erro de mutação: o da API, ou o de rede (fetch rejeitado). */
 export function messageOf(err: unknown): string {
@@ -30,7 +57,8 @@ export interface WriteContext {
 
 /** O que interessa do corpo de erro do backend: `{ error?, code?, field? }`. */
 export interface ErrorBody {
-  code?: string;
+  /** Só code do contrato; code desconhecido vira undefined (cai na mensagem genérica). */
+  code?: RoomErrorCode;
   field?: string;
   detail?: string;
 }
@@ -42,13 +70,18 @@ function stringProp(body: object, key: string): string | undefined {
 }
 
 /**
- * Lê `code`, `field` e `error` do corpo sem cast: o api-client ainda tipa o erro só como
- * `{ error?: string }` (regenera depois do merge da fk), então tudo entra como `unknown` e
- * só sai o que for string de verdade.
+ * Lê `code`, `field` e `error` do corpo sem cast. O api-client tipa o erro como a união das
+ * respostas da rota (`RoomError` | `Error`), mas o corpo é o que o servidor mandou de fato
+ * (proxy, versão antiga): entra como `unknown` e só sai o que for string — e code do contrato.
  */
 export function readErrorBody(body: unknown): ErrorBody {
   if (typeof body !== 'object' || body === null) return {};
-  return { code: stringProp(body, 'code'), field: stringProp(body, 'field'), detail: stringProp(body, 'error') };
+  const code = stringProp(body, 'code');
+  return {
+    code: isRoomErrorCode(code) ? code : undefined,
+    field: stringProp(body, 'field'),
+    detail: stringProp(body, 'error'),
+  };
 }
 
 const NOUN = { room: 'o quarto', category: 'a categoria' } as const;
@@ -90,6 +123,13 @@ export function writeErrorMessage(ctx: WriteContext, status: number, body?: unkn
       return label
         ? `Confira o campo ${label}: valor faltando ou fora do formato.`
         : 'Confira os campos: há informação faltando ou fora do formato.';
+    }
+    case undefined:
+      break;
+    default: {
+      // Code novo no contrato sem mensagem aqui: erro de compilação, não tela genérica.
+      const unhandled: never = code;
+      void unhandled;
     }
   }
 

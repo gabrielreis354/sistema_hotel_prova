@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { messageOf, readErrorBody, writeErrorMessage } from './errorMessages.js';
+import { ROOM_ERROR_CODES, messageOf, readErrorBody, writeErrorMessage } from './errorMessages.js';
 import { ApiError } from '../../lib/http.js';
 
 const room = { entity: 'room', action: 'update', number: '101' } as const;
@@ -93,7 +93,57 @@ describe('writeErrorMessage — sem code conhecido nao adivinha pelo status', ()
   });
 });
 
+describe('contrato com o RoomError do backend (fix/tenant-fk-validation)', () => {
+  it('lista exatamente os 7 codes de app/utils/roomErrors.js', () => {
+    expect([...ROOM_ERROR_CODES].sort()).toEqual(
+      [
+        'CATEGORY_IN_USE',
+        'CATEGORY_NAME_TAKEN',
+        'CATEGORY_NOT_FOUND',
+        'INVALID_INPUT',
+        'ROOM_IN_USE',
+        'ROOM_NUMBER_TAKEN',
+        'ROOM_STATUS_TRANSITION_NOT_ALLOWED',
+      ].sort(),
+    );
+  });
+
+  it('todo code tem mensagem propria, diferente da generica', () => {
+    const generic = writeErrorMessage(roomDelete, 409, {});
+    for (const code of ROOM_ERROR_CODES) {
+      const msg = writeErrorMessage(roomDelete, 409, { code, error: 'texto do servidor' });
+      expect(msg, code).not.toBe(generic);
+      expect(msg, code).not.toMatch(/O sistema recusou/);
+    }
+  });
+
+  it('corpos reais do backend (roomError / invalidInputBody)', () => {
+    // Formato de services/core-service/app/utils/roomErrors.js
+    expect(
+      writeErrorMessage(catDelete, 409, {
+        error: 'Categoria em uso por 2 quarto(s)',
+        code: 'CATEGORY_IN_USE',
+      }),
+    ).toMatch(/ainda tem quartos/);
+    expect(
+      writeErrorMessage(catUpdate, 400, {
+        error: 'price_per_night deve ser maior que zero',
+        code: 'INVALID_INPUT',
+        field: 'price_per_night',
+        errors: ['price_per_night deve ser maior que zero'],
+      }),
+    ).toBe('Confira o campo Diária: valor faltando ou fora do formato.');
+    expect(writeErrorMessage(room, 400, { code: 'INVALID_INPUT', field: 'number', errors: [] })).toMatch(
+      /campo Número/,
+    );
+  });
+});
+
 describe('readErrorBody', () => {
+  it('code fora do contrato vira undefined', () => {
+    expect(readErrorBody({ code: 'ALGO_NOVO', error: 'x' }).code).toBeUndefined();
+  });
+
   it('le so strings, sem confiar no formato', () => {
     expect(readErrorBody({ code: 'ROOM_IN_USE', field: 'status', error: 'x' })).toEqual({
       code: 'ROOM_IN_USE',
