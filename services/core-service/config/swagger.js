@@ -1324,7 +1324,7 @@ const options = {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Hóspedes mais valiosos por lifetime value',
-                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita.',
+                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).',
                     parameters: [
                         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, example: 10 }, description: 'Quantidade de hóspedes a retornar (1–100). Default: 10.' }
                     ],
@@ -1345,6 +1345,7 @@ const options = {
                         },
                         400: { description: 'limit fora do intervalo permitido (1–100)' },
                         401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
                         500: { description: 'Erro interno' }
                     }
                 }

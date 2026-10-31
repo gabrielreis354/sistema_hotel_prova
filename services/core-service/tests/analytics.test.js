@@ -68,4 +68,28 @@ describe('Analytics — segurança', () => {
         const res = await request(app).get('/analytics/revenue');
         expect(res.status).toBe(401);
     });
+
+    // RT-51: o ranking é dado pessoal (nome e e-mail do hóspede com o valor gasto). Só o gerente
+    // vê; a recepção continua com os outros indicadores.
+    describe('top-guests é só do ADMIN (RT-51)', () => {
+        let receptionistJwt;
+
+        beforeAll(async () => {
+            const email = `recepcao_${Date.now()}@test.com`;
+            await request(app).post('/users').set('Authorization', `Bearer ${jwt}`)
+                .send({ name: 'Recepção', email, password: 'senha123', role: 'RECEPTIONIST' });
+            const login = await request(app).post('/auth/login').send({ email, password: 'senha123' });
+            receptionistJwt = login.body.token;
+        });
+
+        it('403 para a recepção', async () => {
+            const res = await request(app).get('/analytics/top-guests').set('Authorization', `Bearer ${receptionistJwt}`);
+            expect(res.status).toBe(403);
+        });
+
+        it('a recepção continua vendo os outros indicadores', async () => {
+            const res = await request(app).get('/analytics/occupancy').set('Authorization', `Bearer ${receptionistJwt}`);
+            expect(res.status).toBe(200);
+        });
+    });
 });

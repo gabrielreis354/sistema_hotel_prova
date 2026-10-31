@@ -3351,7 +3351,7 @@ export interface paths {
         };
         /**
          * Hóspedes mais valiosos por lifetime value
-         * @description Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita.
+         * @description Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).
          */
         get: {
             parameters: {
@@ -3399,6 +3399,13 @@ export interface paths {
                 };
                 /** @description Token não fornecido ou inválido */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Requer papel ADMIN */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };

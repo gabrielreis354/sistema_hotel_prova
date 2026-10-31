@@ -4882,7 +4882,7 @@
           "Analytics"
         ],
         "summary": "Hóspedes mais valiosos por lifetime value",
-        "description": "Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita.",
+        "description": "Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).",
         "parameters": [
           {
             "in": "query",
@@ -4943,6 +4943,9 @@
           },
           "401": {
             "description": "Token não fornecido ou inválido"
+          },
+          "403": {
+            "description": "Requer papel ADMIN"
           },
           "500": {
             "description": "Erro interno"
