@@ -24,10 +24,13 @@ describe('writeErrorMessage — motivo pelo code do backend', () => {
     expect(msg).not.toMatch(/número/);
   });
 
-  it('ROOM_IN_USE na exclusao de quarto', () => {
-    expect(writeErrorMessage(roomDelete, 409, { code: 'ROOM_IN_USE' })).toBe(
-      'Este quarto está em uso (hóspede ou reserva) e não pode ser excluído agora.',
+  it('ROOM_IN_USE na exclusao de quarto da o proximo passo (🟢-2)', () => {
+    const msg = writeErrorMessage(roomDelete, 409, { code: 'ROOM_IN_USE' });
+    expect(msg).toBe(
+      'Este quarto está em uso e não pode ser excluído agora. Faça o check-out do hóspede, ou cancele ou mova para outro quarto as reservas dele, e tente excluir de novo.',
     );
+    expect(msg).toMatch(/check-out/);
+    expect(msg).toMatch(/cancele ou mova/);
   });
 
   it('CATEGORY_IN_USE na exclusao de categoria', () => {
@@ -69,8 +72,23 @@ describe('writeErrorMessage — sem code conhecido nao adivinha pelo status', ()
     expect(msg).not.toMatch(/outro número/);
   });
 
-  it('404 sem code nao afirma o que sumiu', () => {
-    expect(writeErrorMessage(room, 404, undefined)).toBe(
+  it('404 sem code no PUT/DELETE: o proprio registro sumiu, e diz o que fazer (🟢-1)', () => {
+    const roomGone = 'Este quarto não existe mais — talvez outra pessoa o tenha excluído. Volte à lista e recarregue.';
+    const catGone =
+      'Esta categoria não existe mais — talvez outra pessoa a tenha excluído. Volte à lista e recarregue.';
+    // corpo real do backend: { error: 'Quarto não encontrado' }, sem code
+    expect(writeErrorMessage(room, 404, { error: 'Quarto não encontrado' })).toBe(roomGone);
+    expect(writeErrorMessage(roomDelete, 404, undefined)).toBe(roomGone);
+    expect(writeErrorMessage(catUpdate, 404, { error: 'Categoria não encontrada' })).toBe(catGone);
+    expect(writeErrorMessage(catDelete, 404, {})).toBe(catGone);
+  });
+
+  it('404 COM CATEGORY_NOT_FOUND no quarto continua falando da categoria escolhida, nao do quarto', () => {
+    expect(writeErrorMessage(room, 404, { code: 'CATEGORY_NOT_FOUND' })).toMatch(/categoria escolhida/);
+  });
+
+  it('404 sem code no cadastro nao inventa registro sumido', () => {
+    expect(writeErrorMessage(roomCreate, 404, undefined)).toBe(
       'O sistema recusou salvar o quarto. Recarregue a página e confira os dados.',
     );
   });

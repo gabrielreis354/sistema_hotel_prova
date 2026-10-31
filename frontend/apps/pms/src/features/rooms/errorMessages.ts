@@ -86,6 +86,12 @@ export function readErrorBody(body: unknown): ErrorBody {
 
 const NOUN = { room: 'o quarto', category: 'a categoria' } as const;
 
+/** Registro excluído por outra pessoa enquanto a tela estava aberta — com o próximo passo. */
+const GONE = {
+  room: 'Este quarto não existe mais — talvez outra pessoa o tenha excluído. Volte à lista e recarregue.',
+  category: 'Esta categoria não existe mais — talvez outra pessoa a tenha excluído. Volte à lista e recarregue.',
+} as const;
+
 /** Nome do campo como o operador vê na tela. */
 const FIELD_LABEL: Record<string, string> = {
   number: 'Número',
@@ -111,13 +117,13 @@ export function writeErrorMessage(ctx: WriteContext, status: number, body?: unkn
     case 'ROOM_STATUS_TRANSITION_NOT_ALLOWED':
       return 'O status do quarto mudou enquanto você editava (check-in ou check-out na recepção). Recarregue a página para ver o status atual antes de alterar.';
     case 'ROOM_IN_USE':
-      return 'Este quarto está em uso (hóspede ou reserva) e não pode ser excluído agora.';
+      return 'Este quarto está em uso e não pode ser excluído agora. Faça o check-out do hóspede, ou cancele ou mova para outro quarto as reservas dele, e tente excluir de novo.';
     case 'CATEGORY_IN_USE':
       return 'Esta categoria ainda tem quartos. Mude a categoria desses quartos e tente excluir de novo.';
     case 'CATEGORY_NOT_FOUND':
       return entity === 'room'
         ? 'A categoria escolhida não existe mais. Recarregue a página e escolha outra.'
-        : 'Esta categoria não existe mais — pode ter sido excluída por outra pessoa.';
+        : GONE.category;
     case 'INVALID_INPUT': {
       const label = field ? FIELD_LABEL[field] : undefined;
       return label
@@ -135,6 +141,11 @@ export function writeErrorMessage(ctx: WriteContext, status: number, body?: unkn
 
   // Sem code conhecido: só o que o status diz SEM ambiguidade.
   if (status === 403) return 'Só o administrador altera quartos e categorias.';
+
+  // 404 sem code no PUT/DELETE de /rooms/:id ou /room-categories/:id: o próprio registro
+  // sumiu (o backend responde { error } sem code). Quando é a categoria escolhida que sumiu,
+  // vem CATEGORY_NOT_FOUND e já foi tratado acima. No cadastro não há registro para sumir.
+  if (status === 404 && action !== 'create') return GONE[entity];
 
   const verb = action === 'delete' ? 'excluir' : 'salvar';
   if (status >= 500) {

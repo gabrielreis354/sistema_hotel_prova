@@ -57,7 +57,14 @@ describe('exclusão confia no 409 do servidor', () => {
   it('quarto em uso: 409 ROOM_IN_USE', async () => {
     fetchMock.mockResolvedValueOnce(json(409, { error: 'Quarto em uso', code: 'ROOM_IN_USE' }));
     const err = await rejection(roomsApi.deleteRoom('r1'));
-    expect(err.message).toMatch(/em uso \(hóspede ou reserva\)/);
+    expect(err.message).toMatch(/em uso.*check-out/);
+  });
+
+  it('quarto excluído por outra pessoa: 404 sem code diz para voltar à lista', async () => {
+    fetchMock.mockResolvedValueOnce(json(404, { error: 'Quarto não encontrado' }));
+    const err = await rejection(roomsApi.deleteRoom('r1'));
+    expect(err.status).toBe(404);
+    expect(err.message).toMatch(/não existe mais.*Volte à lista e recarregue/);
   });
 });
 
