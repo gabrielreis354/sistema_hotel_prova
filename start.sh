@@ -176,11 +176,20 @@ cmd_deploy() {
 # =============================================================================
 cmd_seed() {
     check_kubectl
-    [ -f seed/seed_hotels.sql ] || err "seed/seed_hotels.sql não encontrado."
-    info "Aplicando seed (165 registros — Hotel Aurora + Pousada Sol)..."
-    kubectl exec -n "$NS" -i statefulset/postgres -- \
-        psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
-    log "Seed aplicado. Login: admin@aurora.example / senha123 (subdomain: aurora)"
+    # O seed mora no core-service desde a SPEC-01 (15/09). A ordem é a do `node command.js seed`:
+    # o seed_consumo (cardápio, contas, garçom — T-04.7) referencia hotéis e quartos do seed_hotels.
+    local seed_dir="services/core-service/seed"
+    local file
+    for file in seed_hotels.sql seed_consumo.sql; do
+        [ -f "$seed_dir/$file" ] || err "$seed_dir/$file não encontrado."
+    done
+    info "Aplicando seed (Hotel Aurora + Pousada Sol, com a comanda)..."
+    for file in seed_hotels.sql seed_consumo.sql; do
+        info "  $file"
+        kubectl exec -n "$NS" -i statefulset/postgres -- \
+            psql -v ON_ERROR_STOP=1 -U hotel_user -d gestao_hotel < "$seed_dir/$file"
+    done
+    log "Seed aplicado. Login: admin@aurora.example / senha123 (subdomain: aurora) · garçom: garcom@aurora.example"
 }
 
 # =============================================================================

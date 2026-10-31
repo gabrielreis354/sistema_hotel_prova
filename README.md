@@ -251,8 +251,7 @@ Saída esperada:
 ### Passo 6 — (Opcional) Popular com dados de exemplo
 
 ```bash
-kubectl exec -n hotel-system -i statefulset/postgres -- \
-  psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
+./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
 ```
 
 Cria 165 registros distribuídos entre 2 hotéis com quartos, hóspedes, reservas e pagamentos prontos para uso.
@@ -816,7 +815,7 @@ kubectl exec -n hotel-system -i statefulset/postgres -- \
 
 ## Dados de Teste (Seed)
 
-O arquivo `seed/seed_hotels.sql` cria **165 registros** distribuídos entre 2 hotéis:
+O arquivo `services/core-service/seed/seed_hotels.sql` cria **165 registros** distribuídos entre 2 hotéis:
 
 | Tabela | Hotel Aurora | Pousada Sol | Total |
 |---|---|---|---|
@@ -833,8 +832,7 @@ Distribuição de status das reservas (Hotel Aurora): 8 CHECKED_OUT · 5 CONFIRM
 **Executar o seed:**
 
 ```bash
-kubectl exec -n hotel-system -i statefulset/postgres -- \
-  psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
+./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
 ```
 
 O seed é **idempotente** — pode ser executado múltiplas vezes sem duplicar registros (usa `ON CONFLICT DO NOTHING`).
