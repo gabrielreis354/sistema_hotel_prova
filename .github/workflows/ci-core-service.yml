@@ -12,14 +12,28 @@ on:
       - 'fix/**'
       - 'chore/**'
       - 'docs/**'
+      - 'refactor/**'
+      - 'test/**'
     paths:
       - 'services/core-service/**'
       - '.github/workflows/ci-core-service.yml'
+  # Manual: o filtro de paths do GitHub ignora diffs com mais de 300 arquivos (merge ou
+  # release grande); assim dá para rodar na mão quando isso acontecer.
+  workflow_dispatch:
   pull_request:
     branches: [main, develop]
     paths:
       - 'services/core-service/**'
       - '.github/workflows/ci-core-service.yml'
+
+# Só leitura: o CI não escreve no repositório.
+permissions:
+  contents: read
+
+# Um push novo na mesma branch cancela a execução anterior, que já ficou velha.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

@@ -1,7 +1,8 @@
 name: CI — frontend
 
 # Workflow próprio do frontend (T-01.5, CA-01.5.a): só roda quando muda o monorepo do
-# frontend ou a fonte do contrato da API (o Swagger do core e os enums que ele importa).
+# frontend ou a fonte do contrato da API (o Swagger do core, os enums que ele importa e o
+# lock do core, que fixa a versão do swagger-jsdoc).
 on:
   push:
     branches:
@@ -11,18 +12,34 @@ on:
       - 'fix/**'
       - 'chore/**'
       - 'docs/**'
+      - 'refactor/**'
+      - 'test/**'
     paths:
       - 'frontend/**'
       - 'services/core-service/config/swagger.js'
       - 'services/core-service/app/utils/**'
+      - 'services/core-service/package-lock.json'
       - '.github/workflows/ci-frontend.yml'
+  # Manual: o filtro de paths do GitHub ignora diffs com mais de 300 arquivos (merge ou
+  # release grande); assim dá para rodar na mão quando isso acontecer.
+  workflow_dispatch:
   pull_request:
     branches: [main, develop]
     paths:
       - 'frontend/**'
       - 'services/core-service/config/swagger.js'
       - 'services/core-service/app/utils/**'
+      - 'services/core-service/package-lock.json'
       - '.github/workflows/ci-frontend.yml'
+
+# Só leitura: o CI não escreve no repositório.
+permissions:
+  contents: read
+
+# Um push novo na mesma branch cancela a execução anterior, que já ficou velha.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:

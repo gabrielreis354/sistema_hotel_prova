@@ -12,8 +12,19 @@ on:
       - 'fix/**'
       - 'chore/**'
       - 'docs/**'
+      - 'refactor/**'
+      - 'test/**'
   pull_request:
     branches: [main, develop]
+
+# Só leitura: o CI não escreve no repositório.
+permissions:
+  contents: read
+
+# Um push novo na mesma branch cancela a execução anterior, que já ficou velha.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Os testes de cada serviço ficam em workflows próprios, disparados só por mudança no
 # diretório do serviço (T-01.5, CA-01.5.a): ci-core-service.yml e ci-frontend.yml. Este
