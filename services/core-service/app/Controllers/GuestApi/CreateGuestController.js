@@ -1,12 +1,13 @@
 import GuestModel from '../../Models/GuestModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import isNonBlankString from '../../utils/isNonBlankString.js';
 
 export default async function CreateGuestController(request, response) {
     try {
         const tenantId = request.user.tenantId;
         const { full_name, cpf, phone, email } = request.body;
 
-        if (!full_name) return response.status(400).json({ error: 'full_name obrigatório' });
+        if (!isNonBlankString(full_name)) return response.status(400).json({ error: 'full_name obrigatório' });
 
         if (cpf) {
             const existing = await GuestModel.findOne({ where: { cpf, tenant_id: tenantId } });

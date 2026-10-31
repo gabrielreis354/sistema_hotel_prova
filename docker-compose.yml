@@ -147,6 +147,15 @@ services:
       # Webhook PIX assinado (T-06.9): sem o segredo, /webhooks/pix recusa TODA requisição
       # (fail-closed) — a confirmação de pagamento da demo não funcionaria.
       PIX_WEBHOOK_SECRET: ${PIX_WEBHOOK_SECRET:?defina PIX_WEBHOOK_SECRET no .env antes de subir o compose}
+      # Provedor do PIX da reserva direta (passo 6 do roteiro). Sem nada no .env, fica o simulado
+      # (fake), que é o plano B da demonstração. Com PIX_PROVIDER=asaas, o backend cobra no sandbox
+      # do Asaas e recusa URL ou chave fora do sandbox (docs/pagamentos/ASAAS_SANDBOX.md).
+      PIX_PROVIDER: ${PIX_PROVIDER:-fake}
+      ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api-sandbox.asaas.com/v3}
+      ASAAS_API_KEY: ${ASAAS_API_KEY:-}
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
+      # O Mercado Pago fica de fora de propósito: o provider dele não tem trava de sandbox, e um
+      # token de produção no .env criaria cobrança real a partir do ambiente de demonstração.
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       # Token do scrape em /metrics (T-02.4). Opcional para subir: sem ele o backend sobe
       # normal e só o /metrics responde 503 (fail-closed). Obrigatório no profile observability.
@@ -179,6 +188,58 @@ services:
         condition: service_completed_successfully
       # Só "iniciado", não "saudável": o core opera com o broker fora (CA-01.4.c) — o publicador
       # do outbox tenta de novo com espera crescente e os eventos acumulam até o broker responder.
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── analytics-service (T-01.4/H.2) — banco próprio e consumidor dos eventos do core ──────────
+  # Database per service (ADR-003, CA-01.4.g): o analytics não lê o banco do core; tudo chega por
+  # evento. Carga inicial depois do primeiro `up` (CA-01.4.j):
+  #   docker compose exec backend node command.js outbox-initial-load
+  # O roteamento do nginx para /analytics/ é da H.3 — até lá, o core continua respondendo /analytics.
+  analytics-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: gesway_analytics
+      POSTGRES_USER: ${ANALYTICS_POSTGRES_USER:-analytics_user}
+      POSTGRES_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-analytics_password}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - analytics_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_POSTGRES_USER:-analytics_user} -d gesway_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+    # Migrate antes de subir: o schema é só das projeções, derivado dos eventos — sem ele o consumidor
+    # nem começa (portão em _web.js).
+    command: ["sh", "-c", "node command.js migrate && exec node _web.js"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NODE_WEB_PORT: 3001
+      POSTGRES_HOST: analytics-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: gesway_analytics
+      POSTGRES_USER: ${ANALYTICS_POSTGRES_USER:-analytics_user}
+      POSTGRES_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-analytics_password}
+      # Só a chave PÚBLICA do JWT (ADR-006): o analytics verifica, nunca emite.
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      # Credencial do analytics (catálogo §8): lê a própria fila, publica só na DLX.
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_ANALYTICS_USER: ${RABBITMQ_ANALYTICS_USER:-hotel_analytics_consumer}
+      RABBITMQ_ANALYTICS_PASSWORD: ${RABBITMQ_ANALYTICS_PASSWORD:?defina RABBITMQ_ANALYTICS_PASSWORD no .env antes de subir o compose}
+    volumes:
+      - ./services/core-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    # Sem porta no host: até a H.3 (nginx), só a rede do compose fala com ele.
+    depends_on:
+      analytics-postgres:
+        condition: service_healthy
+      # Só "iniciado": o consumidor reconecta com espera crescente até o broker e a topologia existirem.
       rabbitmq:
         condition: service_started
     restart: unless-stopped
@@ -272,5 +333,6 @@ volumes:
   redis_data:
   minio_data:
   rabbitmq_data:
+  analytics_postgres_data:
   prometheus_data:
   grafana_data:

@@ -163,3 +163,16 @@ Por isso a troca de versão do backend passa sempre pelo `./start.sh deploy`, nu
   Release 2: o model deixa de declarar a coluna.
 - Fora do kind, use tag imutável no `deploy`: com `:latest` e `imagePullPolicy: IfNotPresent`, o Job e
   os pods podem rodar builds diferentes.
+
+## analytics-service — `/health` é readiness, não liveness (T-01.4)
+
+O Deployment do analytics entra na H.3. Regra para quem escrever o manifesto (reauditoria delta da H.2, 🟢-D):
+
+| Probe | Caminho | Por quê |
+|---|---|---|
+| `readinessProbe` | `GET /health` (porta 3001) | Responde **503** com o banco do analytics fora ou o consumidor sem consumir (broker fora, topologia ausente). O pod sai do Service enquanto a projeção está parada — é o comportamento certo |
+| `livenessProbe` | **não usar `/health`** — só TCP na porta 3001, ou nenhuma | Com o broker ou o banco fora, `/health` dá 503 **de propósito**. Como liveness, o kubelet reiniciaria o pod em laço (`CrashLoopBackOff`) sem resolver nada: o consumidor já reconecta sozinho, com espera crescente |
+
+O `HEALTHCHECK` do `Dockerfile` do analytics usa o mesmo `/health`. No Docker Compose isso só marca o
+contêiner como `unhealthy` (não reinicia); em Swarm, um `unhealthy` **reinicia** a tarefa — no Swarm,
+desligue o healthcheck do analytics ou troque por um teste de porta.

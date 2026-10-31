@@ -227,7 +227,7 @@ Hoje o JWT é validado por *middleware* local (`services/core-service/middleware
 
 ---
 
-### T-01.4 — Extrair o `analytics-service` com pipeline de eventos 🔄 (H.1 entregue — core e broker)
+### T-01.4 — Extrair o `analytics-service` com pipeline de eventos 🔄 (H.1 entregue — core e broker; H.2 entregue — serviço, consumidor e projeções)
 
 **DEP:** T-01.1 ✅, T-01.2, T-01.3
 
@@ -244,13 +244,13 @@ Primeiro serviço a sair: não altera estado do hotel, então a extração não 
 - [ ] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8) — *profundidade ✅: dashboard `gesway-rabbitmq` (Gesway — Mensageria) e alertas de DLQ com mensagem e de broker fora, em `infra/k8s/observability/`, no compose e no k8s (28/10, Weslley). **Atraso de consumo 🔲:** contar mensagens na fila não diz há quanto tempo elas esperam, e `rabbitmq_queue_head_message_timestamp` não sai para fila quorum (só para a classic `.retry` — qa-redteam de 30/10). O atraso tem de vir do consumidor do analytics, como histograma de `now() - occurred_at` (H.2/H.3)*
 
 **No analytics**
-- [ ] **CA-01.4.g** — Serviço em processo próprio, com `package.json`, `Dockerfile` e banco PostgreSQL próprios
-- [ ] **CA-01.4.h** — Consumidor idempotente: evento repetido não altera nenhum indicador — **comprovado por teste**
-- [ ] **CA-01.4.i** — Evento que falha repetidamente vai para a fila de mensagens mortas sem bloquear os demais
-- [ ] **CA-01.4.j** — Carga inicial das projeções a partir dos dados já existentes no core
+- [x] **CA-01.4.g** — Serviço em processo próprio, com `package.json`, `Dockerfile` e banco PostgreSQL próprios — *H.2: `services/analytics-service/` (Dockerfile multi-stage, `USER node`, sem chave nem `.env` na imagem), database `gesway_analytics` no serviço `analytics-postgres` do compose; ponta a ponta com a imagem real no relatório `analytics_service_h2_21102026.md`*
+- [x] **CA-01.4.h** — Consumidor idempotente: evento repetido não altera nenhum indicador — **comprovado por teste** — *H.2: `processed_events` + `aggregate_version` na mesma transação (`app/events/applyEvent.js`); `tests/projections.test.js` e, com RabbitMQ real, `tests/rabbitmq.integration.test.js` (mesmo evento 2×, versão antiga depois da nova)*
+- [x] **CA-01.4.i** — Evento que falha repetidamente vai para a fila de mensagens mortas sem bloquear os demais — *H.2: `app/consumer/consumer.js`; `tests/consumer.test.js` e `tests/rabbitmq.integration.test.js` (JSON inválido direto para a DLQ sem bloquear o seguinte; transitório com 5 tentativas de 10 s e DLQ na 5ª)*
+- [x] **CA-01.4.j** — Carga inicial das projeções a partir dos dados já existentes no core — *H.2: `node command.js outbox-initial-load` no core (`database/outboxInitialLoad.js`, `tests/outbox-initial-load.test.js`), pelo mesmo outbox/publicador/consumidor; rodar 2× não muda as projeções (teste e ponta a ponta)*
 - [ ] **CA-01.4.k** — Os 7 endpoints de indicadores respondem a partir das projeções
-- [ ] **CA-01.4.l** — Projeção de hóspede guarda apenas id, `tenant_id` e nome
-- [ ] **CA-01.4.m** — Isolamento multi-tenant preservado, com o teste de isolamento cobrindo o novo serviço
+- [x] **CA-01.4.l** — Projeção de hóspede guarda apenas id, `tenant_id` e nome — *H.2: `proj_guests` (+ colunas de controle `aggregate_version` e `deleted_at`); `guest.erased` → "Hóspede eliminado"; `tests/projections.test.js`*
+- [x] **CA-01.4.m** — Isolamento multi-tenant preservado, com o teste de isolamento cobrindo o novo serviço — *H.2: JWT RS256 verificado só com a chave pública, `tenant_id` só do token, `GET /analytics/health` autenticada; `tests/auth-isolation.test.js` e o caso "evento de outro hotel" de `tests/projections.test.js`. As 7 consultas herdam o middleware na H.3*
 
 **Integração**
 - [ ] **CA-01.4.n** — Deployment Kubernetes independente
