@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultPeriod, periodError, monthLabel } from './period.js';
+import { defaultPeriod, periodError, monthLabel, monthlyWindow } from './period.js';
 
 describe('defaultPeriod', () => {
   it('vai do dia 1º do mês até hoje', () => {
@@ -39,5 +39,20 @@ describe('monthLabel', () => {
 
   it('devolve o texto original se não reconhecer', () => {
     expect(monthLabel('2026-13')).toBe('2026-13');
+  });
+});
+
+describe('monthlyWindow', () => {
+  it('12 meses terminam no mês corrente', () => {
+    expect(monthlyWindow('2026-10-30', 12)).toEqual({ start: '2025-11-01', end: '2026-10-30' });
+  });
+
+  it('atravessa a virada do ano e aceita 1 mês', () => {
+    expect(monthlyWindow('2026-01-15', 6)).toEqual({ start: '2025-08-01', end: '2026-01-15' });
+    expect(monthlyWindow('2026-01-15', 1)).toEqual({ start: '2026-01-01', end: '2026-01-15' });
+  });
+
+  it('24 meses', () => {
+    expect(monthlyWindow('2026-10-30', 24)).toEqual({ start: '2024-11-01', end: '2026-10-30' });
   });
 });

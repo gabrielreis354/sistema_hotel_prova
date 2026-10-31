@@ -14,6 +14,21 @@ export function defaultPeriod(today: string): Period {
   return { start: `${today.slice(0, 7)}-01`, end: today };
 }
 
+/**
+ * Janela da receita por mês: do dia 1º do mês de `months - 1` meses atrás até hoje. Com 12, em
+ * 30/10/2026, vai de 01/11/2025 a 30/10/2026. A sazonalidade NÃO usa esta janela: o backend
+ * conta por mês de check-in a partir de `months` meses atrás (13 barras com 12) e inclui reservas
+ * futuras — por isso cada bloco mostra o próprio intervalo.
+ */
+export function monthlyWindow(today: string, months: number): Period {
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7)); // 1–12
+  const index = year * 12 + (month - 1) - (months - 1);
+  const startYear = Math.floor(index / 12);
+  const startMonth = String((index % 12) + 1).padStart(2, '0');
+  return { start: `${startYear}-${startMonth}-01`, end: today };
+}
+
 /** Mensagem de erro do período, ou `null` se ele pode ser consultado. */
 export function periodError(period: Period): string | null {
   if (!ISO_DATE_RE.test(period.start) || !ISO_DATE_RE.test(period.end)) {
