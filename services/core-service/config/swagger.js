@@ -473,12 +473,12 @@ const options = {
                 },
                 WebhookConfirmResponse: {
                     type: 'object',
-                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência)',
+                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação)',
                     properties: {
-                        status:             { type: 'string', enum: ['confirmed', 'already_processed'] },
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending'] },
                         payment_id:         { type: 'string', format: 'uuid' },
-                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Ausente quando status é already_processed' },
-                        reservation_status: { type: 'string', nullable: true, description: 'Ausente quando status é already_processed' }
+                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Só vem quando status é confirmed' },
+                        reservation_status: { type: 'string', nullable: true, description: 'Só vem quando status é confirmed' }
                     }
                 }
             }
@@ -596,7 +596,7 @@ const options = {
                         ] } } }
                     },
                     responses: {
-                        200: { description: 'Pagamento confirmado (ou já processado, ou status ainda não terminal)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
+                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
                         400: { description: 'Id da cobrança ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         401: { description: 'Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },

@@ -340,7 +340,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Pagamento confirmado (ou já processado, ou status ainda não terminal) */
+                /** @description Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -5137,18 +5137,18 @@ export interface components {
                 paid_at?: string | null;
             } | null;
         };
-        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência) */
+        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) */
         WebhookConfirmResponse: {
             /** @enum {string} */
-            status?: "confirmed" | "already_processed";
+            status?: "confirmed" | "already_processed" | "not_approved" | "pending";
             /** Format: uuid */
             payment_id?: string;
             /**
              * Format: uuid
-             * @description Ausente quando status é already_processed
+             * @description Só vem quando status é confirmed
              */
             reservation_id?: string | null;
-            /** @description Ausente quando status é already_processed */
+            /** @description Só vem quando status é confirmed */
             reservation_status?: string | null;
         };
     };

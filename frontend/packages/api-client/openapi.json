@@ -1454,13 +1454,15 @@
       },
       "WebhookConfirmResponse": {
         "type": "object",
-        "description": "POST /webhooks/pix — \"confirmed\" na primeira confirmação, \"already_processed\" em reenvio (idempotência)",
+        "description": "POST /webhooks/pix — \"confirmed\" na primeira confirmação, \"already_processed\" em reenvio (idempotência), \"not_approved\" quando o provider recusou a cobrança (o pagamento vira FAILED) e \"pending\" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação)",
         "properties": {
           "status": {
             "type": "string",
             "enum": [
               "confirmed",
-              "already_processed"
+              "already_processed",
+              "not_approved",
+              "pending"
             ]
           },
           "payment_id": {
@@ -1471,12 +1473,12 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Ausente quando status é already_processed"
+            "description": "Só vem quando status é confirmed"
           },
           "reservation_status": {
             "type": "string",
             "nullable": true,
-            "description": "Ausente quando status é already_processed"
+            "description": "Só vem quando status é confirmed"
           }
         }
       }
@@ -1938,7 +1940,7 @@
         },
         "responses": {
           "200": {
-            "description": "Pagamento confirmado (ou já processado, ou status ainda não terminal)",
+            "description": "Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status)",
             "content": {
               "application/json": {
                 "schema": {
