@@ -26,7 +26,7 @@ usage() {
     echo "  logs      Streaming de logs do backend (ctrl+c para sair)"
     echo "  migrate   Executa migrations no cluster (Job com a imagem do backend)"
     echo "  deploy    Atualiza o backend: migrate, rollout e migrate de novo [imagem opcional]"
-    echo "  seed      Aplica o seed de 165 registros no banco"
+    echo "  seed      Aplica o seed de demonstração (hotéis + comanda) — exige ALLOW_SEED=1"
     echo "  test      Expõe postgres via port-forward e roda a suite de testes"
     echo "  tunnel    Inicia port-forward nginx → localhost:8080"
     echo "  health    Verifica o endpoint /health (requer tunnel ativo)"
@@ -175,12 +175,24 @@ cmd_deploy() {
 
 # =============================================================================
 cmd_seed() {
+    # Mesma trava do `node command.js seed` em produção: o seed cria ADMIN e garçom com a senha
+    # documentada (senha123), e o cluster do start.sh roda com NODE_ENV=production.
+    [ "${ALLOW_SEED:-}" = "1" ] || err "Recusado sem ALLOW_SEED=1: o seed cria usuários com senha conhecida (senha123). Confirme com: ALLOW_SEED=1 ./start.sh seed"
     check_kubectl
-    [ -f seed/seed_hotels.sql ] || err "seed/seed_hotels.sql não encontrado."
-    info "Aplicando seed (165 registros — Hotel Aurora + Pousada Sol)..."
-    kubectl exec -n "$NS" -i statefulset/postgres -- \
-        psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
-    log "Seed aplicado. Login: admin@aurora.example / senha123 (subdomain: aurora)"
+    # O seed mora no core-service desde a SPEC-01 (15/09). A ordem é a do `node command.js seed`:
+    # o seed_consumo (cardápio, contas, garçom — T-04.7) referencia hotéis e quartos do seed_hotels.
+    local seed_dir="services/core-service/seed"
+    local file
+    for file in seed_hotels.sql seed_consumo.sql; do
+        [ -f "$seed_dir/$file" ] || err "$seed_dir/$file não encontrado."
+    done
+    info "Aplicando seed (Hotel Aurora + Pousada Sol, com a comanda)..."
+    for file in seed_hotels.sql seed_consumo.sql; do
+        info "  $file"
+        kubectl exec -n "$NS" -i statefulset/postgres -- \
+            psql -v ON_ERROR_STOP=1 -U hotel_user -d gestao_hotel < "$seed_dir/$file"
+    done
+    log "Seed aplicado. Login: admin@aurora.example / senha123 (subdomain: aurora) · garçom: garcom@aurora.example"
 }
 
 # =============================================================================
