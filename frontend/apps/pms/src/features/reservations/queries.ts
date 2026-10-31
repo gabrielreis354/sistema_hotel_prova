@@ -1,4 +1,6 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { ApiError } from '../../lib/http.js';
+import { guestKeys } from '../guests/index.js';
 import {
   createReservation,
   getBill,
@@ -61,15 +63,22 @@ export function useAvailableRooms(checkIn: string, checkOut: string, enabled: bo
   });
 }
 
+/**
+ * O que a criação deixa desatualizado. Criou ou perdeu a corrida: a disponibilidade mudou nos
+ * dois casos. No 404 o hóspede escolhido pode ter sido excluído — a busca não pode continuar
+ * oferecendo quem não existe mais (os quartos já entram pela invalidação de `rooms`).
+ */
+export function invalidateAfterCreate(qc: Pick<QueryClient, 'invalidateQueries'>, error: unknown) {
+  qc.invalidateQueries({ queryKey: reservationKeys.all });
+  qc.invalidateQueries({ queryKey: ['rooms'] });
+  if (error instanceof ApiError && error.status === 404) qc.invalidateQueries({ queryKey: guestKeys.all });
+}
+
 export function useCreateReservation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateReservationInput) => createReservation(input),
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: reservationKeys.all });
-      // Criou ou perdeu a corrida: nos dois casos a disponibilidade mudou.
-      qc.invalidateQueries({ queryKey: ['rooms'] });
-    },
+    onSettled: (_data, error) => invalidateAfterCreate(qc, error),
   });
 }
 

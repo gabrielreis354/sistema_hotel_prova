@@ -104,15 +104,31 @@ export async function listAvailableRooms(checkIn: string, checkOut: string): Pro
   return data;
 }
 
+/**
+ * Respostas da criação que a tela trata pelo status, e não pelo texto do servidor:
+ * - 409 COM `room_ids`: os quartos foram ocupados por outra reserva → RoomConflictError, e a
+ *   tela tira esses quartos da seleção e diz os números;
+ * - 409 SEM `room_ids`: deadlock repetido (PR #104) ou corrida barrada pelo EXCLUDE do banco.
+ *   Nada foi gravado e o quarto pode estar livre: a seleção fica e a recepção tenta de novo;
+ * - 404: quarto, quarto extra, categoria ou hóspede excluído (ou de outro hotel). O texto do
+ *   servidor traz o UUID cru do quarto extra, que não diz nada ao balcão.
+ */
+export const CREATE_RETRY_MESSAGE =
+  'Outra operação está usando estes quartos agora e nada foi gravado. Tente de novo — se algum quarto tiver sido reservado nesse meio-tempo, a lista de livres já mostra.';
+export const CREATE_GONE_MESSAGE =
+  'O hóspede ou um dos quartos escolhidos não existe mais neste hotel — pode ter sido excluído em outro atendimento. As listas foram atualizadas: escolha de novo.';
+
 export async function createReservation(input: CreateReservationInput): Promise<Reservation> {
   const { data, error, response } = await api.POST('/reservations', { body: input });
   if (response.status === 409) {
     const roomIds = error && 'room_ids' in error && Array.isArray(error.room_ids) ? error.room_ids : [];
+    if (roomIds.length === 0) throw new ApiError(CREATE_RETRY_MESSAGE, 409);
     throw new RoomConflictError(
       'Outro atendimento acabou de reservar este quarto no mesmo período. Escolha outro quarto livre.',
       roomIds,
     );
   }
+  if (response.status === 404) throw new ApiError(CREATE_GONE_MESSAGE, 404);
   if (error || !response.ok || !data) {
     throw new ApiError(serverMessage(error) ?? 'Não foi possível criar a reserva.', response.status);
   }
