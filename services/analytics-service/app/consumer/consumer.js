@@ -78,8 +78,9 @@ export function isInfrastructureFailure(error) {
 }
 
 /**
- * Teto de devoluções por "banco fora" antes de contar tentativa (🟡-A). Bem abaixo do `delivery-limit`
- * padrão (20) da fila quorum: com 10, sobram as 5 tentativas do §5.3 com folga.
+ * Teto de devoluções por "banco fora" antes de contar tentativa (🟡-A). Com as 5 tentativas do §5.3, no
+ * máximo 15 entregas: bem abaixo do `delivery-limit` 50 da policy `analytics-core-events`
+ * (rabbitmq-setup.sh), e ainda abaixo do padrão (20) da fila quorum se a policy faltar.
  */
 export const MAX_INFRA_REDELIVERIES = 10;
 
@@ -141,7 +142,7 @@ async function tratarFalha({ channel, msg, event, error, attempts, logger, onInf
     const quem = event ? `${event.type} ${event.eventId}` : `mensagem ${msg.properties?.messageId ?? '(sem id)'}`;
 
     // A pausa devolve a mensagem sem ack/nack, e cada devolução soma no `x-delivery-count` da fila quorum.
-    // No `delivery-limit` (20 por padrão) o broker DESCARTA a mensagem — ciclo de dead-letter sem
+    // No `delivery-limit` (50 pela policy; 20 sem ela) o broker DESCARTA a mensagem — ciclo de dead-letter sem
     // 'rejected', fora da DLQ (reauditoria delta da H.2, 🟡-A). Por isso a pausa tem teto: acima dele, ou
     // se a mensagem já voltou uma vez da fila de espera, o erro de conexão conta como tentativa comum.
     if (isInfrastructureFailure(error) && previousFailures(msg) === 0 && deliveryCount(msg) < maxInfraRedeliveries) {
