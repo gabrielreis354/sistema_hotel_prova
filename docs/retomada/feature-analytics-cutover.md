@@ -10,18 +10,19 @@ qa-redteam e abre).
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: ver "Feito"
+- Passo atual: H.3 entregue, aguardando qa-redteam do Gabriel
 
 ## Feito
 - [x] 7 consultas no analytics-service sobre as projeções (`78db6a8`)
+- [x] core sem os 7 indicadores; `analytics.test.js` contra o novo serviço (`6dc4763`)
+- [x] OpenAPI no analytics + dump juntando os specs + frontend com string decimal (`bfc5385`)
+- [x] nginx (compose e k8s), Deployment k8s, secret por ambiente, NetworkPolicy (`35ae156`)
+- [x] suítes verdes com cobertura, qa_checks, compose real pelo nginx e Playwright (desktop e 375×812)
+- [x] SPEC marcada (k, n, o, p, q) e relatório `docs/historico_sessao/gabriel/analytics_cutover_h3_31102026.md`
 
 ## Falta
-- [ ] core deixa de responder as 7 rotas; `/analytics/internal-consumption` fica (L-1)
-- [ ] `tests/analytics.test.js` do core contra o novo serviço (semeia pelo core, espera o consumo)
-- [ ] OpenAPI das 7 rotas no analytics + `dump-openapi` junta os dois; frontend aceita string decimal
-- [ ] nginx (compose e k8s) + Deployment k8s do analytics — [revisão do Weslley]
-- [ ] suítes com cobertura, qa_checks, Playwright pelo nginx (desktop e 375×812)
-- [ ] SPEC marcada e relatório `docs/historico_sessao/gabriel/analytics_cutover_h3_<ddmmaaaa>.md`
+- [ ] qa-redteam (Gabriel) e PR
+- [ ] [revisão do Weslley] infra; `./start.sh up` num minikube/kind (só houve `kubectl kustomize`)
 
 ## Decisões tomadas nesta frente
 - Dinheiro sai como string decimal (`numeric(14,2)`); `occupancy_rate`, `pct`, `avg_nights` e

@@ -227,7 +227,7 @@ Hoje o JWT é validado por *middleware* local (`services/core-service/middleware
 
 ---
 
-### T-01.4 — Extrair o `analytics-service` com pipeline de eventos 🔄 (H.1 entregue — core e broker; H.2 entregue — serviço, consumidor e projeções)
+### T-01.4 — Extrair o `analytics-service` com pipeline de eventos 🔄 (H.1 entregue — core e broker; H.2 entregue — serviço, consumidor e projeções; H.3 entregue — cutover, aguardando qa-redteam)
 
 **DEP:** T-01.1 ✅, T-01.2, T-01.3
 
@@ -248,15 +248,15 @@ Primeiro serviço a sair: não altera estado do hotel, então a extração não 
 - [x] **CA-01.4.h** — Consumidor idempotente: evento repetido não altera nenhum indicador — **comprovado por teste** — *H.2: `processed_events` + `aggregate_version` na mesma transação (`app/events/applyEvent.js`); `tests/projections.test.js` e, com RabbitMQ real, `tests/rabbitmq.integration.test.js` (mesmo evento 2×, versão antiga depois da nova)*
 - [x] **CA-01.4.i** — Evento que falha repetidamente vai para a fila de mensagens mortas sem bloquear os demais — *H.2: `app/consumer/consumer.js`; `tests/consumer.test.js` e `tests/rabbitmq.integration.test.js` (JSON inválido direto para a DLQ sem bloquear o seguinte; transitório com 5 tentativas de 10 s e DLQ na 5ª)*
 - [x] **CA-01.4.j** — Carga inicial das projeções a partir dos dados já existentes no core — *H.2: `node command.js outbox-initial-load` no core (`database/outboxInitialLoad.js`, `tests/outbox-initial-load.test.js`), pelo mesmo outbox/publicador/consumidor; rodar 2× não muda as projeções (teste e ponta a ponta)*
-- [ ] **CA-01.4.k** — Os 7 endpoints de indicadores respondem a partir das projeções
+- [x] **CA-01.4.k** — Os 7 endpoints de indicadores respondem a partir das projeções — *H.3: `services/analytics-service/app/Controllers/AnalyticsApi/` sobre `proj_*`, `tenant_id` do JWT em toda tabela; mesmas permissões do core (top-guests só ADMIN); dinheiro em string NUMERIC (§9.1 do catálogo); D-1 sem telefone/e-mail; D-3 refinada (no-show sem PAID, em aberto = saldo > 0); `tests/analytics-queries.test.js`. `/analytics/internal-consumption` (8º, T-04.7) fica no core — decisão L-1*
 - [x] **CA-01.4.l** — Projeção de hóspede guarda apenas id, `tenant_id` e nome — *H.2: `proj_guests` (+ colunas de controle `aggregate_version` e `deleted_at`); `guest.erased` → "Hóspede eliminado"; `tests/projections.test.js`*
 - [x] **CA-01.4.m** — Isolamento multi-tenant preservado, com o teste de isolamento cobrindo o novo serviço — *H.2: JWT RS256 verificado só com a chave pública, `tenant_id` só do token, `GET /analytics/health` autenticada; `tests/auth-isolation.test.js` e o caso "evento de outro hotel" de `tests/projections.test.js`. As 7 consultas herdam o middleware na H.3*
 
 **Integração**
-- [ ] **CA-01.4.n** — Deployment Kubernetes independente
-- [ ] **CA-01.4.o** — O monólito não responde mais `/analytics`, e o Nginx roteia `/analytics/` para o novo serviço
-- [ ] **CA-01.4.p** — `services/core-service/tests/analytics.test.js` passa contra o novo serviço
-- [ ] **CA-01.4.q** — Suíte completa continua verde
+- [x] **CA-01.4.n** — Deployment Kubernetes independente — *H.3: `infra/k8s/analytics.yaml` (Deployment + Service do analytics, StatefulSet + PVC + Service do banco próprio), secret `analytics-db` gerado por ambiente (`scripts/k8s_garantir_secret_analytics.sh`), NetworkPolicy; validado com `kubectl kustomize` (só local, sem nuvem) — [revisão do Weslley]*
+- [x] **CA-01.4.o** — O monólito não responde mais `/analytics`, e o Nginx roteia `/analytics/` para o novo serviço — *H.3: os 7 indicadores dão 404 no core; `location /analytics/` → `analytics-service:3001` nas duas cópias do nginx; exceção `location /analytics/internal-consumption` → core (L-1). Comprovado no compose local pelo nginx e com a tela /indicadores (Playwright)*
+- [x] **CA-01.4.p** — `services/core-service/tests/analytics.test.js` passa contra o novo serviço — *H.3: semeia pelo core, publica no RabbitMQ real e espera `processed_events` do analytics alcançar o outbox; asserções alteradas listadas no topo do arquivo e no relatório `analytics_cutover_h3_31102026.md` (D-1, D-3, dinheiro em string)*
+- [x] **CA-01.4.q** — Suíte completa continua verde — *H.3 (31/10): core 52 arquivos, 1126 testes + 1 pulado (o mesmo de antes), 86,05% stmts; analytics 9 arquivos, 162 testes, 96,58% stmts; frontend 103 testes e typecheck; qa_checks sem erro*
 
 > **Cuidado com o teste:** `services/core-service/tests/analytics.test.js` semeia dados pelos endpoints do core (`registerAndLogin`, `factories`). Com eventos, o teste semeia pelo core, aguarda o consumo e consulta o analytics — é teste de integração do pipeline, não só do endpoint.
 >
