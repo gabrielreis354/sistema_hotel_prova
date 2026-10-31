@@ -68,6 +68,8 @@ const ERROS_DE_CONEXAO = new Set([
     'SequelizeConnectionAcquireTimeoutError'
 ]);
 const SQLSTATE_CONEXAO = /^(08|57P0[1-3]$|53300$)/;   // conexão, shutdown do servidor, conexões esgotadas
+// Fora daqui de propósito: 57014 (statement_timeout, 🟡-A3) — o comando demorou, o banco respondeu. É
+// falha da mensagem e conta tentativa; tratar como "banco fora" pausaria o consumo a cada evento pesado.
 
 export function isInfrastructureFailure(error) {
     if (ERROS_DE_CONEXAO.has(error?.name)) return true;
@@ -80,6 +82,16 @@ export function isInfrastructureFailure(error) {
  * padrão (20) da fila quorum: com 10, sobram as 5 tentativas do §5.3 com folga.
  */
 export const MAX_INFRA_REDELIVERIES = 10;
+
+/**
+ * Prazo da drenagem da PAUSA (🟡-A3) — próprio, e bem maior que o pior apply (acquire 5 s + comandos de 5 s
+ * do sequelize.js). A pausa não tem a pressa do SIGTERM: desistir de uma mensagem ainda em apply a devolve
+ * sem decidir, fora do teto. O prazo curto (`stopTimeoutMs`) fica só no stop().
+ */
+export const PAUSE_DRAIN_TIMEOUT_MS = 60000;
+
+/** Quanto o stop() espera cada resposta do broker (cancel-ok, close-ok) antes de desistir (🟢-E). */
+export const BROKER_TIMEOUT_MS = 2000;
 
 /** Quantas vezes o broker já entregou esta mensagem nesta fila (cabeçalho da fila quorum). */
 export function deliveryCount(msg) {
@@ -171,11 +183,15 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * `status()`: 'stopped' | 'connecting' | 'consuming' — o /health usa (degradado → 503).
  * `stop()`: desligamento ordenado (SIGTERM) — cancela o consumo, espera as mensagens em andamento
  * terminarem (com ack) até `stopTimeoutMs`, e só então fecha a conexão. Interrompe também a espera do
- * backoff e não fica preso num `connect()`/`ready()` que não responde (🟢-B).
+ * backoff e não fica preso num `connect()`/`ready()` que não responde (🟢-B). Com o broker sem
+ * responder, cada espera por ele (cancel-ok, close-ok) dura no máximo `brokerTimeoutMs`; aí a conexão é
+ * mandada fechar sem esperar, e o processo sai dentro da grace do compose (10 s) (🟢-E). O que ficou
+ * sem ack volta pelo broker e cai em 'duplicate'.
  */
 export function createConsumer({
     connect, ready = async () => {}, apply, logger = console, sleep = defaultSleep,
-    maxBackoffMs = 30000, stopTimeoutMs = 10000, maxInfraRedeliveries = MAX_INFRA_REDELIVERIES
+    maxBackoffMs = 30000, stopTimeoutMs = 10000, maxInfraRedeliveries = MAX_INFRA_REDELIVERIES,
+    pauseDrainTimeoutMs = PAUSE_DRAIN_TIMEOUT_MS, brokerTimeoutMs = BROKER_TIMEOUT_MS
 }) {
     let running = false;
     let estado = 'stopped';
@@ -197,6 +213,9 @@ export function createConsumer({
      * dos nack/ack fazia o broker perder o nack recém-enviado da fila quorum — a mensagem voltava sem
      * `rejected` (comprovado com RabbitMQ real: 21 entregas e descarte). O `channel.close()` espera o
      * close-ok, e o broker liquida o que o canal enviou antes de encerrá-lo.
+     *
+     * A drenagem usa `pauseDrainTimeoutMs`, não o `stopTimeoutMs` (reauditoria delta 3, 🟡-A3): com o prazo
+     * curto, uma mensagem mais lenta que ele voltava sem decidir a cada pausa e passava do teto.
      */
     function pausarPorInfraestrutura() {
         if (!atual || atual.pausando) return;
@@ -205,7 +224,7 @@ export function createConsumer({
         conexao.pausando = true;
         (async () => {
             if (tag) await conexao.channel.cancel(tag).catch(() => {});
-            await comPrazo(Promise.allSettled([...emAndamento]), stopTimeoutMs);
+            await comPrazo(Promise.allSettled([...emAndamento]), pauseDrainTimeoutMs);
             await fecharComOrdem(conexao);
         })();
     }
@@ -278,13 +297,19 @@ export function createConsumer({
         running = false;
         acordar?.();
         const conexao = atual;
+        let brokerRespondeu = true;
         if (conexao) {
-            if (consumerTag) await conexao.channel.cancel(consumerTag).catch(() => {});
+            if (consumerTag) brokerRespondeu = await comPrazo(conexao.channel.cancel(consumerTag), brokerTimeoutMs);
             await comPrazo(Promise.allSettled([...emAndamento]), stopTimeoutMs);
-            await fecharComOrdem(conexao);   // o ack da última mensagem não se perde no fechamento
+            // o ack da última mensagem não se perde no fechamento — se o broker responder
+            if (!await comPrazo(fecharComOrdem(conexao), brokerTimeoutMs)) {
+                brokerRespondeu = false;
+                conexao.close().catch(() => {});   // sem esperar o close-ok: o processo vai sair
+            }
         }
-        // connect()/ready() que não responde não segura o desligamento além do prazo.
-        if (laco) await comPrazo(laco, stopTimeoutMs);
+        // connect()/ready() que não responde não segura o desligamento além do prazo. Com o broker mudo, o
+        // laço espera o 'close' da conexão, que só viria no heartbeat: não espera.
+        if (laco && brokerRespondeu) await comPrazo(laco, stopTimeoutMs);
         estado = 'stopped';
     }
 
@@ -301,10 +326,15 @@ async function fecharComOrdem(conexao) {
     await conexao.close().catch(() => {});
 }
 
+/** Espera `promessa` até `ms`. true se ela terminou (resolvida ou rejeitada) no prazo; nunca rejeita. */
 async function comPrazo(promessa, ms) {
     let prazo;
-    await Promise.race([promessa, new Promise((resolve) => { prazo = setTimeout(resolve, ms); })]);
+    const terminou = await Promise.race([
+        Promise.resolve(promessa).then(() => true, () => true),
+        new Promise((resolve) => { prazo = setTimeout(() => resolve(false), ms); })
+    ]);
     clearTimeout(prazo);
+    return terminou;
 }
 
 /**
