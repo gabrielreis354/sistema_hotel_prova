@@ -27,7 +27,7 @@ const PROVIDERS = { fake: FakePixProvider };
 
 **Decisão da equipe (23/08):** ViaCEP primeiro por ser mais rápida; Mercado Pago depois, por ser mais relevante ao negócio.
 
-**Atualização (15/10):** o código do Mercado Pago entrou em 12/10 (PR #89), mas a validação no *sandbox* dele não foi feita. O Asaas entrou como segundo provedor real em 17/10 (`1cbc4c0`), foi testado no *sandbox* real em 16/10 e é o provedor do passo 6 do roteiro de demonstração. Os dois ficam atrás do mesmo contrato `PixProvider`.
+**Atualização (31/10):** o código do Mercado Pago entrou em 12/10 (PR #89), mas a validação no *sandbox* dele não foi feita. O Asaas entrou como segundo provedor real em 17/10 (`1cbc4c0`), foi testado no *sandbox* real em 16/10 e é o provedor do passo 6 do roteiro de demonstração. Os dois ficam atrás do mesmo contrato `PixProvider`.
 
 ---
 
@@ -119,7 +119,7 @@ da cobrança, `404` no *webhook* que pode pausar a fila do Asaas, e CPF malforma
 **Critérios de aceitação**
 - [x] **CA-03.2.a** — `MercadoPagoPixProvider` e `AsaasPixProvider` implementam o contrato `PixProvider` existente
 - [x] **CA-03.2.b** — Registrados no *switch* de `PROVIDERS`, selecionáveis por `PIX_PROVIDER=mercadopago` e `PIX_PROVIDER=asaas`
-- [x] **CA-03.2.c** — Cobrança real criada no *sandbox*, com QR Code e *payload* copia-e-cola válidos *(Asaas, 16/10/2026; o Mercado Pago não foi validado)*
+- [x] **CA-03.2.c** — Cobrança real criada no *sandbox*, com QR Code e *payload* copia-e-cola válidos *(Asaas, 16/10/2026: QR e payload emitidos pelo próprio Asaas, e o pagamento confirmado pelo botão do sandbox; nenhum app de banco leu o payload. O Mercado Pago não foi validado)*
 - [ ] **CA-03.2.d** — *Webhook* de confirmação processa notificação real do provedor *(parcial: notificação disparada localmente com o formato e o token do Asaas, status confirmado na API real; falta o Asaas chamar a URL pública — M6)*
 - [x] **CA-03.2.e** — Validação de autenticidade da notificação — não confiar em `POST` anônimo
 - [x] **CA-03.2.f** — `FakePixProvider` **permanece** e continua sendo o padrão em teste
