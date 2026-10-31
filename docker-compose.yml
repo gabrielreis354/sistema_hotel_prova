@@ -306,6 +306,8 @@ services:
       - ./infra/k8s/observability/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
       - ./infra/k8s/observability/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/gesway.yml:ro
       - ./infra/k8s/observability/gesway-dashboard.json:/var/lib/grafana/dashboards/gesway-dashboard.json:ro
+      - ./infra/k8s/observability/rabbitmq-dashboard.json:/var/lib/grafana/dashboards/rabbitmq-dashboard.json:ro
+      - ./infra/k8s/observability/grafana-alerting.yml:/etc/grafana/provisioning/alerting/gesway.yml:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       prometheus:

@@ -238,7 +238,7 @@ kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
 Com o cluster rodando, crie todas as tabelas no banco:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 Saída esperada:
@@ -251,11 +251,10 @@ Saída esperada:
 ### Passo 6 — (Opcional) Popular com dados de exemplo
 
 ```bash
-kubectl exec -n hotel-system -i statefulset/postgres -- \
-  psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
+ALLOW_SEED=1 ./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
 ```
 
-Cria 165 registros distribuídos entre 2 hotéis com quartos, hóspedes, reservas e pagamentos prontos para uso.
+Cria 2 hotéis com quartos, hóspedes, reservas e pagamentos prontos para uso (165 registros do `seed_hotels.sql`), mais a comanda do `seed_consumo.sql`: cardápio, contas e o garçom `garcom@aurora.example`. O `ALLOW_SEED=1` é a confirmação de propósito: o seed cria usuários com a senha conhecida `senha123`.
 
 ### Passo 7 — Verificar o sistema
 
@@ -799,7 +798,7 @@ As consultas estão organizadas em `queries/`:
 O schema completo está em `services/core-service/db/schema.sql`. Para criar ou atualizar todas as tabelas:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 O comando usa `sequelize.sync({ alter: true })` — cria tabelas inexistentes e adiciona colunas novas sem derrubar dados existentes.
@@ -816,7 +815,7 @@ kubectl exec -n hotel-system -i statefulset/postgres -- \
 
 ## Dados de Teste (Seed)
 
-O arquivo `seed/seed_hotels.sql` cria **165 registros** distribuídos entre 2 hotéis:
+O arquivo `services/core-service/seed/seed_hotels.sql` cria **165 registros** distribuídos entre 2 hotéis:
 
 | Tabela | Hotel Aurora | Pousada Sol | Total |
 |---|---|---|---|
@@ -833,8 +832,7 @@ Distribuição de status das reservas (Hotel Aurora): 8 CHECKED_OUT · 5 CONFIRM
 **Executar o seed:**
 
 ```bash
-kubectl exec -n hotel-system -i statefulset/postgres -- \
-  psql -U hotel_user -d gestao_hotel < seed/seed_hotels.sql
+ALLOW_SEED=1 ./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
 ```
 
 O seed é **idempotente** — pode ser executado múltiplas vezes sem duplicar registros (usa `ON CONFLICT DO NOTHING`).
@@ -1144,7 +1142,7 @@ Causas comuns:
 As migrations não foram executadas após subir o cluster:
 
 ```bash
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 ### Backend não consegue conectar ao PostgreSQL
@@ -1187,7 +1185,7 @@ Se precisar recriar tudo do zero:
 kubectl delete -k infra/k8s/
 kubectl apply -k infra/k8s/
 kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
-kubectl exec -n hotel-system deploy/backend -- node services/core-service/command.js migrate
+./start.sh migrate   # Job com a imagem do backend — ver docs/infra/KUBERNETES.md
 ```
 
 ---

@@ -57,14 +57,14 @@ export async function findConflictingRooms(roomIds, checkInDate, checkOutDate, e
  * `reservation_rooms`). Acontece quando duas requisições passam juntas pela checagem da
  * aplicação — a corrida que só o banco fecha. Vira 409, nunca 500 (CA-F.1.c).
  *
- * Inclui o deadlock (40P01): duas reservas com os mesmos quartos em papéis trocados
- * (principal de uma = extra da outra) esperam uma pela outra no EXCLUDE, e o PostgreSQL
- * aborta uma delas — a outra venceu, o quarto está ocupado (reauditoria de 10/10, N1).
+ * O deadlock (40P01) NÃO entra aqui (🟢-D2 da reauditoria delta de 31/10): ele também nasce de
+ * travas que nada têm a ver com ocupação (ex.: check-in mudando o status dos quartos), e aí
+ * "Quarto indisponível" era mentira. O caso das duas reservas com os mesmos quartos em papéis
+ * trocados (reauditoria de 10/10, N1) é resolvido por `withDeadlockRetry`: a repetição vê a
+ * reserva vencedora na checagem e responde o 409 verdadeiro.
  */
 export function isRoomOccupiedError(error) {
-    if (error?.name === 'SequelizeExclusionConstraintError') return true;
-    const code = error?.parent?.code ?? error?.original?.code;
-    return code === '40P01';
+    return error?.name === 'SequelizeExclusionConstraintError';
 }
 
 export const ROOM_OCCUPIED_MESSAGE = 'Quarto indisponível no período solicitado';

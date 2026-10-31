@@ -16,6 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/reservas', label: 'Reservas', roles: ['ADMIN', 'RECEPTIONIST'] },
   { to: '/hospedes', label: 'Hóspedes', roles: ['ADMIN', 'RECEPTIONIST'] },
   { to: '/comanda', label: 'Comanda', roles: ['ADMIN', 'RECEPTIONIST', 'WAITER'] },
+  { to: '/indicadores', label: 'Indicadores', roles: ['ADMIN'] },
   { to: '/config/usuarios', label: 'Usuários', roles: ['ADMIN'] },
 ];
 
