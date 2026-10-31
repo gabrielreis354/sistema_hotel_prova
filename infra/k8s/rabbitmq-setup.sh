@@ -50,12 +50,22 @@ adm declare queue --name analytics.core-events.dlq   --type quorum  --durable tr
 #   - dead-letter-strategy at-least-once: o padrão da quorum (at-most-once) descarta sem aviso a
 #     mensagem em nova tentativa se a fila de espera não a aceitar (nó reiniciando, alarme de memória
 #     ou disco). O at-least-once só vale com overflow reject-publish (repasse de 23/10).
-#   - delivery-limit explícito e bem acima do teto do consumidor (10 entregas, consumer.js): quem
-#     desvia para a DLQ é o consumidor, com 'rejected' no x-death. No limite do broker o dead-letter
-#     sai sem 'rejected', volta pela fila de espera e o RabbitMQ descarta o ciclo (repasse de 29/10).
+#   - delivery-limit explícito e bem acima do teto do consumidor (10 entregas, consumer.js): no caminho
+#     normal quem desvia para a DLQ é o consumidor, com 'rejected' no x-death. O limite NÃO some: uma
+#     mensagem que nunca é confirmada (consumidor que cai a cada entrega, OOM) é descartada na 51ª
+#     entrega, porque o dead-letter por delivery_limit volta pela fila de espera sem 'rejected' e o
+#     RabbitMQ descarta o ciclo (repasse de 29/10). Trocar por -1 (sem limite) é decisão pendente:
+#     troca o descarte por reentrega sem fim. A linha "dead letter cycle" no log do broker é o sinal.
 adm declare policy --name analytics-core-events --pattern '^analytics\.core-events$' \
     --apply-to quorum_queues --priority 10 \
     --definition '{"dead-letter-strategy":"at-least-once","overflow":"reject-publish","delivery-limit":50}'
+
+# A DLQ não tem destino de dead-letter: no delivery-limit padrão (20), a 21ª leitura pelo "Get
+# messages" do painel (que devolve a mensagem à fila) APAGA a mensagem. Sem limite, ela só sai
+# quando alguém a reprocessa de propósito (§5.3). Testado no RabbitMQ 4.4.0.
+adm declare policy --name analytics-core-events-dlq --pattern '^analytics\.core-events\.dlq$' \
+    --apply-to quorum_queues --priority 10 \
+    --definition '{"delivery-limit":-1}'
 
 adm declare binding --source gesway.core.events --destination-type queue --destination analytics.core-events       --routing-key '#'
 adm declare binding --source analytics.retry    --destination-type queue --destination analytics.core-events.retry --routing-key ''
