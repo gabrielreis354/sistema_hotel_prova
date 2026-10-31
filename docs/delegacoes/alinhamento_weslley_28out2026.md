@@ -59,10 +59,12 @@ O Sirlande terminou a parte dele antes do previsto e tem capacidade nas semanas 
 
 **Como responder:** marque abaixo e avise o Sirlande pelo grupo, ou edite este arquivo e faça commit nesta branch. Não precisa esperar 03/11. Quanto antes, mais cedo o trabalho começa.
 
-- [ ] **A** · CA-05.6.a (pagamento no check-out) passa para o Sirlande
+- [x] **A** · CA-05.6.a (pagamento no check-out) passa para o Sirlande
 - [ ] **B** · Correção do `./start.sh seed` passa para o Sirlande (eu reviso)
-- [ ] **C** · CA-05.6.d (cortesias e perdas) passa para o Sirlande
-- [ ] **D** · Reverificação do `payment-mix` passa para o Sirlande
+- [x] **C** · CA-05.6.d (cortesias e perdas) passa para o Sirlande
+- [x] **D** · Reverificação do `payment-mix` passa para o Sirlande
+
+> **Resposta do Weslley (30/10/2026):** aceito A, C e D. O B não é mais preciso: a correção do `./start.sh seed` já está na `develop` (`157a6bf` e `5b7edc9`, com a trava `ALLOW_SEED=1`). Fico com a revisão, se você quiser olhar. A T-05.6 começa hoje pelos critérios b e c, sobre a `develop`.
 
 ---
 
