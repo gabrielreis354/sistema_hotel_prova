@@ -87,3 +87,39 @@ instruções 85.35%, branches 82.33%, funções 89.1%, linhas 87.14%. `qa_checks
 da develop, e nenhum erro.
 
 A pendência 4 desta tabela está **resolvida**.
+
+#### Complemento 2 — reauditoria delta de 31/10 (🟡-D1 e 🟢-D2)
+
+O auditor deu APROVADO COM RESSALVAS (`docs/qa/redteam_tenant-fk-validation_delta_31out2026.md`).
+O 🟡-D1 é efeito colateral do FOR SHARE que esta branch introduziu.
+
+**Causa raiz.** FOR SHARE conflita com o FOR NO KEY UPDATE que o `UPDATE rooms SET status` do
+check-in e do check-out toma. Uma reserva com X principal e Y extra trava X e espera Y, enquanto o
+check-in de outra reserva (Y principal, X extra) já mudou Y e vai mudar X. O ciclo se fecha, e o
+Postgres derruba a criação, que recebia um 409 "Quarto indisponível" falso: o `isRoomOccupiedError`
+tratava 40P01 como ocupação.
+
+| Item | RED `a997586` | GREEN `3284400` |
+|---|---|---|
+| 🟡-D1 ciclo trava × check-in | 409 falso | 201, e o check-in também grava |
+| 🟡-D1 compatibilidade (criação com o UPDATE de status aberto) | — (escrito no GREEN) | 201 sem esperar; com FOR SHARE, fica bloqueada (mutação) |
+| 🟢-D2 deadlock na 1ª tentativa (criação e quarto extra) | 409 "Quarto indisponível" | Repete e responde 201 |
+| 🟢-D2 deadlock repetido | 409 "Quarto indisponível" | 409 "Outra operação está usando estes quartos agora — tente de novo" |
+| 🟢-D2 reserva pública | 409 "Quarto indisponível" | 500 genérico, sem repetir (a cobrança no PSP já existe) |
+
+- Troca de `LOCK.SHARE` por `LOCK.KEY_SHARE` nas 8 leituras: CreateReservation, AddRoom,
+  UpdateReservation, SignContract, CreateRoom, UpdateRoom, reserva pública e conta avulsa.
+- KEY SHARE ainda conflita com o FOR UPDATE das exclusões. Os testes de exclusão concorrente seguem
+  404/409, e o M6 passou a simular FOR KEY SHARE.
+- `app/utils/deadlockRetry.js`: `isDeadlockError` e `withDeadlockRetry` (uma nova tentativa e,
+  se o deadlock se repetir, 409 "tente de novo"). O RemoveRoom passou a usar o util.
+- O teste N1 de 10/10 (papéis trocados em paralelo) continua dando [201, 409]: a repetição vê a
+  reserva vencedora na checagem.
+- O RED do ciclo reproduziu de forma determinística: 3 rodadas estáveis no GREEN. Por causa da nova
+  tentativa, o teste do ciclo sozinho não pegaria a volta do FOR SHARE. Por isso existe o teste de
+  compatibilidade, e a mutação (SHARE de volta na criação) o reprova: a criação fica
+  "bloqueada esperando o check-in".
+
+Suíte final: `Test Files 49 passed (49)` · `Tests 1096 passed | 1 skipped (1097)`. Cobertura:
+instruções 85.51%, branches 82.33%, funções 89.15%, linhas 87.32%. `qa_checks`: 3 avisos, os mesmos
+da develop, e nenhum erro.

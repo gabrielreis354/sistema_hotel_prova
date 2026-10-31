@@ -1,6 +1,6 @@
 # Retomada — validação de tenant nas FKs do corpo + R-2 a R-6 (fix/tenant-fk-validation)
 
-**Atualizado:** 30/10/2026 · **Por:** agente executor (trilha Gabriel)
+**Atualizado:** 31/10/2026 · **Por:** agente executor (trilha Gabriel)
 **Worktree:** /home/gabri/wt-fk-tenant · **Portas:** PG 5459 (antes 5451)
 **Containers:** pg-fkint (subir de novo com: `docker run --rm -d --name pg-fkint -e POSTGRES_USER=hotel_user -e POSTGRES_PASSWORD=hotel_password -p 5459:5432 postgres:17`; `.env.test` com `POSTGRES_PORT=5459`)
 
@@ -10,8 +10,8 @@ Fechar o vazamento entre hotéis por chave estrangeira vinda do corpo (R-1 do qa
 categorias (repasse `docs/qa/repasses/para_sirlande_21102026.md`). Sem PR e sem merge.
 
 ## Onde estou
-- Último commit: `docs(historico)` da reserva pública e da conta avulsa (push: sim)
-- Passo atual: ressalvas do qa-redteam (🟡-1, 🟡-2, 🟡-3, 🟢-2, 🟢-3, 🟢-4, 🟢-5) e a mesma classe do 🟡-1 na reserva pública e na conta avulsa corrigidas com RED → GREEN — 49 arquivos, 1089 passam, 1 skip, cobertura 85.35% statements; qa_checks 3 avisos, nenhum erro; container pg-fkint removido
+- Último commit: `docs(historico)` da reauditoria delta de 31/10 (push: sim)
+- Passo atual: 🟡-D1 e 🟢-D2 da reauditoria delta corrigidos com RED → GREEN — 49 arquivos, 1096 passam, 1 skip, cobertura 85.51% statements; qa_checks 3 avisos, nenhum erro; container pg-fkint removido
 - Próximo passo: decisão de PR/merge do Gabriel; regenerar api-client com a T-05.1 depois do merge
 
 ## Ressalvas do qa-redteam de 30/10 (relatório `docs/qa/redteam_tenant-fk-validation_24out2026.md`)
@@ -21,6 +21,12 @@ categorias (repasse `docs/qa/repasses/para_sirlande_21102026.md`). Sem PR e sem 
 - Mesma classe do 🟡-1, fora da lista do auditor: RED `da95122` → GREEN `261ffb7`. `POST /public/:subdomain/bookings` relê o quarto escolhido com FOR SHARE (excluído no meio → 409 com a mensagem pública de sempre) e `POST /accounts` avulsa com `room_id` lê o quarto com FOR SHARE (→ 404). O grep de `room_id`/`category_id` não achou outro ponto.
 - Fora desta rodada, por ordem do coordenador: CLEANING → MAINTENANCE e o repasse para a Sirlande.
 - Relatório da sessão: `docs/historico_sessao/gabriel/tenant_fk_ressalvas_qa_30102026.md`.
+
+## Reauditoria delta de 31/10 (relatório `docs/qa/redteam_tenant-fk-validation_delta_31out2026.md`)
+- 🟡-D1 e 🟢-D2: RED `a997586` → GREEN `3284400`.
+- D1: as 8 leituras acima trocaram FOR SHARE por **FOR KEY SHARE** (`LOCK.KEY_SHARE`). FOR SHARE conflitava com o `UPDATE rooms SET status` do check-in e do check-out; com dois quartos em ordem inversa, isso fechava um ciclo. KEY SHARE continua conflitando com o FOR UPDATE das exclusões, e os testes de exclusão concorrente seguem 404/409.
+- D2: `isRoomOccupiedError` não trata mais 40P01 como ocupação. Novo `app/utils/deadlockRetry.js`: Create, Update e AddRoom de reserva e SignContract repetem uma vez; se o deadlock repetir, 409 "tente de novo" (mesmo padrão do RemoveRoom, que passou a usar o util). A reserva pública não repete, porque a cobrança no PSP já existe: lá o deadlock vira 500 genérico com log.
+- O RED do ciclo é determinístico (a criação é a vítima: 409). Com a nova tentativa, porém, esse teste passaria até com FOR SHARE. Quem fixa o KEY SHARE é o teste de compatibilidade das travas (mutação verificada).
 
 ## Integração com a develop (28–29/10)
 - Merge (não rebase) de `origin/develop@94f7abf` (117 commits: T-04.5, T-04.6, T-04.7, T-05.5, T-06.13, repasses de schema, migrate no rollout).
