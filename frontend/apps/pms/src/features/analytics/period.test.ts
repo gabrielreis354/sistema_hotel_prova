@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultPeriod, periodError, monthLabel, monthlyWindow } from './period.js';
+import { defaultPeriod, fillMonths, periodError, monthLabel, monthlyWindow } from './period.js';
 
 describe('defaultPeriod', () => {
   it('vai do dia 1º do mês até hoje', () => {
@@ -54,5 +54,31 @@ describe('monthlyWindow', () => {
 
   it('24 meses', () => {
     expect(monthlyWindow('2026-10-30', 24)).toEqual({ start: '2024-11-01', end: '2026-10-30' });
+  });
+});
+
+describe('fillMonths', () => {
+  const window = { start: '2026-01-01', end: '2026-04-15' };
+
+  it('devolve todos os meses da janela, com zero onde o backend não trouxe linha', () => {
+    expect(fillMonths(window, [
+      { month: '2026-01', total: 1500 },
+      { month: '2026-03', total: 900 },
+    ])).toEqual([
+      { month: '2026-01', total: 1500 },
+      { month: '2026-02', total: 0 },
+      { month: '2026-03', total: 900 },
+      { month: '2026-04', total: 0 },
+    ]);
+  });
+
+  it('atravessa a virada do ano', () => {
+    expect(fillMonths({ start: '2025-11-01', end: '2026-01-31' }, []).map((m) => m.month))
+      .toEqual(['2025-11', '2025-12', '2026-01']);
+  });
+
+  it('ignora linha fora da janela', () => {
+    expect(fillMonths({ start: '2026-01-01', end: '2026-01-31' }, [{ month: '2025-12', total: 10 }]))
+      .toEqual([{ month: '2026-01', total: 0 }]);
   });
 });

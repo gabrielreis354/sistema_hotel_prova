@@ -29,6 +29,23 @@ export function monthlyWindow(today: string, months: number): Period {
   return { start: `${startYear}-${startMonth}-01`, end: today };
 }
 
+/**
+ * Todos os meses da janela, em ordem. O backend só devolve mês que teve pagamento; sem isto,
+ * jan e mar viram barras vizinhas e o gerente lê fev como se não existisse. Mês sem linha
+ * entra com total 0.
+ */
+export function fillMonths(window: Period, rows: { month: string; total: number }[]): { month: string; total: number }[] {
+  const byMonth = new Map(rows.map((r) => [r.month, r.total]));
+  const first = Number(window.start.slice(0, 4)) * 12 + Number(window.start.slice(5, 7)) - 1;
+  const last = Number(window.end.slice(0, 4)) * 12 + Number(window.end.slice(5, 7)) - 1;
+  const months: { month: string; total: number }[] = [];
+  for (let i = first; i <= last; i += 1) {
+    const month = `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
+    months.push({ month, total: byMonth.get(month) ?? 0 });
+  }
+  return months;
+}
+
 /** Mensagem de erro do período, ou `null` se ele pode ser consultado. */
 export function periodError(period: Period): string | null {
   if (!ISO_DATE_RE.test(period.start) || !ISO_DATE_RE.test(period.end)) {
