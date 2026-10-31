@@ -54,11 +54,39 @@ describe('createReservation — 409 de corrida', () => {
     expect((err as Error).message).toMatch(/Outro atendimento/);
   });
 
-  it('409 sem room_ids (corrida barrada pelo EXCLUDE do banco) ainda é RoomConflictError, lista vazia', async () => {
-    api.POST.mockResolvedValue(reply(409, { error: 'Quarto indisponível no período solicitado' }));
-    const err = await createReservation(input).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(RoomConflictError);
-    expect(err).toMatchObject({ roomIds: [] });
+  it('409 sem room_ids (deadlock repetido ou corrida barrada pelo EXCLUDE) pede para tentar de novo, sem acusar quarto ocupado', async () => {
+    // Desde o PR #104 o backend repete a operação uma vez no deadlock (40P01) e, se ele se
+    // repetir, responde 409 SEM room_ids. Nada foi gravado e o quarto pode estar livre: dizer
+    // "outro atendimento reservou" mandava a recepção trocar de quarto à toa.
+    for (const body of [
+      { error: 'Outra operação está usando estes quartos agora — tente de novo' },
+      { error: 'Quarto indisponível no período solicitado' },
+    ]) {
+      api.POST.mockResolvedValueOnce(reply(409, body));
+      const err = await createReservation(input).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err).not.toBeInstanceOf(RoomConflictError);
+      expect(err).toMatchObject({ status: 409 });
+      expect((err as Error).message).toMatch(/nada foi gravado/i);
+      expect((err as Error).message).toMatch(/tente de novo/i);
+      expect((err as Error).message).not.toMatch(/acabou de reservar/);
+    }
+  });
+
+  it('404 (quarto, categoria ou hóspede excluído ou de outro hotel) explica e não mostra o id cru', async () => {
+    for (const body of [
+      { error: 'Quarto extra não encontrado: 0b6f2a8e-1111-4c2d-9a3e-5f6a7b8c9d0e' },
+      { error: 'Quarto não encontrado' },
+      { error: 'Hóspede não encontrado' },
+    ]) {
+      api.POST.mockResolvedValueOnce(reply(404, body));
+      const err = await createReservation(input).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err).toMatchObject({ status: 404 });
+      expect((err as Error).message).toMatch(/não existe mais neste hotel/);
+      expect((err as Error).message).toMatch(/escolha de novo/i);
+      expect((err as Error).message).not.toMatch(/0b6f2a8e/);
+    }
   });
 
   it('400 de validação traz as mensagens do servidor; 500 cai na mensagem genérica', async () => {
