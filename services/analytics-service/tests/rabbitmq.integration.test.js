@@ -41,7 +41,10 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
     const bancoForaPara = new Map();        // aggregate_id → quantas entregas ainda acham o banco fora
     const conexaoLenta = new Map();         // aggregate_id → entregas (falha de conexão que demora 300 ms, como pool esgotado)
     const conexaoSempreFalha = new Map();   // aggregate_id → entregas (banco "meio no ar": SELECT 1 passa, a transação não)
-    const TETO_INFRA = 3;                   // teto de x-delivery-count do caminho de infraestrutura (🟡-A), baixo para o teste
+    const conexaoMuitoLenta = new Map();    // aggregate_id → entregas (falha de conexão que demora MAIS que o prazo do stop())
+    const TETO_INFRA = 3;
+    const PRAZO_STOP_MS = 500;              // stopTimeoutMs baixo: a mensagem muito lenta (1500 ms) passa dele (🟡-A3)
+    const A3_MS = 1500;                   // teto de x-delivery-count do caminho de infraestrutura (🟡-A), baixo para o teste
     let conexaoCore;
     let canalCore;
     let conexaoLeitura;
@@ -76,6 +79,11 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
                 await new Promise((r) => setTimeout(r, 300));
                 throw Object.assign(new Error('pool esgotado (simulado)'), { name: 'SequelizeConnectionAcquireTimeoutError' });
             }
+            if (conexaoMuitoLenta.has(evento.aggregateId)) {
+                conexaoMuitoLenta.set(evento.aggregateId, conexaoMuitoLenta.get(evento.aggregateId) + 1);
+                await new Promise((r) => setTimeout(r, A3_MS));
+                throw Object.assign(new Error('conexão recusada depois de esperar (simulado)'), { name: 'SequelizeConnectionRefusedError' });
+            }
             if (conexaoSempreFalha.has(evento.aggregateId)) {
                 conexaoSempreFalha.set(evento.aggregateId, conexaoSempreFalha.get(evento.aggregateId) + 1);
                 throw Object.assign(new Error('connection terminated (simulado)'), { name: 'SequelizeConnectionRefusedError' });
@@ -92,7 +100,7 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
         };
         consumidor = createConsumer({
             connect: rabbitConnectFromEnv(process.env), apply, logger: silencioso,
-            maxInfraRedeliveries: TETO_INFRA, maxBackoffMs: 200
+            maxInfraRedeliveries: TETO_INFRA, maxBackoffMs: 200, stopTimeoutMs: PRAZO_STOP_MS
         });
         consumidor.start();
     });
@@ -204,12 +212,12 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
         expect(await GuestProjection.count({ where: { id: env.aggregate_id } })).toBe(0);
     }, 150000);
 
-    it('🟡-A2: mensagem lenta convivendo com um fluxo de mensagens que pausam — todas chegam à DLQ, nenhuma é descartada', async () => {
-        // Sem drenar antes de fechar, cada pausa de uma vizinha devolvia A sem 'rejected' antes de A decidir:
-        // A nunca avaliava o próprio teto e o broker a descartava na 21ª entrega (dead letter cycle).
+    // Uma mensagem lenta A (registrada em `mapaDaLenta`) e um fluxo contínuo de F, uma a cada 400 ms por 12 s,
+    // todas falhando com conexão: cada F pausa o consumo enquanto A ainda está no apply.
+    async function lentaContraFluxoQuePausa(mapaDaLenta, nome) {
         await canalLeitura.purgeQueue(DLQ);
-        const lenta = envelope('guest.created', { tenantId, payload: { full_name: 'A lenta' } });
-        conexaoLenta.set(lenta.aggregate_id, 0);
+        const lenta = envelope('guest.created', { tenantId, payload: { full_name: nome } });
+        mapaDaLenta.set(lenta.aggregate_id, 0);
         await publicar(lenta, { type: lenta.type });
 
         const publicadas = [lenta.event_id];
@@ -233,10 +241,22 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
         expect([...mortas.keys()].sort()).toEqual([...publicadas].sort());   // nenhuma sumiu
         expect(mortas.get(lenta.event_id)).toMatchObject({ 'x-error-kind': 'transient', 'x-attempts': MAX_ATTEMPTS });
         // Invariante: nenhuma mensagem passa de teto de pausas + 5 tentativas.
-        expect(conexaoLenta.get(lenta.aggregate_id)).toBeLessThanOrEqual(TETO_INFRA + MAX_ATTEMPTS);
+        expect(mapaDaLenta.get(lenta.aggregate_id)).toBeLessThanOrEqual(TETO_INFRA + MAX_ATTEMPTS);
         for (const [id, entregas] of conexaoSempreFalha) {
             if (entregas > TETO_INFRA + MAX_ATTEMPTS) throw new Error(`${id}: ${entregas} entregas`);
         }
+    }
+
+    it('🟡-A2: mensagem lenta convivendo com um fluxo de mensagens que pausam — todas chegam à DLQ, nenhuma é descartada', async () => {
+        // Sem drenar antes de fechar, cada pausa de uma vizinha devolvia A sem 'rejected' antes de A decidir:
+        // A nunca avaliava o próprio teto e o broker a descartava na 21ª entrega (dead letter cycle).
+        await lentaContraFluxoQuePausa(conexaoLenta, 'A lenta');
+    }, 240000);
+
+    it('🟡-A3: mensagem MAIS lenta que o prazo do stop() também chega à DLQ — a drenagem da pausa não a devolve sem decidir', async () => {
+        // A leva 1500 ms e o stopTimeoutMs é 500 ms. Com a pausa drenando no prazo do stop(), A voltava sem
+        // decidir a cada pausa de uma vizinha, nunca chegava ao próprio teto e era descartada na 21ª entrega.
+        await lentaContraFluxoQuePausa(conexaoMuitoLenta, 'A muito lenta');
     }, 240000);
 
     it('§8: a credencial do analytics NÃO publica na exchange do core (não fabrica evento)', async () => {

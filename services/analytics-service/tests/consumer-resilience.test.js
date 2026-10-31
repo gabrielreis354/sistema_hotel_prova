@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { randomUUID } from 'crypto';
-import { createMessageHandler, createConsumer, isInfrastructureFailure } from '../app/consumer/consumer.js';
+import { createMessageHandler, createConsumer, isInfrastructureFailure, isPermanent } from '../app/consumer/consumer.js';
 import { envelope, toBuffer } from './helpers/events.js';
 
 // Ressalvas do qa-redteam da H.2 (docs/qa/redteam_analytics-service-h2_21out2026.md):
@@ -303,4 +303,68 @@ describe('🟡-A2 — a pausa drena as mensagens em andamento antes de fechar', 
         await consumidor.stop();
         await laco;
     });
+});
+
+describe('🟡-A3 — a drenagem da pausa não usa o prazo curto do stop()', () => {
+    it('mensagem mais lenta que o stopTimeoutMs: a pausa espera ela decidir (nack acima do teto) antes de fechar', async () => {
+        const { conexao, channel, handlers } = conexaoFalsa();
+        channel.close = vi.fn(async () => {});
+        const idLenta = randomUUID();
+        const comAgregado = (aggregateId, entregas) => {
+            const m = comEntregas(entregas);
+            m.content = toBuffer(envelope('guest.created', { tenantId, aggregateId, payload: { full_name: 'X' } }));
+            return m;
+        };
+        const apply = vi.fn(async (evento) => {
+            if (evento.aggregateId === idLenta) await new Promise((r) => setTimeout(r, 300));   // 6× o prazo do stop()
+            throw erroDeConexao();
+        });
+        const segunda = conexaoFalsa();
+        const connect = vi.fn().mockResolvedValueOnce(conexao).mockResolvedValue(segunda.conexao);
+        const consumidor = createConsumer({ connect, apply, logger: silencioso, sleep: async () => {}, maxInfraRedeliveries: 3, stopTimeoutMs: 50 });
+        const laco = consumidor.start();
+        await vi.waitFor(() => expect(handlers).toHaveLength(1));
+
+        const lenta = comAgregado(idLenta, 3);
+        const emA = handlers[0](lenta);
+        await vi.waitFor(() => expect(apply).toHaveBeenCalledTimes(1));
+        await handlers[0](comAgregado(randomUUID(), 0));   // F pede a pausa
+
+        await new Promise((r) => setTimeout(r, 150));      // passou do stopTimeoutMs (50 ms)
+        expect(conexao.close).not.toHaveBeenCalled();      // A ainda decidindo: a pausa não desiste dela
+        await emA;
+        await vi.waitFor(() => expect(conexao.close).toHaveBeenCalled());
+        expect(channel.nack).toHaveBeenCalledWith(lenta, false, false);
+        expect(channel.nack.mock.invocationCallOrder[0]).toBeLessThan(conexao.close.mock.invocationCallOrder[0]);
+
+        await consumidor.stop();
+        await laco;
+    });
+
+    it('statement_timeout (57014) conta como tentativa: não é "banco fora" nem erro permanente', () => {
+        const cancelada = Object.assign(new Error('canceling statement due to statement timeout'), { name: 'SequelizeDatabaseError', original: { code: '57014' } });
+        expect(isInfrastructureFailure(cancelada)).toBe(false);
+        expect(isPermanent(cancelada)).toBe(false);
+    });
+});
+
+describe('🟢-E — stop() com o broker que não responde', () => {
+    it('cancel e close do canal sem resposta: stop() resolve em poucos segundos, dentro da grace do compose (10 s)', async () => {
+        const { conexao, channel, handlers } = conexaoFalsa();
+        const nunca = () => new Promise(() => {});
+        channel.cancel = vi.fn(nunca);         // broker congelado: nenhum *-ok chega
+        channel.close = vi.fn(nunca);
+        conexao.close = vi.fn(nunca);          // nem o close-ok da conexão (closed nunca resolve)
+        const connect = vi.fn().mockResolvedValueOnce(conexao).mockReturnValue(new Promise(() => {}));
+        const consumidor = createConsumer({ connect, apply: async () => 'applied', logger: silencioso, sleep: async () => {} });
+        consumidor.start();
+        await vi.waitFor(() => expect(handlers).toHaveLength(1));
+
+        const inicio = Date.now();
+        const r = await Promise.race([consumidor.stop().then(() => 'resolveu'), new Promise((res) => setTimeout(() => res('travou'), 8000))]);
+        expect(r).toBe('resolveu');
+        expect(Date.now() - inicio).toBeLessThan(6000);
+        expect(conexao.close).toHaveBeenCalled();   // desistiu do canal e mandou fechar a conexão mesmo assim
+        expect(consumidor.status()).toBe('stopped');
+    }, 15000);
 });
