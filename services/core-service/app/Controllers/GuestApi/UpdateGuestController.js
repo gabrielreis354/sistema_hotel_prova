@@ -1,11 +1,17 @@
 import GuestModel from '../../Models/GuestModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import isNonBlankString from '../../utils/isNonBlankString.js';
 
 export default async function UpdateGuestController(request, response) {
     try {
         const { id } = request.params;
         const tenantId = request.user.tenantId;
         const { full_name, cpf, phone, email } = request.body;
+
+        // Nome é opcional na edição, mas se vier não pode ser branco nem outro tipo (fail fast).
+        if (full_name !== undefined && !isNonBlankString(full_name)) {
+            return response.status(400).json({ error: 'full_name não pode ficar em branco' });
+        }
 
         const guest = await GuestModel.findOne({ where: { id, tenant_id: tenantId } });
         if (!guest) return response.status(404).json({ error: 'Hóspede não encontrado' });
