@@ -1,0 +1,120 @@
+name: CI — analytics-service
+
+# Workflow próprio do analytics-service (T-01.5, CA-01.5.a): só roda quando muda o
+# diretório do serviço, o script de topologia do RabbitMQ que o job executa, ou este arquivo.
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'docs/**'
+      - 'refactor/**'
+      - 'test/**'
+    paths:
+      - 'services/analytics-service/**'
+      - 'infra/k8s/rabbitmq-setup.sh'
+      - '.github/workflows/ci-analytics-service.yml'
+  # Manual: o filtro de paths do GitHub ignora diffs com mais de 300 arquivos (merge ou
+  # release grande); assim dá para rodar na mão quando isso acontecer.
+  workflow_dispatch:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'services/analytics-service/**'
+      - 'infra/k8s/rabbitmq-setup.sh'
+      - '.github/workflows/ci-analytics-service.yml'
+
+# Só leitura: o CI não escreve no repositório.
+permissions:
+  contents: read
+
+# Um push novo na mesma branch cancela a execução anterior, que já ficou velha.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Testes + Cobertura
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: services/analytics-service
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: hotel_user
+          POSTGRES_PASSWORD: hotel_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hotel_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: hotel_broker
+          RABBITMQ_DEFAULT_PASS: rabbitmq_ci_password
+        ports:
+          - 5672:5672
+        # Intervalo de 10 s antes da 1ª sonda: um rabbitmq-diagnostics (root) que roda antes do
+        # broker iniciar cria o .erlang.cookie como root e o broker cai com 'eacces'.
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_running"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: services/analytics-service/package-lock.json
+
+      - name: Topologia e usuários do RabbitMQ (rabbitmq-setup.sh)
+        working-directory: .
+        run: |
+          docker exec -i \
+            -e RABBITMQ_DEFAULT_USER=hotel_broker \
+            -e RABBITMQ_DEFAULT_PASS=rabbitmq_ci_password \
+            -e RABBITMQ_CORE_USER=hotel_core_publisher \
+            -e RABBITMQ_CORE_PASSWORD=core_ci_password \
+            -e RABBITMQ_ANALYTICS_USER=hotel_analytics_consumer \
+            -e RABBITMQ_ANALYTICS_PASSWORD=analytics_ci_password \
+            "${{ job.services.rabbitmq.id }}" sh -s < infra/k8s/rabbitmq-setup.sh
+
+      # O env.js e o globalSetup carregam o .env.test com override — variável de ambiente do job
+      # não chega aos testes, então o arquivo é gerado a partir do exemplo.
+      - name: Gerar .env.test
+        run: |
+          cp .env.test.example .env.test
+          sed -i \
+            -e 's/^RABBITMQ_HOST=.*/RABBITMQ_HOST=localhost/' \
+            -e 's/^RABBITMQ_ANALYTICS_PASSWORD=.*/RABBITMQ_ANALYTICS_PASSWORD=analytics_ci_password/' \
+            -e 's/^RABBITMQ_CORE_PASSWORD=.*/RABBITMQ_CORE_PASSWORD=core_ci_password/' \
+            .env.test
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar sintaxe (ESM)
+        run: |
+          find app routes middlewares database bootstrap -name '*.js' -print0 \
+            | xargs -0 -n1 node --check
+
+      - name: Rodar testes + cobertura (falha abaixo de 60%)
+        run: npm run test:coverage
