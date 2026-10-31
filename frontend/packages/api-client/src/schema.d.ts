@@ -289,14 +289,30 @@ export interface paths {
         put?: never;
         /**
          * Confirmação de pagamento PIX (callback do PSP)
-         * @description Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.
+         * @description Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente.
+         *
+         *     **Autenticação depende do provider ativo (`PIX_PROVIDER`)**, e é conferida antes de qualquer consulta ao banco. Sem o segredo do provider configurado no servidor, toda requisição recebe 401 (fail-closed):
+         *     - `asaas`: cabeçalho `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (o Asaas não assina o corpo; o token não pode ser a API Key). Corpo: `{ event, payment: { id } }`. Cadastro em Integrações → Webhooks — ver docs/pagamentos/ASAAS_SANDBOX.md.
+         *     - `mercadopago`: cabeçalhos `x-signature` (`ts=…,v1=…`) e `x-request-id`, HMAC com `MERCADOPAGO_WEBHOOK_SECRET`. Id em `?data.id=` ou `data.id` no corpo.
+         *     - `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.
+         *
+         *     A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.
          */
         post: {
             parameters: {
-                query?: never;
-                header: {
-                    /** @description HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex> */
-                    "x-pix-signature": string;
+                query?: {
+                    /** @description Provider mercadopago: id do pagamento no PSP */
+                    "data.id"?: string;
+                };
+                header?: {
+                    /** @description Provider fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex> */
+                    "x-pix-signature"?: string;
+                    /** @description Provider asaas: token cadastrado no webhook (ASAAS_WEBHOOK_TOKEN) */
+                    "asaas-access-token"?: string;
+                    /** @description Provider mercadopago: assinatura HMAC (MERCADOPAGO_WEBHOOK_SECRET) */
+                    "x-signature"?: string;
+                    /** @description Provider mercadopago: entra no manifesto assinado */
+                    "x-request-id"?: string;
                 };
                 path?: never;
                 cookie?: never;
@@ -306,11 +322,25 @@ export interface paths {
                     "application/json": {
                         /** @example fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3 */
                         provider_charge_id: string;
+                    } | {
+                        /** @example PAYMENT_RECEIVED */
+                        event?: string;
+                        payment: {
+                            /** @example pay_080225913252 */
+                            id: string;
+                        };
+                    } | {
+                        /** @example payment */
+                        type?: string;
+                        data?: {
+                            /** @example 123456789 */
+                            id?: string;
+                        };
                     };
                 };
             };
             responses: {
-                /** @description Pagamento confirmado (ou já processado) */
+                /** @description Pagamento confirmado (ou já processado, ou status ainda não terminal) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -319,7 +349,7 @@ export interface paths {
                         "application/json": components["schemas"]["WebhookConfirmResponse"];
                     };
                 };
-                /** @description provider_charge_id ausente ou de tipo inválido */
+                /** @description Id da cobrança ausente ou de tipo inválido */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -328,7 +358,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Assinatura ausente, inválida, ou PIX_WEBHOOK_SECRET não configurado no servidor (fail-closed) */
+                /** @description Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed) */
                 401: {
                     headers: {
                         [name: string]: unknown;
@@ -339,6 +369,15 @@ export interface paths {
                 };
                 /** @description Cobrança não encontrada */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Status da cobrança indisponível no provider — o PSP deve reenviar */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
