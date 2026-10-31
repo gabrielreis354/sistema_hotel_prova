@@ -1,6 +1,6 @@
 # Retomada — T-05.1 quartos e categorias (feature/t051-quartos-categorias)
 
-**Atualizado:** 29/10/2026 (merge da develop) · **Por:** agente executor (trilha do Gabriel)
+**Atualizado:** 31/10/2026 (2º merge da develop, após a fk) · **Por:** agente executor (trilha do Gabriel)
 **Worktree:** /home/gabri/wt-t051 · **Portas:** PG 5444 (telas) · PG 5461 `pg-t051int` (suíte do core-service) · backend 3051 · Vite 5181 — todas desligadas agora
 **Containers:** nenhum ativo. Para subir de novo, ver "Comandos úteis".
 
@@ -8,15 +8,9 @@
 Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `apps/pms`, precedidas da regeneração do `api-client`. Contrato: delegação do Gabriel de 21/10 — **sem PR e sem merge**; o Gabriel roda o qa-redteam e abre o PR.
 
 ## Onde estou
-- Último commit: `3f27492 refactor(pms): rotas de quartos e categorias em routes/roomsRoutes.tsx`, mais o commit desta retomada (com push).
-- Passo atual: **develop integrada** (29/10). O merge `19c7e26` trouxe 109 commits, inclusive a T-05.5 (comanda); o merge `8d58ad4` trouxe mais 8, só de docs e infra. Rotas de quartos isoladas em `routes/roomsRoutes.tsx`. Tudo verde: typecheck, testes, build, qa_checks e suíte do core-service.
-- **Falta um SEGUNDO merge da develop depois de `fix/tenant-fk-validation`**, que traz o 409 de categoria em uso e o `code` nos erros. Próximo passo exato, quando ela estiver na develop:
-  1. `git fetch origin && git merge origin/develop` — em `openapi.json`/`schema.d.ts`, aceitar a versão da develop (`git checkout --theirs`) e **regenerar**, nunca editar à mão;
-  2. `cd services/core-service && npm ci` e `cd frontend && pnpm install --frozen-lockfile && pnpm gen:api`;
-  3. conferir no `schema.d.ts` se o erro passou a ter `code`/`field`; se sim, `readErrorBody` pode ler do tipo;
-  4. typecheck, testes, build, qa_checks e a suíte do core-service (PG 5461);
-  5. conferir no navegador as mensagens com os `code` reais;
-  6. o Gabriel reaudita e abre o PR. **Sem PR antes disso.**
+- Último commit: `e82c8fd test(rooms): codes de erro amarrados ao RoomError gerado e trava de uso no 409`, mais o commit desta retomada (com push).
+- Passo atual: **2º merge da develop feito** (31/10, `e36e60c`, develop até `4234915`, PR #104): fix/tenant-fk-validation + T-05.6 + RabbitMQ/Grafana. api-client regenerado (49 paths; `RoomError` com `code` (enum de 7) e `field`). Tudo verde: typecheck, testes, build, qa_checks, suíte do core-service e passeio no navegador com as 7 mensagens por `code`.
+- **Próximo passo:** o Gabriel faz a reauditoria curta e abre o PR. **Sem PR antes disso.** Se a develop andar de novo antes do PR: merge, `pnpm gen:api` e a verificação de sempre (ver "Comandos úteis").
 
 ## Feito
 - [x] api-client regenerado (40 → 46 paths) — `0a0b9b4`
@@ -39,11 +33,13 @@ Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `
 - [x] Merge da develop (+8 commits de docs/infra, sem conflito) — `8d58ad4`
 - [x] Refactor: rotas de quartos em `routes/roomsRoutes.tsx`, com teste e passeio por papel — `3f27492`
 - [x] Verificação: typecheck, build, testes (37 + 31), qa_checks idêntico a develop, navegador (corpos de PUT capturados)
+- [x] 2º merge da develop (fk + T-05.6). Conflitos: swagger.js (PUT /rooms, ficou a versão da develop com uma frase a mais), CATALOGO.md e o repasse da Sirlande. api-client regenerado, ErrorState vindo do @hotel/ui, `toRoomCreateBody` (POST só AVAILABLE/MAINTENANCE) — `e36e60c`
+- [x] Codes amarrados ao `RoomError` gerado (code novo ou renomeado quebra o typecheck); teste de que a exclusão faz só o DELETE e lê o 409 — `e82c8fd`
+- [x] Verificação 31/10: typecheck 4/4; testes domain 37 e pms 151; build; qa_checks sem erro (3 avisos de fora); core-service 49 arquivos, 1100 passaram e 1 pulado; navegador desktop e 375×812 com as 7 mensagens, sem GET /rooms na exclusão
 
 ## Falta
-- [ ] (após a fk) 2º merge da develop + `pnpm gen:api` + conferir as mensagens por `code` no navegador (ver "Onde estou")
-- [ ] (Gabriel) reauditar e abrir o PR
-- [ ] (outra frente) 409 de categoria em uso no backend — `fix/tenant-fk-validation`
+- [ ] (Gabriel) reauditoria curta e PR
+- [ ] (fora desta frente, layout do Gabriel) a 375 px a barra inferior ficou com 7 itens após a T-05.6 e os rótulos se encostam (ver screenshot `t051_mobile_code_category_in_use.png`). Não mexi, porque AppShell/nav não são desta frente
 
 ## Decisões tomadas nesta frente
 - 21/10 — Categorias como aba em `/quartos/categorias`, e não em `/config/...`: a recepção consulta, e a barra do celular não ganha mais uma aba (executor)
@@ -56,9 +52,12 @@ Entregar a T-05.1 da SPEC-05 (CA-05.1.a–f): telas de quartos e categorias no `
 - 29/10 — No merge, api-client nunca resolvido à mão: aceita a versão da develop e regenera a partir do swagger.js mesclado (coordenador)
 - 29/10 — Rotas de quartos isoladas em fragmentos `roomsReadRoutes`/`roomsAdminRoutes`, para reduzir conflito com a t052 em App.tsx (coordenador)
 - 24/10 — Motivo do erro pelo `code` do backend; sem `code`, genérica honesta; só 403 e 5xx pelo status (coordenador, contrato com a fk)
+- 31/10 — `ROOM_ERROR_CODES` com `satisfies` + exaustividade contra `RoomError['code']` gerado; switch fecha em `never` (executor)
+- 31/10 — No conflito do swagger (PUT /rooms), fica o texto da develop (mais completo) e só se acrescenta "o PMS envia status só quando ele mudou" (executor)
+- 31/10 — Cadastro de quarto: `toRoomCreateBody` estreita o status a AVAILABLE/MAINTENANCE, como o contrato. Fail fast se vier outro (executor)
 
 ## Bloqueios e perguntas abertas
-- Até `fix/tenant-fk-validation` entrar, o backend ainda aceita excluir categoria em uso (204).
+- Nenhum bloqueio. A fk está na develop, e o 409 CATEGORY_IN_USE/ROOM_IN_USE vem do servidor.
 - Repasses do redteam para a Sirlande (R-1 a R-6) e para o Gabriel (R-8) estão fora desta frente.
 
 ## Comandos úteis desta frente
