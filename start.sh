@@ -26,7 +26,7 @@ usage() {
     echo "  logs      Streaming de logs do backend (ctrl+c para sair)"
     echo "  migrate   Executa migrations no cluster (Job com a imagem do backend)"
     echo "  deploy    Atualiza o backend: migrate, rollout e migrate de novo [imagem opcional]"
-    echo "  seed      Aplica o seed de 165 registros no banco"
+    echo "  seed      Aplica o seed de demonstração (hotéis + comanda) — exige ALLOW_SEED=1"
     echo "  test      Expõe postgres via port-forward e roda a suite de testes"
     echo "  tunnel    Inicia port-forward nginx → localhost:8080"
     echo "  health    Verifica o endpoint /health (requer tunnel ativo)"
@@ -175,6 +175,9 @@ cmd_deploy() {
 
 # =============================================================================
 cmd_seed() {
+    # Mesma trava do `node command.js seed` em produção: o seed cria ADMIN e garçom com a senha
+    # documentada (senha123), e o cluster do start.sh roda com NODE_ENV=production.
+    [ "${ALLOW_SEED:-}" = "1" ] || err "Recusado sem ALLOW_SEED=1: o seed cria usuários com senha conhecida (senha123). Confirme com: ALLOW_SEED=1 ./start.sh seed"
     check_kubectl
     # O seed mora no core-service desde a SPEC-01 (15/09). A ordem é a do `node command.js seed`:
     # o seed_consumo (cardápio, contas, garçom — T-04.7) referencia hotéis e quartos do seed_hotels.

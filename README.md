@@ -251,10 +251,10 @@ Saída esperada:
 ### Passo 6 — (Opcional) Popular com dados de exemplo
 
 ```bash
-./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
+ALLOW_SEED=1 ./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
 ```
 
-Cria 165 registros distribuídos entre 2 hotéis com quartos, hóspedes, reservas e pagamentos prontos para uso.
+Cria 2 hotéis com quartos, hóspedes, reservas e pagamentos prontos para uso (165 registros do `seed_hotels.sql`), mais a comanda do `seed_consumo.sql`: cardápio, contas e o garçom `garcom@aurora.example`. O `ALLOW_SEED=1` é a confirmação de propósito: o seed cria usuários com a senha conhecida `senha123`.
 
 ### Passo 7 — Verificar o sistema
 
@@ -832,7 +832,7 @@ Distribuição de status das reservas (Hotel Aurora): 8 CHECKED_OUT · 5 CONFIRM
 **Executar o seed:**
 
 ```bash
-./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
+ALLOW_SEED=1 ./start.sh seed   # aplica services/core-service/seed/seed_hotels.sql e depois seed_consumo.sql
 ```
 
 O seed é **idempotente** — pode ser executado múltiplas vezes sem duplicar registros (usa `ON CONFLICT DO NOTHING`).
