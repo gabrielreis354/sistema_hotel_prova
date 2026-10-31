@@ -83,6 +83,29 @@ ALLOW_SEED=1 node command.js seed      # cria o Hotel Aurora (subdomínio "auror
 npm start                               # porta NODE_WEB_PORT (padrão 3000)
 ```
 
+### 4.1 No Docker Compose (roteiro de demonstração)
+
+O compose repassa as mesmas variáveis ao backend, lendo do `.env` da **raiz** do repositório
+(não do `services/core-service/.env`). Sem `PIX_PROVIDER` no `.env`, o backend usa o provedor
+simulado (`fake`), que é o plano B da demonstração.
+
+```bash
+# .env da raiz
+PIX_PROVIDER=asaas
+ASAAS_API_KEY='$aact_hmlg_...'          # ASPAS SIMPLES obrigatórias aqui
+ASAAS_WEBHOOK_TOKEN=<string forte que VOCÊ inventa>
+```
+
+> **As aspas simples são obrigatórias no `.env` do compose.** Sem elas, o compose lê
+> `$aact_hmlg_...` como uma variável que não existe e entrega a chave **vazia** ao backend: toda
+> reserva responde `503` com `ASAAS_API_KEY não configurado`. O compose avisa com
+> `The "aact_hmlg_..." variable is not set`. Confira com
+> `docker compose config | grep ASAAS_API_KEY`: a chave deve aparecer como `$$aact_hmlg_...`
+> (o `$$` é o `$` escapado, e o backend recebe um `$` só).
+
+Depois, `docker compose up -d --build backend` aplica a troca. O backend já publica a porta 3000
+em `127.0.0.1`, então o túnel da seção 5 funciona igual: `ngrok http 3000`.
+
 ## 5. Expor o webhook para o Asaas
 
 O Asaas precisa alcançar `POST /webhooks/pix` por HTTPS público. Localmente, use um túnel

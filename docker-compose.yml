@@ -147,6 +147,15 @@ services:
       # Webhook PIX assinado (T-06.9): sem o segredo, /webhooks/pix recusa TODA requisição
       # (fail-closed) — a confirmação de pagamento da demo não funcionaria.
       PIX_WEBHOOK_SECRET: ${PIX_WEBHOOK_SECRET:?defina PIX_WEBHOOK_SECRET no .env antes de subir o compose}
+      # Provedor do PIX da reserva direta (passo 6 do roteiro). Sem nada no .env, fica o simulado
+      # (fake), que é o plano B da demonstração. Com PIX_PROVIDER=asaas, o backend cobra no sandbox
+      # do Asaas e recusa URL ou chave fora do sandbox (docs/pagamentos/ASAAS_SANDBOX.md).
+      PIX_PROVIDER: ${PIX_PROVIDER:-fake}
+      ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api-sandbox.asaas.com/v3}
+      ASAAS_API_KEY: ${ASAAS_API_KEY:-}
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
+      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-}
+      MERCADOPAGO_WEBHOOK_SECRET: ${MERCADOPAGO_WEBHOOK_SECRET:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       # Token do scrape em /metrics (T-02.4). Opcional para subir: sem ele o backend sobe
       # normal e só o /metrics responde 503 (fail-closed). Obrigatório no profile observability.
