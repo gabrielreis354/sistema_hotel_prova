@@ -54,7 +54,7 @@ WSL → Windows para abrir o Edge estava fora (`UtilAcceptVsock: accept4 failed 
 | # | Pendência | Dono | Observação |
 |---|---|---|---|
 | 1 | Testar o alerta "RabbitMQ fora do ar" parando o broker | Weslley | `for: 2m` + intervalo de 1 min: cerca de 3 min até `firing` |
-| 2 | Atraso de consumo em segundos | Gabriel/Weslley | O core publica sem a propriedade `timestamp` (`app/services/outbox/publisher.js`). Com ela, `time() - rabbitmq_queue_head_message_timestamp` dá a idade da mensagem mais antiga — conferir se a métrica sai para fila quorum |
+| 2 | Atraso de consumo em segundos | Gabriel/Weslley | **Conferido pelo qa-redteam em 30/10:** `rabbitmq_queue_head_message_timestamp` não sai para fila quorum (só para a classic `.retry`), então publicar com `timestamp` no core não resolve. O atraso tem de vir do consumidor do analytics: histograma de `now() - occurred_at` exposto ao Prometheus. Até lá o CA-01.4.f fica aberto |
 | 3 | Contact point dos alertas | Weslley | Hoje o alerta só aparece em Alerting → Alert rules; não notifica ninguém |
 | 4 | Conferir o painel com o consumidor real (H.2) | Weslley | "Consumidores do analytics" fica vermelho até a `feature/analytics-service` entrar na develop |
 | 5 | qa-redteam antes do merge em develop | — | Branch com push, sem merge |

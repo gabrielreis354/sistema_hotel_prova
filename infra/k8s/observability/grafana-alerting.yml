@@ -44,7 +44,7 @@ groups:
           service: analytics
 
       - uid: gesway-rabbitmq-fora
-        title: RabbitMQ fora do ar
+        title: RabbitMQ sem coleta (broker fora ou Prometheus sem acesso)
         condition: C
         data:
           - refId: A
@@ -69,8 +69,12 @@ groups:
         annotations:
           summary: O Prometheus não alcança o RabbitMQ em rabbitmq:15692
           description: >-
-            Com o broker fora, o publicador do core acumula eventos no outbox e o analytics
-            para de atualizar. Nada se perde: o outbox reenvia quando o broker voltar.
+            `up == 0` não separa broker fora de coleta falhando. Primeiro confira o broker
+            (pod/contêiner rabbitmq e `rabbitmq-diagnostics check_running`). Se ele estiver no
+            ar, a causa é a coleta: NetworkPolicy da porta 15692 ou o /metrics/per-object
+            passando do timeout do scrape — aí os eventos fluem normalmente. Com o broker fora
+            de fato, o core acumula eventos no outbox e o analytics para de atualizar; nada se
+            perde, o outbox reenvia quando o broker voltar.
         labels:
           severity: critical
           service: rabbitmq

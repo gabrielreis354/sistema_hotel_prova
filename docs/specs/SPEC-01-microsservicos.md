@@ -241,7 +241,7 @@ Primeiro serviço a sair: não altera estado do hotel, então a extração não 
 
 **No broker**
 - [x] **CA-01.4.e** — RabbitMQ no `infra/k8s/` e no Docker Compose, com fila durável do analytics e fila de mensagens mortas — *H.1: `infra/k8s/rabbitmq-setup.sh`, usuário por serviço com menor privilégio (catálogo §8)*
-- [x] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8) — *dashboard `gesway-rabbitmq` (Gesway — Mensageria) e alertas de DLQ com mensagem e de broker fora, em `infra/k8s/observability/`, no compose e no k8s (28/10, Weslley). O atraso de consumo aparece como mensagens prontas e em processamento na fila principal e como vazão publicadas × confirmadas; o atraso em segundos exige o core publicar com a propriedade `timestamp` (pendência no relatório da sessão)*
+- [ ] **CA-01.4.f** — Métricas do RabbitMQ expostas ao Prometheus — profundidade de fila e atraso de consumo aparecem no Grafana (critério C8) — *profundidade ✅: dashboard `gesway-rabbitmq` (Gesway — Mensageria) e alertas de DLQ com mensagem e de broker fora, em `infra/k8s/observability/`, no compose e no k8s (28/10, Weslley). **Atraso de consumo 🔲:** contar mensagens na fila não diz há quanto tempo elas esperam, e `rabbitmq_queue_head_message_timestamp` não sai para fila quorum (só para a classic `.retry` — qa-redteam de 30/10). O atraso tem de vir do consumidor do analytics, como histograma de `now() - occurred_at` (H.2/H.3)*
 
 **No analytics**
 - [ ] **CA-01.4.g** — Serviço em processo próprio, com `package.json`, `Dockerfile` e banco PostgreSQL próprios

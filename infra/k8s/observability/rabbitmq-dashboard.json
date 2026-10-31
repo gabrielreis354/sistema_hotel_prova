@@ -23,7 +23,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "1 = o Prometheus alcança o rabbitmq:15692. 0 = broker fora: o outbox do core acumula até ele voltar",
+      "description": "1 = o Prometheus alcança o rabbitmq:15692. 0 = sem coleta: broker fora (o outbox do core acumula até ele voltar) ou o Prometheus sem acesso à porta 15692 / per-object passando do timeout — confira o broker antes",
       "gridPos": {
         "x": 0,
         "y": 0,
