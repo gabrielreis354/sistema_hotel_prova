@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Spinner, StatusBadge } from '@hotel/ui';
+import { EmptyState, ErrorState, Spinner, StatusBadge } from '@hotel/ui';
 import { useCanWriteRooms, useRooms } from './queries.js';
 import { formatFloor, sortRooms } from './roomRules.js';
 import { RoomsHeader } from './components/RoomsHeader.js';
 import { ReadOnlyNotice } from './components/ReadOnlyNotice.js';
-import { ErrorState } from './components/ErrorState.js';
 import { EditAction, WriteButton } from './components/Actions.js';
 import { Money } from './components/Money.js';
 import { Table, THead, Th, Tr, Td } from './components/Table.js';
@@ -29,7 +28,7 @@ export function RoomsListPage() {
 
       {isLoading && <Spinner label="Carregando quartos…" />}
 
-      {isError && <ErrorState message="Não foi possível carregar os quartos." onRetry={() => refetch()} />}
+      {isError && <ErrorState message="Não foi possível carregar os quartos. Verifique a conexão e tente de novo." onRetry={() => refetch()} />}
 
       {data && data.length === 0 && (
         <EmptyState

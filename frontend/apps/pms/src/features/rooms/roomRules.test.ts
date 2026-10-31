@@ -7,6 +7,7 @@ import {
   changedRoomFields,
   keepFirstSnapshot,
   toRoomInput,
+  toRoomCreateBody,
   sortRooms,
   formatFloor,
 } from './roomRules.js';
@@ -166,5 +167,21 @@ describe('formatFloor', () => {
     expect(formatFloor(3)).toBe('3º');
     expect(formatFloor(null)).toBe('—');
     expect(formatFloor(undefined)).toBe('—');
+  });
+});
+
+describe('toRoomCreateBody', () => {
+  const base = { number: '101', floor: 1, category_id: 'c1' };
+  it('quarto novo Livre ou Em manutencao vai como veio', () => {
+    expect(toRoomCreateBody({ ...base, status: 'AVAILABLE' })).toEqual({ ...base, status: 'AVAILABLE' });
+    expect(toRoomCreateBody({ ...base, status: 'MAINTENANCE' })).toEqual({ ...base, status: 'MAINTENANCE' });
+  });
+  it('Ocupado ou Em limpeza no cadastro nao vira corpo (o backend recusaria com 400)', () => {
+    expect(toRoomCreateBody({ ...base, status: 'OCCUPIED' })).toBeNull();
+    expect(toRoomCreateBody({ ...base, status: 'CLEANING' })).toBeNull();
+  });
+  it('bate com o que o formulario de cadastro habilita', () => {
+    const enabled = roomStatusOptions().filter((o) => o.enabled).map((o) => o.status);
+    for (const status of enabled) expect(toRoomCreateBody({ ...base, status }), status).not.toBeNull();
   });
 });

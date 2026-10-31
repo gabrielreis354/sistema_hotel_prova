@@ -2,11 +2,13 @@ import type { components, paths } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import { writeErrorMessage, type WriteContext } from './errorMessages.js';
+import { toRoomCreateBody } from './roomRules.js';
 
 /** Tipos do schema do OpenAPI (components.schemas). Nada redefinido à mão. */
 export type Room = components['schemas']['Room'];
 export type RoomCategory = components['schemas']['RoomCategory'];
-type RoomCreateBody = paths['/rooms']['post']['requestBody']['content']['application/json'];
+/** Corpo do POST /rooms: quarto novo só nasce AVAILABLE ou MAINTENANCE (o contrato estreita o status). */
+export type RoomCreateBody = paths['/rooms']['post']['requestBody']['content']['application/json'];
 /** Corpo do PUT /rooms/{id}: parcial — só o que mudou (ver changedRoomFields). */
 export type RoomUpdateBody = paths['/rooms/{id}']['put']['requestBody']['content']['application/json'];
 type CategoryUpdateBody = paths['/room-categories/{id}']['put']['requestBody']['content']['application/json'];
@@ -45,7 +47,10 @@ export async function getRoom(id: string): Promise<Room> {
 }
 
 export async function createRoom(input: RoomInput): Promise<Room> {
-  const body: RoomCreateBody = input;
+  const body = toRoomCreateBody(input);
+  // Fail fast: o formulário já desabilita Ocupado e Em limpeza no cadastro; se chegar aqui,
+  // é bug de tela — melhor dizer o motivo do que mandar e receber o 400 do servidor.
+  if (!body) throw new ApiError('Quarto novo começa Livre ou Em manutenção. Ocupado e Em limpeza vêm do check-in e do check-out.', 400);
   const { data, error, response } = await api.POST('/rooms', { body });
   if (error || !response.ok) fail({ entity: 'room', action: 'create', number: input.number }, response.status, error);
   return data;

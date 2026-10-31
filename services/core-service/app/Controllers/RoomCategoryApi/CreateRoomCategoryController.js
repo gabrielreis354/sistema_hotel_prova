@@ -1,20 +1,25 @@
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import { validateRoomCategoryFields } from '../../utils/roomCategoryValidation.js';
+import { parseInteger } from '../../utils/roomRules.js';
+import { invalidInputBody } from '../../utils/roomErrors.js';
 
 export default async function CreateRoomCategoryController(request, response) {
     try {
         const tenantId = request.user.tenantId;
         const { name, capacity, price_per_night } = request.body;
 
-        const errors = [];
-        if (!name)             errors.push('name obrigatório');
-        if (!price_per_night)  errors.push('price_per_night obrigatório');
-        if (errors.length) return response.status(400).json({ errors });
+        // R-5: diária decimal positiva com até 2 casas e capacidade inteira ≥ 1 — antes,
+        // negativo era gravado e texto ou estouro viravam 500.
+        const issues = validateRoomCategoryFields({ name, capacity, price_per_night });
+        if (issues.length) return response.status(400).json(invalidInputBody(issues));
 
         const category = await RoomCategoryModel.create({
             tenant_id: tenantId,
-            name,
-            capacity: capacity || 1,
+            // Aparado, como o produto (🟢-3): "P " ao lado de "P" eram duas categorias na tela.
+            name: name.trim(),
+            // Ausente vale 1. Antes `capacity || 1` trocava 0 por 1 em silêncio; agora 0 é 400.
+            capacity: capacity === undefined || capacity === null ? 1 : parseInteger(capacity),
             price_per_night
         });
         return response.status(201).json(category);

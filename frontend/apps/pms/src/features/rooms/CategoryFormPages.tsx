@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, Spinner } from '@hotel/ui';
+import { Card, ErrorState, Spinner } from '@hotel/ui';
 import { centsToBRLInput, decimalToCents } from '@hotel/domain';
 import { CategoryForm } from './CategoryForm.js';
 import {
@@ -12,7 +12,6 @@ import {
   useUpdateCategory,
 } from './queries.js';
 import { isNotFound, messageOf } from './errorMessages.js';
-import { ErrorState } from './components/ErrorState.js';
 import { DeleteControl } from './components/DeleteControl.js';
 import { FormShell, NotFound } from './components/FormShell.js';
 
@@ -64,7 +63,7 @@ export function CategoryEditPage() {
       {gone && (
         <NotFound title="Categoria não encontrada" backTo="/quartos/categorias" backLabel="Voltar para categorias" />
       )}
-      {failed && <ErrorState message="Não foi possível carregar a categoria." onRetry={() => category.refetch()} />}
+      {failed && <ErrorState message="Não foi possível carregar a categoria. Verifique a conexão e tente de novo." onRetry={() => category.refetch()} />}
       {category.data && (
         <Card className="space-y-4 p-4 sm:p-6">
           <CategoryForm

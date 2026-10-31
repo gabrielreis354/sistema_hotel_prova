@@ -62,3 +62,30 @@ O administrador vê "Sem categoria" e não tem tela para corrigir uma tarifa que
 **Onde:** `RoomApi/DeleteRoomController.js:9`
 **Cenário (reproduzido):** quarto `OCCUPIED` → `DELETE` → **204**. A tela da T-05.1 bloqueia, mas qualquer chamada direta passa. Não conferi o caso de quarto com reserva futura `CONFIRMED`, que segue o mesmo caminho.
 **Correção sugerida:** responder 409 para quarto `OCCUPIED` ou com reserva ativa ou futura (dá para reaproveitar `checkReservationConflict`).
+
+---
+
+## Tratamento — 24/10/2026
+
+Tratado na branch `fix/tenant-fk-validation` (trilha do Gabriel, agente executor), a partir de
+`origin/develop@c6742b2`. **Sem PR e sem merge ainda.** Cada item teve teste RED commitado antes
+da correção. Relatório: `docs/historico_sessao/gabriel/tenant_fk_validation_24102026.md`.
+
+> **Sirlande:** a área de quartos e categorias é sua. As mudanças abaixo alteram o comportamento
+> dos controllers de `RoomApi/` e `RoomCategoryApi/` — vale você revisar antes do merge.
+
+| Item | Situação | Comportamento novo | Commits (RED → GREEN) |
+|---|---|---|---|
+| 🔴 R-1 | **Corrigido** | `category_id` de outro hotel, inexistente, excluído ou não-UUID → **404** `CATEGORY_NOT_FOUND`, no Create e no Update. Utilitário `app/utils/findInTenant.js` | `5c7692c` → `02c4473` |
+| 🟡 R-2 | **Corrigido** | `floor: 0` gravado como 0; floor não inteiro → 400 `INVALID_INPUT` (field `floor`) | `6f02ee4` → `4e690f2` |
+| 🟡 R-3 | **Corrigido** | Cadastro só `AVAILABLE`/`MAINTENANCE` (400); edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE, senão **409** `ROOM_STATUS_TRANSITION_NOT_ALLOWED`; reenviar o status atual é aceito | `6f02ee4` → `4e690f2` |
+| 🟡 R-4 | **Corrigido** | Excluir categoria com quarto vivo → **409** `CATEGORY_IN_USE` | `6f02ee4` → `671ca39` |
+| 🟡 R-5 | **Corrigido** | Diária decimal > 0, até 2 casas, ≤ 99999999.99; capacidade inteira ≥ 1; name texto até 100 → senão **400** `INVALID_INPUT` com `field` (nunca 500) | `6f02ee4` → `671ca39` |
+| 🟡 R-6 | **Corrigido** | Excluir quarto OCCUPIED ou em reserva PENDING/CONFIRMED/CHECKED_IN (principal ou extra) → **409** `ROOM_IN_USE` | `6f02ee4` → `24fa27f` |
+
+Também: `code` estável nos 409 de unicidade (`ROOM_NUMBER_TAKEN`, `CATEGORY_NAME_TAKEN`) e Swagger
+com o schema `RoomError` (`6c791ee` → `1613915`, `107e812`). A T-05.1 precisa rodar `pnpm gen:api`
+depois do rebase.
+
+Fora do escopo, registrado no relatório: dados que já tenham ficado com categoria de outro hotel
+antes da correção não são reparados por ela (consulta de verificação no relatório).

@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Spinner } from '@hotel/ui';
+import { EmptyState, ErrorState, Spinner } from '@hotel/ui';
 import { useCanWriteRooms, useCategories, useRooms } from './queries.js';
 import { countRoomsByCategory } from './roomRules.js';
 import { RoomsHeader } from './components/RoomsHeader.js';
 import { ReadOnlyNotice } from './components/ReadOnlyNotice.js';
-import { ErrorState } from './components/ErrorState.js';
 import { EditAction, WriteButton } from './components/Actions.js';
 import { Money } from './components/Money.js';
 import { Table, THead, Th, Tr, Td } from './components/Table.js';
@@ -31,7 +30,7 @@ export function CategoriesListPage() {
 
       {isLoading && <Spinner label="Carregando categorias…" />}
 
-      {isError && <ErrorState message="Não foi possível carregar as categorias." onRetry={() => refetch()} />}
+      {isError && <ErrorState message="Não foi possível carregar as categorias. Verifique a conexão e tente de novo." onRetry={() => refetch()} />}
 
       {data && data.length === 0 && (
         <EmptyState

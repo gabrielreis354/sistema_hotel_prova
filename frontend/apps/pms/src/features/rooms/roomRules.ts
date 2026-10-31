@@ -1,6 +1,6 @@
 import { canTransitionRoom, ROOM_STATUSES, type RoomStatus } from '@hotel/domain';
 import type { Role } from '../../types.js';
-import type { Room, RoomInput } from './roomsApi.js';
+import type { Room, RoomCreateBody, RoomInput } from './roomsApi.js';
 
 /**
  * Regras de tela do módulo de quartos. Lógica pura, sem React — testada em roomRules.test.ts.
@@ -63,6 +63,22 @@ export function changedRoomFields(original: RoomInput, edited: RoomInput): Parti
 }
 
 /** O quarto gravado no formato do formulário. */
+type CreatableStatus = NonNullable<RoomCreateBody['status']>;
+const CREATABLE_STATUSES: readonly CreatableStatus[] = ['AVAILABLE', 'MAINTENANCE'];
+
+function isCreatableStatus(status: RoomStatus): status is CreatableStatus {
+  return CREATABLE_STATUSES.some((s) => s === status);
+}
+
+/**
+ * Corpo do cadastro. O backend só aceita quarto novo AVAILABLE ou MAINTENANCE (400 nos
+ * outros) — mesma regra de `roomStatusOptions()` sem `current`. null = status fora disso.
+ */
+export function toRoomCreateBody(input: RoomInput): RoomCreateBody | null {
+  const { status, ...rest } = input;
+  return isCreatableStatus(status) ? { ...rest, status } : null;
+}
+
 export function toRoomInput(room: Room): RoomInput {
   return {
     number: room.number ?? '',

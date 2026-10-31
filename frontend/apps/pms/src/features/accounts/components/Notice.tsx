@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 
 /**
  * Aviso que não é erro: conta fechada, lançamento de outro usuário parado no aparelho. Local por
- * enquanto, como o ErrorState: promove para o @hotel/ui no segundo módulo que precisar.
+ * enquanto: promove para o @hotel/ui no segundo módulo que precisar.
  *
  * `focus` leva o foco ao aviso quando ele nasce junto com a tela: leitor de tela não anuncia uma
  * região `status` que já chega preenchida (🟢-1 do qa-redteam).

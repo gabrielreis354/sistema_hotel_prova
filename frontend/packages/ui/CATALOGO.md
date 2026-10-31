@@ -32,6 +32,7 @@ ter uma pessoa aprovando componente dos outros.
 | `Card` | Contêiner de conteúdo, borda e fundo padrão | Como moldura de tudo. Borda, fundo e sombra dizem "objeto separado" — usar em todo bloco achata a hierarquia |
 | `Spinner` | Carregando, com `role="status"` e rótulo acessível | Espera longa em tela cheia — aí o certo é *skeleton*, que ainda não existe |
 | `EmptyState` | Lista vazia, com título, descrição e **ação sugerida** | Erro. Vazio e erro são coisas diferentes: vazio ensina o próximo passo, erro diz o que fazer para recuperar |
+| `ErrorState` | Erro com mensagem (`role="alert"`) e botão "Tentar de novo" | Erro de campo de formulário — isso é o `error` do `Field`. Vazio — isso é o `EmptyState` |
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
 
 ---
@@ -41,13 +42,12 @@ ter uma pessoa aprovando componente dos outros.
 Registrados porque já se sabe que vão ser precisos por mais de um módulo. Quem chegar
 primeiro cria local; o segundo promove.
 
-> **Primeira versão local já existe** para `ErrorState`, `Table`, `Money` e `Select` em
+> **Primeira versão local já existe** para `Table`, `Money` e `Select` em
 > `apps/pms/src/features/rooms/components/` (T-05.1, 21/10). Quem precisar no segundo módulo
 > promove de lá, em vez de recriar.
 
 | Falta | Quem vai precisar | Observação |
 |---|---|---|
-| `ErrorState` | todos | Hoje cada tela improvisa. `GuestsListPage` resolve com um `<button className="underline">` cru — é exatamente o que a regra 9 do `qa_checks.sh` aponta |
 | `Table` | reservas, hóspedes, financeiro, B2B | Cabeçalho, coluna que some no mobile, estado vazio embutido |
 | `DateRangePicker` | reservas, rack, indicadores | Todo filtro por período do sistema |
 | `Money` | reserva, conta, financeiro, indicadores | `DECIMAL` chega do `pg` como **string**. Um componente central evita `Number()` espalhado |

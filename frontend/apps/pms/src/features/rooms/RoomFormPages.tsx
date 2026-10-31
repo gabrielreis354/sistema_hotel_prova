@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, EmptyState, Spinner } from '@hotel/ui';
+import { Card, EmptyState, ErrorState, Spinner } from '@hotel/ui';
 import { RoomForm } from './RoomForm.js';
 import {
   useCanWriteRooms,
@@ -13,7 +13,6 @@ import {
 import { isNotFound, messageOf } from './errorMessages.js';
 import { changedRoomFields, keepFirstSnapshot, roomDeleteBlockReason, toRoomInput } from './roomRules.js';
 import type { RoomInput } from './roomsApi.js';
-import { ErrorState } from './components/ErrorState.js';
 import { DeleteControl } from './components/DeleteControl.js';
 import { ActionLink } from './components/Actions.js';
 import { FormShell, NotFound } from './components/FormShell.js';
@@ -44,7 +43,7 @@ export function RoomNewPage() {
     <FormShell title="Novo quarto" {...BACK}>
       {categories.isLoading && <Spinner label="Carregando categorias…" />}
       {categories.isError && (
-        <ErrorState message="Não foi possível carregar as categorias." onRetry={() => categories.refetch()} />
+        <ErrorState message="Não foi possível carregar as categorias. Verifique a conexão e tente de novo." onRetry={() => categories.refetch()} />
       )}
       {categories.data && categories.data.length === 0 && <NoCategories />}
       {categories.data && categories.data.length > 0 && (
@@ -100,7 +99,7 @@ export function RoomEditPage() {
       {gone && <NotFound title="Quarto não encontrado" backTo="/quartos" backLabel="Voltar para quartos" />}
       {failed && (
         <ErrorState
-          message="Não foi possível carregar o quarto."
+          message="Não foi possível carregar o quarto. Verifique a conexão e tente de novo."
           onRetry={() => {
             room.refetch();
             categories.refetch();

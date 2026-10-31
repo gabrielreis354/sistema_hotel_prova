@@ -3,6 +3,7 @@ import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { VALID_ROLES } from '../app/utils/roles.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
 import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
+import { ROOM_STATUSES } from '../app/utils/roomRules.js';
 
 const options = {
     definition: {
@@ -232,6 +233,17 @@ const options = {
                 Error: {
                     type: 'object',
                     properties: { error: { type: 'string' } }
+                },
+                RoomError: {
+                    type: 'object',
+                    description: 'Erro de quartos e categorias com code estável — a tela decide pelo code, nunca pelo texto de error. No 400 vêm também errors (lista de sempre) e field (primeiro campo que falhou).',
+                    required: ['error', 'code'],
+                    properties: {
+                        error:  { type: 'string' },
+                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED'] },
+                        field:  { type: 'string', description: 'Só no 400 INVALID_INPUT', example: 'price_per_night' },
+                        errors: { type: 'array', items: { type: 'string' }, description: 'Só no 400 INVALID_INPUT' }
+                    }
                 },
                 RoomOccupied: {
                     type: 'object',
@@ -473,12 +485,12 @@ const options = {
                 },
                 WebhookConfirmResponse: {
                     type: 'object',
-                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência)',
+                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação)',
                     properties: {
-                        status:             { type: 'string', enum: ['confirmed', 'already_processed'] },
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending'] },
                         payment_id:         { type: 'string', format: 'uuid' },
-                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Ausente quando status é already_processed' },
-                        reservation_status: { type: 'string', nullable: true, description: 'Ausente quando status é already_processed' }
+                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Só vem quando status é confirmed' },
+                        reservation_status: { type: 'string', nullable: true, description: 'Só vem quando status é confirmed' }
                     }
                 }
             }
@@ -565,22 +577,42 @@ const options = {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente.\n\n' +
+                        '**Autenticação depende do provider ativo (`PIX_PROVIDER`)**, e é conferida antes de qualquer consulta ao banco. Sem o segredo do provider configurado no servidor, toda requisição recebe 401 (fail-closed):\n' +
+                        '- `asaas`: cabeçalho `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (o Asaas não assina o corpo; o token não pode ser a API Key). Corpo: `{ event, payment: { id } }`. Cadastro em Integrações → Webhooks — ver docs/pagamentos/ASAAS_SANDBOX.md.\n' +
+                        '- `mercadopago`: cabeçalhos `x-signature` (`ts=…,v1=…`) e `x-request-id`, HMAC com `MERCADOPAGO_WEBHOOK_SECRET`. Id em `?data.id=` ou `data.id` no corpo.\n' +
+                        '- `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.\n\n' +
+                        'A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.',
                     security: [],
                     parameters: [
-                        { in: 'header', name: 'x-pix-signature', required: true, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>' }
+                        { in: 'header', name: 'x-pix-signature', required: false, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'Provider fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>' },
+                        { in: 'header', name: 'asaas-access-token', required: false, schema: { type: 'string' }, description: 'Provider asaas: token cadastrado no webhook (ASAAS_WEBHOOK_TOKEN)' },
+                        { in: 'header', name: 'x-signature', required: false, schema: { type: 'string', example: 'ts=1704908010,v1=618c8534…' }, description: 'Provider mercadopago: assinatura HMAC (MERCADOPAGO_WEBHOOK_SECRET)' },
+                        { in: 'header', name: 'x-request-id', required: false, schema: { type: 'string' }, description: 'Provider mercadopago: entra no manifesto assinado' },
+                        { in: 'query', name: 'data.id', required: false, schema: { type: 'string' }, description: 'Provider mercadopago: id do pagamento no PSP' }
                     ],
                     requestBody: {
                         required: true,
-                        content: { 'application/json': { schema: { type: 'object', required: ['provider_charge_id'], properties: {
-                            provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
-                        }}}}
+                        content: { 'application/json': { schema: { oneOf: [
+                            { title: 'fake', type: 'object', required: ['provider_charge_id'], properties: {
+                                provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
+                            }},
+                            { title: 'asaas', type: 'object', required: ['payment'], properties: {
+                                event: { type: 'string', example: 'PAYMENT_RECEIVED' },
+                                payment: { type: 'object', required: ['id'], properties: { id: { type: 'string', example: 'pay_080225913252' } } }
+                            }},
+                            { title: 'mercadopago', type: 'object', properties: {
+                                type: { type: 'string', example: 'payment' },
+                                data: { type: 'object', properties: { id: { type: 'string', example: '123456789' } } }
+                            }}
+                        ] } } }
                     },
                     responses: {
-                        200: { description: 'Pagamento confirmado (ou já processado)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
-                        400: { description: 'provider_charge_id ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        401: { description: 'Assinatura ausente, inválida, ou PIX_WEBHOOK_SECRET não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
+                        400: { description: 'Id da cobrança ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        401: { description: 'Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'Status da cobrança indisponível no provider — o PSP deve reenviar', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -728,8 +760,8 @@ const options = {
                     requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
                     responses: {
                         201: { description: 'Criada', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
-                        400: { description: 'name ou price_per_night ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
-                        409: { description: 'Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'code INVALID_INPUT — name ausente ou vazio (máx. 100); price_per_night ausente, não numérico, ≤ 0, com mais de 2 casas ou acima de 99999999.99; capacity não inteiro ou < 1 (ausente vale 1)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        409: { description: 'code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
@@ -750,11 +782,19 @@ const options = {
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
+                        400: { description: 'code INVALID_INPUT — Campo enviado fora das regras do cadastro (name, price_per_night, capacity)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        409: { description: 'code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 },
-                delete: { tags: ['Categorias de Quarto'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Categorias de Quarto'], summary: 'Remove',
+                    responses: {
+                        204: { description: 'OK' },
+                        404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code CATEGORY_IN_USE — Categoria em uso por quarto não excluído', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                    }
+                }
             },
             '/rooms': {
                 get: {
@@ -765,13 +805,13 @@ const options = {
                     tags: ['Quartos'], summary: 'Cria quarto',
                     requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['category_id', 'number'], properties: {
                         category_id: { type: 'string', format: 'uuid' }, number: { type: 'string', example: '101' },
-                        floor: { type: 'integer', nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'], description: 'Default: AVAILABLE' }
+                        floor: { type: 'integer', nullable: true, description: '0 é o térreo' }, status: { type: 'string', enum: ['AVAILABLE', 'MAINTENANCE'], description: 'Default: AVAILABLE. OCCUPIED e CLEANING só pelo check-in e check-out' }
                     }}}}},
                     responses: {
                         201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'category_id ou number ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
-                        404: { description: 'Categoria não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'code INVALID_INPUT — category_id ou number ausentes, number que não é texto não vazio, floor não inteiro ou status fora de AVAILABLE | MAINTENANCE', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        404: { description: 'code CATEGORY_NOT_FOUND — Categoria não encontrada — inexistente, excluída, de outro hotel ou id inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        409: { description: 'code ROOM_NUMBER_TAKEN — Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
@@ -800,18 +840,27 @@ const options = {
                 },
                 put: {
                     tags: ['Quartos'], summary: 'Atualiza',
-                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam. Envie status só quando ele mudou — reenviar o valor carregado desfaz check-in/check-out feito em paralelo', properties: {
-                        category_id: { type: 'string', format: 'uuid' }, number: { type: 'string', example: '101' },
-                        floor: { type: 'integer', nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'] }
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Todos os campos são opcionais: só o que vier é alterado. O PMS envia status só quando ele mudou', properties: {
+                        category_id: { type: 'string', format: 'uuid', description: 'Categoria do próprio hotel, não excluída' },
+                        number: { type: 'string', example: '101', description: 'Texto não vazio; gravado aparado' },
+                        floor: { type: 'integer', nullable: true, description: '0 é o térreo; null tira o andar' },
+                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'status inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        404: { description: 'code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/RoomError' }, { $ref: '#/components/schemas/Error' }] } } } },
+                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 },
-                delete: { tags: ['Quartos'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Quartos'], summary: 'Remove',
+                    responses: {
+                        204: { description: 'OK' },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_IN_USE — Quarto OCCUPIED ou com reserva PENDING, CONFIRMED ou CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                    }
+                }
             },
             '/guests': {
                 get: {
@@ -1336,7 +1385,7 @@ const options = {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Hóspedes mais valiosos por lifetime value',
-                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita.',
+                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).',
                     parameters: [
                         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, example: 10 }, description: 'Quantidade de hóspedes a retornar (1–100). Default: 10.' }
                     ],
@@ -1348,7 +1397,6 @@ const options = {
                                 items: { type: 'object', properties: {
                                     guest_id:           { type: 'string', format: 'uuid' },
                                     full_name:          { type: 'string', example: 'Carlos Eduardo' },
-                                    email:              { type: 'string', format: 'email' },
                                     total_reservations: { type: 'integer', example: 3 },
                                     lifetime_value:     { type: 'number', example: 4200.00 },
                                     last_stay:          { type: 'string', format: 'date', example: '2026-06-20' }
@@ -1357,6 +1405,7 @@ const options = {
                         },
                         400: { description: 'limit fora do intervalo permitido (1–100)' },
                         401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
                         500: { description: 'Erro interno' }
                     }
                 }

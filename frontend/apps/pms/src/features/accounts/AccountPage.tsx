@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Spinner } from '@hotel/ui';
+import { ErrorState, Spinner } from '@hotel/ui';
 import { formatBRL } from '@hotel/domain';
 import { useAuthStore } from '../../stores/auth.js';
 import { useAccount } from './queries.js';
@@ -8,7 +8,6 @@ import { queue, useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { footerTotals } from './accountTotals.js';
 import { ACCOUNT_TYPE_LABEL } from './accountFilter.js';
-import { ErrorState } from './components/ErrorState.js';
 import { Notice } from './components/Notice.js';
 import { ItemList } from './components/ItemList.js';
 import { MenuGrid } from './components/MenuGrid.js';

@@ -7,13 +7,17 @@ import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
 import { moveRoomAccounts } from '../../utils/roomChangeAccounts.js';
+import findInTenant from '../../utils/findInTenant.js';
+import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
+
+export default withDeadlockRetry('UpdateReservationController', UpdateReservationController);
 
 // Campos permitidos para atualização via PUT.
 // Mudanças de status são exclusividade dos endpoints dedicados:
 // PUT /:id/check-in | PUT /:id/check-out | PUT /:id/cancel
 // total_amount é calculado pelo sistema e não pode ser sobrescrito pelo cliente — quando o
 // quarto ou as datas MUDAM, é recalculado pela mesma regra da criação (CA-F.4.c).
-export default async function UpdateReservationController(request, response) {
+async function UpdateReservationController(request, response) {
     // A reserva é lida com lock DENTRO da transação: duas alterações simultâneas da mesma reserva
     // (datas, quartos) se serializam, e o total nunca é calculado sobre uma foto parcial.
     // `return await fail(...)`, e a transação aberta DENTRO do try: uma falha do banco (pool
@@ -49,7 +53,8 @@ export default async function UpdateReservationController(request, response) {
         // texto da requisição deixava passar a troca por um extra da própria reserva (N3).
         let newRoomId = reservation.room_id;
         if (room_id !== undefined) {
-            const room = await RoomModel.findOne({ where: { id: room_id, tenant_id: tenantId }, transaction });
+            // FOR KEY SHARE: a troca não aponta para um quarto excluído no meio (🟡-1 do qa-redteam de 30/10).
+            const room = await findInTenant(RoomModel, room_id, tenantId, { transaction, lock: transaction.LOCK.KEY_SHARE });
             if (!room) return await fail(404, { error: 'Quarto não encontrado' });
             newRoomId = room.id;
         }
@@ -105,6 +110,7 @@ export default async function UpdateReservationController(request, response) {
         return response.json(reservation);
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
+        if (isDeadlockError(error)) throw error; // withDeadlockRetry repete
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });

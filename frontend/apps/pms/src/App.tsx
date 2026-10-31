@@ -10,6 +10,7 @@ import { GuestDetailPage } from './features/guests/GuestDetailPage.js';
 import { roomsReadRoutes, roomsAdminRoutes } from './routes/roomsRoutes.js';
 import { AccountsListPage } from './features/accounts/AccountsListPage.js';
 import { AccountPage } from './features/accounts/AccountPage.js';
+import { IndicatorsPage } from './features/analytics/IndicatorsPage.js';
 
 /**
  * Árvore de rotas. Duas camadas de proteção: ProtectedRoute exige sessão; RequireRole exige
@@ -44,6 +45,7 @@ export function App() {
 
             {/* Configurações: só admin */}
             <Route element={<RequireRole allow={['ADMIN']} />}>
+              <Route path="indicadores" element={<IndicatorsPage />} />
               <Route
                 path="config/usuarios"
                 element={<Placeholder title="Usuários" phase="Fase 1 — Configurações" />}
