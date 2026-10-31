@@ -39,6 +39,7 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
     const tenantId = randomUUID();
     const falhasTransitorias = new Map();   // aggregate_id → nº de chamadas que falharam
     const bancoForaPara = new Map();        // aggregate_id → quantas entregas ainda acham o banco fora
+    const conexaoLenta = new Map();         // aggregate_id → entregas (falha de conexão que demora 300 ms, como pool esgotado)
     const conexaoSempreFalha = new Map();   // aggregate_id → entregas (banco "meio no ar": SELECT 1 passa, a transação não)
     const TETO_INFRA = 3;                   // teto de x-delivery-count do caminho de infraestrutura (🟡-A), baixo para o teste
     let conexaoCore;
@@ -70,6 +71,11 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
 
         // O apply real, com falha transitória simulada para os agregados marcados no teste.
         const apply = async (evento) => {
+            if (conexaoLenta.has(evento.aggregateId)) {
+                conexaoLenta.set(evento.aggregateId, conexaoLenta.get(evento.aggregateId) + 1);
+                await new Promise((r) => setTimeout(r, 300));
+                throw Object.assign(new Error('pool esgotado (simulado)'), { name: 'SequelizeConnectionAcquireTimeoutError' });
+            }
             if (conexaoSempreFalha.has(evento.aggregateId)) {
                 conexaoSempreFalha.set(evento.aggregateId, conexaoSempreFalha.get(evento.aggregateId) + 1);
                 throw Object.assign(new Error('connection terminated (simulado)'), { name: 'SequelizeConnectionRefusedError' });
@@ -197,6 +203,41 @@ describe.skipIf(!temBroker)('RabbitMQ real — consumidor do analytics (§5)', (
         expect(conexaoSempreFalha.get(env.aggregate_id)).toBe(TETO_INFRA + MAX_ATTEMPTS);
         expect(await GuestProjection.count({ where: { id: env.aggregate_id } })).toBe(0);
     }, 150000);
+
+    it('🟡-A2: mensagem lenta convivendo com um fluxo de mensagens que pausam — todas chegam à DLQ, nenhuma é descartada', async () => {
+        // Sem drenar antes de fechar, cada pausa de uma vizinha devolvia A sem 'rejected' antes de A decidir:
+        // A nunca avaliava o próprio teto e o broker a descartava na 21ª entrega (dead letter cycle).
+        await canalLeitura.purgeQueue(DLQ);
+        const lenta = envelope('guest.created', { tenantId, payload: { full_name: 'A lenta' } });
+        conexaoLenta.set(lenta.aggregate_id, 0);
+        await publicar(lenta, { type: lenta.type });
+
+        const publicadas = [lenta.event_id];
+        const fim = Date.now() + 12000;          // fluxo contínuo: uma nova a cada 400 ms, todas falhando com conexão
+        while (Date.now() < fim) {
+            const f = envelope('guest.created', { tenantId, payload: { full_name: 'F rápida' } });
+            conexaoSempreFalha.set(f.aggregate_id, 0);
+            await publicar(f, { type: f.type });
+            publicadas.push(f.event_id);
+            await new Promise((r) => setTimeout(r, 400));
+        }
+
+        const mortas = new Map();
+        await esperar(async () => {
+            for (let m = await canalLeitura.get(DLQ, { noAck: true }); m; m = await canalLeitura.get(DLQ, { noAck: true })) {
+                mortas.set(JSON.parse(m.content.toString()).event_id, m.properties.headers);
+            }
+            return mortas.size >= publicadas.length;
+        }, { timeoutMs: 150000, intervaloMs: 500 });
+
+        expect([...mortas.keys()].sort()).toEqual([...publicadas].sort());   // nenhuma sumiu
+        expect(mortas.get(lenta.event_id)).toMatchObject({ 'x-error-kind': 'transient', 'x-attempts': MAX_ATTEMPTS });
+        // Invariante: nenhuma mensagem passa de teto de pausas + 5 tentativas.
+        expect(conexaoLenta.get(lenta.aggregate_id)).toBeLessThanOrEqual(TETO_INFRA + MAX_ATTEMPTS);
+        for (const [id, entregas] of conexaoSempreFalha) {
+            if (entregas > TETO_INFRA + MAX_ATTEMPTS) throw new Error(`${id}: ${entregas} entregas`);
+        }
+    }, 240000);
 
     it('§8: a credencial do analytics NÃO publica na exchange do core (não fabrica evento)', async () => {
         const conexao = await conectar(process.env.RABBITMQ_ANALYTICS_USER, process.env.RABBITMQ_ANALYTICS_PASSWORD);
