@@ -1,6 +1,6 @@
 # Retomada — H.2 analytics-service (feature/analytics-service)
 
-**Atualizado:** 30/10/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
+**Atualizado:** 31/10/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
 **Worktree:** /home/gabri/wt-h2-analytics · **Portas (integração de 28–29/10):** PG 5460 · RabbitMQ 5697
 **Containers:** pg-h2int, rmq-h2int — derrubados ao fim de cada sessão (subir com os comandos abaixo; o
 rmq-h2int precisa da topologia). NÃO usar pg-qah2b/rmq-qah2b (reauditoria delta).
@@ -12,7 +12,7 @@ para 29/10). Sem PR.
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: ressalvas da reauditoria delta corrigidas (🟡-A, 🟢-B, 🟢-C, 🟢-D) e repasses versionados
+- Passo atual: 🟡-A2 da reauditoria delta 2 corrigido (pausa que drena + fechamento ordenado)
 - Próximo passo: nada nesta frente — aguardar o Gabriel (merge da H.2); depois do merge, marcar ENCERRADA
 
 ## Feito
@@ -26,12 +26,17 @@ para 29/10). Sem PR.
   🟡-A RED (`d54b681`) → GREEN (`c87df79`, teto de `x-delivery-count` 10); 🟢-C e 🟢-B (`c87df79`);
   catálogo 1.1.2 (`20290bf`); 🟢-D readiness (`a4bdd65`)
 
+- [x] 31/10 — reauditoria delta 2 (`9d797dd`): 🟡-A2 RED (`c1c954c`) → GREEN (`e097bfb`: a pausa drena e
+  fecha o canal antes da conexão); catálogo 1.1.3 (`60ea9f8`)
+
 ## Falta
 - [ ] (outros donos) lacunas de evento da develop — ver relatório, seção "Integração com a develop"
 
 ## Decisões tomadas nesta frente
 - 21/10 — carga inicial emite `*.deleted` para excluídos e aceita `reservation_id` nulo (aceitas pelo Gabriel)
 - 24/10 — `lock_timeout` padrão 3 s, 5 tentativas a cada 2 s; esgotou → erro claro, rodar de novo fora do pico
+- 31/10 — pausa drena e fecha o canal ANTES da conexão (fechar a conexão logo após o nack perde o nack na
+  fila quorum, comprovado); `nack` com requeue descartado (no RabbitMQ 4 não soma no `x-delivery-count`)
 - 30/10 — teto da pausa por banco fora: `x-delivery-count` ≥ 10 ou já rejeitada uma vez → tentativa comum (🟡-A)
 - 28/10 — nenhum evento novo fora do catálogo: `accounts`/`account_items` seguem sem evento (§4.7); listado como lacuna
 

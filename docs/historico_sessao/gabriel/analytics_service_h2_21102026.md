@@ -185,6 +185,35 @@ Auditoria: `docs/qa/redteam_analytics-service-h2_delta_24out2026.md` (`8c74407`,
 - core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.73%, Functions 89.8%, Lines 86.7%
 - `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
 
+#### Correção da reauditoria delta 2 (31/10/2026)
+
+Auditoria: `docs/qa/redteam_analytics-service-h2_delta2_30out2026.md` (`9d797dd`, APROVADO COM RESSALVAS, 🟡-A2).
+
+- **RED (`c1c954c`)**: `rabbitmq.integration.test.js` — A falha com erro de conexão devagar (300 ms) e um
+  fluxo de mensagens novas (uma a cada 400 ms, por 12 s) falha na hora. Resultado: a DLQ não recebeu A em
+  150 s e o broker registrou *"Message dropped … dead letter cycle without reason 'rejected'"*.
+- **Primeira correção (só drenar, como o auditor indicou): insuficiente.** Com a drenagem, A passou a
+  decidir `nack` (log: "tentativa 1/5"), mas voltava sem `x-death` a cada ~570 ms e chegou de novo a 21
+  entregas. O `nack` se perdia porque a **conexão fechava logo depois dele**. Experimento: com 500 ms de
+  espera antes do fechamento, 31/31 chegaram à DLQ e A teve 8 entregas.
+- **Alternativa descartada:** devolver a mensagem que pausa com `nack` com requeue, sem fechar a conexão. No
+  RabbitMQ 4 esse `nack` **não soma no `x-delivery-count`**: o teto nunca disparava (223 entregas em 60 s).
+- **GREEN (`e097bfb`)**: a pausa drena e **fecha o canal antes da conexão** (`channel.close()` espera o
+  close-ok, e o broker liquida os ack/nack enviados). O `stop()` usa o mesmo fechamento. Resultado: 31/31 na
+  DLQ, A com `x-error-kind: transient` e 5 tentativas, cada mensagem com 8 entregas (3 pausas + 5
+  tentativas, abaixo do invariante 10 + 5), nenhum "dead letter cycle" no log do broker, em ~53 s. Teste
+  unitário novo (RED → GREEN): cancela o consumo, a mensagem lenta dá `nack`, o canal fecha antes da conexão.
+- **Catálogo 1.1.3 (`60ea9f8`)**: o §5.3 descreve a pausa que drena, o fechamento ordenado e o invariante.
+
+**Saída real** (PG 5460, RabbitMQ 5697, próprios, recriados antes da rodada):
+- analytics — `Test Files 7 passed (7)` · `Tests 95 passed (95)` · Statements **95.79%**, Branches 89.54%, Functions 90.24%, Lines 95.36%
+- core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.73%, Functions 89.8%, Lines 86.7%
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
+**Pendência:** se a drenagem estourar o prazo (`stopTimeoutMs`, 10 s), a mensagem que ainda não decidiu é
+devolvida sem `rejected` e soma uma entrega. Com o teto de 10 e o `delivery-limit` 20 há folga; o
+`delivery-limit` explícito alto (repasse ao Weslley) aumenta essa margem.
+
 #### Estimativa da H.3 (k, n, o, p, q)
 
 Cerca de **2 a 3 dias de trabalho humano**: as 7 consultas sobre as projeções (NUMERIC até a resposta,
