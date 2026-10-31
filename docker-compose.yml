@@ -196,7 +196,8 @@ services:
   # Database per service (ADR-003, CA-01.4.g): o analytics não lê o banco do core; tudo chega por
   # evento. Carga inicial depois do primeiro `up` (CA-01.4.j):
   #   docker compose exec backend node command.js outbox-initial-load
-  # O roteamento do nginx para /analytics/ é da H.3 — até lá, o core continua respondendo /analytics.
+  # [revisão do Weslley] Desde a H.3 o nginx roteia /analytics/ para cá (menos internal-consumption,
+  # que segue no core — decisão L-1). O core não responde mais os 7 indicadores.
   analytics-postgres:
     image: postgres:17-alpine
     environment:
@@ -235,7 +236,7 @@ services:
       RABBITMQ_ANALYTICS_PASSWORD: ${RABBITMQ_ANALYTICS_PASSWORD:?defina RABBITMQ_ANALYTICS_PASSWORD no .env antes de subir o compose}
     volumes:
       - ./services/core-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
-    # Sem porta no host: até a H.3 (nginx), só a rede do compose fala com ele.
+    # Sem porta no host: o navegador chega pelo nginx (location /analytics/).
     depends_on:
       analytics-postgres:
         condition: service_healthy
@@ -253,6 +254,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      # [revisão do Weslley] O upstream analytics_pool (H.3) é resolvido quando o nginx sobe: sem o
+      # contêiner do analytics na rede, o nginx não inicia. Só "iniciado", não "healthy": com o broker
+      # fora o analytics fica unhealthy de propósito, e isso não pode derrubar o PMS inteiro.
+      analytics-service:
+        condition: service_started
     healthcheck:
       # /health (não /healthz) — atravessa o location / até o backend_pool de verdade.
       # /healthz é um checkpoint estático do próprio nginx, sempre 200 mesmo com o backend morto.

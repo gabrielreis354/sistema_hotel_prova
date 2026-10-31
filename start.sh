@@ -46,6 +46,8 @@ cmd_up() {
     info "Aplicando manifests Kubernetes (namespace: $NS)..."
     # Secret jwt-rsa-keys (ADR-006) antes do backend — ver scripts/k8s_garantir_secret_jwt.sh.
     bash scripts/k8s_garantir_secret_jwt.sh
+    # [revisão do Weslley] Secret analytics-db (T-01.4/H.3) — ver scripts/k8s_garantir_secret_analytics.sh.
+    bash scripts/k8s_garantir_secret_analytics.sh
     kubectl apply -k infra/k8s/
     echo ""
     info "Aguardando todos os pods ficarem prontos (timeout: 120s)..."

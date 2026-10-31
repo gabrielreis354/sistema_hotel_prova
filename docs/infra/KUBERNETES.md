@@ -166,7 +166,18 @@ Por isso a troca de versão do backend passa sempre pelo `./start.sh deploy`, nu
 
 ## analytics-service — `/health` é readiness, não liveness (T-01.4)
 
-O Deployment do analytics entra na H.3. Regra para quem escrever o manifesto (reauditoria delta da H.2, 🟢-D):
+[revisão do Weslley] Desde a H.3 o analytics tem manifesto próprio, `infra/k8s/analytics.yaml` (CA-01.4.n):
+StatefulSet `analytics-postgres` com PVC e Service (banco próprio, ADR-003), Deployment
+`analytics-service` com 1 réplica e Service na porta 3001. A credencial do banco vem do secret
+`analytics-db`, **não versionado**, criado com senha aleatória por `scripts/k8s_garantir_secret_analytics.sh`
+(chamado por `infra_up.sh` e `./start.sh up`). O pod monta só o item `jwt-public.pem` do `jwt-rsa-keys`.
+NetworkPolicy: só o analytics fala com o `analytics-postgres`; só o nginx chega à porta 3001; o analytics
+entra na lista de quem alcança o AMQP do RabbitMQ.
+
+O nginx manda `/analytics/` para o `analytics-service` e `/analytics/internal-consumption` para o
+backend (o consumo interno lê `accounts`/`account_items`, sem evento no catálogo — decisão L-1).
+
+As probes seguem a regra da reauditoria delta da H.2 (🟢-D):
 
 | Probe | Caminho | Por quê |
 |---|---|---|

@@ -1,0 +1,231 @@
+# [revisão do Weslley] analytics-service no Kubernetes (T-01.4/H.3, CA-01.4.n) — só local
+# (minikube/kind/Docker Desktop). Nada de nuvem aqui.
+#
+# Database per service (ADR-003, CA-01.4.g): o analytics tem o próprio PostgreSQL, como no
+# compose (`analytics-postgres`), e nunca lê o banco do core — tudo chega por evento.
+#
+# Credencial do banco do analytics: secret `analytics-db`, NÃO versionado. É gerado por ambiente,
+# com senha aleatória, por scripts/k8s_garantir_secret_analytics.sh (chamado por infra_up.sh e
+# ./start.sh up antes do `kubectl apply -k`) — o mesmo padrão do `jwt-rsa-keys`. Credencial
+# própria: vazar a do analytics não abre o banco do core.
+#
+# O nginx roteia /analytics/ para o Service `analytics-service` (nginx.yaml), menos
+# /analytics/internal-consumption, que segue no core (decisão L-1).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: analytics-postgres-data
+  namespace: hotel-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: analytics-postgres
+  namespace: hotel-system
+  labels:
+    app: analytics-postgres
+spec:
+  serviceName: analytics-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-postgres
+  template:
+    metadata:
+      labels:
+        app: analytics-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: gesway_analytics
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: analytics-db
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: analytics-db
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: scram-sha-256
+            # Subpasta: o volume novo pode trazer lost+found na raiz, e o initdb recusa diretório não vazio.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["bash", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["bash", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: analytics-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-postgres
+  namespace: hotel-system
+spec:
+  type: ClusterIP
+  selector:
+    app: analytics-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: hotel-system
+  labels:
+    app: analytics-service
+spec:
+  # Uma réplica no MVP. Mais réplicas funcionam (consumidores concorrentes na mesma fila; o
+  # consumidor é idempotente por event_id e aggregate_version — CA-01.4.h), mas a carga de um
+  # hotel pequeno não pede, e cada réplica é mais uma conexão no broker e no banco.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+    spec:
+      # Mesmo motivo do backend.yaml: o processo roda como `node` (uid/gid 1000) e precisa ler a
+      # chave montada pelo secret.
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: analytics-service
+          image: sistema-gestao-hotel-analytics:latest
+          imagePullPolicy: IfNotPresent
+          # Migrate antes de servir, como no compose: o schema é só das projeções, derivado dos
+          # eventos — sem ele o consumidor nem começa (portão em _web.js).
+          command: ["sh", "-c", "node command.js migrate && exec node _web.js"]
+          ports:
+            - containerPort: 3001
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NODE_WEB_PORT
+              value: "3001"
+            - name: POSTGRES_HOST
+              value: analytics-postgres
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: gesway_analytics
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: analytics-db
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: analytics-db
+                  key: POSTGRES_PASSWORD
+            # Só a chave PÚBLICA do JWT (ADR-006): o analytics verifica, nunca emite. O volume abaixo
+            # projeta só o item jwt-public.pem do secret — a privada nem chega ao pod.
+            - name: JWT_PUBLIC_KEY_PATH
+              value: /app/keys/jwt-public.pem
+            - name: RABBITMQ_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: hotel-config
+                  key: RABBITMQ_HOST
+            # Credencial do analytics (catálogo §8): lê a própria fila, publica só na DLX.
+            - name: RABBITMQ_ANALYTICS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_ANALYTICS_USER
+            - name: RABBITMQ_ANALYTICS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: RABBITMQ_ANALYTICS_PASSWORD
+          # /health é READINESS, não liveness (docs/infra/KUBERNETES.md, 🟢-D da H.2): com o broker ou o
+          # banco fora ele dá 503 de propósito — o pod sai do Service, sem reiniciar em laço.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /app/keys
+              readOnly: true
+      volumes:
+        - name: jwt-public-key
+          secret:
+            secretName: jwt-rsa-keys
+            items:
+              - key: jwt-public.pem
+                path: jwt-public.pem
+            defaultMode: 0440
+      # A drenagem da pausa do consumidor tem prazo de 60 s (catálogo §5.3): o SIGTERM espera.
+      terminationGracePeriodSeconds: 75
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: hotel-system
+spec:
+  type: ClusterIP
+  selector:
+    app: analytics-service
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
