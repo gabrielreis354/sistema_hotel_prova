@@ -977,22 +977,22 @@ export interface paths {
                         "application/json": components["schemas"]["RoomCategory"];
                     };
                 };
-                /** @description name ou price_per_night ausentes */
+                /** @description code INVALID_INPUT — name ausente ou vazio (máx. 100); price_per_night ausente, não numérico, ≤ 0, com mais de 2 casas ou acima de 99999999.99; capacity não inteiro ou < 1 (ausente vale 1) */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ValidationErrors"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
-                /** @description Já existe uma categoria com esse nome */
+                /** @description code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
             };
@@ -1065,6 +1065,15 @@ export interface paths {
                         "application/json": components["schemas"]["RoomCategory"];
                     };
                 };
+                /** @description code INVALID_INPUT — Campo enviado fora das regras do cadastro (name, price_per_night, capacity) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
+                    };
+                };
                 /** @description Não encontrada */
                 404: {
                     headers: {
@@ -1074,13 +1083,13 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Já existe uma categoria com esse nome */
+                /** @description code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
             };
@@ -1104,6 +1113,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Não encontrada */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code CATEGORY_IN_USE — Categoria em uso por quarto não excluído */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
+                    };
                 };
             };
         };
@@ -1156,12 +1183,13 @@ export interface paths {
                         category_id: string;
                         /** @example 101 */
                         number: string;
+                        /** @description 0 é o térreo */
                         floor?: number | null;
                         /**
-                         * @description Default: AVAILABLE
+                         * @description Default: AVAILABLE. OCCUPIED e CLEANING só pelo check-in e check-out
                          * @enum {string}
                          */
-                        status?: "AVAILABLE" | "OCCUPIED" | "MAINTENANCE" | "CLEANING";
+                        status?: "AVAILABLE" | "MAINTENANCE";
                     };
                 };
             };
@@ -1175,31 +1203,31 @@ export interface paths {
                         "application/json": components["schemas"]["Room"];
                     };
                 };
-                /** @description category_id ou number ausentes */
+                /** @description code INVALID_INPUT — category_id ou number ausentes, number que não é texto não vazio, floor não inteiro ou status fora de AVAILABLE | MAINTENANCE */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ValidationErrors"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
-                /** @description Categoria não encontrada */
+                /** @description code CATEGORY_NOT_FOUND — Categoria não encontrada — inexistente, excluída, de outro hotel ou id inválido */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
-                /** @description Já existe um quarto com esse número */
+                /** @description code ROOM_NUMBER_TAKEN — Já existe um quarto com esse número */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
             };
@@ -1311,7 +1339,29 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Categoria do próprio hotel, não excluída
+                         */
+                        category_id?: string;
+                        /**
+                         * @description Texto não vazio; gravado aparado
+                         * @example 101
+                         */
+                        number?: string;
+                        /** @description 0 é o térreo; null tira o andar */
+                        floor?: number | null;
+                        /**
+                         * @description Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito
+                         * @enum {string}
+                         */
+                        status?: "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE";
+                    };
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1322,31 +1372,31 @@ export interface paths {
                         "application/json": components["schemas"]["Room"];
                     };
                 };
-                /** @description status inválido */
+                /** @description code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual) */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
-                /** @description Não encontrado */
+                /** @description code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"] | components["schemas"]["Error"];
                     };
                 };
-                /** @description Já existe um quarto com esse número */
+                /** @description code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito) */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
             };
@@ -1370,6 +1420,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code ROOM_IN_USE — Quarto OCCUPIED ou com reserva PENDING, CONFIRMED ou CHECKED_IN */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
+                    };
                 };
             };
         };
@@ -4797,6 +4865,19 @@ export interface components {
         };
         Error: {
             error?: string;
+        };
+        /** @description Erro de quartos e categorias com code estável — a tela decide pelo code, nunca pelo texto de error. No 400 vêm também errors (lista de sempre) e field (primeiro campo que falhou). */
+        RoomError: {
+            error: string;
+            /** @enum {string} */
+            code: "INVALID_INPUT" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CATEGORY_NAME_TAKEN" | "ROOM_NUMBER_TAKEN" | "ROOM_IN_USE" | "ROOM_STATUS_TRANSITION_NOT_ALLOWED";
+            /**
+             * @description Só no 400 INVALID_INPUT
+             * @example price_per_night
+             */
+            field?: string;
+            /** @description Só no 400 INVALID_INPUT */
+            errors?: string[];
         };
         /** @description Quarto ocupado no período. room_ids vem quando a checagem da aplicação acha o conflito; numa corrida barrada pelo banco (EXCLUDE), só error. */
         RoomOccupied: {
