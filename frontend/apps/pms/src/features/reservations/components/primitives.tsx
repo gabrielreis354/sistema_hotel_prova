@@ -1,11 +1,12 @@
 import { forwardRef, type ReactNode } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
 import { formatBRL, type Cents } from '@hotel/domain';
-import { Button, Card, cn } from '@hotel/ui';
+import { cn } from '@hotel/ui';
 
 /**
- * Peças pequenas do módulo de reservas. Todas são candidatas do CATALOGO.md (`Money`,
- * `ErrorState`) e nascem aqui pela regra de promoção — sobem no segundo módulo que precisar.
+ * Peças pequenas do módulo de reservas, candidatas do CATALOGO.md: nascem aqui pela regra de
+ * promoção e sobem no segundo módulo que precisar. O `ErrorState` já subiu (T-05.6) e vem do
+ * @hotel/ui.
  */
 
 const LINK_VARIANT = {
@@ -38,22 +39,6 @@ export function ButtonLink({
 /** Valor em reais: alinhado à direita pelo pai, algarismos tabulares, sempre duas casas. */
 export function Money({ cents, className }: { cents: Cents; className?: string }) {
   return <span className={cn('whitespace-nowrap tabular-nums', className)}>{formatBRL(cents)}</span>;
-}
-
-/** Erro que diz o que fazer: a mensagem e a ação de tentar de novo. */
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  return (
-    <Card className="flex flex-col items-start gap-3 border-status-maintenance/40 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p role="alert" className="text-sm text-status-maintenance">
-        {message}
-      </p>
-      {onRetry && (
-        <Button variant="secondary" size="compact" className="min-h-touch md:min-h-0" onClick={onRetry}>
-          Tentar de novo
-        </Button>
-      )}
-    </Card>
-  );
 }
 
 const NOTICE_TONE = {

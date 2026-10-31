@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { RESERVATION_STATUS_LABEL, formatDateBR, formatDateTimeBR } from '@hotel/domain';
-import { Button, Spinner } from '@hotel/ui';
+import { Button, ErrorState, Spinner } from '@hotel/ui';
 import { useBill, useReservation } from './queries.js';
 import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, receiptEntries, safeNights } from './reservationLogic.js';
-import { BackLink, ErrorState, Money } from './components/primitives.js';
+import { BackLink, Money } from './components/primitives.js';
 
 /**
  * Comprovante da conta para entregar no check-out (CA-05.2.k). Rota fora do AppShell, de

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatDateBR } from '@hotel/domain';
-import { Button, Card, Spinner, cn } from '@hotel/ui';
+import { Button, Card, ErrorState, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
 import { useBill, useReservation, useTransitionReservation } from './queries.js';
 import type { ReservationTransition } from './reservationsApi.js';
@@ -14,7 +14,7 @@ import {
 } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
-import { BackLink, ButtonLink, CardHeading, ErrorState, InfoItem, Money, Notice } from './components/primitives.js';
+import { BackLink, ButtonLink, CardHeading, InfoItem, Money, Notice } from './components/primitives.js';
 
 type Tab = 'resumo' | 'conta';
 type Confirming = null | 'check-out' | 'cancel';
@@ -70,10 +70,12 @@ export function ReservationDetailPage() {
     const notFound = reservation.error instanceof ApiError && reservation.error.status === 404;
     return (
       <div className="mx-auto max-w-3xl space-y-3">
-        <ErrorState
-          message={notFound ? 'Reserva não encontrada — ela pode ter sido excluída.' : 'Não foi possível carregar a reserva.'}
-          onRetry={notFound ? undefined : () => reservation.refetch()}
-        />
+        {/* Reserva que não existe não tem "tentar de novo": o caminho é voltar à lista. */}
+        {notFound ? (
+          <Notice tone="error">Reserva não encontrada — ela pode ter sido excluída.</Notice>
+        ) : (
+          <ErrorState message="Não foi possível carregar a reserva." onRetry={() => reservation.refetch()} />
+        )}
         <BackLink to="/reservas">← Voltar para reservas</BackLink>
       </div>
     );

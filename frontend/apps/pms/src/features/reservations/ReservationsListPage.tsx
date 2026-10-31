@@ -1,11 +1,11 @@
 import { useEffect, type ReactNode } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decimalToCents, formatDateBR, todayISO } from '@hotel/domain';
-import { Button, Card, EmptyState, Field, Input, Spinner, cn } from '@hotel/ui';
+import { Button, Card, EmptyState, ErrorState, Field, Input, Spinner, cn } from '@hotel/ui';
 import { useReservationList } from './queries.js';
 import { PERIOD_PRESETS, pageCount, presetRange, safeNights, type PeriodPreset } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
-import { ButtonLink, ErrorState, Money, PageHeader } from './components/primitives.js';
+import { ButtonLink, Money, PageHeader } from './components/primitives.js';
 
 const PAGE_SIZE = 20;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;

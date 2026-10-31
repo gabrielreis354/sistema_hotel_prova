@@ -1,7 +1,7 @@
 import { decimalToCents } from '@hotel/domain';
-import { Button, EmptyState, Spinner, cn } from '@hotel/ui';
+import { Button, EmptyState, ErrorState, Spinner, cn } from '@hotel/ui';
 import type { Room } from '../reservationsApi.js';
-import { ErrorState, Money } from './primitives.js';
+import { Money } from './primitives.js';
 
 interface RoomPickerProps {
   rooms: Room[] | undefined;
