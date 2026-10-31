@@ -1,0 +1,85 @@
+name: CI — core-service
+
+# Workflow próprio do core-service (T-01.5, CA-01.5.a): só roda quando muda algo no
+# diretório do serviço ou neste arquivo. Mudança só de frontend ou de docs não gasta os
+# ~3 min da suíte com Postgres.
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'docs/**'
+    paths:
+      - 'services/core-service/**'
+      - '.github/workflows/ci-core-service.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'services/core-service/**'
+      - '.github/workflows/ci-core-service.yml'
+
+jobs:
+  test:
+    name: Testes + Cobertura
+    runs-on: ubuntu-latest
+
+    # O backend vive em services/core-service desde 15/09/2026 (SPEC-01).
+    defaults:
+      run:
+        working-directory: services/core-service
+
+    # Banco PostgreSQL efêmero para os testes de integração.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: hotel_user
+          POSTGRES_PASSWORD: hotel_password
+          POSTGRES_DB: gestao_hotel_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hotel_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: gestao_hotel_test
+      POSTGRES_USER: hotel_user
+      POSTGRES_PASSWORD: hotel_password
+      PIX_WEBHOOK_SECRET: pms_hotel_test_pix_webhook_secret_ci
+      # JWT RS256 (ADR-006/T-01.3) — sem arquivo de chave versionado nenhum: o
+      # globalSetup dos testes gera o par nesse caminho se ele ainda não existir
+      # (mesmo mecanismo do ambiente local/testes, ver tests/setup/globalSetup.js).
+      JWT_PRIVATE_KEY_PATH: tests/setup/.tmp-jwt-keys/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: tests/setup/.tmp-jwt-keys/jwt-public.pem
+      JWT_KEY_ID: core-ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: services/core-service/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar sintaxe (ESM)
+        run: |
+          find app routes middlewares database -name '*.js' -print0 \
+            | xargs -0 -n1 node --check
+
+      - name: Rodar testes + cobertura (falha abaixo de 60%)
+        run: npm run test:coverage
