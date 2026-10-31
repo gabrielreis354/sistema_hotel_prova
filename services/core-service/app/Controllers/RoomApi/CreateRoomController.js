@@ -26,10 +26,10 @@ export default async function CreateRoomController(request, response) {
 
         // Valida a FK antes de inserir, no tenant: sem isso, um category_id inexistente
         // estoura a foreign key no banco (500) e o de outro hotel seria aceito. Lida com
-        // FOR SHARE na mesma transação do INSERT (🟡-1 do qa-redteam de 30/10): a FK não
+        // FOR KEY SHARE na mesma transação do INSERT (🟡-1 do qa-redteam de 30/10): a FK não
         // enxerga deleted_at, e uma categoria excluída no meio virava quarto "sem categoria".
         transaction = await sequelize.transaction();
-        const category = await findInTenant(RoomCategoryModel, category_id, tenantId, { transaction, lock: transaction.LOCK.SHARE });
+        const category = await findInTenant(RoomCategoryModel, category_id, tenantId, { transaction, lock: transaction.LOCK.KEY_SHARE });
         if (!category) {
             await transaction.rollback();
             return response.status(404).json(roomError(ROOM_ERROR_CODES.CATEGORY_NOT_FOUND, 'Categoria não encontrada'));

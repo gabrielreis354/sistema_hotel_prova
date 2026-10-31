@@ -13,11 +13,17 @@ import isUuid from './isUuid.js';
  * @param {import('sequelize').ModelStatic<any>} Model
  * @param {unknown} id
  * @param {string} tenantId — sempre do JWT (request.user.tenantId)
- * Quem vai GRAVAR uma referência ao registro lê com `lock: transaction.LOCK.SHARE` dentro da
- * própria transação (🟡-1 do qa-redteam de 30/10): a FK não enxerga `deleted_at`, então uma
+ * Quem vai GRAVAR uma referência ao registro lê com `lock: transaction.LOCK.KEY_SHARE` dentro
+ * da própria transação (🟡-1 do qa-redteam de 30/10): a FK não enxerga `deleted_at`, então uma
  * exclusão que acontecesse entre a leitura e a gravação deixava a referência apontando para um
- * registro excluído. Com FOR SHARE a leitura espera a exclusão em curso (FOR UPDATE) e, depois
- * da espera, o Postgres reavalia o `deleted_at IS NULL` — o registro excluído some e vira 404.
+ * registro excluído. Com FOR KEY SHARE a leitura espera a exclusão em curso (FOR UPDATE) e,
+ * depois da espera, o Postgres reavalia o `deleted_at IS NULL` — o registro excluído some e
+ * vira 404.
+ *
+ * KEY SHARE, e não SHARE (🟡-D1 da reauditoria delta de 31/10): FOR SHARE também conflita com o
+ * `UPDATE rooms SET status` do check-in e do check-out. Uma reserva travando X e esperando Y,
+ * contra um check-in que mudou Y e vai mudar X, fechava um ciclo e o Postgres derrubava um dos
+ * lados. KEY SHARE só conflita com quem exclui ou muda a chave — que é exatamente o que importa.
  *
  * @param {{ transaction?: import('sequelize').Transaction, lock?: unknown }} [options]
  */

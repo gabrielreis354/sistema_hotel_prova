@@ -6,7 +6,7 @@ import findInTenant from '../../utils/findInTenant.js';
 
 export default async function DeleteRoomCategoryController(request, response) {
     // Categoria travada (FOR UPDATE) antes da contagem, como o quarto no DeleteRoom: quem grava
-    // um quarto nela lê a categoria com FOR SHARE, então a contagem só roda depois que esse
+    // um quarto nela lê a categoria com FOR KEY SHARE, então a contagem só roda depois que esse
     // quarto confirmou e o enxerga → 409 (🟡-1 do qa-redteam de 30/10). Sem a trava, a contagem
     // dava 0 e a categoria era excluída com um quarto novo dentro.
     let transaction;

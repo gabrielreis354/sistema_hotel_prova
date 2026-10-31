@@ -6,8 +6,11 @@ import sequelize from '../../../database/connections/sequelize.js';
 import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import { calculateStayTotal } from '../../utils/calculateStayTotal.js';
 import findInTenant from '../../utils/findInTenant.js';
+import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
 
-export default async function CreateReservationController(request, response) {
+export default withDeadlockRetry('CreateReservationController', CreateReservationController);
+
+async function CreateReservationController(request, response) {
     try {
         const tenantId = request.user.tenantId;
         const userId = request.user.userId;
@@ -28,7 +31,7 @@ export default async function CreateReservationController(request, response) {
         if (!guest) return response.status(404).json({ error: 'Hóspede não encontrado' });
 
         // Transação desde a leitura dos quartos: reserva + quartos extras são atômicos, e os
-        // quartos são lidos com FOR SHARE (🟡-1 do qa-redteam de 30/10). A FK não enxerga
+        // quartos são lidos com FOR KEY SHARE (🟡-1 do qa-redteam de 30/10). A FK não enxerga
         // deleted_at: um quarto excluído entre a leitura e o INSERT virava reserva sem onde
         // hospedar. Com a trava, a leitura espera a exclusão em curso e o quarto excluído some
         // (404); a exclusão que chegar depois espera esta reserva e responde 409 (R-6).
@@ -40,7 +43,7 @@ export default async function CreateReservationController(request, response) {
         try {
             // Daqui em diante vale o id CANÔNICO do banco (o PostgreSQL aceita UUID em
             // maiúsculas; o mesmo quarto em duas grafias não pode virar dois quartos).
-            const lockOptions = { transaction, lock: transaction.LOCK.SHARE };
+            const lockOptions = { transaction, lock: transaction.LOCK.KEY_SHARE };
             const room = await findInTenant(RoomModel, room_id, tenantId, lockOptions);
             if (!room) return await fail(404, { error: 'Quarto não encontrado' });
             const extraRoomIds = [];
@@ -85,6 +88,7 @@ export default async function CreateReservationController(request, response) {
             throw txError;
         }
     } catch (error) {
+        if (isDeadlockError(error)) throw error; // transação já desfeita; withDeadlockRetry repete
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });

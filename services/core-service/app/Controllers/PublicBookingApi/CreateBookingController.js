@@ -118,12 +118,12 @@ export default async function CreateBookingController(request, response) {
         // 6. Persistência atômica: hóspede + reserva + pivô + pagamento (a cobrança já existe no PSP)
         const transaction = await sequelize.transaction();
         try {
-            // O quarto escolhido é relido com FOR SHARE antes de gravar (🟡-1 do qa-redteam de
+            // O quarto escolhido é relido com FOR KEY SHARE antes de gravar (🟡-1 do qa-redteam de
             // 30/10): a FK não enxerga deleted_at, e um quarto excluído entre a escolha e o
             // INSERT virava reserva sem onde hospedar. A leitura espera a exclusão em curso e o
             // quarto excluído some; a exclusão que chegar depois espera esta reserva (409, R-6).
             // Para o hóspede é falta de disponibilidade, com a mensagem de sempre.
-            const lockedRoom = await findInTenant(RoomModel, availableRoom.id, tenant.id, { transaction, lock: transaction.LOCK.SHARE });
+            const lockedRoom = await findInTenant(RoomModel, availableRoom.id, tenant.id, { transaction, lock: transaction.LOCK.KEY_SHARE });
             if (!lockedRoom) {
                 await transaction.rollback();
                 // Cobrança órfã no PSP, como no rollback abaixo: o id fica no log para o hotel

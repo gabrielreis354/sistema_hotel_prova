@@ -249,6 +249,26 @@ describe('🟡-D1 — a leitura com trava não entra em deadlock com o UPDATE de
         expect(await pivotsOf(y.id)).toBe(1);
     });
 
+    // Compatibilidade das travas, sem depender de quem o Postgres escolhe como vítima: com o
+    // withDeadlockRetry, o teste acima passaria até com FOR SHARE (a criação repetiria). Este não:
+    // com FOR SHARE a criação fica parada até o check-in confirmar.
+    it('POST /reservations não espera o UPDATE de status em curso no quarto (responde com o check-in ainda aberto)', async () => {
+        const room = await newRoom();
+        const t = await sequelize.transaction();
+        try {
+            await sequelize.query("UPDATE rooms SET status = 'OCCUPIED' WHERE id = :id", { replacements: { id: room.id }, transaction: t });
+            const res = await Promise.race([
+                request(app).post('/reservations').set(auth()).send({
+                    guest_id: guestId, room_id: room.id, check_in_date: '2028-11-10', check_out_date: '2028-11-12'
+                }),
+                new Promise((resolve) => setTimeout(() => resolve({ status: 'bloqueada esperando o check-in' }), 2000))
+            ]);
+            expect(res.status).toBe(201);
+        } finally {
+            await t.commit();
+        }
+    });
+
     it('a leitura com trava continua esperando a exclusão do quarto (FOR KEY SHARE conflita com FOR UPDATE) → 404', async () => {
         const room = await newRoom();
         const res = await deletingRoom(room.id, () => request(app).post('/reservations').set(auth()).send({

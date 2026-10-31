@@ -7,6 +7,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
+import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
 
 // Encontra o hóspede que já representa esse cliente corporativo (por CPF) ou cria um novo.
 // Se telefone/e-mail já pertencerem a outro hóspede do tenant (unique constraint), cria
@@ -40,7 +41,9 @@ async function findOrCreateRepresentanteGuest(tenantId, client, transaction) {
  *
  * Body: { room_ids: [uuid, ...] }
  */
-export default async function SignContractController(request, response) {
+export default withDeadlockRetry('SignContractController', SignContractController);
+
+async function SignContractController(request, response) {
     try {
         const tenantId = request.user.tenantId;
         const userId = request.user.userId;
@@ -73,10 +76,10 @@ export default async function SignContractController(request, response) {
                 return response.status(409).json({ error: `Contrato não pode ser assinado no status atual (${locked?.status ?? 'removido'})` });
             }
 
-            // Todos os quartos validados ANTES de escrever, dentro da transação e com FOR SHARE:
+            // Todos os quartos validados ANTES de escrever, dentro da transação e com FOR KEY SHARE:
             // um quarto excluído no meio não entra na reserva-bloco (🟡-1 do qa-redteam de 30/10).
             for (const roomId of uniqueRoomIds) {
-                const room = await findInTenant(RoomModel, roomId, tenantId, { transaction: t, lock: t.LOCK.SHARE });
+                const room = await findInTenant(RoomModel, roomId, tenantId, { transaction: t, lock: t.LOCK.KEY_SHARE });
                 if (!room) {
                     await t.rollback();
                     return response.status(404).json({ error: `Quarto não encontrado: ${roomId}` });
@@ -122,6 +125,7 @@ export default async function SignContractController(request, response) {
             throw err;
         }
     } catch (error) {
+        if (isDeadlockError(error)) throw error; // transação já desfeita; withDeadlockRetry repete
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
         console.error('SignContractController:', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });

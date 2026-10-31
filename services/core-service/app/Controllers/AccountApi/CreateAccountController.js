@@ -104,12 +104,12 @@ export default async function CreateAccountController(request, response) {
         }
         if (provided(room_id) && type !== 'ROOM') {
             // Conta avulsa (day-use, mesa, balcão, interna) que aponta para um quarto: lido com
-            // FOR SHARE na transação do INSERT (🟡-1 do qa-redteam de 30/10). A FK não enxerga
+            // FOR KEY SHARE na transação do INSERT (🟡-1 do qa-redteam de 30/10). A FK não enxerga
             // deleted_at; sem a trava, um quarto excluído no meio era gravado na conta. Na conta
             // ROOM não precisa: o quarto está numa estadia CHECKED_IN, que segura a exclusão
             // (R-6) — e travar o quarto antes da reserva inverteria a ordem reserva → quarto.
             transaction = await sequelize.transaction();
-            const room = await findInTenant(RoomModel, room_id, tenantId, { transaction, lock: transaction.LOCK.SHARE });
+            const room = await findInTenant(RoomModel, room_id, tenantId, { transaction, lock: transaction.LOCK.KEY_SHARE });
             if (!room) return await fail(404, { error: 'Quarto não encontrado' });
         } else if (provided(room_id)) {
             const room = await RoomModel.findOne({ where: { id: room_id, tenant_id: tenantId } });
