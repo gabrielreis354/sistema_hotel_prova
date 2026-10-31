@@ -473,12 +473,12 @@ const options = {
                 },
                 WebhookConfirmResponse: {
                     type: 'object',
-                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência)',
+                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação)',
                     properties: {
-                        status:             { type: 'string', enum: ['confirmed', 'already_processed'] },
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending'] },
                         payment_id:         { type: 'string', format: 'uuid' },
-                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Ausente quando status é already_processed' },
-                        reservation_status: { type: 'string', nullable: true, description: 'Ausente quando status é already_processed' }
+                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Só vem quando status é confirmed' },
+                        reservation_status: { type: 'string', nullable: true, description: 'Só vem quando status é confirmed' }
                     }
                 }
             }
@@ -565,22 +565,42 @@ const options = {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente.\n\n' +
+                        '**Autenticação depende do provider ativo (`PIX_PROVIDER`)**, e é conferida antes de qualquer consulta ao banco. Sem o segredo do provider configurado no servidor, toda requisição recebe 401 (fail-closed):\n' +
+                        '- `asaas`: cabeçalho `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (o Asaas não assina o corpo; o token não pode ser a API Key). Corpo: `{ event, payment: { id } }`. Cadastro em Integrações → Webhooks — ver docs/pagamentos/ASAAS_SANDBOX.md.\n' +
+                        '- `mercadopago`: cabeçalhos `x-signature` (`ts=…,v1=…`) e `x-request-id`, HMAC com `MERCADOPAGO_WEBHOOK_SECRET`. Id em `?data.id=` ou `data.id` no corpo.\n' +
+                        '- `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.\n\n' +
+                        'A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.',
                     security: [],
                     parameters: [
-                        { in: 'header', name: 'x-pix-signature', required: true, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>' }
+                        { in: 'header', name: 'x-pix-signature', required: false, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'Provider fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>' },
+                        { in: 'header', name: 'asaas-access-token', required: false, schema: { type: 'string' }, description: 'Provider asaas: token cadastrado no webhook (ASAAS_WEBHOOK_TOKEN)' },
+                        { in: 'header', name: 'x-signature', required: false, schema: { type: 'string', example: 'ts=1704908010,v1=618c8534…' }, description: 'Provider mercadopago: assinatura HMAC (MERCADOPAGO_WEBHOOK_SECRET)' },
+                        { in: 'header', name: 'x-request-id', required: false, schema: { type: 'string' }, description: 'Provider mercadopago: entra no manifesto assinado' },
+                        { in: 'query', name: 'data.id', required: false, schema: { type: 'string' }, description: 'Provider mercadopago: id do pagamento no PSP' }
                     ],
                     requestBody: {
                         required: true,
-                        content: { 'application/json': { schema: { type: 'object', required: ['provider_charge_id'], properties: {
-                            provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
-                        }}}}
+                        content: { 'application/json': { schema: { oneOf: [
+                            { title: 'fake', type: 'object', required: ['provider_charge_id'], properties: {
+                                provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
+                            }},
+                            { title: 'asaas', type: 'object', required: ['payment'], properties: {
+                                event: { type: 'string', example: 'PAYMENT_RECEIVED' },
+                                payment: { type: 'object', required: ['id'], properties: { id: { type: 'string', example: 'pay_080225913252' } } }
+                            }},
+                            { title: 'mercadopago', type: 'object', properties: {
+                                type: { type: 'string', example: 'payment' },
+                                data: { type: 'object', properties: { id: { type: 'string', example: '123456789' } } }
+                            }}
+                        ] } } }
                     },
                     responses: {
-                        200: { description: 'Pagamento confirmado (ou já processado)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
-                        400: { description: 'provider_charge_id ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        401: { description: 'Assinatura ausente, inválida, ou PIX_WEBHOOK_SECRET não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
+                        400: { description: 'Id da cobrança ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        401: { description: 'Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'Status da cobrança indisponível no provider — o PSP deve reenviar', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -1324,7 +1344,7 @@ const options = {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Hóspedes mais valiosos por lifetime value',
-                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita.',
+                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).',
                     parameters: [
                         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, example: 10 }, description: 'Quantidade de hóspedes a retornar (1–100). Default: 10.' }
                     ],
@@ -1336,7 +1356,6 @@ const options = {
                                 items: { type: 'object', properties: {
                                     guest_id:           { type: 'string', format: 'uuid' },
                                     full_name:          { type: 'string', example: 'Carlos Eduardo' },
-                                    email:              { type: 'string', format: 'email' },
                                     total_reservations: { type: 'integer', example: 3 },
                                     lifetime_value:     { type: 'number', example: 4200.00 },
                                     last_stay:          { type: 'string', format: 'date', example: '2026-06-20' }
@@ -1345,6 +1364,7 @@ const options = {
                         },
                         400: { description: 'limit fora do intervalo permitido (1–100)' },
                         401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
                         500: { description: 'Erro interno' }
                     }
                 }

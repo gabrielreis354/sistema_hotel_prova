@@ -32,6 +32,7 @@ ter uma pessoa aprovando componente dos outros.
 | `Card` | Contêiner de conteúdo, borda e fundo padrão | Como moldura de tudo. Borda, fundo e sombra dizem "objeto separado" — usar em todo bloco achata a hierarquia |
 | `Spinner` | Carregando, com `role="status"` e rótulo acessível | Espera longa em tela cheia — aí o certo é *skeleton*, que ainda não existe |
 | `EmptyState` | Lista vazia, com título, descrição e **ação sugerida** | Erro. Vazio e erro são coisas diferentes: vazio ensina o próximo passo, erro diz o que fazer para recuperar |
+| `ErrorState` | Erro com mensagem (`role="alert"`) e botão "Tentar de novo" | Erro de campo de formulário — isso é o `error` do `Field`. Vazio — isso é o `EmptyState` |
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
 
 ---
@@ -43,7 +44,6 @@ primeiro cria local; o segundo promove.
 
 | Falta | Quem vai precisar | Observação |
 |---|---|---|
-| `ErrorState` | todos | Hoje cada tela improvisa. `GuestsListPage` resolve com um `<button className="underline">` cru — é exatamente o que a regra 9 do `qa_checks.sh` aponta |
 | `StatusBadge` generalizado | reservas, governança | Ressalva registrada na SPEC-05 desde a Fase 1. Reserva e quarto têm status diferentes; a solução é generalizar, não duplicar |
 | `Table` | reservas, hóspedes, financeiro, B2B | Cabeçalho, coluna que some no mobile, estado vazio embutido |
 | `DateRangePicker` | reservas, rack, indicadores | Todo filtro por período do sistema |

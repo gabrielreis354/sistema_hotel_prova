@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Button, EmptyState, Input, Spinner } from '@hotel/ui';
+import { Button, EmptyState, ErrorState, Input, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { filterAccounts, openedAtLabel, sortAccounts } from './accountFilter.js';
-import { ErrorState } from './components/ErrorState.js';
 import { Notice } from './components/Notice.js';
 import { OpenAccountForm } from './components/OpenAccountForm.js';
 
