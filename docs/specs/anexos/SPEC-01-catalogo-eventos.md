@@ -65,7 +65,7 @@ Todo evento publicado pelo `core-service` tem este formato:
 | Objeto | Tipo | Função |
 |---|---|---|
 | `gesway.core.events` | *exchange* `topic`, durável | Onde o core publica. *Routing key* = `type` do evento |
-| `analytics.core-events` | fila *quorum*, durável | Fila do analytics, ligada com `#` (todos os eventos). `x-dead-letter-exchange = analytics.retry` |
+| `analytics.core-events` | fila *quorum*, durável | Fila do analytics, ligada com `#` (todos os eventos). `x-dead-letter-exchange = analytics.retry`. *Policy* `analytics-core-events`: `dead-letter-strategy = at-least-once` (com `overflow = reject-publish`, que ele exige) e `delivery-limit = 50`, bem acima do teto de 10 entregas do consumidor (§5.3) — quem manda para a DLQ é o consumidor, nunca o limite do broker |
 | `analytics.retry` → `analytics.core-events.retry` | *exchange* `fanout` + fila com `x-message-ttl = 10000` | Espera de 10 s entre tentativas. Ao expirar, a mensagem vai para `analytics.requeue` |
 | `analytics.requeue` | *exchange* `fanout` | Devolve a mensagem **só** à fila do analytics — não à *exchange* do core, que a entregaria de novo a outros consumidores |
 | `analytics.dlx` → `analytics.core-events.dlq` | *exchange* `fanout` + fila sem TTL | Fila de mensagens mortas. Fica até alguém olhar |

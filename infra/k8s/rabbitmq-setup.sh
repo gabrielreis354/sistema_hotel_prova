@@ -45,6 +45,18 @@ adm declare queue --name analytics.core-events.retry --type classic --durable tr
     --arguments '{"x-message-ttl":10000,"x-dead-letter-exchange":"analytics.requeue"}'
 adm declare queue --name analytics.core-events.dlq   --type quorum  --durable true --auto-delete false
 
+# Garantias de entrega da fila do analytics (§5.3), por POLICY: argumento de fila não muda numa fila
+# já declarada, e a policy vale também para a que já existe no volume, sem recriar.
+#   - dead-letter-strategy at-least-once: o padrão da quorum (at-most-once) descarta sem aviso a
+#     mensagem em nova tentativa se a fila de espera não a aceitar (nó reiniciando, alarme de memória
+#     ou disco). O at-least-once só vale com overflow reject-publish (repasse de 23/10).
+#   - delivery-limit explícito e bem acima do teto do consumidor (10 entregas, consumer.js): quem
+#     desvia para a DLQ é o consumidor, com 'rejected' no x-death. No limite do broker o dead-letter
+#     sai sem 'rejected', volta pela fila de espera e o RabbitMQ descarta o ciclo (repasse de 29/10).
+adm declare policy --name analytics-core-events --pattern '^analytics\.core-events$' \
+    --apply-to quorum_queues --priority 10 \
+    --definition '{"dead-letter-strategy":"at-least-once","overflow":"reject-publish","delivery-limit":50}'
+
 adm declare binding --source gesway.core.events --destination-type queue --destination analytics.core-events       --routing-key '#'
 adm declare binding --source analytics.retry    --destination-type queue --destination analytics.core-events.retry --routing-key ''
 adm declare binding --source analytics.requeue  --destination-type queue --destination analytics.core-events       --routing-key ''
