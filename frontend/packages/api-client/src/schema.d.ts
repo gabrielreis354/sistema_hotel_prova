@@ -3415,8 +3415,6 @@ export interface paths {
                             guest_id?: string;
                             /** @example Carlos Eduardo */
                             full_name?: string;
-                            /** Format: email */
-                            email?: string;
                             /** @example 3 */
                             total_reservations?: number;
                             /** @example 4200 */

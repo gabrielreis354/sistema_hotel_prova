@@ -69,7 +69,7 @@ describe('Analytics — segurança', () => {
         expect(res.status).toBe(401);
     });
 
-    // RT-51: o ranking é dado pessoal (nome e e-mail do hóspede com o valor gasto). Só o gerente
+    // RT-51: o ranking é dado pessoal (nome do hóspede com o valor gasto). Só o gerente
     // vê; a recepção continua com os outros indicadores.
     describe('top-guests é só do ADMIN (RT-51)', () => {
         let receptionistJwt;
@@ -91,5 +91,21 @@ describe('Analytics — segurança', () => {
             const res = await request(app).get('/analytics/occupancy').set('Authorization', `Bearer ${receptionistJwt}`);
             expect(res.status).toBe(200);
         });
+    });
+
+    // Minimização (LGPD art. 6º, III): a tela do ranking não mostra o e-mail, então ele não
+    // trafega. Quem precisar do contato abre a ficha do hóspede.
+    it('top-guests não devolve o e-mail do hóspede', async () => {
+        const res = await request(app).get('/analytics/top-guests').set('Authorization', `Bearer ${jwt}`);
+        expect(res.status).toBe(200);
+        expect(res.body.length).toBeGreaterThan(0);
+        for (const row of res.body) expect(row).not.toHaveProperty('email');
+    });
+
+    it('top-guests de outro hotel não traz os hóspedes deste', async () => {
+        const { jwt: otherJwt } = await registerAndLogin(app, { tenantName: 'Hotel Vizinho' });
+        const res = await request(app).get('/analytics/top-guests').set('Authorization', `Bearer ${otherJwt}`);
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual([]);
     });
 });

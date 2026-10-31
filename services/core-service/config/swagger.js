@@ -1356,7 +1356,6 @@ const options = {
                                 items: { type: 'object', properties: {
                                     guest_id:           { type: 'string', format: 'uuid' },
                                     full_name:          { type: 'string', example: 'Carlos Eduardo' },
-                                    email:              { type: 'string', format: 'email' },
                                     total_reservations: { type: 'integer', example: 3 },
                                     lifetime_value:     { type: 'number', example: 4200.00 },
                                     last_stay:          { type: 'string', format: 'date', example: '2026-06-20' }

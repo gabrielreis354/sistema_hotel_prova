@@ -5011,10 +5011,6 @@
                         "type": "string",
                         "example": "Carlos Eduardo"
                       },
-                      "email": {
-                        "type": "string",
-                        "format": "email"
-                      },
                       "total_reservations": {
                         "type": "integer",
                         "example": 3
