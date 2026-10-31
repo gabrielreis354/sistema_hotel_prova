@@ -73,8 +73,8 @@ Antes de cada PR, conferir o documento contra:
 | Ordem | Branch | Meta | Data | Situação | Próximo passo |
 |---|---|---|---|---|---|
 | 1 | `fix/tenant-fk-validation` | segurança | 29/10 | ✅ **Mergeada em 31/10** (PR #104, `4234915`), CI verde | Rodar em staging a consulta da pendência 1 de 24/10 |
-| 2 | `feature/analytics-service` @ `c533072` | M7-a | 29/10 | **Pronta.** Verificação estreita do delta 4: APROVADO (race 15 entregas → DLQ, stop com broker congelado em 4 s, db-down sem regressão); analytics 104 testes, core 1006; merge limpo com a develop | Autorizado em 31/10. Recebendo a develop (T-05.6 do Weslley, política do RabbitMQ, #104); conflito em KUBERNETES.md e conferência semântica com os `/analytics/*` da T-05.6 → PR → CI → merge. Pós-merge: `query_timeout` no cliente (🟢), `delivery-limit` (Weslley). **Decisão L-1 aberta** |
-| 3 | `feature/t051-quartos-categorias` @ `6501a9a` | M1 | 30/10 | develop integrada (989 testes, frontend 111/111, build ok); rotas isoladas em `routes/roomsRoutes.tsx` | Depois do merge da 1: segundo merge da develop + `pnpm gen:api` (passo a passo na retomada da branch) |
+| 2 | `feature/analytics-service` | M7-a | 29/10 | ✅ **Mergeada em 31/10** (PR #105, `fbe086d`), 8 checks do CI verdes | H.3 (cutover, `feature/analytics-cutover`, pg 5462 / rmq 5698) iniciada em 31/10; /analytics/internal-consumption fica no core até a decisão L-1 |
+| 3 | `feature/t051-quartos-categorias` @ `069a7a6` | M1 | 30/10 | 2º merge da develop (inclui o #104); api-client regenerado; mensagens por `code` ligadas ao tipo gerado; frontend 151 testes, core 1100 | Reauditoria delta em curso → autorização → PR → merge. Pendência: barra inferior do celular com 7 itens (AppShell, Gabriel) |
 | 4 | `feature/t052-reservas` @ `e3b54ea` | M2, M5-a | 30/10 | Ressalvas fechadas: backend 998 testes, frontend 115, E2E 49/0. Endpoint novo `GET /guests?q=&limit=`; estorno fora do comprovante; conta em linha do tempo com teste | Depois da 3: merge da develop + `pnpm gen:api` → **qa-redteam delta**, por causa do endpoint novo → merge |
 
 **Depois das 4 integrações:**
