@@ -96,15 +96,18 @@ ASAAS_API_KEY='$aact_hmlg_...'          # ASPAS SIMPLES obrigatórias aqui
 ASAAS_WEBHOOK_TOKEN=<string forte que VOCÊ inventa>
 ```
 
-> **As aspas simples são obrigatórias no `.env` do compose.** Sem elas, o compose lê
-> `$aact_hmlg_...` como uma variável que não existe e entrega a chave **vazia** ao backend: toda
-> reserva responde `503` com `ASAAS_API_KEY não configurado`. O compose avisa com
+> **As aspas simples são obrigatórias no `.env` do compose.** Sem elas, ou com aspas duplas, o
+> compose lê `$aact_hmlg_...` como uma variável que não existe e entrega ao backend a chave
+> **vazia** ou **truncada** (sobra só o que vem depois do nome da variável, como um `==` final).
+> Toda reserva responde `503`: `ASAAS_API_KEY não configurado` com a chave vazia, ou
+> `ASAAS_API_KEY precisa ser uma chave de sandbox` com a truncada. O compose avisa com
 > `The "aact_hmlg_..." variable is not set`. Confira com
 > `docker compose config | grep ASAAS_API_KEY`: a chave deve aparecer como `$$aact_hmlg_...`
 > (o `$$` é o `$` escapado, e o backend recebe um `$` só).
 
-Depois, `docker compose up -d --build backend` aplica a troca. O backend já publica a porta 3000
-em `127.0.0.1`, então o túnel da seção 5 funciona igual: `ngrok http 3000`.
+Depois, `docker compose up -d --build backend` aplica a troca. O backend publica a porta
+`BACKEND_HOST_PORT` (padrão 3000) em `127.0.0.1`, então o túnel da seção 5 funciona igual:
+`ngrok http 3000`, ou a porta que estiver no `BACKEND_HOST_PORT`.
 
 ## 5. Expor o webhook para o Asaas
 
