@@ -1,4 +1,5 @@
 import { UniqueConstraintError } from 'sequelize';
+import { ROOM_ERROR_CODES } from './roomErrors.js';
 
 /**
  * Traduz violação de índice único do Postgres em 409, não 500.
@@ -27,6 +28,13 @@ const MENSAGEM_POR_INDICE = {
     products_name_tenant_unique:          'Já existe um produto com esse nome'
 };
 
+// Code estável combinado com o frontend (roomErrors.js). Só os índices que já têm contrato
+// de code; os demais seguem só com `error`, como sempre.
+const CODE_POR_INDICE = {
+    room_categories_name_tenant_unique: ROOM_ERROR_CODES.CATEGORY_NAME_TAKEN,
+    rooms_number_tenant_unique:         ROOM_ERROR_CODES.ROOM_NUMBER_TAKEN
+};
+
 /**
  * @param {Error} error erro capturado no catch do controller
  * @param {import('express').Response} response
@@ -42,7 +50,7 @@ export default function uniqueConstraintConflict(error, response, mensagemGeneri
     // O driver pg entrega o nome do índice violado em `parent.constraint`.
     const indice = error.parent?.constraint;
 
-    return response
-        .status(409)
-        .json({ error: mensagemGenerica ?? MENSAGEM_POR_INDICE[indice] ?? 'Registro já existe' });
+    const body = { error: mensagemGenerica ?? MENSAGEM_POR_INDICE[indice] ?? 'Registro já existe' };
+    if (CODE_POR_INDICE[indice]) body.code = CODE_POR_INDICE[indice];
+    return response.status(409).json(body);
 }

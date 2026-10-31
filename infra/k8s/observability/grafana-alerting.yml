@@ -1,0 +1,80 @@
+# Alertas do Grafana (T-02.4, CA-01.4.f) — compartilhado pelo docker-compose e pelo k8s.
+# O catálogo de eventos (§5.3) pede alerta quando a fila de mensagens mortas recebe algo: a
+# mensagem não volta sozinha e o indicador do analytics fica sem aquele evento até alguém agir.
+# Sem contact point configurado, o alerta aparece em Alerting → Alert rules (estado Firing).
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: rabbitmq
+    folder: Gesway
+    interval: 1m
+    rules:
+      - uid: gesway-dlq-com-mensagens
+        title: Mensagens mortas na DLQ do analytics
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(rabbitmq_queue_messages{queue="analytics.core-events.dlq"})
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        # Sem dado = a fila não existe ou o Prometheus não alcança o broker; o alerta de
+        # broker fora cobre esse caso, então aqui não dispara.
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "{{ $values.A }} mensagem(ns) em analytics.core-events.dlq"
+          description: >-
+            O analytics recusou eventos do core (erro permanente ou 5 tentativas). Veja o
+            cabeçalho de erro no painel do RabbitMQ, corrija a causa e reprocesse à mão
+            (catálogo de eventos §5.3).
+        labels:
+          severity: warning
+          service: analytics
+
+      - uid: gesway-rabbitmq-fora
+        title: RabbitMQ sem coleta (broker fora ou Prometheus sem acesso)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: up{job="rabbitmq"}
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        # Sem dado = o Prometheus nem tem o alvo: trata como fora.
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: O Prometheus não alcança o RabbitMQ em rabbitmq:15692
+          description: >-
+            `up == 0` não separa broker fora de coleta falhando. Primeiro confira o broker
+            (pod/contêiner rabbitmq e `rabbitmq-diagnostics check_running`). Se ele estiver no
+            ar, a causa é a coleta: NetworkPolicy da porta 15692 ou o /metrics/per-object
+            passando do timeout do scrape — aí os eventos fluem normalmente. Com o broker fora
+            de fato, o core acumula eventos no outbox e o analytics para de atualizar; nada se
+            perde, o outbox reenvia quando o broker voltar.
+        labels:
+          severity: critical
+          service: rabbitmq

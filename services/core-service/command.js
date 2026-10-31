@@ -112,13 +112,34 @@ async function seed() {
     }
 }
 
+// Carga inicial das projeções do analytics (T-01.4/H.2, CA-01.4.j): grava no outbox o retrato atual
+// de todos os registros. Quem entrega é o publicador de sempre — o backend precisa estar no ar.
+async function outboxInitialLoad() {
+    const { default: sequelize } = await import('./database/connections/sequelize.js');
+    const { default: enqueueInitialLoad } = await import('./database/outboxInitialLoad.js');
+
+    try {
+        await sequelize.authenticate();
+        await enqueueInitialLoad(sequelize, { log: console.log });
+        console.log('✅ Carga inicial gravada no outbox. O publicador do backend entrega ao analytics.');
+    } catch (error) {
+        console.error('❌ Erro na carga inicial:', error.message);
+        process.exitCode = 1;
+    } finally {
+        await sequelize.close();
+    }
+}
+
 if (command === 'migrate') {
     migrate();
 } else if (command === 'seed') {
     seed();
+} else if (command === 'outbox-initial-load') {
+    outboxInitialLoad();
 } else {
     console.log('Uso:');
-    console.log('  node command.js migrate    — cria/atualiza todas as tabelas no banco de dados');
-    console.log('  node command.js seed       — popula o banco com dados de demonstração (idempotente)');
+    console.log('  node command.js migrate             — cria/atualiza todas as tabelas no banco de dados');
+    console.log('  node command.js seed                — popula o banco com dados de demonstração (idempotente)');
+    console.log('  node command.js outbox-initial-load — carga inicial do analytics: retrato de todos os registros no outbox');
     process.exit(1);
 }

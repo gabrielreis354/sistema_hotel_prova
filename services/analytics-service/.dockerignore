@@ -1,0 +1,21 @@
+node_modules/
+npm-debug.log*
+*.log
+
+# Variáveis de ambiente sensíveis
+.env
+.env.*
+!.env.example
+
+# Chaves JWT — nunca dentro da imagem (ADR-006). A pública entra por volume/secret em runtime.
+keys/
+
+# Testes (não executam em produção)
+tests/
+vitest.config.js
+coverage/
+
+.git/
+.vscode/
+.idea/
+*.md
