@@ -17,8 +17,8 @@ export interface ShareInput {
   key: string;
   label: string;
   count: number;
-  /** Valor em reais como o analytics devolve (`::float`). */
-  value: number;
+  /** Valor em reais como o analytics devolve: string DECIMAL desde a H.3 (número no core antigo). */
+  value: string | number;
 }
 
 export interface ShareRow {

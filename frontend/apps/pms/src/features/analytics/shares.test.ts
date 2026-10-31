@@ -34,6 +34,15 @@ describe('toShares', () => {
     expect(rows[0]!.share + rows[1]!.share).toBe(1);
   });
 
+  it('aceita a string DECIMAL do analytics-service (H.3)', () => {
+    const rows = toShares([
+      { key: 'PIX', label: 'PIX', count: 1, value: '500.00' },
+      { key: 'DINHEIRO', label: 'Dinheiro', count: 1, value: '300.00' },
+    ]);
+    expect(rows.map((r) => r.percent)).toEqual(['62,5%', '37,5%']);
+    expect(brl(rows[1]!.amount)).toBe('R$ 300,00');
+  });
+
   it('total zero não divide por zero', () => {
     const rows = toShares([{ key: 'a', label: 'a', count: 0, value: 0 }]);
     expect(rows[0]).toMatchObject({ share: 0, percent: '0,0%' });

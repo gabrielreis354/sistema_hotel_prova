@@ -62,12 +62,16 @@ export function IndicatorsPage() {
     if (!draftError) setPeriod(draft);
   }
 
-  const byMonth = (revenueByMonth.data?.realized?.by_month ?? []).map((m) => ({ month: m.month ?? '', total: m.total ?? 0 }));
+  // Em centavos já aqui: o total chega como string DECIMAL e a altura da barra precisa de número.
+  const byMonth = (revenueByMonth.data?.realized?.by_month ?? []).map((m) => ({
+    month: m.month ?? '',
+    total: decimalToCents(m.total ?? '0'),
+  }));
   const monthBars = fillMonths(monthWindow, byMonth).map((m) => ({
     key: m.month,
     label: monthLabel(m.month),
     value: m.total,
-    display: formatBRL(decimalToCents(m.total)),
+    display: formatBRL(m.total),
   }));
 
   const seasonBars = (seasonality.data ?? []).map((m) => ({
