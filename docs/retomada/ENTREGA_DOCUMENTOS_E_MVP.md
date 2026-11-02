@@ -1,7 +1,7 @@
 # Retomada — Entrega dos documentos e do MVP (até 10/12/2026)
 
 > **Leia isto primeiro ao retomar uma sessão.** Atualize ao fim de cada checkpoint.
-> **Último checkpoint:** 29/10/2026 (orquestrador, sessão do Gabriel)
+> **Último checkpoint:** 02/11/2026 (orquestrador, sessão do Gabriel). Pauta do encontro de 03/11 em `docs/delegacoes/pauta_ponto_controle_03nov2026.md`; reauditoria da t052 e qa-redteam da H.3 em curso
 > **Fontes:**
 > - `docs/PLANO_MVP_ATE_10DEZ2026.md`
 > - `docs/PAINEL_DE_ANDAMENTO_MVP.md`
@@ -89,8 +89,9 @@ Antes de cada PR, conferir o documento contra:
 - Merges das integrações.
 - PRs ao professor.
 
-**Na reunião de 03/11:**
+**Na reunião de 03/11** (pauta completa em `docs/delegacoes/pauta_ponto_controle_03nov2026.md`):
 - Decisões 5 a 7 do parecer; as propostas estão na resposta.
+- L-1, contrato da H.3, CLEANING → MAINTENANCE e diagrama do Doc 05.
 - Escopo do Weslley, a confirmar até 04/11.
 - Exposição de métricas por pessoa no Doc 08.
 
