@@ -22,3 +22,9 @@ Origem: auditoria `docs/qa/redteam_t056-indicadores_31out2026.md` (branch `featu
 
 ### ℹ️ Lembrete: fuso de `paid_at::date` (repasse de 26/10 ainda aberto)
 Continua igual na `develop` (`GetRevenueController.js:10,15`, `GetPaymentMixController.js:10`), e a T-05.6 agora mostra o problema no cartão "Recebido hoje". Ver `para_gabriel_26102026.md`.
+
+### 🟢 Atualização (31/10, reauditoria delta 2 da T-05.1): a barra do ADMIN chega a 7 abas, e "Usuários" fica inalcançável
+Origem: `docs/qa/redteam_t051-quartos-categorias_delta2_31out2026.md` (branch `feature/t051-quartos-categorias`). Não reprova a branch.
+**Onde:** `frontend/apps/pms/src/components/AppShell.tsx:49-65` (barra `fixed`, `flex` sem `overflow-x`, itens `flex-1`), que lê `routes/nav.ts`.
+**Cenário (Playwright, 375×812, login de ADMIN):** a T-05.1 acrescenta a aba Quartos, e a barra passa a mostrar "HojeReservasHóspedesQuartosComandaIndicadoresU". "Usuários" sai da tela. A barra é fixa e não rola, então o item **não pode ser tocado**, e o problema deixa de ser só visual.
+**Correção sugerida:** a mesma de cima, mas agora necessária: menu "Mais" com os itens excedentes, ou barra com rolagem horizontal e indicador de que há mais itens.

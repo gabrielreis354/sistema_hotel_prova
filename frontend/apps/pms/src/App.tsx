@@ -7,6 +7,7 @@ import { Placeholder } from './components/Placeholder.js';
 import { GuestsListPage } from './features/guests/GuestsListPage.js';
 import { GuestNewPage, GuestEditPage } from './features/guests/GuestFormPages.js';
 import { GuestDetailPage } from './features/guests/GuestDetailPage.js';
+import { roomsReadRoutes, roomsAdminRoutes } from './routes/roomsRoutes.js';
 import { AccountsListPage } from './features/accounts/AccountsListPage.js';
 import { AccountPage } from './features/accounts/AccountPage.js';
 import { IndicatorsPage } from './features/analytics/IndicatorsPage.js';
@@ -32,6 +33,8 @@ export function App() {
               <Route path="hospedes/novo" element={<GuestNewPage />} />
               <Route path="hospedes/:id" element={<GuestDetailPage />} />
               <Route path="hospedes/:id/editar" element={<GuestEditPage />} />
+              {/* Quartos e categorias: a recepção consulta (modo leitura), o admin altera. */}
+              {roomsReadRoutes}
             </Route>
 
             {/* Comanda: recepção, admin e garçom */}
@@ -47,6 +50,8 @@ export function App() {
                 path="config/usuarios"
                 element={<Placeholder title="Usuários" phase="Fase 1 — Configurações" />}
               />
+              {/* Escrita de quartos e categorias: espelha o requireRole('ADMIN') do backend. */}
+              {roomsAdminRoutes}
             </Route>
           </Route>
         </Route>

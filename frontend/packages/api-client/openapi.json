@@ -2685,6 +2685,32 @@
           "Categorias de Quarto"
         ],
         "summary": "Atualiza",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Atualização parcial: só os campos enviados mudam",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Standard"
+                  },
+                  "capacity": {
+                    "type": "integer",
+                    "example": 2
+                  },
+                  "price_per_night": {
+                    "type": "string",
+                    "example": "150.00",
+                    "description": "DECIMAL(10,2) como string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2976,7 +3002,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "Todos os campos são opcionais: só o que vier é alterado",
+                "description": "Todos os campos são opcionais: só o que vier é alterado. O PMS envia status só quando ele mudou",
                 "properties": {
                   "category_id": {
                     "type": "string",
@@ -3227,6 +3253,35 @@
           "Hóspedes"
         ],
         "summary": "Atualiza",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Atualização parcial: só os campos enviados mudam",
+                "properties": {
+                  "full_name": {
+                    "type": "string",
+                    "example": "Maria Oliveira"
+                  },
+                  "cpf": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "phone": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "email": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
