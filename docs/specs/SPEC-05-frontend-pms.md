@@ -76,17 +76,17 @@ Completar a interface do PMS até o nível de demonstração ao vivo na defesa, 
 
 ---
 
-### T-05.1 — Completar a Fase 1: quartos e categorias 🔲 *(~3 dias)*
+### T-05.1 — Completar a Fase 1: quartos e categorias 🟡 *(implementada em `feature/t051-quartos-categorias` em 21/10 — aguarda o qa-redteam e o merge)*
 
-Endpoints já existem: `/rooms`, `/room-categories`.
+Endpoints já existem: `/rooms`, `/room-categories`. Telas em `apps/pms/src/features/rooms/`; rotas `/quartos` e `/quartos/categorias` (listas, para ADMIN e RECEPTIONIST) e `/quartos/novo`, `/quartos/:id/editar`, `/quartos/categorias/nova`, `/quartos/categorias/:id/editar` (gate ADMIN). Evidência completa em `docs/historico_sessao/gabriel/t051_quartos_categorias_21102026.md`.
 
 **Critérios de aceitação**
-- [ ] **CA-05.1.a** — CRUD de categorias com capacidade e tarifa
-- [ ] **CA-05.1.b** — CRUD de quartos com número, andar, categoria e status
-- [ ] **CA-05.1.c** — Status do quarto exibido com **cor + rótulo**, nunca só cor
-- [ ] **CA-05.1.d** — Escrita restrita a `ADMIN`, refletindo o backend
-- [ ] **CA-05.1.e** — Estados de carregamento, vazio e erro em todas as telas
-- [ ] **CA-05.1.f** — Alvo de toque ≥ 48px nas ações usadas em mobile
+- [x] **CA-05.1.a** — CRUD de categorias com capacidade e tarifa — *evidência: categoria criada no navegador com diária digitada "1.234,56", que aparece como "R$ 1.234,56" na lista (via `parseBRLInput`/`formatBRL` de `@hotel/domain`); edição traz "1234,56" no campo; 409 de nome duplicado → "Já existe uma categoria com esse nome neste hotel. Use outro nome."; exclusão em dois passos — desde 24/10 sem trava no cliente: o 409 de categoria em uso vira "Esta categoria ainda tem quartos…"; diária acima de R$ 999.999,99 é recusada no formulário*
+- [x] **CA-05.1.b** — CRUD de quartos com número, andar, categoria e status — *evidência: quarto T51 criado, editado para Manutenção (gravado `MAINTENANCE` no banco e refletido na lista na volta) e excluído; 409 de número duplicado → "Já existe um quarto 101 neste hotel. Use outro número."; status no formulário limitado à máquina de estados (Ocupado e Limpeza desabilitados com motivo: são do check-in e do check-out). Desde 24/10 o PUT leva só o que mudou: corrigir o andar envia `{"floor":7}`, mudar o status envia `{"status":"MAINTENANCE"}`, salvar sem mudança não envia nada — o formulário não desfaz mais check-in/check-out feito em paralelo*
+- [x] **CA-05.1.c** — Status do quarto exibido com **cor + rótulo**, nunca só cor — *evidência: `StatusBadge` (ponto + rótulo) na lista e no seletor de status; o `StatusBadge` foi generalizado (`tone` + `label`) sem quebrar o uso por `status`*
+- [x] **CA-05.1.d** — Escrita restrita a `ADMIN`, refletindo o backend — *evidência: `recep1@aurora.example` vê as listas com a faixa "Modo consulta", "Novo quarto" desabilitado com `aria-describedby` para o motivo, 15 "Editar" desabilitados e nenhum link de edição; `/quartos/novo` digitado na URL redireciona para `/`*
+- [x] **CA-05.1.e** — Estados de carregamento, vazio e erro em todas as telas — *evidência: carregando ("Carregando quartos…"), vazio (com o próximo passo) e erro (com "Tentar de novo") forçados por interceptação no navegador e capturados; o cadastro de quarto sem categoria mostra "Cadastre uma categoria antes"; edição de registro apagado mostra "não encontrado"*
+- [x] **CA-05.1.f** — Alvo de toque ≥ 48px nas ações usadas em mobile — *evidência: medição em 375×812 de todo link, botão, campo e select visível nas listas e no formulário: nenhum abaixo de 48px; sem scroll horizontal*
 
 ---
 
@@ -275,11 +275,13 @@ Do `qa-redteam` nas Fases 0 e 1:
 |----------|--------|
 | Swagger sem schema de resposta em **82%** dos endpoints 2xx (51 de 62, medido em 09/09) — força `as unknown as` no cliente "tipado" | 🔲 Ver **SPEC-06 T-06.2** |
 | Ficha do hóspede baixa **todas** as reservas do tenant e filtra no cliente | 🔲 Ver **T-05.12** — é o mesmo defeito da lista de hóspedes |
-| `openapi.json` do `api-client` está defasado: 37 paths, sem `/products` | 🔲 Regenerar ao executar a T-06.2; cliente tipado hoje sai de spec antiga |
-| `StatusBadge` só cobre status de quarto; reserva ficará sem | 🟡 T-05.2 criou `ReservationStatusBadge` **local** em `features/reservations/components/` (o de quarto está sendo estendido na T-05.1). Promover para `packages/ui` quando o segundo módulo (T-05.3/T-05.4) precisar |
+| `openapi.json` do `api-client` está defasado: 37 paths, sem `/products` | ✅ Regenerado em 21/10 (T-05.1, commit `0a0b9b4`): 46 paths, com `/products` e `/accounts`. Regenerar de novo sempre que o Swagger mudar (`pnpm gen:api`). Em 24/10 (correção do qa-redteam, commit `75395a0`) os `PUT /rooms/{id}`, `PUT /room-categories/{id}` e `PUT /guests/{id}` ganharam `requestBody`, e os três `as never` saíram do front |
+| Trava "categoria em uso" só no cliente, baixando todos os quartos (qa-redteam T-05.1, 🟡-3) | ✅ 24/10: a tela não decide mais; quem recusa é o backend (409 em `fix/tenant-fk-validation`), com mensagem de balcão. A coluna "Quartos" da lista de categorias segue contando sobre a lista de quartos em cache e **deixa de ser completa com a paginação da T-06.10**; até lá precisa de um campo de contagem no backend |
+| `StatusBadge` só cobre status de quarto; reserva ficará sem | ✅ Generalizado em 21/10 (T-05.1): aceita `tone` (`StatusTone`) + `label`; a T-05.2 escolhe o tom de cada status de reserva |
 | **T-05.2** — `@hotel/domain` proibia `PENDING → CHECKED_IN`, mas o backend e o Swagger aceitam (`CheckInController`), e a recepção não tem endpoint de confirmar reserva | ✅ **Decisão do Gabriel em 24/10/2026: walk-in — `PENDING → CHECKED_IN` liberado** em `packages/domain/src/state-machines.ts`, com teste (commit `58e37b5`); a tela habilitou o check-in de reserva `PENDING` (`4755177`). Cancelamento continua só de `PENDING`/`CONFIRMED`. Pendente: atualizar o diagrama do CLAUDE.md §3 |
 | **T-05.2** — Nova reserva buscava hóspede sobre `GET /guests` inteiro (não havia busca no backend) | ✅ 29/10: `GET /guests?q=&limit=` no backend (ILIKE escapado, `tenant_id`, limite 10/20, testes em `tests/guests-search.test.js`) e o `GuestPicker` só consulta o servidor. **Continua na T-05.12:** a tela de hóspedes ainda lista o cadastro inteiro e filtra no cliente (sem `q` o contrato antigo foi mantido de propósito) |
 | **T-05.2** — CA-05.2.j: nenhum endpoint devolve consumo estornado com `deleted_by` | 🔲 Backend: expor itens excluídos (ADMIN/RECEPTIONIST) no bill da conta ou da reserva |
+| **T-05.2** — `ReservationStatusBadge` local em `features/reservations/components/` | 🔲 Trocar pelo `StatusBadge` generalizado do `@hotel/ui` (T-05.1) — pendência pós-merge |
 
 ---
 
@@ -317,3 +319,5 @@ Do `qa-redteam` nas Fases 0 e 1:
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Estado verificado em `App.tsx` — 4 rotas ainda são placeholder |
 | 2.0 | 09/09/2026 | Gabriel Reis Cunha | Absorve o levantamento `docs/frontend/REQUISITOS_TELAS_PMS_09set2026.md` (RT-01 a RT-62). Acrescenta o mapa RT → tarefa em §4, novos critérios nas tarefas T-05.2 a T-05.7, e quatro tarefas: **T-05.9** governança, **T-05.10** ficha de registro do hóspede (RF-055), **T-05.11** fechamento de caixa por turno (RF-056) e **T-05.12** busca global e listagens no servidor. Tarifas por período saíram para a **SPEC-07** por serem majoritariamente backend. Ressalva do Swagger atualizada de 79% para **82%**, remedida em 09/09, e registrada a defasagem do `openapi.json` do `api-client` |
+| 2.1 | 21/10/2026 | Agente executor (trilha do Gabriel) | T-05.1 implementada: CA-05.1.a–f marcados com evidência. Ressalvas do `openapi.json` defasado e do `StatusBadge` encerradas |
+| 2.2 | 24/10/2026 | Agente executor (trilha do Gabriel) | Correções do qa-redteam da T-05.1 (🟡-1 a 🟡-3): PUT parcial de quarto, `requestBody` dos três PUTs no Swagger, exclusão de categoria confiando no 409 |
