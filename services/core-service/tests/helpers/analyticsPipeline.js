@@ -103,13 +103,14 @@ export async function startPipeline() {
     child.stdout.on('data', (d) => { output += d; });
     child.stderr.on('data', (d) => { output += d; });
 
-    // Pronto = /health 200 (banco no ar e consumidor consumindo a fila).
+    // Pronto = consumidor consumindo a fila. O 200 do /health só diz que o banco está no ar: com o
+    // consumidor parado ele responde 200 DEGRADED (🟡-4 do qa-redteam da H.3), por isso olha o campo.
     const prazo = Date.now() + 30000;
     for (;;) {
         if (child.exitCode !== null) throw new Error(`analytics-service saiu antes de ficar pronto: ${output}`);
         try {
             const res = await fetch(`${analyticsUrl}/health`);
-            if (res.status === 200) break;
+            if (res.status === 200 && (await res.json()).consumer === 'consuming') break;
         } catch { /* ainda subindo */ }
         if (Date.now() > prazo) {
             child.kill('SIGKILL');

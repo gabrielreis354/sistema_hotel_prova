@@ -25,9 +25,13 @@ export default function createRouter({
 } = {}) {
     const router = Router();
 
-    // Saúde sem autenticação — healthcheck do contêiner e probe de prontidão do k8s (qa-redteam H.2, 🟢-3).
-    // Degradado (banco fora ou consumidor sem consumir) → 503: a projeção está parada. O erro do banco
-    // não vai na resposta (pode ter host e detalhe de conexão).
+    // Saúde sem autenticação — healthcheck do contêiner e probe de prontidão do k8s. Duas perguntas
+    // separadas (🟡-4 do qa-redteam da H.3):
+    // - prontidão = o banco do analytics responde. Fora → 503 DOWN, e o pod sai do Service;
+    // - consumidor sem consumir (broker fora, topologia ausente) → 200 DEGRADED, com o campo
+    //   `consumer`: as consultas seguem respondendo com a projeção defasada, em vez de a tela de
+    //   indicadores dar 502 em tudo enquanto o broker reinicia. O estado continua visível aqui.
+    // O erro do banco não vai na resposta (pode ter host e detalhe de conexão).
     router.get('/health', async (request, response) => {
         let database = 'up';
         try {
@@ -36,9 +40,11 @@ export default function createRouter({
             database = 'down';
         }
         const consumer = consumerStatus();
-        const pronto = database === 'up' && CONSUMIDOR_PRONTO.includes(consumer);
-        return response.status(pronto ? 200 : 503).json({
-            status: pronto ? 'OK' : 'DEGRADED',
+        let status = 'OK';
+        if (database !== 'up') status = 'DOWN';
+        else if (!CONSUMIDOR_PRONTO.includes(consumer)) status = 'DEGRADED';
+        return response.status(status === 'DOWN' ? 503 : 200).json({
+            status,
             database,
             consumer,
             timestamp: new Date().toISOString(),

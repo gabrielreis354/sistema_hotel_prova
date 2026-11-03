@@ -181,8 +181,11 @@ As probes seguem a regra da reauditoria delta da H.2 (🟢-D):
 
 | Probe | Caminho | Por quê |
 |---|---|---|
-| `readinessProbe` | `GET /health` (porta 3001) | Responde **503** com o banco do analytics fora ou o consumidor sem consumir (broker fora, topologia ausente). O pod sai do Service enquanto a projeção está parada — é o comportamento certo |
-| `livenessProbe` | **não usar `/health`** — só TCP na porta 3001, ou nenhuma | Com o broker ou o banco fora, `/health` dá 503 **de propósito**. Como liveness, o kubelet reiniciaria o pod em laço (`CrashLoopBackOff`) sem resolver nada: o consumidor já reconecta sozinho, com espera crescente |
+| `readinessProbe` | `GET /health` (porta 3001) | [revisão do Weslley] Responde **503 `DOWN`** só com o banco do analytics fora: aí o pod não consegue responder, e sai do Service. Consumidor sem consumir (broker fora, topologia ausente) responde **200 `DEGRADED`**, com o campo `consumer`: o pod segue no Service e a tela /indicadores lê a projeção defasada, em vez de dar 502 nos 7 blocos enquanto o broker reinicia (🟡-4 do qa-redteam da H.3) |
+| `livenessProbe` | **não usar `/health`** — só TCP na porta 3001, ou nenhuma | Com o banco fora, `/health` dá 503 **de propósito**. Como liveness, o kubelet reiniciaria o pod em laço (`CrashLoopBackOff`) sem resolver nada: o consumidor e o pool do banco já reconectam sozinhos |
+
+Para saber se a projeção está andando, olhe o `status`/`consumer` do `/health` (ou o `/analytics/health`
+autenticado). A métrica de atraso de consumo (CA-01.4.f) segue pendente.
 
 O `HEALTHCHECK` do `Dockerfile` do analytics usa o mesmo `/health`. No Docker Compose isso só marca o
 contêiner como `unhealthy` (não reinicia); em Swarm, um `unhealthy` **reinicia** a tarefa — no Swarm,

@@ -179,8 +179,10 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: RABBITMQ_ANALYTICS_PASSWORD
-          # /health é READINESS, não liveness (docs/infra/KUBERNETES.md, 🟢-D da H.2): com o broker ou o
-          # banco fora ele dá 503 de propósito — o pod sai do Service, sem reiniciar em laço.
+          # [revisão do Weslley] /health é READINESS, não liveness (docs/infra/KUBERNETES.md, 🟢-D da H.2).
+          # Desde o 🟡-4 do qa-redteam da H.3: 503 só com o banco do analytics fora (o pod sai do
+          # Service, sem reiniciar em laço). Broker fora → 200 DEGRADED: o pod segue no Service e os
+          # indicadores respondem com a projeção defasada, em vez de 502 na tela inteira.
           readinessProbe:
             httpGet:
               path: /health
