@@ -284,11 +284,31 @@ describe('POST /webhooks/pix — provider Asaas', () => {
         expect((await stateOf(booking)).payment.status).toBe('PENDING');
     });
 
-    it('cobrança desconhecida: 404 sem efeito', async () => {
+    it('cobrança desconhecida (ex.: órfã): 200 ignored — não alimenta a pausa da fila do Asaas', async () => {
+        useAsaas();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const res = await notify('pay_999999', { event: 'PAYMENT_OVERDUE' });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('ignored');
+        expect(JSON.stringify(warnSpy.mock.calls)).toContain('pay_999999');   // fica no log para reconciliar
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('evento autêntico que não é de cobrança (sem payment.id): 200 ignored', async () => {
         useAsaas();
         vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const res = await notify('pay_999999');
-        expect(res.status).toBe(404);
+        const res = await request(app).post('/webhooks/pix')
+            .set('asaas-access-token', WEBHOOK_TOKEN)
+            .send({ id: 'evt_conta', event: 'ACCOUNT_STATUS_UPDATED', account: { id: 'acc_1' } });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('ignored');
+    });
+
+    it('cobrança desconhecida SEM token continua 401 (o 200 ignored só vale depois da autenticação)', async () => {
+        useAsaas();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const res = await notify('pay_999999', { token: 'token-falso' });
+        expect(res.status).toBe(401);
     });
 
     it('isolamento: pagar a cobrança do hotel A não confirma nada do hotel B', async () => {

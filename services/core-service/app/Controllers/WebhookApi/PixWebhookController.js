@@ -54,8 +54,15 @@ export default async function PixWebhookController(request, response) {
             }
             throw verifyError;
         }
+        // Daqui para baixo a notificação JÁ é autêntica: o 404/400 não protege mais contra
+        // enumeração (quem chega aqui conhece o segredo). E todo PSP reenvia o que não recebe 2xx —
+        // o Asaas PAUSA a fila da conta inteira após 15 falhas seguidas, e a conta é uma só para
+        // todos os hotéis. Por isso o que não dá para processar responde 200 "ignored" com log,
+        // em vez de um erro que o PSP reenviaria para sempre (qa-redteam de 16/10, 🟡-2).
+        // O typeof continua barrando array/objeto antes da query (viraria IN() no Sequelize).
         if (!provider_charge_id || typeof provider_charge_id !== 'string') {
-            return response.status(400).json({ error: 'provider_charge_id obrigatório' });
+            console.warn('PixWebhookController: notificação autêntica sem id de cobrança — ignorada');
+            return response.status(200).json({ status: 'ignored' });
         }
 
         // A cobrança é única globalmente (id do PSP) — não há subdomínio no callback.
@@ -64,7 +71,7 @@ export default async function PixWebhookController(request, response) {
             // Cobrança sem pagamento no banco: típico de cobrança órfã (a reserva falhou depois
             // de a cobrança ser criada no PSP). Logado com o id para reconciliação.
             console.warn('PixWebhookController: notificação de cobrança sem pagamento no banco — reconciliar no PSP', provider_charge_id);
-            return response.status(404).json({ error: 'Cobrança não encontrada' });
+            return response.status(200).json({ status: 'ignored' });
         }
 
         // Idempotência: se já chegou a um estado terminal, não reprocessa.
