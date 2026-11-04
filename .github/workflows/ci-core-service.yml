@@ -16,6 +16,9 @@ on:
       - 'test/**'
     paths:
       - 'services/core-service/**'
+      # O teste do pipeline sobe o analytics-service e usa a topologia do RabbitMQ.
+      - 'services/analytics-service/**'
+      - 'infra/k8s/rabbitmq-setup.sh'
       - '.github/workflows/ci-core-service.yml'
   # Manual: o filtro de paths do GitHub ignora diffs com mais de 300 arquivos (merge ou
   # release grande); assim dá para rodar na mão quando isso acontecer.
@@ -24,6 +27,9 @@ on:
     branches: [main, develop]
     paths:
       - 'services/core-service/**'
+      # O teste do pipeline sobe o analytics-service e usa a topologia do RabbitMQ.
+      - 'services/analytics-service/**'
+      - 'infra/k8s/rabbitmq-setup.sh'
       - '.github/workflows/ci-core-service.yml'
 
 # Só leitura: o CI não escreve no repositório.
@@ -60,6 +66,23 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # Broker do pipeline dos indicadores (tests/analytics.test.js, T-01.4/H.3): o core publica o
+      # outbox, o analytics-service sobe como processo filho e consome. Sem ele os casos de ponta a
+      # ponta são pulados (describe.skip sem RABBITMQ_HOST).
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: hotel_broker
+          RABBITMQ_DEFAULT_PASS: rabbitmq_ci_password
+        ports:
+          - 5672:5672
+        # Intervalo de 10 s antes da 1ª sonda: um rabbitmq-diagnostics (root) que roda antes do
+        # broker iniciar cria o .erlang.cookie como root e o broker cai com 'eacces'.
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_running"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
 
     env:
       NODE_ENV: test
@@ -75,6 +98,15 @@ jobs:
       JWT_PRIVATE_KEY_PATH: tests/setup/.tmp-jwt-keys/jwt-private.pem
       JWT_PUBLIC_KEY_PATH: tests/setup/.tmp-jwt-keys/jwt-public.pem
       JWT_KEY_ID: core-ci
+      # Pipeline dos indicadores — mesmos nomes do .env.test.example; usuários e senhas criados
+      # pelo passo do rabbitmq-setup.sh abaixo. Senhas só de CI, sem valor fora do runner.
+      RABBITMQ_HOST: localhost
+      RABBITMQ_PORT: 5672
+      RABBITMQ_CORE_USER: hotel_core_publisher
+      RABBITMQ_CORE_PASSWORD: core_ci_password
+      RABBITMQ_ANALYTICS_USER: hotel_analytics_consumer
+      RABBITMQ_ANALYTICS_PASSWORD: analytics_ci_password
+      ANALYTICS_PIPELINE_PORT: 3063
 
     steps:
       - name: Checkout
@@ -85,9 +117,28 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: services/core-service/package-lock.json
+          cache-dependency-path: |
+            services/core-service/package-lock.json
+            services/analytics-service/package-lock.json
+
+      - name: Topologia e usuários do RabbitMQ (rabbitmq-setup.sh)
+        working-directory: .
+        run: |
+          docker exec -i \
+            -e RABBITMQ_DEFAULT_USER=hotel_broker \
+            -e RABBITMQ_DEFAULT_PASS=rabbitmq_ci_password \
+            -e RABBITMQ_CORE_USER="$RABBITMQ_CORE_USER" \
+            -e RABBITMQ_CORE_PASSWORD="$RABBITMQ_CORE_PASSWORD" \
+            -e RABBITMQ_ANALYTICS_USER="$RABBITMQ_ANALYTICS_USER" \
+            -e RABBITMQ_ANALYTICS_PASSWORD="$RABBITMQ_ANALYTICS_PASSWORD" \
+            "${{ job.services.rabbitmq.id }}" sh -s < infra/k8s/rabbitmq-setup.sh
 
       - name: Instalar dependências
+        run: npm ci
+
+      # O teste do pipeline sobe o analytics-service a partir de ../analytics-service.
+      - name: Instalar dependências do analytics-service
+        working-directory: services/analytics-service
         run: npm ci
 
       - name: Verificar sintaxe (ESM)
@@ -95,5 +146,14 @@ jobs:
           find app routes middlewares database -name '*.js' -print0 \
             | xargs -0 -n1 node --check
 
+      # O job tem broker: se o pipeline dos indicadores for pulado (variável RABBITMQ_* que deixou
+      # de chegar, renome no helper), os casos de dinheiro somem do CI com o job verde. A guarda
+      # falha nesse caso (qa-redteam de 04/11, 🟡-1).
       - name: Rodar testes + cobertura (falha abaixo de 60%)
-        run: npm run test:coverage
+        run: |
+          set -o pipefail
+          npm run test:coverage 2>&1 | tee vitest.out
+          if grep -q "pipeline PULADO" vitest.out; then
+            echo "::error::O pipeline dos indicadores foi PULADO com RabbitMQ no job. Confira as variáveis RABBITMQ_*."
+            exit 1
+          fi
