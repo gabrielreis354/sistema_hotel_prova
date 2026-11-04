@@ -113,3 +113,17 @@ um `timeout` sem `-k` deixou um vitest órfão consumindo a mesma fila. Com `tim
 
 **Merge da develop (04/11)** — `origin/develop@3e68e7f` (#106 T-05.1, #107, #108 T-05.2 com `GET /guests?q=`): sem
 conflito textual. `openapi.json`/`schema.d.ts` regenerados com `pnpm gen:api` (49 paths), idênticos ao merge automático.
+
+**🟢 do qa-redteam (04/11, aprovados pelo Gabriel)** — RED e GREEN em commits separados:
+
+| Achado | O que foi feito | Commits |
+|---|---|---|
+| 🟢-3 dia em UTC | `app/utils/hotelTimezone.js` com a mesma constante do core (`HOTEL_TIMEZONE`, D-68). "Hoje" calculado no processo (Intl) para occupancy, no-show e seasonality; `(paid_at AT TIME ZONE :timezone)::date` em revenue e payment-mix. Testes com relógio fixo em 22h30 de Brasília. Resolve o repasse D-8 da T-05.3 | `8601c3c`, `cf087c1` |
+| 🟢-4 listas sem teto | `?limit=` (padrão 50, máximo 100, como o `ListReservationController` do core; inválido → 400) em `revenue.unpaid` e nas 3 listas de alertas; `unpaid_total` e `totals` por `COUNT(*) OVER ()` | `50afa89`, `255f68b` |
+| 🟢-5 reserva sumia da receita por categoria | LEFT JOIN em quarto e categoria (tenant nos dois ON), agrupado por `category_id`; linha "Sem categoria" com null. Mutações M16 `r`/`rm`/`rc` rodadas contra o código commitado: 2, 1 e 1 falhas | `5502ca3`, `c2d2608` |
+| 🟢-6 prefixo do internal-consumption | `location = /analytics/internal-consumption` no compose e no k8s. `scripts/verificar_rotas_analytics_nginx.sh` (backends simulados) passou de 3 divergências para 13/13 | `d4710ac`, `e39737d` |
+
+Verificação final (04/11, depois dos 🟢 e do merge): analytics `Test Files 9 passed (9)` · `Tests 182 passed (182)` ·
+96.73% stmts (RabbitMQ real); core `Test Files 53 passed (53)` · `Tests 1135 passed | 1 skipped (1136)` · 86.16% stmts;
+frontend typecheck sem erro, 238 testes (38 + 200), build OK; qa_checks `⚠ 3 aviso(s). Nenhum erro bloqueante.`;
+`kubectl kustomize infra/k8s` 49 objetos; `scripts/verificar_rotas_analytics_nginx.sh` 13/13.

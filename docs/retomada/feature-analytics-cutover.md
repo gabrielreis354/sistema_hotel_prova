@@ -1,6 +1,6 @@
 # Retomada — H.3 cutover do analytics (feature/analytics-cutover)
 
-**Atualizado:** 03/11/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
+**Atualizado:** 04/11/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
 **Worktree:** /home/gabri/wt-h3 · **Portas:** PG 5462 · RabbitMQ 5698 · analytics do teste de pipeline 3063
 **Containers:** pg-h3, rmq-h3 — derrubados ao fim de cada sessão (comandos abaixo)
 
@@ -10,7 +10,7 @@ qa-redteam e abre).
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: 🟡-1, 🟡-3 e 🟡-4 do qa-redteam (`docs/qa/redteam_analytics-cutover-h3_02112026.md`) corrigidos; PR #109 em rascunho
+- Passo atual: 🟡-1/3/4 e 🟢-1/3/4/5/6 do qa-redteam corrigidos, develop mesclada; PR #109 em rascunho
 
 ## Feito
 - [x] 7 consultas no analytics-service sobre as projeções (`78db6a8`)
@@ -31,15 +31,14 @@ qa-redteam e abre).
   Repasse em `docs/qa/repasses/para_weslley_02112026.md`. Mergear antes ou junto da H.3
 - [ ] [revisão do Weslley] nginx (resolver e FQDN do k8s, exceção da regra 10 do qa_checks), readiness do
   `infra/k8s/analytics.yaml`; `./start.sh up` num minikube/kind (só houve `kubectl kustomize`)
-- [ ] Merge da develop (o PR #106, T-05.1, entrou) — depois, por ordem do coordenador
+- [x] Merge da develop `3e68e7f` (#106, #107, #108) — `56dcf11`, sem conflito
 - [ ] PR #109 sai do rascunho só com o aval do Gabriel
 
-## Pendências do qa-redteam (🟢, fora desta rodada)
-- 🟢-3: "hoje" e filtro por dia em UTC (`paid_at::date`, `CURRENT_DATE`) — usar `America/Sao_Paulo` ou o fuso do tenant
-- 🟢-4: `unpaid` e alertas sem limite (1,9 MB / 2,2 MB com 50 mil reservas por hotel; sem risco de timeout)
-- 🟢-5: revenue-by-category com INNER JOIN em quarto/categoria — a reserva some enquanto a projeção não chega
-  (o teste de isolamento prende esse comportamento hoje; ao trocar por LEFT JOIN, ajustar o caso)
-- 🟢-6: `location /analytics/internal-consumption` sem fronteira e sensível a caixa — `~* ^/analytics/internal-consumption/?$` ou documentar
+## 🟢 do qa-redteam — corrigidos em 04/11 (aprovados pelo Gabriel)
+- [x] 🟢-3 fuso do hotel (D-68, mesma constante do core) — `8601c3c` RED, `cf087c1` GREEN; resolve o repasse D-8 da T-05.3
+- [x] 🟢-4 teto em `unpaid` e nos alertas (`limit` 50/100, `unpaid_total`, `totals`) — `50afa89` RED, `255f68b` GREEN
+- [x] 🟢-5 "Sem categoria" na receita por categoria (LEFT JOIN, `category_id`) — `5502ca3` RED, `c2d2608` GREEN; M16 r/rm/rc seguem morrendo
+- [x] 🟢-6 `location = /analytics/internal-consumption` — `d4710ac` RED (`scripts/verificar_rotas_analytics_nginx.sh`), `e39737d` GREEN [revisão do Weslley]
 
 ## Decisões tomadas nesta frente
 - Contrato que muda em relação ao core (🟢-2, declarado na SPEC, CA-01.4.k):
@@ -49,6 +48,8 @@ qa-redteam e abre).
 - `/health`: 503 `DOWN` = banco fora (sai do Service); 200 `DEGRADED` = consumidor parado (segue pronto)
 - nginx: o analytics é resolvido a cada pedido; a regra 10 aceita só a diferença de DNS marcada com
   `# qa-allow: nginx-ambiente` [revisão do Weslley]
+- Contrato novo (🟢-3 a 🟢-5): `?limit=` (50/100) com `unpaid_total`/`totals`; `category_id` e linha "Sem
+  categoria"; dia do hotel em vez de UTC — declarado no CA-01.4.k da SPEC
 - Dinheiro sai como string decimal (`numeric(14,2)`); `occupancy_rate`, `pct`, `avg_nights` e
   `hours_pending` seguem número (não são dinheiro)
 - `revenue.unpaid` ganha `guest_id`, `paid` e `balance`; alerts ganham `guest_id` (D-1: abrir a ficha no core)
