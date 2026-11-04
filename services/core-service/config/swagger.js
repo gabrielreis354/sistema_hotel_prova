@@ -776,6 +776,10 @@ const options = {
                 },
                 put: {
                     tags: ['Categorias de Quarto'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam', properties: {
+                        name: { type: 'string', example: 'Standard' }, capacity: { type: 'integer', example: 2 },
+                        price_per_night: { type: 'string', example: '150.00', description: 'DECIMAL(10,2) como string' }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
                         400: { description: 'code INVALID_INPUT — Campo enviado fora das regras do cadastro (name, price_per_night, capacity)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
@@ -836,7 +840,7 @@ const options = {
                 },
                 put: {
                     tags: ['Quartos'], summary: 'Atualiza',
-                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Todos os campos são opcionais: só o que vier é alterado', properties: {
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Todos os campos são opcionais: só o que vier é alterado. O PMS envia status só quando ele mudou', properties: {
                         category_id: { type: 'string', format: 'uuid', description: 'Categoria do próprio hotel, não excluída' },
                         number: { type: 'string', example: '101', description: 'Texto não vazio; gravado aparado' },
                         floor: { type: 'integer', nullable: true, description: '0 é o térreo; null tira o andar' },
@@ -860,8 +864,16 @@ const options = {
             },
             '/guests': {
                 get: {
-                    tags: ['Hóspedes'], summary: 'Lista hóspedes',
-                    responses: { 200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Guest' } } } } } }
+                    tags: ['Hóspedes'], summary: 'Lista hóspedes ou busca por termo',
+                    description: 'Sem `q`: todos os hóspedes do hotel (contrato antigo). Com `q`: busca no servidor por nome, CPF, e-mail ou telefone (ILIKE com `%`, `_` e `\\` literais; termo numérico casa CPF/telefone só pelos dígitos), sempre no hotel do token, ordenada por nome, até `limit`. `q` vazio devolve lista vazia.',
+                    parameters: [
+                        { in: 'query', name: 'q', required: false, schema: { type: 'string', maxLength: 100 }, description: 'Termo de busca: parte do nome, CPF, e-mail ou telefone', example: 'ana' },
+                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 }, description: 'Só com `q`. Inválido cai no padrão; acima de 20 vira 20' }
+                    ],
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Guest' } } } } },
+                        400: { description: '`q` com mais de 100 caracteres', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 },
                 post: {
                     tags: ['Hóspedes'], summary: 'Cria hóspede',
@@ -887,6 +899,10 @@ const options = {
                 },
                 put: {
                     tags: ['Hóspedes'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam', properties: {
+                        full_name: { type: 'string', example: 'Maria Oliveira' }, cpf: { type: 'string', nullable: true },
+                        phone: { type: 'string', nullable: true }, email: { type: 'string', nullable: true }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },

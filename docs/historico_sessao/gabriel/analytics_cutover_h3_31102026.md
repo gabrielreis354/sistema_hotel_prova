@@ -89,3 +89,27 @@ Os demais casos (7 endpoints 200, KPIs, 401, RT-51, sem e-mail, isolamento entre
 | 5 | `internal-consumption` devolve `total` em float | 🟢 Baixa | Fora do escopo (rota do core, T-04.7). Alinhar ao NUMERIC quando a L-1 for decidida |
 | 6 | Card de alerta com link para a ficha (`guest_id`) | 🟢 Baixa | O frontend não consome `/analytics/alerts` hoje. Quando consumir, usar o `guest_id` (D-1) |
 | 7 | Barra de navegação inferior no celular | 🟢 Baixa | Observada no passeio: os 6 rótulos ficam colados em 375 px. É da T-05.x, não desta etapa |
+
+---
+
+### 2026-11-02 a 04 — correções do qa-redteam e merge da develop
+
+Relatório do qa-redteam: `docs/qa/redteam_analytics-cutover-h3_02112026.md` (APROVADO COM RESSALVAS, 0 🔴, 4 🟡, 6 🟢).
+
+| Achado | O que foi feito | Commit |
+|---|---|---|
+| 🟡-1 testes não pegavam regressão de tenant | Hotel vizinho com categoria, quartos, hóspede, reserva e pagamento reais + 6 referências cruzadas forjadas; totais exatos nas 7 rotas. Mutações M4, M5, M8, M9, M10, M15, M16 (cada filtro separado), M17 e M18 rodadas uma a uma: todas morrem. O código já estava certo (sem commit de GREEN) | `8156322` |
+| 🟢-1 RevPAR | 1000,00 em 3 noites, 1 de 3 quartos: ADR 333.33, RevPAR 111.11 (M24 dá 111.10 e morre) | `8156322` |
+| 🟡-4 readiness | `/health`: banco fora → 503 `DOWN`; consumidor parado → 200 `DEGRADED` com o campo `consumer`. RED `6be55cb` (4 falhas), GREEN `15d37ce`. O helper do pipeline do core passou a esperar `consumer === 'consuming'` | `6be55cb`, `15d37ce` |
+| 🟡-3 nginx | `resolver` + `set $analytics_upstream` + `proxy_pass` com variável (compose: 127.0.0.11; k8s: kube-dns e FQDN). Prova com backends de eco: 14 caminhos iguais antes e depois; analytics parado → config antiga sai com `[emerg] host not found`, a nova sobe e dá 502 só em `/analytics/*`. Regra 10 do qa_checks aceita só as linhas de DNS marcadas | `a4d7355` |
+| 🟢-2 contrato | As 4 mudanças declaradas no CA-01.4.k da SPEC e na retomada | `6b470c1` |
+| 🟡-2 CI | Do Weslley; a H.3 depende do merge da `feature/ci-analytics-service` (retomada) | — |
+
+Pendências novas: 🟢-3 (datas em UTC), 🟢-4 (listas sem limite), 🟢-5 (INNER JOIN em revenue-by-category), 🟢-6
+(prefixo do internal-consumption) — na retomada. [revisão do Weslley] nginx, regra 10 e readiness.
+
+Nota de ambiente: duas rodadas do analytics falharam em 4 testes de tempo do `rabbitmq.integration` (DLQ/backoff);
+um `timeout` sem `-k` deixou um vitest órfão consumindo a mesma fila. Com `timeout -k`, a rodada limpa passou 172/172.
+
+**Merge da develop (04/11)** — `origin/develop@3e68e7f` (#106 T-05.1, #107, #108 T-05.2 com `GET /guests?q=`): sem
+conflito textual. `openapi.json`/`schema.d.ts` regenerados com `pnpm gen:api` (49 paths), idênticos ao merge automático.

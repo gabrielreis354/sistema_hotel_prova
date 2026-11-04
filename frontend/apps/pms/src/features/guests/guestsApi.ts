@@ -18,6 +18,16 @@ export async function listGuests(): Promise<Guest[]> {
   return data ?? [];
 }
 
+/**
+ * Busca no servidor (`GET /guests?q=&limit=`): nome, CPF, e-mail ou telefone, sempre no hotel do
+ * token, no máximo `limit` resultados. Nunca baixa o cadastro para filtrar no navegador.
+ */
+export async function searchGuests(q: string, limit: number): Promise<Guest[]> {
+  const { data, error, response } = await api.GET('/guests', { params: { query: { q, limit } } });
+  if (error || !response.ok) throw new ApiError('Falha ao buscar hóspedes.', response.status);
+  return data ?? [];
+}
+
 export async function getGuest(id: string): Promise<Guest> {
   const { data, error, response } = await api.GET('/guests/{id}', {
     params: { path: { id } },
@@ -38,10 +48,8 @@ export async function createGuest(input: GuestInput): Promise<Guest> {
 export async function updateGuest(id: string, input: GuestInput): Promise<Guest> {
   const { data, error, response } = await api.PUT('/guests/{id}', {
     params: { path: { id } },
-    // O Swagger de PUT /guests/{id} não declara requestBody, então o cliente tipa o corpo
-    // como `never`. Cast pontual até o backend documentar o body (pendência registrada —
-    // fora do escopo da T-06.2, que cobre respostas, não corpos de requisição de PUT).
-    body: input as never,
+    // Corpo tipado pelo Swagger (requestBody do PUT /guests/{id} declarado na T-05.1).
+    body: input,
   });
   if (response.status === 409) {
     throw new ApiError('CPF ou e-mail já cadastrado para outro hóspede.', 409);
