@@ -109,7 +109,7 @@ export interface TodayAlerts {
 
 /**
  * Formato bruto dos alertas, com SÓ os campos que existem igual no core e no analytics-service
- * da H.3 (PR #109). `amount` (número hoje, string depois), `guest_phone` (sai) e `guest_id`
+ * da H.3 (PR 109). `amount` (número hoje, string depois), `guest_phone` (sai) e `guest_id`
  * (entra) ficam de fora de propósito: o nome, o quarto e o valor da chegada vêm da lista de
  * reservas do core. Assim o rebase sobre a H.3 não quebra o painel.
  */

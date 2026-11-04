@@ -17,6 +17,7 @@ import { roomsReadRoutes, roomsAdminRoutes } from './routes/roomsRoutes.js';
 import { AccountsListPage } from './features/accounts/AccountsListPage.js';
 import { AccountPage } from './features/accounts/AccountPage.js';
 import { IndicatorsPage } from './features/analytics/IndicatorsPage.js';
+import { TodayPage } from './features/today/index.js';
 
 /**
  * Árvore de rotas. Duas camadas de proteção: ProtectedRoute exige sessão; RequireRole exige
@@ -33,7 +34,7 @@ export function App() {
           <Route element={<AppShell />}>
             {/* Recepção e admin */}
             <Route element={<RequireRole allow={['ADMIN', 'RECEPTIONIST']} />}>
-              <Route index element={<Placeholder title="Hoje" phase="Fase 1 — Recepção" />} />
+              <Route index element={<TodayPage />} />
               <Route path="reservas" element={<ReservationsListPage />} />
               <Route path="hospedes" element={<GuestsListPage />} />
               <Route path="hospedes/novo" element={<GuestNewPage />} />
