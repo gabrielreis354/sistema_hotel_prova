@@ -14,10 +14,10 @@ import {
 export const TOP_GUESTS_LIMIT = 10;
 
 /**
- * Toda chave começa pelo usuário logado. O cache sobrevive ao logout, e sem isso o ADMIN de
- * outro hotel que entrasse na mesma aba em até 5 min veria os números (e o ranking de
- * hóspedes) do hotel anterior sem nova consulta. O usuário pertence a um hotel só, então a
- * chave também separa os hotéis.
+ * Toda chave começa pelo usuário logado. A troca de sessão já esvazia o cache (stores/auth.ts);
+ * a chave por usuário é a segunda camada, para o ranking de hóspedes de um hotel nunca
+ * aparecer para o usuário de outro, mesmo se algum caminho de troca de sessão deixar de limpar.
+ * O usuário pertence a um hotel só, então a chave também separa os hotéis.
  */
 export const analyticsKeys = {
   occupancy: (scope: string, date: string) => ['analytics', scope, 'occupancy', date] as const,
