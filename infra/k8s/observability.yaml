@@ -11,7 +11,7 @@
 # Armazenamento em emptyDir, de propósito: o cluster é criado e destruído a cada sessão
 # (ADR-004), então volume persistente só custaria disco sem guardar nada útil.
 #
-# Datasource, provider e dashboard do Grafana vêm de infra/k8s/observability/ via
+# Datasource, provider, dashboards e alertas do Grafana vêm de infra/k8s/observability/ via
 # configMapGenerator (kustomization.yaml) — os mesmos arquivos que o docker-compose monta.
 ---
 apiVersion: v1
@@ -225,6 +225,9 @@ spec:
             - name: dashboards
               mountPath: /var/lib/grafana/dashboards
               readOnly: true
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
+              readOnly: true
       volumes:
         - name: datasource
           configMap:
@@ -235,6 +238,9 @@ spec:
         - name: dashboards
           configMap:
             name: grafana-dashboards
+        - name: alerting
+          configMap:
+            name: grafana-alerting
 ---
 apiVersion: v1
 kind: Service

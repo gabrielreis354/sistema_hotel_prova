@@ -13,6 +13,9 @@ import GuestModel from '../../Models/GuestModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import findInTenant from '../../utils/findInTenant.js';
+
+const NO_AVAILABILITY = 'Sem disponibilidade na categoria para o período';
 
 /**
  * POST /public/:subdomain/bookings
@@ -71,7 +74,7 @@ export default async function CreateBookingController(request, response) {
             if (!conflict) { availableRoom = room; break; }
         }
         if (!availableRoom) {
-            return response.status(409).json({ error: 'Sem disponibilidade na categoria para o período' });
+            return response.status(409).json({ error: NO_AVAILABILITY });
         }
 
         // 4. Cálculo financeiro — a mesma função de toda reserva (CA-F.4), em centavos inteiros.
@@ -115,6 +118,20 @@ export default async function CreateBookingController(request, response) {
         // 6. Persistência atômica: hóspede + reserva + pivô + pagamento (a cobrança já existe no PSP)
         const transaction = await sequelize.transaction();
         try {
+            // O quarto escolhido é relido com FOR KEY SHARE antes de gravar (🟡-1 do qa-redteam de
+            // 30/10): a FK não enxerga deleted_at, e um quarto excluído entre a escolha e o
+            // INSERT virava reserva sem onde hospedar. A leitura espera a exclusão em curso e o
+            // quarto excluído some; a exclusão que chegar depois espera esta reserva (409, R-6).
+            // Para o hóspede é falta de disponibilidade, com a mensagem de sempre.
+            const lockedRoom = await findInTenant(RoomModel, availableRoom.id, tenant.id, { transaction, lock: transaction.LOCK.KEY_SHARE });
+            if (!lockedRoom) {
+                await transaction.rollback();
+                // Cobrança órfã no PSP, como no rollback abaixo: o id fica no log para o hotel
+                // reconciliar ou cancelar (o QR não chega ao hóspede).
+                console.error('CreateBookingController: quarto excluído antes da gravação — cobrança órfã no PSP', charge?.providerChargeId);
+                return response.status(409).json({ error: NO_AVAILABILITY });
+            }
+
             // find-or-create do hóspede (por CPF, senão por e-mail, dentro do tenant).
             // Só por e-mail deixava o CPF passar direto pro create: um hóspede já
             // cadastrado na recepção que reserva pelo site com um e-mail novo batia
@@ -206,7 +223,7 @@ export default async function CreateBookingController(request, response) {
                 }
             });
         } catch (txError) {
-            await transaction.rollback();
+            if (!transaction.finished) await transaction.rollback();
             // A cobrança já existe no PSP e a reserva não foi gravada: cobrança órfã. O QR não
             // chega ao hóspede (só sai depois do commit), mas o id fica no log para o hotel
             // reconciliar ou cancelar no PSP (qa-redteam de 12/10, 🟡-1).

@@ -185,6 +185,97 @@ Auditoria: `docs/qa/redteam_analytics-service-h2_delta_24out2026.md` (`8c74407`,
 - core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.73%, Functions 89.8%, Lines 86.7%
 - `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
 
+#### Correção da reauditoria delta 2 (31/10/2026)
+
+Auditoria: `docs/qa/redteam_analytics-service-h2_delta2_30out2026.md` (`9d797dd`, APROVADO COM RESSALVAS, 🟡-A2).
+
+- **RED (`c1c954c`)**: `rabbitmq.integration.test.js` — A falha com erro de conexão devagar (300 ms) e um
+  fluxo de mensagens novas (uma a cada 400 ms, por 12 s) falha na hora. Resultado: a DLQ não recebeu A em
+  150 s e o broker registrou *"Message dropped … dead letter cycle without reason 'rejected'"*.
+- **Primeira correção (só drenar, como o auditor indicou): insuficiente.** Com a drenagem, A passou a
+  decidir `nack` (log: "tentativa 1/5"), mas voltava sem `x-death` a cada ~570 ms e chegou de novo a 21
+  entregas. O `nack` se perdia porque a **conexão fechava logo depois dele**. Experimento: com 500 ms de
+  espera antes do fechamento, 31/31 chegaram à DLQ e A teve 8 entregas.
+- **Alternativa descartada:** devolver a mensagem que pausa com `nack` com requeue, sem fechar a conexão. No
+  RabbitMQ 4 esse `nack` **não soma no `x-delivery-count`**: o teto nunca disparava (223 entregas em 60 s).
+- **GREEN (`e097bfb`)**: a pausa drena e **fecha o canal antes da conexão** (`channel.close()` espera o
+  close-ok, e o broker liquida os ack/nack enviados). O `stop()` usa o mesmo fechamento. Resultado: 31/31 na
+  DLQ, A com `x-error-kind: transient` e 5 tentativas, cada mensagem com 8 entregas (3 pausas + 5
+  tentativas, abaixo do invariante 10 + 5), nenhum "dead letter cycle" no log do broker, em ~53 s. Teste
+  unitário novo (RED → GREEN): cancela o consumo, a mensagem lenta dá `nack`, o canal fecha antes da conexão.
+- **Catálogo 1.1.3 (`60ea9f8`)**: o §5.3 descreve a pausa que drena, o fechamento ordenado e o invariante.
+
+**Saída real** (PG 5460, RabbitMQ 5697, próprios, recriados antes da rodada):
+- analytics — `Test Files 7 passed (7)` · `Tests 95 passed (95)` · Statements **95.79%**, Branches 89.54%, Functions 90.24%, Lines 95.36%
+- core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.73%, Functions 89.8%, Lines 86.7%
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
+**Pendência:** se a drenagem estourar o prazo (`stopTimeoutMs`, 10 s), a mensagem que ainda não decidiu é
+devolvida sem `rejected` e soma uma entrega. Com o teto de 10 e o `delivery-limit` 20 há folga; o
+`delivery-limit` explícito alto (repasse ao Weslley) aumenta essa margem.
+
+#### Correção da reauditoria delta 3 (31/10/2026)
+
+Auditoria: `docs/qa/redteam_analytics-service-h2_delta3_31out2026.md` (`f3789e8`, APROVADO COM RESSALVAS,
+🟡-A3 e 🟢-E). A pendência anotada na rodada anterior (drenagem que estoura o prazo) era o 🟡-A3.
+
+- **RED (`4e9e5c0`)**:
+  - integração com RabbitMQ real, o cenário `race` do auditor: A leva 1500 ms, com `stopTimeoutMs` de
+    500 ms, contra um fluxo de F que pausam. A chegou à DLQ, mas depois de **23 entregas** (o invariante é
+    teto + 5 = 8);
+  - unitários: a pausa fechava antes de a mensagem lenta decidir; `stop()` com o broker mudo travou (8 s no
+    teste, 83 s na reprodução do auditor);
+  - `database-limits.test.js`: sem `pool.acquire` nem `statement_timeout`; no banco real, `SHOW
+    statement_timeout` deu `0` e `pg_sleep(6)` não foi cancelado.
+- **GREEN (`e3b6d82`)**:
+  - 🟡-A3: a drenagem da pausa usa um prazo próprio (`pauseDrainTimeoutMs`, 60 s), e o `stopTimeoutMs` fica
+    só no `stop()`. No Sequelize do analytics, cada operação tem limite: `pool.acquire` e `statement_timeout`
+    de 5 s, configuráveis por `POSTGRES_ACQUIRE_TIMEOUT_MS` e `POSTGRES_STATEMENT_TIMEOUT_MS` (valor inválido
+    cai no padrão). O `57014` continua fora de "banco fora" e conta como tentativa; o *acquire* estourado
+    segue como pool esgotado (pausa, com teto);
+  - 🟢-E: no `stop()`, o `cancel` e o fechamento ordenado esperam o broker no máximo 2 s
+    (`brokerTimeoutMs`). Estourado o prazo, a conexão é mandada fechar sem esperar e o laço preso no `close`
+    não é aguardado. Teste: canal e conexão que nunca respondem → `stop()` resolve em cerca de 4 s;
+  - resultado na integração: A na DLQ com `x-error-kind: transient` e 5 tentativas, nenhuma mensagem acima
+    de 8 entregas, 0 "dead letter cycle" no log do broker, em 54 s.
+- **Catálogo 1.1.4 (`ccf8eef`)**: o §5.3 traz o prazo próprio da drenagem, os limites de 5 s e o `57014`
+  como tentativa.
+
+**Saída real** (PG 5460 e RabbitMQ 5697, próprios, recriados; RabbitMQ com `--user rabbitmq`):
+- analytics — `Test Files 8 passed (8)` · `Tests 104 passed (104)` · Statements **95.66%**, Branches 90.47%, Functions 89.53%, Lines 95.52%
+- core — `Test Files 48 passed (48)` · `Tests 1006 passed | 1 skipped (1007)` · Statements **84.46%**, Branches 80.78%, Functions 89.8%, Lines 86.7%
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
+**Efeito colateral a saber:** o `statement_timeout` de 5 s vale para toda a conexão do analytics, inclusive
+as consultas HTTP de `/analytics` e o `migrate`. Hoje as duas ficam bem abaixo desse limite. Se a H.3 trouxer
+uma consulta pesada, o limite sobe por env.
+
+#### Merge da develop antes do PR (31/10/2026)
+
+A H.2 foi aprovada na verificação estreita do delta 4 (`c533072`). Trouxe a develop em `4234915`, com 85
+commits: #104 tenant-fk, T-05.6, *policy* do RabbitMQ e Grafana. Merge em `e26da09`.
+
+- **Conflito textual:** `docs/infra/KUBERNETES.md`. Os dois lados acrescentaram uma seção no mesmo ponto.
+  Ficaram as duas: a do migrate antes e depois do rollout (develop) e, em seguida, a de readiness e liveness
+  do analytics.
+- **T-05.6 × `/analytics/*`:** a H.2 não move nenhuma rota. As consultas continuam no core (só a H.3 passa a
+  rotear pelo nginx), e o analytics-service só serve `/health` e `/analytics/health`, que não está no nginx.
+  A tela da T-05.6 continua falando com o core, que já vem com o `top-guests` só para ADMIN e sem e-mail.
+  A projeção de hóspede do analytics não guarda e-mail, então a regra vale também quando a H.3 servir esse
+  dado: só falta repetir o `requireRole('ADMIN')`. Ficou como pendência da H.3.
+- **Policy do RabbitMQ × teto:** a fila do analytics tem `delivery-limit` 50 (*at-least-once*) e a DLQ tem
+  `-1`. O consumidor faz no máximo 15 entregas (10 pausas + 5 tentativas), então a margem passa de 5 para
+  35. O raciocínio continua certo. O §5.3 virou a versão 1.1.5 e o repasse do `delivery-limit` explícito
+  está resolvido (`28b74f9`). A integração com a topologia nova passou com 0 `dead letter cycle`.
+- **#104 × outbox:** os testes do outbox estão verdes (outbox 20, publisher 10, initial-load 6,
+  develop-flows 2), e o `tenant-fk-isolation` também (18).
+
+**Saída real** (PG 5460 e RabbitMQ 5697, próprios, com a topologia da develop):
+- analytics — `Test Files 8 passed (8)` · `Tests 104 passed (104)` · Statements 95.66%, Branches 90.47%, Functions 89.53%, Lines 95.52%
+- core — `Test Files 52 passed (52)` · `Tests 1117 passed | 1 skipped (1118)` · Statements 85.58%, Branches 82.38%, Functions 89.33%, Lines 87.42%
+- frontend (`apps/pms`) — `Test Files 8 passed (8)` · `Tests 101 passed (101)`; `typecheck` com saída 0
+- `qa_checks.sh` — `⚠ 3 aviso(s). Nenhum erro bloqueante.`
+
 #### Estimativa da H.3 (k, n, o, p, q)
 
 Cerca de **2 a 3 dias de trabalho humano**: as 7 consultas sobre as projeções (NUMERIC até a resposta,

@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Button, Spinner } from '@hotel/ui';
+import { Button, ErrorState, Spinner } from '@hotel/ui';
 import { decimalToCents, formatBRL } from '@hotel/domain';
 import type { Product } from '../accountsApi.js';
 import { CATEGORY_LABEL, menuCategories } from '../accountFilter.js';
-import { ErrorState } from './ErrorState.js';
 import { useMenu } from '../queries.js';
 
 /**

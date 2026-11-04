@@ -22,7 +22,8 @@ analyticsRouter.get('/alerts',               GetAlertsController);
 analyticsRouter.get('/seasonality',          GetSeasonalityController);
 analyticsRouter.get('/revenue-by-category',  GetRevenueByCategoryController);
 analyticsRouter.get('/payment-mix',          GetPaymentMixController);
-analyticsRouter.get('/top-guests',           GetTopGuestsController);
+// Ranking de hóspedes é dado pessoal (nome, e-mail e quanto gastou): só o gerente (RT-51).
+analyticsRouter.get('/top-guests',           requireRole('ADMIN'), GetTopGuestsController);
 
 // Cortesia, refeição de funcionário e perda: decisão de gestão, só ADMIN (CA-04.7.c).
 analyticsRouter.get('/internal-consumption', requireRole('ADMIN'), GetInternalConsumptionController);

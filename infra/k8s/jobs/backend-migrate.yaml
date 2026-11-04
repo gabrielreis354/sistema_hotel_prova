@@ -1,0 +1,53 @@
+# Job do `migrate` do core-service — criado pelo start.sh (`migrate` e `deploy`), fora do
+# kustomization: Job é imutável e cada execução precisa de um nome novo (generateName).
+#
+# Por que Job e não `kubectl exec deploy/backend` (repasse de 19/10, docs/qa/repasses/
+# para_weslley_19102026.md): desde a T-04.2 o migrate também migra DADOS (consumptions →
+# account_items). Ele precisa rodar com o código NOVO antes de os pods novos receberem
+# tráfego, e o exec só alcança os pods que já estão no ar. O start.sh troca __IMAGE__ pela
+# imagem do deploy.
+#
+# Label próprio (app: backend-migrate), nunca app: backend: o Service do backend seleciona
+# app: backend e mandaria requisição para este pod, que não serve HTTP.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: backend-migrate-
+  namespace: hotel-system
+  labels:
+    app: backend-migrate
+spec:
+  # Código 1 = reserva com dado inválido (a lista sai no log). Repetir não muda o resultado.
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  # Mantém o pod 1 h depois de terminar, para o `kubectl logs` da lista de reservas.
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: backend-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: __IMAGE__
+          imagePullPolicy: IfNotPresent
+          command: ["node", "command.js", "migrate"]
+          # O migrate só fala com o banco: a mesma configuração do backend, sem chaves JWT,
+          # MinIO, RabbitMQ ou token de métricas.
+          envFrom:
+            - configMapRef:
+                name: hotel-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "384Mi"

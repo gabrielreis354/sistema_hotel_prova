@@ -4,3 +4,4 @@ export { StatusBadge, type StatusBadgeProps } from './StatusBadge.js';
 export { Input, type InputProps } from './Input.js';
 export { Field, type FieldProps } from './Field.js';
 export { Card, Spinner, EmptyState } from './feedback.js';
+export { ErrorState } from './ErrorState.js';

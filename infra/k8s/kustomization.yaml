@@ -26,6 +26,10 @@ configMapGenerator:
   - name: grafana-dashboards
     files:
       - gesway-dashboard.json=observability/gesway-dashboard.json
+      - rabbitmq-dashboard.json=observability/rabbitmq-dashboard.json
+  - name: grafana-alerting
+    files:
+      - gesway.yml=observability/grafana-alerting.yml
   # Script de setup do MinIO (bucket + usuário de leitura que assina URLs — RNF-023), usado pelo
   # contêiner `setup` do pod do MinIO. O mesmo arquivo é montado pelo serviço minio-setup do compose.
   - name: minio-setup
