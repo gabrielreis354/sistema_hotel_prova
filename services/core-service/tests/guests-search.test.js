@@ -62,17 +62,17 @@ describe('GET /guests?q= — busca no servidor', () => {
         expect(resA.body.map((g) => g.full_name)).toEqual(['Ana Souza']);
         const resB = await search(jwtB, { q: 'Ana' });
         expect(resB.body.map((g) => g.full_name)).toEqual(['Ana Souza do Hotel B']);
-        expect(resB.body.every((g) => g.email !== 'ana@a.test')).toBe(true);
+        expect(resB.body.every((g) => g.full_name !== 'Ana Souza')).toBe(true);
     });
 
     it('% e _ são literais, não curingas', async () => {
         expect((await search(jwtA, { q: '100%' })).body.map((g) => g.full_name)).toEqual(['Desconto 100% Silva']);
         // Sem escape, '%' sozinho casaria com todo mundo.
-        expect((await search(jwtA, { q: '%' })).body.map((g) => g.full_name)).toEqual(['Desconto 100% Silva']);
+        expect((await search(jwtA, { q: '00%' })).body.map((g) => g.full_name)).toEqual(['Desconto 100% Silva']);
         // Sem escape, '_' casaria com qualquer caractere e traria JoaoXUnderscore.
         expect((await search(jwtA, { q: 'Joao_' })).body.map((g) => g.full_name)).toEqual(['Joao_Underscore']);
         // A barra invertida também é literal.
-        expect((await search(jwtA, { q: '\\' })).body).toEqual([]);
+        expect((await search(jwtA, { q: 'a\\b' })).body).toEqual([]);
     });
 
     it('limit padrão 10, máximo 20, ordenado por nome', async () => {
@@ -86,9 +86,49 @@ describe('GET /guests?q= — busca no servidor', () => {
         expect((await search(jwtA, { q: 'Massa', limit: 'abc' })).body).toHaveLength(10);
     });
 
-    it('q vazio ou só espaços devolve lista vazia, nunca o cadastro inteiro', async () => {
-        expect((await search(jwtA, { q: '' })).body).toEqual([]);
-        expect((await search(jwtA, { q: '   ' })).body).toEqual([]);
+    it('q com menos de 3 caracteres (depois do trim) é 400 INVALID_INPUT no campo q', async () => {
+        for (const q of ['', '   ', 'a', 'an', '  an  ']) {
+            const res = await search(jwtA, { q });
+            expect(res.status, `q=${JSON.stringify(q)}`).toBe(400);
+            expect(res.body).toMatchObject({ code: 'INVALID_INPUT', field: 'q' });
+            expect(typeof res.body.error).toBe('string');
+        }
+        expect((await search(jwtA, { q: 'ana' })).status).toBe(200);
+    });
+
+    it('devolve só o necessário para escolher: id, nome, CPF mascarado e telefone parcial', async () => {
+        const res = await search(jwtA, { q: 'ana sou' });
+        expect(res.body).toHaveLength(1);
+        const [ana] = res.body;
+        expect(Object.keys(ana).sort()).toEqual(['cpf', 'full_name', 'id', 'phone']);
+        expect(ana.cpf).toBe('***.456.789-**');
+        expect(ana.phone).toBe('****-1111');
+        const raw = JSON.stringify(res.body);
+        for (const secret of ['123.456.789-00', '12345678900', '98888', 'ana@a.test']) {
+            expect(raw).not.toContain(secret);
+        }
+    });
+
+    it('hóspede sem CPF ou telefone vem sem esses campos', async () => {
+        const semDocumento = (await search(jwtA, { q: 'Joao_' })).body[0];
+        expect(Object.keys(semDocumento).sort()).toEqual(['full_name', 'id']);
+    });
+
+    it('a busca por CPF e telefone completos filtra no servidor, mas a resposta é mascarada', async () => {
+        for (const q of ['123.456.789-00', '12345678900', '(11) 98888-1111', '11988881111']) {
+            const res = await search(jwtA, { q });
+            expect(res.body.map((g) => g.full_name), q).toEqual(['Ana Souza']);
+            expect(Object.keys(res.body[0]).sort()).toEqual(['cpf', 'full_name', 'id', 'phone']);
+        }
+    });
+
+    it('WAITER continua sem acesso (403)', async () => {
+        const email = `garcom_busca_${Date.now()}@test.com`;
+        await request(app).post('/users').set('Authorization', `Bearer ${jwtA}`)
+            .send({ name: 'Garçom', email, password: 'senha123', role: 'WAITER' });
+        const login = await request(app).post('/auth/login').send({ email, password: 'senha123' });
+        const waiter = login.body.token;
+        expect((await search(waiter, { q: 'ana' })).status).toBe(403);
     });
 
     it('sem q mantém o contrato antigo: todos os hóspedes do hotel', async () => {
