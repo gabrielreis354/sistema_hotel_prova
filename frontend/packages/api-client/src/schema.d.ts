@@ -3430,7 +3430,7 @@ export interface paths {
         };
         /**
          * Receita e ticket médio por categoria de quarto
-         * @description Categorias do quarto principal ordenadas pela receita das reservas não canceladas. ADMIN e RECEPTIONIST.
+         * @description Categorias do quarto principal ordenadas pela receita das reservas não canceladas. Reserva cujo quarto ou categoria ainda não chegou à projeção entra na linha "Sem categoria" (category_id e category null). ADMIN e RECEPTIONIST.
          */
         get: {
             parameters: {
@@ -3453,8 +3453,16 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            /** @example Suíte */
-                            category?: string;
+                            /**
+                             * Format: uuid
+                             * @description null = sem categoria
+                             */
+                            category_id?: string | null;
+                            /**
+                             * @description null = sem categoria
+                             * @example Suíte
+                             */
+                            category?: string | null;
                             /** @example 2 */
                             reservations?: number;
                             /** @example 5600.00 */

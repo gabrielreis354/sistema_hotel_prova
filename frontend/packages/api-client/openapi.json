@@ -5134,7 +5134,7 @@
           "Analytics"
         ],
         "summary": "Receita e ticket médio por categoria de quarto",
-        "description": "Categorias do quarto principal ordenadas pela receita das reservas não canceladas. ADMIN e RECEPTIONIST.",
+        "description": "Categorias do quarto principal ordenadas pela receita das reservas não canceladas. Reserva cujo quarto ou categoria ainda não chegou à projeção entra na linha \"Sem categoria\" (category_id e category null). ADMIN e RECEPTIONIST.",
         "security": [
           {
             "bearerAuth": []
@@ -5174,9 +5174,17 @@
                   "items": {
                     "type": "object",
                     "properties": {
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true,
+                        "description": "null = sem categoria"
+                      },
                       "category": {
                         "type": "string",
-                        "example": "Suíte"
+                        "nullable": true,
+                        "example": "Suíte",
+                        "description": "null = sem categoria"
                       },
                       "reservations": {
                         "type": "integer",

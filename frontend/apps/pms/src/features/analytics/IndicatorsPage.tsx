@@ -83,7 +83,7 @@ export function IndicatorsPage() {
   }));
 
   const categoryItems = (byCategory.data ?? []).map((c) => ({
-    key: c.category ?? '',
+    key: c.category_id ?? 'sem-categoria',
     label: c.category ?? 'Sem categoria',
     count: c.reservations ?? 0,
     value: c.revenue ?? 0,

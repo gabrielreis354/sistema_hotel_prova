@@ -137,11 +137,12 @@ const paths = {
     ),
     '/analytics/revenue-by-category': op(
         'Receita e ticket médio por categoria de quarto',
-        'Categorias do quarto principal ordenadas pela receita das reservas não canceladas. ADMIN e RECEPTIONIST.',
+        'Categorias do quarto principal ordenadas pela receita das reservas não canceladas. Reserva cujo quarto ou categoria ainda não chegou à projeção entra na linha "Sem categoria" (category_id e category null). ADMIN e RECEPTIONIST.',
         ok('Ranking de categorias', {
             type: 'array',
             items: { type: 'object', properties: {
-                category:     { type: 'string', example: 'Suíte' },
+                category_id:  { type: 'string', format: 'uuid', nullable: true, description: 'null = sem categoria' },
+                category:     { type: 'string', nullable: true, example: 'Suíte', description: 'null = sem categoria' },
                 reservations: { type: 'integer', example: 2 },
                 revenue:      MONEY('5600.00'),
                 avg_ticket:   MONEY('2800.00')
