@@ -343,8 +343,14 @@ fi
 # barreira entre a internet e o MinIO (RNF-023: só GET de PDF por URL pré-assinada pelo
 # usuário de leitura). Uma cópia afrouxada sem a outra reabriria o acesso em um dos ambientes.
 # Compara as diretivas, ignorando comentários, linhas vazias e indentação.
+# [revisão do Weslley] Única diferença aceita (🟡-3 da H.3): o DNS de cada ambiente — `resolver` e
+# `set $analytics_upstream` (Docker: 127.0.0.11 e nome curto; k8s: kube-dns e FQDN do Service), e só
+# com o marcador `# qa-allow: nginx-ambiente` no fim da linha. Qualquer outra diretiva continua igual.
 # ─────────────────────────────────────────────────────────────────────────────
-nginx_diretivas() { sed -E 's/^[[:space:]]+//; /^#/d; /^$/d'; }
+nginx_diretivas() {
+    sed -E 's/^[[:space:]]+//; /^#/d; /^$/d' \
+        | grep -vE '^(resolver|set \$analytics_upstream) [^;]+; +# qa-allow: nginx-ambiente$' || true
+}
 if [ -f docker/nginx/default.conf ] && [ -f infra/k8s/nginx.yaml ]; then
     k8s_conf=$(awk '/^  default\.conf: \|/{on=1; next} on && /^---/{exit} on' infra/k8s/nginx.yaml | nginx_diretivas)
     compose_conf=$(nginx_diretivas < docker/nginx/default.conf)
