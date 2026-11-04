@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { queryClient } from '../lib/queryClient.js';
+import { endSessionOnUnauthorized } from '../lib/api.js';
 import { useAuthStore } from './auth.js';
 import type { AuthUser } from '../types.js';
 
@@ -34,6 +35,24 @@ describe('sessão e cache do React Query', () => {
     useAuthStore.getState().setSession('token-b', adminHotelB);
 
     expect(queryClient.getQueryData(['guests'])).toBeUndefined();
+  });
+
+  it('401 com sessão aberta (token vencido) derruba a sessão e esvazia o cache', () => {
+    useAuthStore.getState().setSession('token-a', recepcaoHotelA);
+    queryClient.setQueryData(['guests'], [{ id: 'g-1', name: 'Hóspede do hotel A' }]);
+
+    endSessionOnUnauthorized();
+
+    expect(useAuthStore.getState().token).toBeNull();
+    expect(cachedQueries()).toBe(0);
+  });
+
+  it('401 sem sessão (credencial errada no login) não mexe em nada', () => {
+    queryClient.setQueryData(['login-hint'], 'qualquer');
+
+    endSessionOnUnauthorized();
+
+    expect(cachedQueries()).toBe(1);
   });
 
   it('renovar o token do mesmo usuário mantém o cache', () => {
