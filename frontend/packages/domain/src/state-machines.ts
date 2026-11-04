@@ -16,8 +16,10 @@ export const RESERVATION_STATUSES = [
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 
 // PENDING → CONFIRMED → CHECKED_IN → CHECKED_OUT ; PENDING/CONFIRMED → CANCELLED.
+// PENDING → CHECKED_IN: hóspede que chega ao balcão sem sinal pago (walk-in). Decisão do
+// Gabriel em 24/10/2026, alinhada ao backend (CheckInController aceita PENDING e CONFIRMED).
 const RESERVATION_TRANSITIONS: Record<ReservationStatus, ReservationStatus[]> = {
-  PENDING: ['CONFIRMED', 'CANCELLED'],
+  PENDING: ['CONFIRMED', 'CHECKED_IN', 'CANCELLED'],
   CONFIRMED: ['CHECKED_IN', 'CANCELLED'],
   CHECKED_IN: ['CHECKED_OUT'],
   CHECKED_OUT: [],

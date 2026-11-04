@@ -90,24 +90,25 @@ Endpoints já existem: `/rooms`, `/room-categories`. Telas em `apps/pms/src/feat
 
 ---
 
-### T-05.2 — Reservas e check-in/out 🔲 *(~4 dias)*
+### T-05.2 — Reservas e check-in/out 🟡 *(~4 dias)* — `feature/t052-reservas`: reauditoria delta APROVADA COM RESSALVAS (24/10), ressalvas tratadas em 29/10; integra depois da T-05.1 (ordem do parecer de 28/10)
 
 Endpoints já existem, incluindo `?from=&to=` e paginação (Fatia 0).
+Relatório: `docs/historico_sessao/gabriel/t052_reservas_21102026.md`. qa-redteam: APROVADO COM RESSALVAS (`docs/qa/redteam_t052-reservas_21out2026.md`), ressalvas tratadas em 24/10; reauditoria delta (`docs/qa/redteam_t052-reservas_delta_24out2026.md`) APROVADA COM RESSALVAS, tratadas em 29/10. Evidência E2E: Playwright em 1366×900 e 375×812, fluxo do balcão criar → check-in direto → conta (com estorno) → check-out, 49 PASS / 0 FAIL.
 
 **Critérios de aceitação**
-- [ ] **CA-05.2.a** — Lista de reservas com filtro por período e paginação
-- [ ] **CA-05.2.b** — Detalhe da reserva com hóspede, quarto, período e valores
-- [ ] **CA-05.2.c** — Criação de reserva usando `GET /rooms/available`
-- [ ] **CA-05.2.d** — Ações de check-in, check-out e cancelar, respeitando a máquina de estados
-- [ ] **CA-05.2.e** — Ação indisponível fica **desabilitada com motivo**, não some
-- [ ] **CA-05.2.f** — Conta da reserva (`/bill`) exibida no check-out
-- [ ] **CA-05.2.g** — Valores formatados via `@hotel/domain`, sem `Number()` direto
-- [ ] **CA-05.2.h** — Conta em **linha do tempo** — diárias, consumos, pagamentos e saldo — e não apenas o total (RT-15)
-- [ ] **CA-05.2.i** — Saldo da estadia visível no cabeçalho, em qualquer aba da reserva (RT-14)
-- [ ] **CA-05.2.j** — Estorno de consumo exibindo quem autorizou, a partir de `deleted_by` (RT-18)
-- [ ] **CA-05.2.k** — Comprovante da conta imprimível ou em PDF, para entregar no check-out (RT-20)
-- [ ] **CA-05.2.l** — No fluxo de nova reserva, hóspede reaproveitado da base por CPF, e-mail ou telefone, e cadastrável sem perder o que já foi preenchido (RT-23, RT-24)
-- [ ] **CA-05.2.m** — Valor da estadia e número de diárias exibidos **antes** de confirmar (RT-22)
+- [x] **CA-05.2.a** — Lista de reservas com filtro por período e paginação — `ReservationsListPage`: `?from=&to=&page=&limit=20` no servidor, período e página na URL; E2E "Página 1 de 2 · 31 reservas" e avanço para a página 2
+- [x] **CA-05.2.b** — Detalhe da reserva com hóspede, quarto, período e valores — `ReservationDetailPage`, aba Resumo (hóspede, quartos principal e extras, período, diárias, total, criada por)
+- [x] **CA-05.2.c** — Criação de reserva usando `GET /rooms/available` — `NewReservationPage` + `RoomPicker`; E2E cria reserva e cai no detalhe
+- [x] **CA-05.2.d** — Ações de check-in, check-out e cancelar, respeitando a máquina de estados — endpoints dedicados, allowlist de `@hotel/domain`; reserva criada no balcão (`PENDING`) faz check-in direto — **decisão do Gabriel de 24/10/2026** (`PENDING → CHECKED_IN` no `/domain`, alinhado ao `CheckInController`); E2E criar → check-in → Hospedado → check-out → Finalizada; 422 tratado
+- [x] **CA-05.2.e** — Ação indisponível fica **desabilitada com motivo**, não some — `reservationActions()` (testado) + `ActionSlot`; motivo visível e ligado por `aria-describedby`
+- [x] **CA-05.2.f** — Conta da reserva (`/bill`) exibida no check-out — "Fazer check-out" abre a aba Conta com a linha do tempo, o saldo em aberto e a confirmação
+- [x] **CA-05.2.g** — Valores formatados via `@hotel/domain`, sem `Number()` direto — `decimalToCents`/`formatBRL`/`multiplyCents`; grep sem `Number(`, `parseFloat` nem `as unknown as` no módulo
+- [x] **CA-05.2.h** — Conta em **linha do tempo** — diárias, consumos, pagamentos e saldo — e não apenas o total (RT-15) — `buildBillTimeline()` (testado): uma diária por noite, consumos e pagamentos em ordem, saldo correndo; pagamento não confirmado aparece sem abater
+- [x] **CA-05.2.i** — Saldo da estadia visível no cabeçalho, em qualquer aba da reserva (RT-14) — cabeçalho acima das abas, `balance_due` do servidor
+- [ ] **CA-05.2.j** — Estorno de consumo exibindo quem autorizou, a partir de `deleted_by` (RT-18) — ⛔ **bloqueado no backend**: nenhum endpoint devolve item excluído (`AccountItem` é *paranoid*; `/bill` e `/consumptions` só trazem os vivos)
+- [x] **CA-05.2.k** — Comprovante da conta imprimível ou em PDF, para entregar no check-out (RT-20) — `/reservas/:id/comprovante`, fora do AppShell, barra de ações `print:hidden`; PDF pelo "Salvar como PDF" do navegador
+- [x] **CA-05.2.l** — No fluxo de nova reserva, hóspede reaproveitado da base por CPF, e-mail ou telefone, e cadastrável sem perder o que já foi preenchido (RT-23, RT-24) — `GuestPicker`; cadastro inline pré-preenchido com o termo buscado; busca no servidor por `GET /guests?q=&limit=` (3+ caracteres, até 6 resultados, sempre por `tenant_id`) — o navegador não recebe mais o cadastro
+- [x] **CA-05.2.m** — Valor da estadia e número de diárias exibidos **antes** de confirmar (RT-22) — resumo lateral com tarifa × noites por quarto; E2E confere que o total gravado pelo servidor é igual à prévia
 
 ---
 
@@ -259,7 +260,7 @@ A tela que **não existe**. Camareira e supervisora não usam a tela da recepç�
 **Problema atual:** `GuestsListPage.tsx` chama `filterGuests(data, term)` — filtra **no cliente**, sobre o `findAll` inteiro. Funciona com 20 hóspedes e falha com 5.000.
 
 **Critérios de aceitação**
-- [ ] **CA-05.12.a** — Busca global por hóspede, reserva e quarto, aberta por atalho de teclado (RT-55)
+- [ ] **CA-05.12.a** — Busca global por hóspede, reserva e quarto, aberta por atalho de teclado (RT-55) — *a busca de hóspede no servidor (`GET /guests?q=&limit=`) já existe desde a T-05.2 (29/10); falta a busca global e a lista de hóspedes usá-la*
 - [ ] **CA-05.12.b** — Listagens paginadas, ordenadas e filtradas **no servidor** (RT-57)
 - [ ] **CA-05.12.c** — Nenhuma tela baixa a coleção inteira do tenant para filtrar na memória
 - [ ] **CA-05.12.d** — Atalhos de teclado nas telas de recepção (RT-56)
@@ -277,6 +278,10 @@ Do `qa-redteam` nas Fases 0 e 1:
 | `openapi.json` do `api-client` está defasado: 37 paths, sem `/products` | ✅ Regenerado em 21/10 (T-05.1, commit `0a0b9b4`): 46 paths, com `/products` e `/accounts`. Regenerar de novo sempre que o Swagger mudar (`pnpm gen:api`). Em 24/10 (correção do qa-redteam, commit `75395a0`) os `PUT /rooms/{id}`, `PUT /room-categories/{id}` e `PUT /guests/{id}` ganharam `requestBody`, e os três `as never` saíram do front |
 | Trava "categoria em uso" só no cliente, baixando todos os quartos (qa-redteam T-05.1, 🟡-3) | ✅ 24/10: a tela não decide mais; quem recusa é o backend (409 em `fix/tenant-fk-validation`), com mensagem de balcão. A coluna "Quartos" da lista de categorias segue contando sobre a lista de quartos em cache e **deixa de ser completa com a paginação da T-06.10**; até lá precisa de um campo de contagem no backend |
 | `StatusBadge` só cobre status de quarto; reserva ficará sem | ✅ Generalizado em 21/10 (T-05.1): aceita `tone` (`StatusTone`) + `label`; a T-05.2 escolhe o tom de cada status de reserva |
+| **T-05.2** — `@hotel/domain` proibia `PENDING → CHECKED_IN`, mas o backend e o Swagger aceitam (`CheckInController`), e a recepção não tem endpoint de confirmar reserva | ✅ **Decisão do Gabriel em 24/10/2026: walk-in — `PENDING → CHECKED_IN` liberado** em `packages/domain/src/state-machines.ts`, com teste (commit `58e37b5`); a tela habilitou o check-in de reserva `PENDING` (`4755177`). Cancelamento continua só de `PENDING`/`CONFIRMED`. Pendente: atualizar o diagrama do CLAUDE.md §3 |
+| **T-05.2** — Nova reserva buscava hóspede sobre `GET /guests` inteiro (não havia busca no backend) | ✅ 29/10: `GET /guests?q=&limit=` no backend (ILIKE escapado, `tenant_id`, limite 10/20, testes em `tests/guests-search.test.js`) e o `GuestPicker` só consulta o servidor. **Continua na T-05.12:** a tela de hóspedes ainda lista o cadastro inteiro e filtra no cliente (sem `q` o contrato antigo foi mantido de propósito) |
+| **T-05.2** — CA-05.2.j: nenhum endpoint devolve consumo estornado com `deleted_by` | 🔲 Backend: expor itens excluídos (ADMIN/RECEPTIONIST) no bill da conta ou da reserva |
+| **T-05.2** — `ReservationStatusBadge` local em `features/reservations/components/` | 🔲 Trocar pelo `StatusBadge` generalizado do `@hotel/ui` (T-05.1) — pendência pós-merge |
 
 ---
 
