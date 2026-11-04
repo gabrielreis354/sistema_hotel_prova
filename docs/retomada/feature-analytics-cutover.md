@@ -1,6 +1,6 @@
 # Retomada — H.3 cutover do analytics (feature/analytics-cutover)
 
-**Atualizado:** 31/10/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
+**Atualizado:** 03/11/2026 · **Por:** agente executor (Claude Opus 5.5), trilha do Gabriel
 **Worktree:** /home/gabri/wt-h3 · **Portas:** PG 5462 · RabbitMQ 5698 · analytics do teste de pipeline 3063
 **Containers:** pg-h3, rmq-h3 — derrubados ao fim de cada sessão (comandos abaixo)
 
@@ -10,7 +10,7 @@ qa-redteam e abre).
 
 ## Onde estou
 - Último commit: ver `git log -1` (cada passo é commitado e enviado)
-- Passo atual: H.3 entregue, aguardando qa-redteam do Gabriel
+- Passo atual: 🟡-1, 🟡-3 e 🟡-4 do qa-redteam (`docs/qa/redteam_analytics-cutover-h3_02112026.md`) corrigidos; PR #109 em rascunho
 
 ## Feito
 - [x] 7 consultas no analytics-service sobre as projeções (`78db6a8`)
@@ -20,11 +20,35 @@ qa-redteam e abre).
 - [x] suítes verdes com cobertura, qa_checks, compose real pelo nginx e Playwright (desktop e 375×812)
 - [x] SPEC marcada (k, n, o, p, q) e relatório `docs/historico_sessao/gabriel/analytics_cutover_h3_31102026.md`
 
+- [x] qa-redteam (02/11, APROVADO COM RESSALVAS) e correções (03/11):
+  - 🟡-1: hotel vizinho povoado + referências cruzadas, totais exatos nas 7 rotas; RevPAR 111.11 (🟢-1)
+  - 🟡-3: nginx com `resolver` + `proxy_pass` com variável — sobe com o analytics parado, 502 só em `/analytics/*`
+  - 🟡-4: `/health` 503 só com o banco fora; consumidor parado → 200 `DEGRADED`
+
 ## Falta
-- [ ] qa-redteam (Gabriel) e PR
-- [ ] [revisão do Weslley] infra; `./start.sh up` num minikube/kind (só houve `kubectl kustomize`)
+- [ ] **Depende do merge da `feature/ci-analytics-service` (Weslley, 🟡-2)**: sem ela o `analytics-queries.test.js`
+  não roda em CI nenhum, e o bloco do pipeline do `analytics.test.js` é pulado no CI do core (sem broker).
+  Repasse em `docs/qa/repasses/para_weslley_02112026.md`. Mergear antes ou junto da H.3
+- [ ] [revisão do Weslley] nginx (resolver e FQDN do k8s, exceção da regra 10 do qa_checks), readiness do
+  `infra/k8s/analytics.yaml`; `./start.sh up` num minikube/kind (só houve `kubectl kustomize`)
+- [ ] Merge da develop (o PR #106, T-05.1, entrou) — depois, por ordem do coordenador
+- [ ] PR #109 sai do rascunho só com o aval do Gabriel
+
+## Pendências do qa-redteam (🟢, fora desta rodada)
+- 🟢-3: "hoje" e filtro por dia em UTC (`paid_at::date`, `CURRENT_DATE`) — usar `America/Sao_Paulo` ou o fuso do tenant
+- 🟢-4: `unpaid` e alertas sem limite (1,9 MB / 2,2 MB com 50 mil reservas por hotel; sem risco de timeout)
+- 🟢-5: revenue-by-category com INNER JOIN em quarto/categoria — a reserva some enquanto a projeção não chega
+  (o teste de isolamento prende esse comportamento hoje; ao trocar por LEFT JOIN, ajustar o caso)
+- 🟢-6: `location /analytics/internal-consumption` sem fronteira e sensível a caixa — `~* ^/analytics/internal-consumption/?$` ou documentar
 
 ## Decisões tomadas nesta frente
+- Contrato que muda em relação ao core (🟢-2, declarado na SPEC, CA-01.4.k):
+  `hours_pending` vira número (1 casa); `cleaning_since` é o instante do evento que levou o quarto a
+  CLEANING, não `rooms.updated_at`; `guest` e `category` podem vir `null`; `unpaid` não lista reserva de
+  valor 0 nem paga por inteiro
+- `/health`: 503 `DOWN` = banco fora (sai do Service); 200 `DEGRADED` = consumidor parado (segue pronto)
+- nginx: o analytics é resolvido a cada pedido; a regra 10 aceita só a diferença de DNS marcada com
+  `# qa-allow: nginx-ambiente` [revisão do Weslley]
 - Dinheiro sai como string decimal (`numeric(14,2)`); `occupancy_rate`, `pct`, `avg_nights` e
   `hours_pending` seguem número (não são dinheiro)
 - `revenue.unpaid` ganha `guest_id`, `paid` e `balance`; alerts ganham `guest_id` (D-1: abrir a ficha no core)
