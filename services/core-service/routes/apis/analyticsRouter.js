@@ -2,30 +2,19 @@ import { Router } from 'express';
 import authMiddleware from '../../middlewares/auth.middleware.js';
 import tenantMiddleware from '../../middlewares/tenant.middleware.js';
 import { requireRole } from '../../middlewares/role.middleware.js';
-import GetRevenueController           from '../../app/Controllers/AnalyticsApi/GetRevenueController.js';
-import GetOccupancyController         from '../../app/Controllers/AnalyticsApi/GetOccupancyController.js';
-import GetAlertsController            from '../../app/Controllers/AnalyticsApi/GetAlertsController.js';
-import GetSeasonalityController       from '../../app/Controllers/AnalyticsApi/GetSeasonalityController.js';
-import GetRevenueByCategoryController from '../../app/Controllers/AnalyticsApi/GetRevenueByCategoryController.js';
-import GetPaymentMixController        from '../../app/Controllers/AnalyticsApi/GetPaymentMixController.js';
-import GetTopGuestsController         from '../../app/Controllers/AnalyticsApi/GetTopGuestsController.js';
 import GetInternalConsumptionController from '../../app/Controllers/AnalyticsApi/GetInternalConsumptionController.js';
 
+// Os 7 indicadores (revenue, occupancy, alerts, seasonality, revenue-by-category, payment-mix,
+// top-guests) saíram do core na T-01.4/H.3 (CA-01.4.o): o analytics-service os responde a partir das
+// projeções e o nginx roteia /analytics/ para ele. Aqui, essas rotas respondem 404.
+//
+// Fica só o consumo interno (T-04.7): ele lê accounts e account_items, que não geram evento no
+// catálogo — depende da decisão L-1 (evento novo ou manter no core no MVP). O nginx manda este
+// caminho específico para o core, antes da regra geral de /analytics/.
 const analyticsRouter = Router();
 
-// Analytics é dado gerencial — restrito a recepção/admin. Garçom (WAITER) não vê.
-analyticsRouter.use(authMiddleware, tenantMiddleware, requireRole('ADMIN', 'RECEPTIONIST'));
-
-analyticsRouter.get('/revenue',              GetRevenueController);
-analyticsRouter.get('/occupancy',            GetOccupancyController);
-analyticsRouter.get('/alerts',               GetAlertsController);
-analyticsRouter.get('/seasonality',          GetSeasonalityController);
-analyticsRouter.get('/revenue-by-category',  GetRevenueByCategoryController);
-analyticsRouter.get('/payment-mix',          GetPaymentMixController);
-// Ranking de hóspedes é dado pessoal (nome, e-mail e quanto gastou): só o gerente (RT-51).
-analyticsRouter.get('/top-guests',           requireRole('ADMIN'), GetTopGuestsController);
-
 // Cortesia, refeição de funcionário e perda: decisão de gestão, só ADMIN (CA-04.7.c).
-analyticsRouter.get('/internal-consumption', requireRole('ADMIN'), GetInternalConsumptionController);
+analyticsRouter.get('/internal-consumption',
+    authMiddleware, tenantMiddleware, requireRole('ADMIN'), GetInternalConsumptionController);
 
 export default analyticsRouter;

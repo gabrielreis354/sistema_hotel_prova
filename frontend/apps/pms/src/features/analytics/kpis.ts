@@ -15,10 +15,11 @@ export const NO_VALUE = '—';
 const percent = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /**
- * Os analytics agregam no SQL e devolvem número (`::float`), não a string DECIMAL. O
- * `decimalToCents` aceita os dois e arredonda para centavo antes de formatar.
+ * Desde a T-01.4/H.3 o analytics-service devolve dinheiro como string DECIMAL ("312.50"), sem
+ * `::float`. O `decimalToCents` aceita string e número (o core antigo devolvia número) e só
+ * arredonda o número — a string vira centavos exatos.
  */
-function money(value: number | undefined): string {
+function money(value: string | number | undefined): string {
   return value === undefined ? NO_VALUE : formatBRL(decimalToCents(value));
 }
 
@@ -26,7 +27,7 @@ function money(value: number | undefined): string {
  * Monta os cartões do dia a partir da ocupação e da receita recebida hoje. Cada fonte pode
  * faltar sozinha: a receita fora do ar não apaga a ocupação.
  */
-export function buildKpis(occupancy: Occupancy | undefined, revenueToday: number | undefined): Kpi[] {
+export function buildKpis(occupancy: Occupancy | undefined, revenueToday: string | number | undefined): Kpi[] {
   const rooms = occupancy?.total_rooms;
   const occupied = occupancy?.occupied;
   return [

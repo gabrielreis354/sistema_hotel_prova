@@ -326,51 +326,9 @@ describe('CA-06.13.g — o anulado continua visível, marcado', () => {
     });
 });
 
-describe('CA-06.13.f — a receita é a soma dos efetivados', () => {
-    let revJwt, revTenantId, revCat, revGuest;
-
-    beforeAll(async () => {
-        // Hotel próprio: os totais do analytics são do tenant inteiro.
-        ({ jwt: revJwt, tenantId: revTenantId } = await registerAndLogin(app, { tenantName: 'Hotel Receita Estorno' }));
-        revCat = await createCategory(app, revJwt, { name: 'Std Receita', price_per_night: 500 });
-        revGuest = await createGuest(app, revJwt, { full_name: 'Carla Receita', email: `carla_rev_${Date.now()}@test.com` });
-    });
-
-    it('revenue e payment-mix deixam de contar o anulado (e o excluído antigo)', async () => {
-        const { reservation } = await newReservation(revJwt, revCat, revGuest);
-        await pay({ reservation_id: reservation.id, amount: '300.00' }, revJwt);
-        const wrong = await pay({ reservation_id: reservation.id, amount: '100.00', method: 'CARTAO_CREDITO' }, revJwt);
-        await voidPayment(wrong.id, { reason: 'Maquininha errada' }, revJwt).expect(200);
-        // Exclusão lógica anterior à T-06.13 (D-2): também não é receita.
-        const legacy = await PaymentModel.create({
-            tenant_id: revTenantId, reservation_id: reservation.id, amount: '50.00', method: 'PIX', paid_at: new Date()
-        });
-        await legacy.destroy();
-
-        const revenue = await request(app).get('/analytics/revenue').set(auth(revJwt));
-        expect(revenue.status).toBe(200);
-        expect(revenue.body.realized.total).toBe(300);
-        expect(revenue.body.realized.by_month.reduce((acc, m) => acc + m.total, 0)).toBe(300);
-
-        const mix = await request(app).get('/analytics/payment-mix').set(auth(revJwt));
-        expect(mix.status).toBe(200);
-        expect(mix.body).toEqual([expect.objectContaining({ method: 'DINHEIRO', count: 1, total: 300, pct: 100 })]);
-    });
-
-    it('reserva cujo único pagamento foi anulado volta a aparecer como não paga', async () => {
-        const { reservation } = await newReservation(revJwt, revCat, revGuest);
-        // "Não paga" é reserva ativa (CONFIRMED ou CHECKED_IN) sem pagamento efetivado.
-        await sequelize.query(`UPDATE reservations SET status = 'CONFIRMED' WHERE id = :id`, { replacements: { id: reservation.id } });
-        const payment = await pay({ reservation_id: reservation.id, amount: '500.00' }, revJwt);
-
-        const before = await request(app).get('/analytics/revenue').set(auth(revJwt));
-        expect(before.body.unpaid.map((u) => u.reservation_id)).not.toContain(reservation.id);
-
-        await voidPayment(payment.id, { reason: 'Lançado na reserva errada' }, revJwt).expect(200);
-        const after = await request(app).get('/analytics/revenue').set(auth(revJwt));
-        expect(after.body.unpaid.map((u) => u.reservation_id)).toContain(reservation.id);
-    });
-});
+// CA-06.13.f (a receita é a soma dos efetivados; o anulado volta a aparecer como em aberto) saiu daqui
+// na T-01.4/H.3: /analytics/revenue e /analytics/payment-mix são do analytics-service. Os mesmos casos,
+// semeados por este core e lidos do analytics depois do consumo, estão em tests/analytics.test.js.
 
 describe('CA-06.13.e — banco: VOIDED no CHECK e trilha só no anulado', () => {
     const insert = (over) => sequelize.query(
@@ -451,8 +409,8 @@ describe('🟡-1 — PUT não tira da receita um pagamento PAID pela data', () =
             expect(res.status, `paid_at ${JSON.stringify(paid_at)}`).toBe(400);
         }
         expect((await raw(payment.id)).paid_at).toEqual(before);
-        const revenue = await request(app).get('/analytics/revenue').set(auth(pjJwt));
-        expect(revenue.body.realized.total).toBe(200);
+        // A receita realizada é "PAID com paid_at" (analytics, D-2): status e data intactos = receita intacta.
+        expect((await raw(payment.id)).status).toBe('PAID');
     });
 
     it('paid_at válido → 200 e grava a data nova', async () => {
@@ -625,55 +583,9 @@ describe('Reauditoria delta 🟢-3 — o model barra PAID sem paid_at antes do b
     });
 });
 
-describe('🟢-2 — no_show_risk considera só pagamento PAID', () => {
-    let nsJwt, nsTenantId, nsCat, nsGuest, today, tomorrow;
-
-    const confirmedToday = async () => {
-        roomNumber += 1;
-        const room = await createRoom(app, nsJwt, nsCat.id, { number: String(roomNumber) });
-        const reservation = await createReservation(app, nsJwt, nsGuest.id, room.id, { check_in_date: today, check_out_date: tomorrow });
-        if (!reservation.id) throw new Error(`reserva de hoje falhou: ${JSON.stringify(reservation)}`);
-        await sequelize.query(`UPDATE reservations SET status = 'CONFIRMED' WHERE id = :id`, { replacements: { id: reservation.id } });
-        return reservation;
-    };
-    const atRisk = async () => {
-        const res = await request(app).get('/analytics/alerts').set(auth(nsJwt));
-        expect(res.status).toBe(200);
-        return res.body.no_show_risk.map((r) => r.reservation_id);
-    };
-
-    beforeAll(async () => {
-        ({ jwt: nsJwt, tenantId: nsTenantId } = await registerAndLogin(app, { tenantName: 'Hotel No-show' }));
-        nsCat = await createCategory(app, nsJwt, { name: 'Std No-show', price_per_night: 150 });
-        nsGuest = await createGuest(app, nsJwt, { full_name: 'Eva Noshow', email: `eva_ns_${Date.now()}@test.com` });
-        // A data de hoje do banco, que é a que o alerta compara (CURRENT_DATE).
-        const [[dates]] = await sequelize.query(`SELECT CURRENT_DATE::text AS today, (CURRENT_DATE + 1)::text AS tomorrow`);
-        ({ today, tomorrow } = dates);
-    });
-
-    it('reserva de hoje com pagamento PAID não está em risco; estornado o pagamento, entra', async () => {
-        const reservation = await confirmedToday();
-        const payment = await pay({ reservation_id: reservation.id, amount: '150.00' }, nsJwt);
-        expect(await atRisk()).not.toContain(reservation.id);
-
-        await voidPayment(payment.id, { reason: 'Cartão recusado depois' }, nsJwt).expect(200);
-        expect(await atRisk()).toContain(reservation.id);
-    });
-
-    it('reserva de hoje só com cobrança PIX PENDING está em risco (D-3)', async () => {
-        const reservation = await confirmedToday();
-        await PaymentModel.create({
-            tenant_id: nsTenantId, reservation_id: reservation.id, amount: '50.00', method: 'PIX', status: 'PENDING',
-            kind: 'DEPOSIT', provider: 'fake', provider_charge_id: `charge_${randomUUID()}`, paid_at: null
-        });
-        expect(await atRisk()).toContain(reservation.id);
-    });
-
-    it('reserva de hoje sem pagamento nenhum está em risco', async () => {
-        const reservation = await confirmedToday();
-        expect(await atRisk()).toContain(reservation.id);
-    });
-});
+// O no_show_risk com pagamento estornado, com PIX PENDING e sem pagamento (🟢-2, D-3) saiu daqui na
+// T-01.4/H.3: /analytics/alerts é do analytics-service. Os mesmos casos, semeados por este core e
+// lidos do analytics depois do consumo, estão em tests/analytics.test.js (CA-01.4.p).
 
 describe('🟢-2 — corridas do estorno com outros caminhos que travam a reserva e a conta', () => {
     const openAccount = async (body) => {
