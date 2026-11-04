@@ -31,7 +31,7 @@ function fail(what: string, status: number): never {
   throw new ApiError(`Não foi possível carregar ${what}.`, status);
 }
 
-/** `date` vai sempre explícito: o padrão do backend é o dia em UTC, que depois das 21h já é amanhã. */
+/** `date` vai sempre explícito: a tela manda o dia que mostra. Sem ele, o backend usa o dia do hotel (D-68). */
 export async function getOccupancy(date: string): Promise<Occupancy> {
   const { data, response } = await api.GET('/analytics/occupancy', { params: { query: { date } } });
   if (!response.ok || !data) fail('a ocupação', response.status);

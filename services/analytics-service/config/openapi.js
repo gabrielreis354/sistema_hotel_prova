@@ -88,7 +88,7 @@ const paths = {
                 revpar:         MONEY('187.50', 'Revenue Per Available Room — ADR × ocupados / total')
             }
         }),
-        [{ in: 'query', name: 'date', required: false, schema: { type: 'string', format: 'date', example: '2026-06-27' }, description: 'Data de referência (YYYY-MM-DD). Padrão: hoje em UTC.' }]
+        [{ in: 'query', name: 'date', required: false, schema: { type: 'string', format: 'date', example: '2026-06-27' }, description: 'Data de referência (YYYY-MM-DD). Padrão: hoje no fuso do hotel (America/Sao_Paulo, D-68).' }]
     ),
     '/analytics/alerts': op(
         'Alertas operacionais do dia',

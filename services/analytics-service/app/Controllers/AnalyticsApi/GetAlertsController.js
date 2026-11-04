@@ -1,4 +1,5 @@
 import select from '../../utils/select.js';
+import { hotelToday } from '../../utils/hotelTimezone.js';
 
 /**
  * GET /analytics/alerts — o que pede atenção hoje (ADMIN e RECEPTIONIST).
@@ -7,6 +8,8 @@ import select from '../../utils/select.js';
  *   traz `guest_id` para a tela abrir a ficha do hóspede no core, que tem o contato e a permissão.
  * - D-3 refinada: risco de no-show = reserva CONFIRMED de hoje SEM NENHUM pagamento PAID — a
  *   garantia não chegou. Estornado (VOIDED), PIX pendente e excluído não contam como garantia.
+ * - "Hoje" é o dia do hotel (D-68): depois das 21h em Brasília, CURRENT_DATE (UTC) já olhava o
+ *   check-in de amanhã (🟢-3 do qa-redteam da H.3, repasse D-8 da T-05.3).
  * - "Em limpeza desde" vem do evento que levou o quarto a CLEANING (`proj_rooms.cleaning_since`),
  *   e não do `updated_at` do core, que mudava com qualquer edição do quarto.
  *
@@ -26,14 +29,14 @@ export default async function GetAlertsController(request, response) {
               LEFT JOIN proj_guests g ON g.id = r.guest_id AND g.tenant_id = :tenantId
              WHERE r.tenant_id = :tenantId
                AND r.status = 'CONFIRMED'
-               AND r.check_in_date = CURRENT_DATE
+               AND r.check_in_date = CAST(:today AS date)
                AND r.deleted_at IS NULL
                AND NOT EXISTS (
                    SELECT 1 FROM proj_payments p
                     WHERE p.tenant_id = :tenantId AND p.reservation_id = r.id
                       AND p.status = 'PAID' AND p.deleted_at IS NULL)
              ORDER BY r.total_amount DESC, r.id
-        `, { tenantId });
+        `, { tenantId, today: hotelToday() });
 
         const cleaningPending = await select(`
             SELECT rm.id             AS room_id,

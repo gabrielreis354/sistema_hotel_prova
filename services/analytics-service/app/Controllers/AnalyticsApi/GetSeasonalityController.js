@@ -1,5 +1,6 @@
 import select from '../../utils/select.js';
 import { readIntInRange } from '../../utils/queryParams.js';
+import { hotelToday } from '../../utils/hotelTimezone.js';
 
 /**
  * GET /analytics/seasonality — reservas, receita e noites médias por mês de check-in
@@ -20,10 +21,10 @@ export default async function GetSeasonalityController(request, response) {
              WHERE tenant_id = :tenantId
                AND status <> 'CANCELLED'
                AND deleted_at IS NULL
-               AND check_in_date >= DATE_TRUNC('month', NOW() - make_interval(months => :months))
+               AND check_in_date >= DATE_TRUNC('month', CAST(:today AS date) - make_interval(months => :months))
              GROUP BY 1
              ORDER BY 1
-        `, { tenantId, months });
+        `, { tenantId, months, today: hotelToday() });   // mês do hotel (D-68)
 
         return response.json(rows);
     } catch (error) {

@@ -3154,7 +3154,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Data de referência (YYYY-MM-DD). Padrão: hoje em UTC. */
+                    /** @description Data de referência (YYYY-MM-DD). Padrão: hoje no fuso do hotel (America/Sao_Paulo, D-68). */
                     date?: string;
                 };
                 header?: never;

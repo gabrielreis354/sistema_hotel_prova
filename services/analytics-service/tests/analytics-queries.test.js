@@ -6,6 +6,7 @@ import sequelize from '../database/connections/sequelize.js';
 import { parseEvent } from '../app/events/catalog.js';
 import applyEvent from '../app/events/applyEvent.js';
 import { envelope, toBuffer, truncateAll, tokenFor } from './helpers/events.js';
+import { hotelToday } from '../app/utils/hotelTimezone.js';
 
 // CA-01.4.k — as 7 consultas de indicadores respondem a partir das projeções, com as decisões do
 // catálogo §9.1: D-1 (sem telefone/e-mail), D-2 (VOIDED e excluído fora da receita), D-3 refinada
@@ -42,8 +43,8 @@ const pagamento = (over) => ({
 beforeAll(async () => {
     await truncateAll();
     [hotelA, hotelB] = [randomUUID(), randomUUID()];
-    const [{ hoje }] = await sequelize.query('SELECT CURRENT_DATE::text AS hoje', { type: 'SELECT' });
-    today = hoje;
+    // "Hoje" do hotel (D-68), como as consultas: em UTC, depois das 21h em Brasília, seria amanhã.
+    today = hotelToday();
     const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
     const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
 
@@ -160,7 +161,7 @@ describe('GET /analytics/revenue', () => {
         expect(body.realized.total).toBe('800.00');
         expect(body.realized.by_month).toHaveLength(1);
         expect(body.realized.by_month[0].total).toBe('800.00');
-        expect(body.realized.by_month[0].month).toBe(new Date().toISOString().slice(0, 7));
+        expect(body.realized.by_month[0].month).toBe(today.slice(0, 7));
     });
 
     it('esperado = reservas CONFIRMED e CHECKED_IN', async () => {
@@ -257,9 +258,9 @@ describe('GET /analytics/occupancy', () => {
         });
     });
 
-    it('sem date usa o dia de hoje em UTC, como o core', async () => {
+    it('sem date usa o dia de hoje do hotel (D-68)', async () => {
         const { body } = await get('/analytics/occupancy', admin());
-        expect(body.date).toBe(new Date().toISOString().slice(0, 10));
+        expect(body.date).toBe(today);
     });
 
     it('dia sem estadia: ADR e RevPAR zerados', async () => {
@@ -405,7 +406,7 @@ describe('Isolamento com o hotel vizinho povoado e referências cruzadas (CA-01.
 
     it('revenue: realizado, esperado e em aberto exatos; pagamento de B não abate saldo de A (M4) e nome de B não aparece (M5)', async () => {
         const { body } = await get('/analytics/revenue', comoVitima());
-        expect(body.realized).toEqual({ total: '50.00', by_month: [{ month: new Date().toISOString().slice(0, 7), total: '50.00' }] });
+        expect(body.realized).toEqual({ total: '50.00', by_month: [{ month: today.slice(0, 7), total: '50.00' }] });
         expect(body.expected).toEqual({ total: '700.00' });   // 100 + 200 + 400; PENDING fora
         expect(body.unpaid.map(({ reservation_id, guest_id, guest, amount, paid, balance }) =>
             ({ reservation_id, guest_id, guest, amount, paid, balance }))).toEqual([

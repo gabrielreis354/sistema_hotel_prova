@@ -1,5 +1,6 @@
 import select from '../../utils/select.js';
 import { readPeriod } from '../../utils/queryParams.js';
+import { HOTEL_TIMEZONE } from '../../utils/hotelTimezone.js';
 
 // Receita efetivada = só PAID; VOIDED (estorno, T-06.13) e excluído (D-2) não contam.
 const PAID = `status = 'PAID' AND paid_at IS NOT NULL AND deleted_at IS NULL`;
@@ -17,11 +18,12 @@ export default async function GetRevenueController(request, response) {
         const { error, period } = readPeriod(request.query);
         if (error) return response.status(400).json({ error });
 
-        const dateFilter = period ? 'AND paid_at::date BETWEEN :start AND :end' : '';
-        const replacements = { tenantId, start: period?.start ?? null, end: period?.end ?? null };
+        // Dia e mês do hotel (D-68): o pagamento das 22h em Brasília é de hoje, não de amanhã.
+        const dateFilter = period ? 'AND (paid_at AT TIME ZONE :timezone)::date BETWEEN :start AND :end' : '';
+        const replacements = { tenantId, timezone: HOTEL_TIMEZONE, start: period?.start ?? null, end: period?.end ?? null };
 
         const byMonth = await select(`
-            SELECT TO_CHAR(DATE_TRUNC('month', paid_at), 'YYYY-MM') AS month,
+            SELECT TO_CHAR(DATE_TRUNC('month', paid_at AT TIME ZONE :timezone), 'YYYY-MM') AS month,
                    SUM(amount)::numeric(14,2)                       AS total
               FROM proj_payments
              WHERE tenant_id = :tenantId AND ${PAID} ${dateFilter}

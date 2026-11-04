@@ -1,5 +1,6 @@
 import select from '../../utils/select.js';
 import { isCalendarDate } from '../../utils/queryParams.js';
+import { hotelToday } from '../../utils/hotelTimezone.js';
 
 /**
  * GET /analytics/occupancy — quartos por status, taxa de ocupação, ADR e RevPAR do dia
@@ -17,8 +18,8 @@ export default async function GetOccupancyController(request, response) {
         if (date !== undefined && !isCalendarDate(date)) {
             return response.status(400).json({ error: 'date deve ser uma data válida no formato YYYY-MM-DD' });
         }
-        // Mesmo padrão do core: sem `date`, o dia em UTC (a tela da T-05.6 manda sempre explícito).
-        const refDate = date ?? new Date().toISOString().slice(0, 10);
+        // Sem `date`, o dia do hotel (D-68), não o de UTC (🟢-3 do qa-redteam da H.3).
+        const refDate = date ?? hotelToday();
 
         const [row] = await select(`
             WITH quartos AS (

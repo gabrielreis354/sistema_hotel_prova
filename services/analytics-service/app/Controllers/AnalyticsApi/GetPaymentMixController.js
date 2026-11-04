@@ -1,5 +1,6 @@
 import select from '../../utils/select.js';
 import { readPeriod } from '../../utils/queryParams.js';
+import { HOTEL_TIMEZONE } from '../../utils/hotelTimezone.js';
 
 /**
  * GET /analytics/payment-mix — total e participação de cada meio de pagamento (ADMIN e
@@ -12,7 +13,8 @@ export default async function GetPaymentMixController(request, response) {
         const { error, period } = readPeriod(request.query);
         if (error) return response.status(400).json({ error });
 
-        const dateFilter = period ? 'AND paid_at::date BETWEEN :start AND :end' : '';
+        // Dia do hotel (D-68).
+        const dateFilter = period ? 'AND (paid_at AT TIME ZONE :timezone)::date BETWEEN :start AND :end' : '';
 
         const rows = await select(`
             SELECT method,
@@ -25,7 +27,7 @@ export default async function GetPaymentMixController(request, response) {
                ${dateFilter}
              GROUP BY method
              ORDER BY SUM(amount) DESC, method
-        `, { tenantId, start: period?.start ?? null, end: period?.end ?? null });
+        `, { tenantId, timezone: HOTEL_TIMEZONE, start: period?.start ?? null, end: period?.end ?? null });
 
         return response.json(rows);
     } catch (error) {
