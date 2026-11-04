@@ -252,7 +252,7 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 
 ---
 
-### T-06.13 — Estorno no lugar da exclusão de pagamento 🔲
+### T-06.13 — Estorno no lugar da exclusão de pagamento 🟡 implementada, aguardando qa-redteam
 
 **Origem:** decisão D-2 do catálogo de eventos (`docs/specs/anexos/SPEC-01-catalogo-eventos.md` §9.1,
 aprovada em 04/10/2026), pelo critério de mercado da rodada 3: **lançamento financeiro não se apaga —
@@ -289,27 +289,39 @@ Mercado Pago (`docs/qa/redteam_mercadopago-pix_delta_12out2026.md`, 🟡-4) most
 no PSP depois do `PAID` hoje é ignorado pelo *webhook*. Misturar as duas operações num status só
 confundiria o fechamento de caixa: anular um lançamento não tira dinheiro da gaveta; devolver, tira.
 
-**Critérios de aceitação**
-- [ ] **CA-06.13.a** — `DELETE /payments/:id` deixa de existir. A rota responde `405` com a indicação
-  do estorno, para que um cliente antigo não falhe em silêncio
-- [ ] **CA-06.13.b** — `POST /payments/:id/void` com `{ "reason": "..." }`: **motivo obrigatório**
+**Critérios de aceitação** *(implementados em 21/10/2026 na branch `fix/t0613-estorno-pagamento`,
+aguardando o `qa-redteam`; testes em `services/core-service/tests/payment-void.test.js`; relatório
+`docs/historico_sessao/gabriel/t0613_estorno_pagamento_21102026.md`. qa-redteam de 21/10: APROVADO COM RESSALVAS — `docs/qa/redteam_t0613-estorno-pagamento_21out2026.md`; 🟡-1, 🟢-1, 🟢-2 e 🟢-4 corrigidos na mesma branch, 🟢-3 (cliente tipado) depois do merge)*
+- [x] **CA-06.13.a** — `DELETE /payments/:id` deixa de existir. A rota responde `405` com a indicação
+  do estorno, para que um cliente antigo não falhe em silêncio *(405 com `Allow: GET, PUT` e o caminho
+  do `void`; atrás do `requireRole('ADMIN')`, então RECEPTIONIST recebe 403)*
+- [x] **CA-06.13.b** — `POST /payments/:id/void` com `{ "reason": "..." }`: **motivo obrigatório**
   (texto não vazio, `400` sem ele). Grava `status = 'VOIDED'`, `void_reason`, `voided_by` (usuário do
-  JWT) e `voided_at`. O pagamento original **permanece** — nenhum *soft delete*
-- [ ] **CA-06.13.c** — Transição em **allowlist** (regra do CLAUDE.md): só `PAID` vira `VOIDED`.
+  JWT) e `voided_at`. O pagamento original **permanece** — nenhum *soft delete* *(motivo aparado, até
+  500 caracteres; `voided_at` pelo relógio do banco)*
+- [x] **CA-06.13.c** — Transição em **allowlist** (regra do CLAUDE.md): só `PAID` vira `VOIDED`.
   `VOIDED` de novo → `409`. Pagamento de **PSP** (`provider` preenchido — PIX online) → `409`: tirar da
   receita um dinheiro que o PSP de fato recebeu exige devolução pelo PSP (`REFUNDED`, fora desta tarefa)
-- [ ] **CA-06.13.d** — Restrito a `ADMIN`: anular lançamento financeiro é decisão de gerência
-- [ ] **CA-06.13.e** — `status` ganha `VOIDED` no `CHECK` do banco (`db/schema.sql:208`) e no model;
+  *(`VOIDABLE_STATUSES` em `app/utils/paymentEnums.js`; estorno concorrente do mesmo pagamento → um 200
+  e um 409, pela trava `FOR UPDATE` do pagamento)*
+- [x] **CA-06.13.d** — Restrito a `ADMIN`: anular lançamento financeiro é decisão de gerência *(também o
+  `PUT`, repasse de 19/10, que deixou de alterar valor: estorno + novo lançamento)*
+- [x] **CA-06.13.e** — `status` ganha `VOIDED` no `CHECK` do banco (`db/schema.sql:208`) e no model;
   `void_reason`, `voided_by` (FK `users`) e `voided_at` nulos para todo pagamento não anulado
-- [ ] **CA-06.13.f** — **A receita é a soma dos efetivados.** As consultas de receita e de mix de
+  *(`payments_status_allowlist`, que substitui o `payments_status_check` automático do schema.sql
+  antigo; `payments_voided_has_trail`; `payments_trail_only_voided` — em `applyDbConstraints` e no schema.sql)*
+- [x] **CA-06.13.f** — **A receita é a soma dos efetivados.** As consultas de receita e de mix de
   pagamento passam a contar só `status = 'PAID'` — hoje contam `paid_at IS NOT NULL`, e um `VOIDED`
   mantém o `paid_at` (é histórico). A conta da reserva (`GetBillController`) já soma só `PAID` e não muda
-- [ ] **CA-06.13.g** — O pagamento anulado aparece na listagem e na conta da reserva, marcado como
-  anulado, com o motivo — o histórico é visível, não escondido
-- [ ] **CA-06.13.h** — Isolamento de tenant: pagamento de outro hotel → `404`
-- [ ] **CA-06.13.i** — Testes: estorno feliz; sem motivo → `400`; de novo → `409`; de PSP → `409`;
+  *(também `deleted_at IS NULL` — defeito D-2; `unpaid` e `no_show_risk` passam a considerar só
+  pagamento `PAID`, conforme D-3, para o estornado não esconder a reserva)*
+- [x] **CA-06.13.g** — O pagamento anulado aparece na listagem e na conta da reserva, marcado como
+  anulado, com o motivo — o histórico é visível, não escondido *(bill da reserva ganhou `void_reason` e `voided_at`)*
+- [x] **CA-06.13.h** — Isolamento de tenant: pagamento de outro hotel → `404`
+- [x] **CA-06.13.i** — Testes: estorno feliz; sem motivo → `400`; de novo → `409`; de PSP → `409`;
   `RECEPTIONIST` → `403`; outro tenant → `404`; a receita do analytics deixa de contar o anulado; o
-  `DELETE` responde `405`
+  `DELETE` responde `405` *(mais: conta PAID volta a CLOSED na mesma transação, estorno concorrente,
+  `PUT` de valor → 409, evento `payment.status_changed` PAID → VOIDED no outbox)*
 
 **Eventos (T-01.4).** O `payment.status_changed` do catálogo (§4.6) já cobre a transição — com
 `previous_status: "PAID"` e `status: "VOIDED"`. O catálogo ganha `VOIDED` na lista de status; a
@@ -367,3 +379,4 @@ vai consumir os anulados.
 | 1.2 | 21/09/2026 | Weslley (orquestrando Claude Code) | **T-06.4 concluída de verdade.** A versão de 16/09 declarava o critério 20 atendido, mas auditoria `qa-redteam` (`docs/qa/redteam_conformidade-t064-rabbitmq_21set2026.md`) achou 3 dos 6 CAs não cumpridos (seed não funcionava, sem instrução de frontend, README não documentava). Fechados com evidência real de execução — `docker compose up` com os 6 serviços `healthy`, `migrate` + `seed` rodando até o fim (incluindo um bug real de cast de `ENUM` no seed, só visível executando), login via API com usuário seedado. Relatório: `docs/historico_sessao/weslley/fecha_t064_docker_compose_seed_21set2026.md` |
 | 1.3 | 21/09/2026 | Weslley (orquestrando Claude Code) | **Ressalvas da reauditoria fechadas.** Uma segunda auditoria `qa-redteam`, desta vez rodando o `docker compose up` ela mesma em vez de confiar no relatório anterior (`docs/qa/redteam_docker-compose-rabbitmq_21set2026.md`), achou que a alegação de idempotência do seed era **falsa**: rodar 2x inseria +5 reservas `CANCELLED` a cada vez (a EXCLUDE não cobre linhas `CANCELLED`, de propósito, e por isso o `ON CONFLICT DO NOTHING` não tinha nada pra capturar ali). Corrigido com guard `NOT EXISTS`, verificado com 3 execuções seguidas dando o mesmo resultado. Também corrigidos: guard `ALLOW_SEED=1` contra rodar o seed sem querer num banco de produção real, README apontando pro `.env.example` errado, `BACKEND_HOST_PORT` não documentado, healthcheck do nginx trocado de `/healthz` (estático) para `/health` (real). Relatório: `docs/historico_sessao/weslley/fecha_t064_ressalvas_reauditoria_21set2026.md` |
 | 1.4 | 07/10/2026 | Sirlande (orquestrando Claude Code) | **T-06.3 e T-06.6 concluídas** — revisão do dono e merge do PR #82, com um 🔴 novo corrigido antes (seed quebrado pelos índices parciais). Acrescenta **T-06.12** (dado pessoal em `console.error`), decisão D-3 da revisão. Estado do cabeçalho atualizado: estava parado em 16/09 |
+| 1.5 | 21/10/2026 | Gabriel (orquestrando Claude Code) | **T-06.13 implementada**, aguardando `qa-redteam`: `POST /payments/:id/void` (só ADMIN, motivo obrigatório, allowlist só `PAID → VOIDED`, PSP → 409), `DELETE` → 405, `PUT` só ADMIN e sem alterar valor, CHECKs de status e trilha no banco, receita e mix só `PAID`. Relatório: `docs/historico_sessao/gabriel/t0613_estorno_pagamento_21102026.md` |

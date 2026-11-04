@@ -1,6 +1,9 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import { PRODUCT_CATEGORIES } from '../app/utils/productCategories.js';
 import { VALID_ROLES } from '../app/utils/roles.js';
+import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../app/utils/accountEnums.js';
+import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
+import { ROOM_STATUSES } from '../app/utils/roomRules.js';
 
 const options = {
     definition: {
@@ -62,6 +65,106 @@ const options = {
                         price:       { type: 'string', example: '12.00', description: 'DECIMAL(10,2) serializado como string' },
                         category:    { type: 'string', enum: PRODUCT_CATEGORIES, example: 'DRINK' },
                         active:      { type: 'boolean', example: true }
+                    }
+                },
+                // Comanda (SPEC-04). Sem hóspede nem reserva embutidos: o garçom também lê (LGPD).
+                Account: {
+                    type: 'object',
+                    properties: {
+                        id:              { type: 'string', format: 'uuid' },
+                        tenant_id:       { type: 'string', format: 'uuid' },
+                        type:            { type: 'string', enum: ACCOUNT_TYPES, example: 'TABLE' },
+                        status:          { type: 'string', enum: ACCOUNT_STATUSES, example: 'OPEN' },
+                        reservation_id:  { type: 'string', format: 'uuid', nullable: true, description: 'Só em conta ROOM' },
+                        room_id:         { type: 'string', format: 'uuid', nullable: true },
+                        guest_id:        { type: 'string', format: 'uuid', nullable: true, description: 'Nulo em TABLE e INTERNAL' },
+                        label:           { type: 'string', example: 'Mesa 5' },
+                        charges_lodging: { type: 'boolean', description: 'Esta conta carrega a diária do quarto (RN-005). Sempre false fora de ROOM' },
+                        opened_at:       { type: 'string', format: 'date-time' },
+                        closed_at:       { type: 'string', format: 'date-time', nullable: true },
+                        closed_room_charges: { type: 'string', nullable: true, example: '600.00', description: 'Diária gravada no fechamento (D-39). Nula na conta aberta' },
+                        created_at:      { type: 'string', format: 'date-time' },
+                        updated_at:      { type: 'string', format: 'date-time' },
+                        deleted_at:      { type: 'string', format: 'date-time', nullable: true }
+                    }
+                },
+                AccountItem: {
+                    type: 'object',
+                    properties: {
+                        id:             { type: 'string', format: 'uuid' },
+                        tenant_id:      { type: 'string', format: 'uuid' },
+                        account_id:     { type: 'string', format: 'uuid' },
+                        product_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Nulo em lançamento avulso' },
+                        description:    { type: 'string', example: 'Cerveja 600ml' },
+                        quantity:       { type: 'integer', example: 2 },
+                        unit_price:     { type: 'string', example: '12.00', description: 'DECIMAL(10,2) serializado como string. Preço no momento do lançamento' },
+                        total:          { type: 'string', example: '24.00', description: 'quantity × unit_price, sempre calculado no servidor' },
+                        billable:       { type: 'boolean', description: 'false = cortesia: valor gravado, fora da soma da conta (RN-007)' },
+                        reason:         { type: 'string', enum: ITEM_REASONS, nullable: true, description: 'Obrigatório se billable = false; proibido se true' },
+                        client_item_id: { type: 'string', format: 'uuid', nullable: true, description: 'Gerado pelo app do garçom — idempotência da fila offline (RN-008)' },
+                        created_by:     { type: 'string', format: 'uuid', nullable: true, description: 'Nulo só em consumo antigo migrado (origin LEGACY_CONSUMPTION)' },
+                        deleted_by:     { type: 'string', format: 'uuid', nullable: true },
+                        origin:         { type: 'string', enum: ITEM_ORIGINS, description: 'LEGACY_CONSUMPTION = migrado de consumptions na T-04.2' },
+                        consumed_at:    { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu; created_at é quando o servidor gravou' },
+                        created_at:     { type: 'string', format: 'date-time' },
+                        updated_at:     { type: 'string', format: 'date-time' },
+                        deleted_at:     { type: 'string', format: 'date-time', nullable: true, description: 'Preenchido só na resposta de reenvio de um item já excluído' }
+                    }
+                },
+                AccountDetail: {
+                    allOf: [
+                        { $ref: '#/components/schemas/Account' },
+                        {
+                            type: 'object',
+                            properties: {
+                                items: { type: 'array', items: { $ref: '#/components/schemas/AccountItem' }, description: 'Itens não excluídos, em ordem de lançamento' },
+                                total: { type: 'string', example: '24.00', description: 'Soma dos itens faturáveis e não excluídos' }
+                            }
+                        }
+                    ]
+                },
+                AccountBill: {
+                    type: 'object',
+                    description: 'Bill da conta (T-04.3). Valores em texto (DECIMAL serializado). Sem dado do hóspede.',
+                    properties: {
+                        account_id:     { type: 'string', format: 'uuid' },
+                        type:           { type: 'string', enum: ACCOUNT_TYPES },
+                        status:         { type: 'string', enum: ACCOUNT_STATUSES },
+                        label:          { type: 'string', example: 'Suíte 201' },
+                        reservation_id: { type: 'string', format: 'uuid', nullable: true },
+                        room_id:        { type: 'string', format: 'uuid', nullable: true },
+                        opened_at:      { type: 'string', format: 'date-time' },
+                        closed_at:      { type: 'string', format: 'date-time', nullable: true },
+                        room_charges:   { type: 'string', example: '800.00', description: 'Parte do total da reserva que cabe à conta. O total é dividido entre as contas da reserva que cobram diária, com peso igual ao preço da categoria do quarto de cada uma; a sobra dos centavos fica na conta do quarto principal (D-33, D-40). Conta fechada mostra o valor gravado no fechamento, e as abertas dividem só o que sobra dele (D-39). 0 fora de ROOM, sem charges_lodging, ou com a reserva cancelada/excluída quando a conta ainda estava aberta (D-35); a conta fechada mantém o valor gravado' },
+                        consumptions:   { type: 'string', example: '25.00', description: 'Soma dos itens faturáveis e não excluídos (CA-04.3.c)' },
+                        total:          { type: 'string', example: '825.00', description: 'room_charges + consumptions. Conta INTERNAL: sempre 0 (CA-04.3.f)' },
+                        payments_made:  { type: 'string', example: '100.00', description: 'Pagamentos PAID da conta (T-04.4) mais a parte que lhe cabe do crédito da reserva. Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Cobrança PENDING, FAILED ou EXPIRED, pagamento estornado (VOIDED, T-06.13) e pagamento excluído não contam' },
+                        balance:        { type: 'string', example: '725.00', description: 'total − payments_made, calculado a cada leitura e nunca gravado (CA-04.3.b). Negativo quando o pagamento passou do total: o hotel deve devolver (D-44)' },
+                        items: {
+                            type: 'array',
+                            description: 'Itens não excluídos, inclusive cortesia (billable false, com reason) — CA-04.3.d. Em ordem de consumo',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id:          { type: 'string', format: 'uuid' },
+                                    product_id:  { type: 'string', format: 'uuid', nullable: true },
+                                    description: { type: 'string' },
+                                    quantity:    { type: 'integer' },
+                                    unit_price:  { type: 'string', example: '12.50' },
+                                    total:       { type: 'string', example: '25.00' },
+                                    billable:    { type: 'boolean' },
+                                    reason:      { type: 'string', enum: ITEM_REASONS, nullable: true },
+                                    consumed_at: { type: 'string', format: 'date-time' }
+                                }
+                            }
+                        }
+                    }
+                },
+                AccountItemResult: {
+                    type: 'object',
+                    properties: {
+                        item:          { $ref: '#/components/schemas/AccountItem' },
+                        account_total: { type: 'string', example: '24.00', description: 'Total atualizado da conta (CA-04.1.e)' }
                     }
                 },
                 RoomCategory: {
@@ -130,6 +233,17 @@ const options = {
                 Error: {
                     type: 'object',
                     properties: { error: { type: 'string' } }
+                },
+                RoomError: {
+                    type: 'object',
+                    description: 'Erro de quartos e categorias com code estável — a tela decide pelo code, nunca pelo texto de error. No 400 vêm também errors (lista de sempre) e field (primeiro campo que falhou).',
+                    required: ['error', 'code'],
+                    properties: {
+                        error:  { type: 'string' },
+                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED'] },
+                        field:  { type: 'string', description: 'Só no 400 INVALID_INPUT', example: 'price_per_night' },
+                        errors: { type: 'array', items: { type: 'string' }, description: 'Só no 400 INVALID_INPUT' }
+                    }
                 },
                 RoomOccupied: {
                     type: 'object',
@@ -200,7 +314,11 @@ const options = {
                         reservation_id: { type: 'string', format: 'uuid' },
                         description:    { type: 'string', example: 'Frigobar' },
                         amount:         { type: 'string', example: '50.00', description: 'DECIMAL(10,2) serializado como string' },
-                        consumed_at:    { type: 'string', format: 'date-time' }
+                        consumed_at:    { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu' },
+                        deleted_by:     { type: 'string', format: 'uuid', nullable: true },
+                        created_at:     { type: 'string', format: 'date-time', description: 'Quando o lançamento foi gravado' },
+                        updated_at:     { type: 'string', format: 'date-time' },
+                        deleted_at:     { type: 'string', format: 'date-time', nullable: true }
                     }
                 },
                 Bill: {
@@ -226,8 +344,10 @@ const options = {
                         payments: { type: 'array', items: { type: 'object', properties: {
                             id: { type: 'string', format: 'uuid' }, amount: { type: 'number' }, method: { type: 'string' },
                             kind: { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
-                            status: { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
-                            paid_at: { type: 'string', format: 'date-time', nullable: true }
+                            status: { type: 'string', enum: PAYMENT_STATUSES, description: 'Só PAID soma em total_paid. VOIDED (estornado, T-06.13) segue listado como histórico' },
+                            paid_at: { type: 'string', format: 'date-time', nullable: true },
+                            void_reason: { type: 'string', nullable: true, description: 'Motivo do estorno; nulo se não estornado' },
+                            voided_at: { type: 'string', format: 'date-time', nullable: true }
                         }}}
                     }
                 },
@@ -237,12 +357,16 @@ const options = {
                     properties: {
                         id:             { type: 'string', format: 'uuid' },
                         tenant_id:      { type: 'string', format: 'uuid' },
-                        reservation_id: { type: 'string', format: 'uuid' },
+                        reservation_id: { type: 'string', format: 'uuid', nullable: true, description: 'Nulo só em pagamento de conta sem reserva (day-use, mesa, balcão)' },
+                        account_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Conta paga (T-04.4). Nulo = pagamento da reserva: vira crédito rateado entre as contas dela (D-42, D-45)' },
                         amount:         { type: 'string', example: '300.00', description: 'DECIMAL(12,2) serializado como string' },
-                        method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] },
-                        status:         { type: 'string', enum: ['PENDING', 'PAID', 'EXPIRED', 'FAILED'] },
+                        method:         { type: 'string', enum: PAYMENT_METHODS },
+                        status:         { type: 'string', enum: PAYMENT_STATUSES, description: 'Só PAID é receita e abate saldo. VOIDED = lançamento estornado (POST /payments/{id}/void, T-06.13): fica no histórico, fora da receita' },
                         kind:           { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
-                        paid_at:        { type: 'string', format: 'date-time', nullable: true },
+                        paid_at:        { type: 'string', format: 'date-time', nullable: true, description: 'Mantido no VOIDED: é histórico' },
+                        void_reason:    { type: 'string', nullable: true, description: 'Motivo do estorno. Nulo em todo pagamento não estornado' },
+                        voided_by:      { type: 'string', format: 'uuid', nullable: true, description: 'Usuário (ADMIN) que estornou' },
+                        voided_at:      { type: 'string', format: 'date-time', nullable: true },
                         reservation: {
                             type: 'object', nullable: true,
                             description: 'Presente em GET /payments e GET /payments/{id}',
@@ -361,12 +485,12 @@ const options = {
                 },
                 WebhookConfirmResponse: {
                     type: 'object',
-                    description: 'POST /webhooks/pix — confirmed na primeira confirmação; already_processed em reenvio (idempotência); pending/not_approved conforme o status real no PSP; ignored para notificação autêntica sem cobrança conhecida',
+                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e "ignored" para notificação autêntica sem id de cobrança ou com cobrança desconhecida',
                     properties: {
-                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'pending', 'not_approved', 'ignored'] },
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending', 'ignored'] },
                         payment_id:         { type: 'string', format: 'uuid' },
-                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Ausente quando status é already_processed' },
-                        reservation_status: { type: 'string', nullable: true, description: 'Ausente quando status é already_processed' }
+                        reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Só vem quando status é confirmed' },
+                        reservation_status: { type: 'string', nullable: true, description: 'Só vem quando status é confirmed' }
                     }
                 }
             }
@@ -453,23 +577,41 @@ const options = {
                 post: {
                     tags: ['Webhooks'],
                     summary: 'Confirmação de pagamento PIX (callback do PSP)',
-                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED depois de consultar o status real no PSP. Idempotente. A autenticação depende do provider ativo (PIX_PROVIDER): fake → HMAC-SHA256 em x-pix-signature (PIX_WEBHOOK_SECRET); mercadopago → x-signature; asaas → token em asaas-access-token (ASAAS_WEBHOOK_TOKEN). Sem autenticação válida, ou sem o segredo configurado, responde 401 e nada muda. Notificação AUTÊNTICA que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 { status: "ignored" } — um 4xx faria o PSP reenviar para sempre e o Asaas pausar a fila. Para demonstração com o fake, use scripts/simular_pagamento_pix.js.',
+                    description: 'Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente.\n\n' +
+                        '**Autenticação depende do provider ativo (`PIX_PROVIDER`)**, e é conferida antes de qualquer consulta ao banco. Sem o segredo do provider configurado no servidor, toda requisição recebe 401 (fail-closed):\n' +
+                        '- `asaas`: cabeçalho `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (o Asaas não assina o corpo; o token não pode ser a API Key). Corpo: `{ event, payment: { id } }`. Cadastro em Integrações → Webhooks — ver docs/pagamentos/ASAAS_SANDBOX.md.\n' +
+                        '- `mercadopago`: cabeçalhos `x-signature` (`ts=…,v1=…`) e `x-request-id`, HMAC com `MERCADOPAGO_WEBHOOK_SECRET`. Id em `?data.id=` ou `data.id` no corpo.\n' +
+                        '- `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.\n\n' +
+                        'A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.\n\n' +
+                        'Notificação **autêntica** que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 `{ status: "ignored" }`, com log: um 4xx faria o PSP reenviar para sempre, e o Asaas pausa a fila da conta inteira após 15 falhas seguidas.',
                     security: [],
                     parameters: [
-                        { in: 'header', name: 'x-pix-signature', required: false, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'PIX_PROVIDER=fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>' },
-                        { in: 'header', name: 'asaas-access-token', required: false, schema: { type: 'string' }, description: 'PIX_PROVIDER=asaas: token cadastrado no webhook do Asaas (ASAAS_WEBHOOK_TOKEN)' }
+                        { in: 'header', name: 'x-pix-signature', required: false, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'Provider fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>' },
+                        { in: 'header', name: 'asaas-access-token', required: false, schema: { type: 'string' }, description: 'Provider asaas: token cadastrado no webhook (ASAAS_WEBHOOK_TOKEN)' },
+                        { in: 'header', name: 'x-signature', required: false, schema: { type: 'string', example: 'ts=1704908010,v1=618c8534…' }, description: 'Provider mercadopago: assinatura HMAC (MERCADOPAGO_WEBHOOK_SECRET)' },
+                        { in: 'header', name: 'x-request-id', required: false, schema: { type: 'string' }, description: 'Provider mercadopago: entra no manifesto assinado' },
+                        { in: 'query', name: 'data.id', required: false, schema: { type: 'string' }, description: 'Provider mercadopago: id do pagamento no PSP' }
                     ],
                     requestBody: {
                         required: true,
-                        description: 'Formato do PSP. fake: { provider_charge_id }. asaas: { id, event, payment: { id } }.',
-                        content: { 'application/json': { schema: { type: 'object', properties: {
-                            provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
-                        }}}}
+                        content: { 'application/json': { schema: { oneOf: [
+                            { title: 'fake', type: 'object', required: ['provider_charge_id'], properties: {
+                                provider_charge_id: { type: 'string', example: 'fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3' }
+                            }},
+                            { title: 'asaas', type: 'object', required: ['payment'], properties: {
+                                event: { type: 'string', example: 'PAYMENT_RECEIVED' },
+                                payment: { type: 'object', required: ['id'], properties: { id: { type: 'string', example: 'pay_080225913252' } } }
+                            }},
+                            { title: 'mercadopago', type: 'object', properties: {
+                                type: { type: 'string', example: 'payment' },
+                                data: { type: 'object', properties: { id: { type: 'string', example: '123456789' } } }
+                            }}
+                        ] } } }
                     },
                     responses: {
-                        200: { description: 'confirmed · already_processed · pending (PSP ainda não pagou) · not_approved (cancelada/estornada/valor divergente) · ignored (notificação autêntica sem cobrança conhecida)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
-                        401: { description: 'Autenticação ausente ou inválida, ou segredo do provider não configurado (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        503: { description: 'PSP indisponível para confirmar o status — nada muda, o PSP reenvia', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider, ainda pendente ou ignorada por não ter cobrança conhecida (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
+                        401: { description: 'Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'Status da cobrança indisponível no provider — o PSP deve reenviar', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -617,8 +759,8 @@ const options = {
                     requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
                     responses: {
                         201: { description: 'Criada', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
-                        400: { description: 'name ou price_per_night ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
-                        409: { description: 'Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'code INVALID_INPUT — name ausente ou vazio (máx. 100); price_per_night ausente, não numérico, ≤ 0, com mais de 2 casas ou acima de 99999999.99; capacity não inteiro ou < 1 (ausente vale 1)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        409: { description: 'code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
@@ -633,13 +775,25 @@ const options = {
                 },
                 put: {
                     tags: ['Categorias de Quarto'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam', properties: {
+                        name: { type: 'string', example: 'Standard' }, capacity: { type: 'integer', example: 2 },
+                        price_per_night: { type: 'string', example: '150.00', description: 'DECIMAL(10,2) como string' }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomCategory' } } } },
+                        400: { description: 'code INVALID_INPUT — Campo enviado fora das regras do cadastro (name, price_per_night, capacity)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        409: { description: 'code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 },
-                delete: { tags: ['Categorias de Quarto'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Categorias de Quarto'], summary: 'Remove',
+                    responses: {
+                        204: { description: 'OK' },
+                        404: { description: 'Não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code CATEGORY_IN_USE — Categoria em uso por quarto não excluído', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                    }
+                }
             },
             '/rooms': {
                 get: {
@@ -650,13 +804,13 @@ const options = {
                     tags: ['Quartos'], summary: 'Cria quarto',
                     requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['category_id', 'number'], properties: {
                         category_id: { type: 'string', format: 'uuid' }, number: { type: 'string', example: '101' },
-                        floor: { type: 'integer', nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'], description: 'Default: AVAILABLE' }
+                        floor: { type: 'integer', nullable: true, description: '0 é o térreo' }, status: { type: 'string', enum: ['AVAILABLE', 'MAINTENANCE'], description: 'Default: AVAILABLE. OCCUPIED e CLEANING só pelo check-in e check-out' }
                     }}}}},
                     responses: {
                         201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'category_id ou number ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
-                        404: { description: 'Categoria não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'code INVALID_INPUT — category_id ou number ausentes, number que não é texto não vazio, floor não inteiro ou status fora de AVAILABLE | MAINTENANCE', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        404: { description: 'code CATEGORY_NOT_FOUND — Categoria não encontrada — inexistente, excluída, de outro hotel ou id inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        409: { description: 'code ROOM_NUMBER_TAKEN — Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
@@ -685,19 +839,40 @@ const options = {
                 },
                 put: {
                     tags: ['Quartos'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Todos os campos são opcionais: só o que vier é alterado. O PMS envia status só quando ele mudou', properties: {
+                        category_id: { type: 'string', format: 'uuid', description: 'Categoria do próprio hotel, não excluída' },
+                        number: { type: 'string', example: '101', description: 'Texto não vazio; gravado aparado' },
+                        floor: { type: 'integer', nullable: true, description: '0 é o térreo; null tira o andar' },
+                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
-                        400: { description: 'status inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Já existe um quarto com esse número', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
+                        404: { description: 'code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/RoomError' }, { $ref: '#/components/schemas/Error' }] } } } },
+                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 },
-                delete: { tags: ['Quartos'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Quartos'], summary: 'Remove',
+                    responses: {
+                        204: { description: 'OK' },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_IN_USE — Quarto OCCUPIED ou com reserva PENDING, CONFIRMED ou CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                    }
+                }
             },
             '/guests': {
                 get: {
-                    tags: ['Hóspedes'], summary: 'Lista hóspedes',
-                    responses: { 200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Guest' } } } } } }
+                    tags: ['Hóspedes'], summary: 'Lista hóspedes ou busca por termo',
+                    description: 'Sem `q`: todos os hóspedes do hotel (contrato antigo). Com `q`: busca no servidor por nome, CPF, e-mail ou telefone (ILIKE com `%`, `_` e `\\` literais; termo numérico casa CPF/telefone só pelos dígitos), sempre no hotel do token, ordenada por nome, até `limit`. `q` vazio devolve lista vazia.',
+                    parameters: [
+                        { in: 'query', name: 'q', required: false, schema: { type: 'string', maxLength: 100 }, description: 'Termo de busca: parte do nome, CPF, e-mail ou telefone', example: 'ana' },
+                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 }, description: 'Só com `q`. Inválido cai no padrão; acima de 20 vira 20' }
+                    ],
+                    responses: {
+                        200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Guest' } } } } },
+                        400: { description: '`q` com mais de 100 caracteres', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
                 },
                 post: {
                     tags: ['Hóspedes'], summary: 'Cria hóspede',
@@ -723,6 +898,10 @@ const options = {
                 },
                 put: {
                     tags: ['Hóspedes'], summary: 'Atualiza',
+                    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', description: 'Atualização parcial: só os campos enviados mudam', properties: {
+                        full_name: { type: 'string', example: 'Maria Oliveira' }, cpf: { type: 'string', nullable: true },
+                        phone: { type: 'string', nullable: true }, email: { type: 'string', nullable: true }
+                    }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -791,20 +970,25 @@ const options = {
                 },
                 put: {
                     tags: ['Reservas'], summary: 'Atualiza reserva (guest_id, room_id, datas — não altera status; total_amount recalculado se quarto ou datas mudarem)',
+                    description: 'Na troca do quarto principal, as contas ROOM abertas do quarto que sai passam para o quarto novo na mesma transação (RN-005 / D-3, D-5). O rótulo gerado pelo sistema ("Suíte 906") acompanha; o escolhido pela recepção fica. Conta fechada ou paga não muda (D-23).',
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         400: { description: 'check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Reserva, hóspede ou quarto não encontrado (no hotel do token)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } }
+                        409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005, com account_ids — escolha outro quarto ou peça ao administrador para ajustar a conta); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { allOf: [
+                            { $ref: '#/components/schemas/RoomOccupied' },
+                            { type: 'object', properties: { account_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Só no 409 da RN-005: contas de diária desta reserva que já estão no quarto novo' } } }
+                        ] } } } }
                     }
                 },
-                delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', responses: { 204: { description: 'OK' } } }
+                delete: { tags: ['Reservas'], summary: 'Remove reserva (ADMIN)', description: 'Fecha as contas abertas da reserva na mesma transação (D-36).', responses: { 204: { description: 'OK' } } }
             },
             '/reservations/{id}/cancel': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 put: {
                     tags: ['Reservas'],
                     summary: 'Cancela reserva (apenas PENDING ou CONFIRMED)',
+                    description: 'Fecha as contas abertas da reserva na mesma transação (D-36). O consumo já lançado segue cobrado; a diária da conta passa a 0 (D-35).',
                     responses: {
                         200: { description: 'Reserva cancelada — status alterado para CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         409: { description: 'Reserva-bloco B2B — cancele pelo contrato (PUT /contracts/{id}/cancel)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -817,6 +1001,7 @@ const options = {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 put: {
                     tags: ['Reservas'], summary: 'Realiza check-in (PENDING ou CONFIRMED → CHECKED_IN; ocupa o(s) quarto(s))',
+                    description: 'Abre a conta da suíte (ROOM, cobrando diária, no quarto principal) na mesma transação; se a reserva já tem conta de diária, ela é reaproveitada. Falha na conta desfaz o check-in (T-04.6, D-58). A conta aparece em GET /reservations/{id}/accounts.',
                     responses: {
                         200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -828,6 +1013,7 @@ const options = {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 put: {
                     tags: ['Reservas'], summary: 'Realiza check-out (CHECKED_IN → CHECKED_OUT; quarto(s) vão para CLEANING)',
+                    description: 'Fecha as contas abertas da reserva na mesma transação (D-36).',
                     responses: {
                         200: { description: 'Status alterado para CHECKED_OUT', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
@@ -840,8 +1026,23 @@ const options = {
                 get: {
                     tags: ['Financeiro'],
                     summary: 'Fechamento de conta: (diária + consumos) − pagamentos confirmados',
+                    description: 'Desde a T-04.5, os totais são a soma das contas da reserva; a diária que nenhuma conta cobra fica na reserva (D-54). Os consumos são os itens faturáveis e não excluídos de todas as contas da reserva.',
                     responses: {
                         200: { description: 'Conta com room_total, consumptions_total, grand_total, total_paid, balance_due', content: { 'application/json': { schema: { $ref: '#/components/schemas/Bill' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'A reserva tem consumo antigo ainda não migrado — o total sairia menor. Some quando o `migrate` concluir (T-04.2)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
+            },
+            '/reservations/{id}/accounts': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Lista as contas da reserva (T-04.6, CA-04.6.d)',
+                    description: 'Mesmo formato de GET /accounts, da mais antiga para a mais nova; fechadas e pagas entram, excluídas não. Garçom não acessa.',
+                    responses: {
+                        200: { description: 'Contas da reserva', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Account' } } } } },
+                        403: { description: 'Garçom (allowlist)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
@@ -850,26 +1051,30 @@ const options = {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
                 get: {
                     tags: ['Financeiro'], summary: 'Lista consumos extras da reserva',
+                    description: 'Desde a T-04.2, os itens faturáveis e não excluídos de todas as contas da reserva, no formato antigo e em ordem de consumo. Cortesia não aparece.',
                     responses: {
                         200: { description: 'Lista de consumos', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Consumption' } } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'A reserva tem consumo antigo ainda não migrado — a lista sairia incompleta. Some quando o `migrate` concluir', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
                 post: {
                     tags: ['Financeiro'],
                     summary: 'Lança consumo extra (frigobar, restaurante, spa)',
+                    description: 'Contrato antigo, mantido. Desde a T-04.2 o consumo vira item da conta da suíte da reserva (criada se não existir). Aceita reserva sem check-in, como antes; reserva com check-out feito ou cancelada não recebe consumo (422). Para lançar com cardápio, cortesia ou idempotência, use `POST /accounts/{id}/items`.',
                     requestBody: {
                         required: true,
                         content: { 'application/json': { schema: { type: 'object', required: ['description', 'amount'], properties: {
                             description: { type: 'string', example: 'Frigobar' },
-                            amount:      { type: 'number', example: 50.00 },
-                            consumed_at: { type: 'string', format: 'date-time' }
+                            amount:      { type: 'number', example: 50.00, maximum: 99999999.99 },
+                            consumed_at: { type: 'string', format: 'date-time', description: 'Quando o hóspede consumiu. Omitido = agora. Não pode estar mais de 1 minuto no futuro' }
                         }}}}
                     },
                     responses: {
                         201: { description: 'Consumo lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Consumption' } } } },
-                        400: { description: 'description ausente ou amount <= 0', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'description ausente ou acima de 200 caracteres; amount que não é número, <= 0, com mais de 2 casas ou acima de 99999999.99; consumed_at que não é data ISO ou está mais de 1 minuto no futuro', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Reserva com check-out feito ou cancelada, ou a conta da suíte já foi fechada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -878,7 +1083,7 @@ const options = {
                     { in: 'path', name: 'id',            required: true, schema: { type: 'string', format: 'uuid' } },
                     { in: 'path', name: 'consumptionId', required: true, schema: { type: 'string', format: 'uuid' } }
                 ],
-                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete, ADMIN)', responses: { 204: { description: 'Removido' }, 404: { description: 'Não encontrado' } } }
+                delete: { tags: ['Financeiro'], summary: 'Remove consumo extra (soft delete, ADMIN)', description: 'O id é o do item da conta — igual ao id do consumo antigo para os migrados na T-04.2.', responses: { 204: { description: 'Removido' }, 403: { description: 'Requer papel ADMIN' }, 404: { description: 'Não encontrado' }, 422: { description: 'A conta da suíte já foi fechada' }, 503: { description: 'Consumo antigo da reserva ainda não migrado' } } }
             },
             '/reservations/{id}/rooms': {
                 parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
@@ -898,11 +1103,15 @@ const options = {
                     { in: 'path', name: 'id',     required: true, schema: { type: 'string', format: 'uuid' } },
                     { in: 'path', name: 'roomId', required: true, schema: { type: 'string', format: 'uuid' } }
                 ],
-                delete: { tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)', responses: {
-                    204: { description: 'Desvinculado' },
-                    404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                    409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
-                } }
+                delete: {
+                    tags: ['Reservas — N:N (Pivô)'], summary: 'Remove quarto extra da reserva (recalcula o total)',
+                    description: 'As contas ROOM abertas do quarto removido passam para o quarto principal da reserva, com itens e pagamentos — nenhuma é apagada e a remoção não é bloqueada por conta aberta. Se o principal já tem conta cobrando diária, a conta movida passa a `charges_lodging: false` (RN-005); senão, ela segue cobrando a diária. O rótulo gerado pelo sistema acompanha o quarto ("Suíte 701"); a conta movida que não vira a conta de diária do principal leva a origem ("Suíte 701 · ex-702"); o rótulo da recepção fica. Conta fechada ou paga não muda (D-23).',
+                    responses: {
+                        204: { description: 'Desvinculado' },
+                        404: { description: 'Reserva não encontrada ou quarto não vinculado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Quarto principal (troque pelo PUT); reserva-bloco B2B; reserva CHECKED_OUT ou CANCELLED; outra operação alterando a reserva ao mesmo tempo (deadlock repetido — tente de novo)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/payments': {
                 get: {
@@ -910,20 +1119,25 @@ const options = {
                     responses: { 200: { description: 'OK — nunca inclui pix_qr_code/provider/provider_charge_id (PaymentModel.defaultScope)', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Payment' } } } } } }
                 },
                 post: {
-                    tags: ['Pagamentos'], summary: 'Registra novo pagamento (recepção — manual, não PIX online)',
+                    tags: ['Pagamentos'], summary: 'Registra novo pagamento da reserva ou de uma conta (recepção — manual, não PIX online)',
+                    description: 'Informe reservation_id ou account_id (T-04.4). Pagamento feito na reserva sem conta (o sinal PIX, o pagamento da recepção pela reserva) é crédito da reserva: preenche as contas dela, primeiro as fechadas na ordem em que fecharam, depois as abertas com a titular (conta de diária mais antiga) primeiro, cada uma até o que ela deve; a sobra fica na última (D-42, D-45). Com account_id, a reserva vem da conta. Se o pagamento quita uma conta fechada, ela vira PAID na mesma transação; conta aberta paga vira PAID ao fechar (D-43). Pagamento a maior é aceito e deixa o saldo negativo (D-44).',
                     requestBody: { required: true, content: { 'application/json': { schema: {
-                        type: 'object', required: ['reservation_id', 'amount', 'method'],
+                        type: 'object', required: ['amount', 'method'],
+                        description: 'reservation_id ou account_id obrigatório',
                         properties: {
-                            reservation_id: { type: 'string', format: 'uuid' },
+                            reservation_id: { type: 'string', format: 'uuid', description: 'Com account_id, opcional; se vier, tem de ser a reserva da conta' },
+                            account_id:     { type: 'string', format: 'uuid', description: 'Conta a pagar (T-04.4)' },
                             amount:         { type: 'number', example: 300.00 },
-                            method:         { type: 'string', enum: ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'], example: 'PIX' },
-                            paid_at:        { type: 'string', format: 'date-time' }
+                            method:         { type: 'string', enum: PAYMENT_METHODS, example: 'PIX' },
+                            paid_at:        { type: 'string', format: 'date-time', description: 'Opcional; ausente ou nulo = agora. Se vier, data ISO-8601 válida' }
                         }
                     }}}},
                     responses: {
                         201: { description: 'Pagamento registrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        400: { description: 'reservation_id, amount ou method ausentes', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Reserva não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'reservation_id e account_id ausentes; amount ou method ausentes; amount inválido; method fora de PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO; paid_at que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Reserva ou conta não encontrada no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Conta INTERNAL (nunca é receita), conta já PAID, ou reservation_id diferente da reserva da conta', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -937,19 +1151,57 @@ const options = {
                     }
                 },
                 put: {
-                    tags: ['Pagamentos'], summary: 'Atualiza pagamento (amount, method, paid_at)',
+                    tags: ['Pagamentos'], summary: 'Corrige método ou data de um pagamento manual (só ADMIN)',
+                    description: 'Só pagamento PAID lançado pela recepção (sem PSP). O valor não se altera (T-06.13): corrigir valor é estornar (POST /payments/{id}/void) e lançar de novo. amount só é aceito igual ao gravado. Reserva, conta, status e trilha de estorno não mudam por aqui.',
+                    requestBody: { required: true, content: { 'application/json': { schema: {
+                        type: 'object',
+                        properties: {
+                            method:  { type: 'string', enum: PAYMENT_METHODS },
+                            paid_at: { type: 'string', format: 'date-time', description: 'Se vier, data ISO-8601 válida — nulo é recusado: pagamento PAID tem data (CHECK payments_paid_has_paid_at)' },
+                            amount:  { type: 'string', example: '300.00', description: 'Opcional; se vier, igual ao gravado' }
+                        }
+                    }}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
-                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'amount inválido; method fora da lista ou nulo; paid_at nulo ou que não é data ISO-8601 válida (dia inexistente no calendário, como 31/04, e ano 0000 também são recusados)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Não encontrado no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'amount diferente do gravado; pagamento VOIDED, PENDING, EXPIRED, FAILED ou de PSP', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'Pagamento PAID antigo sem data (anterior ao CHECK payments_paid_has_paid_at) e paid_at não enviado: informe paid_at para corrigir', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
-                delete: { tags: ['Pagamentos'], summary: 'Remove pagamento (soft delete)', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Pagamentos'], summary: 'Não existe mais — use o estorno (405)',
+                    description: 'T-06.13 (CA-06.13.a): lançamento financeiro não se apaga, se estorna. Responde 405 com header Allow e a indicação de POST /payments/{id}/void. Restrito a ADMIN, como o estorno.',
+                    responses: {
+                        403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        405: { description: 'Exclusão não permitida — estorne com POST /payments/{id}/void', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
+            },
+            '/payments/{id}/void': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                post: {
+                    tags: ['Pagamentos'], summary: 'Estorna um pagamento lançado por engano (só ADMIN)',
+                    description: 'T-06.13. Correção de lançamento (valor errado, reserva errada, duplicado), sem movimento de caixa — não é devolução ao hóspede (REFUNDED, pelo PSP, fora desta versão). Grava status VOIDED, void_reason, voided_by (usuário do JWT) e voided_at; o pagamento permanece e aparece na listagem e na conta da reserva, marcado. Sai da receita e do saldo das contas: a conta que ele quitava volta de PAID a CLOSED na mesma transação. Só PAID vira VOIDED. Gera payment.status_changed (PAID → VOIDED) no outbox.',
+                    requestBody: { required: true, content: { 'application/json': { schema: {
+                        type: 'object', required: ['reason'],
+                        properties: { reason: { type: 'string', maxLength: 500, example: 'Valor digitado errado' } }
+                    }}}},
+                    responses: {
+                        200: { description: 'Estornado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } },
+                        400: { description: 'reason ausente, vazio, não-texto ou com mais de 500 caracteres', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Papel diferente de ADMIN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Pagamento não encontrado no hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Pagamento não está PAID (já VOIDED, PENDING, EXPIRED, FAILED) ou é de PSP (PIX online — exige devolução pelo PSP)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/analytics/revenue': {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Caixa realizado vs esperado vs inadimplência',
-                    description: 'Retorna receita realizada (pagamentos recebidos) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes. Filtro por período opcional.',
+                    description: 'Retorna receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes (reservas ativas sem nenhum pagamento PAID). Filtro por período opcional.',
                     parameters: [
                         { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-01-01' }, description: 'Data inicial do filtro (YYYY-MM-DD)' },
                         { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: 'Data final do filtro (YYYY-MM-DD)' }
@@ -1113,7 +1365,7 @@ const options = {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Mix de meios de pagamento com percentual',
-                    description: 'Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período.',
+                    description: 'Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período. Só pagamentos PAID (estornados VOIDED e excluídos não contam — T-06.13).',
                     parameters: [
                         { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-01-01' }, description: 'Data inicial (YYYY-MM-DD)' },
                         { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: 'Data final (YYYY-MM-DD)' }
@@ -1140,7 +1392,7 @@ const options = {
                 get: {
                     tags: ['Analytics'],
                     summary: 'Hóspedes mais valiosos por lifetime value',
-                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita.',
+                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).',
                     parameters: [
                         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, example: 10 }, description: 'Quantidade de hóspedes a retornar (1–100). Default: 10.' }
                     ],
@@ -1152,7 +1404,6 @@ const options = {
                                 items: { type: 'object', properties: {
                                     guest_id:           { type: 'string', format: 'uuid' },
                                     full_name:          { type: 'string', example: 'Carlos Eduardo' },
-                                    email:              { type: 'string', format: 'email' },
                                     total_reservations: { type: 'integer', example: 3 },
                                     lifetime_value:     { type: 'number', example: 4200.00 },
                                     last_stay:          { type: 'string', format: 'date', example: '2026-06-20' }
@@ -1161,6 +1412,35 @@ const options = {
                         },
                         400: { description: 'limit fora do intervalo permitido (1–100)' },
                         401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/analytics/internal-consumption': {
+                get: {
+                    tags: ['Analytics'],
+                    summary: 'Consumo interno por motivo (cortesia, funcionário, perda)',
+                    description: 'Responde "quanto o hotel deu de cortesia, refeição de funcionário e perda no período?" (RN-007). Entram os itens não faturáveis (billable: false) de qualquer conta e todos os itens de contas INTERNAL. Item de conta INTERNAL lançado sem motivo aparece no grupo reason: null (D-63). Itens excluídos e itens de contas excluídas ficam de fora; o status da conta não importa (D-65). O período filtra pelo dia do consumo (consumed_at), não pelo dia em que o servidor gravou (D-64), contado no horário de Brasília (D-68). Requer ADMIN (T-04.7).',
+                    parameters: [
+                        { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-10-01' }, description: 'Data inicial (YYYY-MM-DD), inclusiva. Vem junto com end.' },
+                        { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-10-31' }, description: 'Data final (YYYY-MM-DD), inclusiva. Vem junto com start.' }
+                    ],
+                    responses: {
+                        200: {
+                            description: 'Um grupo por motivo, do maior valor para o menor; lista vazia se não houver consumo interno',
+                            content: { 'application/json': { schema: {
+                                type: 'array',
+                                items: { type: 'object', required: ['reason', 'count', 'total'], properties: {
+                                    reason: { type: 'string', nullable: true, enum: ITEM_REASONS, example: 'COURTESY', description: 'null: item de conta INTERNAL lançado sem motivo' },
+                                    count:  { type: 'integer', example: 12, description: 'Número de lançamentos' },
+                                    total:  { type: 'number', example: 340.50, description: 'Soma de quantity × unit_price, em reais' }
+                                }}
+                            }}}
+                        },
+                        400: { description: 'Só uma das datas, data inexistente ou fora do formato YYYY-MM-DD, ou start depois de end' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
                         500: { description: 'Erro interno' }
                     }
                 }
@@ -1259,6 +1539,162 @@ const options = {
                         401: { description: 'Token não fornecido ou inválido' },
                         403: { description: 'Requer papel ADMIN' },
                         404: { description: 'Produto não encontrado no tenant' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts': {
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Lista as contas do hotel',
+                    description: 'Todos os papéis. O app do garçom usa `?status=OPEN`. A resposta não traz dados do hóspede.',
+                    parameters: [
+                        { in: 'query', name: 'status', required: false, schema: { type: 'string', enum: ACCOUNT_STATUSES } },
+                        { in: 'query', name: 'type',   required: false, schema: { type: 'string', enum: ACCOUNT_TYPES } }
+                    ],
+                    responses: {
+                        200: { description: 'Contas, da mais recente para a mais antiga', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Account' } } } } },
+                        400: { description: 'status ou type fora da allowlist' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        500: { description: 'Erro interno' }
+                    }
+                },
+                post: {
+                    tags: ['Comandas'],
+                    summary: 'Abre uma conta',
+                    description: [
+                        'Toda conta nasce `OPEN`; o `status` enviado é ignorado.',
+                        '',
+                        'Vínculos por tipo: `ROOM` exige `reservation_id` (com check-in feito), `room_id` (quarto da reserva) e `guest_id` (qualquer hóspede do hotel). Os demais tipos não aceitam `reservation_id`; `TABLE` e `INTERNAL` também não aceitam `guest_id`.',
+                        '',
+                        '`charges_lodging` vale `true` por padrão em `ROOM` (mande `false` para dividir a suíte) e é sempre `false` nos demais tipos.',
+                        '',
+                        'O garçom (`WAITER`) abre só `TABLE` e `DIRECT`.'
+                    ].join('\n'),
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: {
+                            type: 'object',
+                            required: ['type', 'label'],
+                            properties: {
+                                type:            { type: 'string', enum: ACCOUNT_TYPES },
+                                label:           { type: 'string', maxLength: 100, example: 'Mesa 5' },
+                                reservation_id:  { type: 'string', format: 'uuid' },
+                                room_id:         { type: 'string', format: 'uuid' },
+                                guest_id:        { type: 'string', format: 'uuid' },
+                                charges_lodging: { type: 'boolean' }
+                            }
+                        }}}
+                    },
+                    responses: {
+                        201: { description: 'Conta aberta', content: { 'application/json': { schema: { $ref: '#/components/schemas/Account' } } } },
+                        400: { description: 'type fora da allowlist, label vazio, id que não é UUID ou charges_lodging não booleano' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom abrindo conta ROOM, DAY_USE ou INTERNAL' },
+                        404: { description: 'Reserva, quarto ou hóspede não encontrado no hotel' },
+                        422: { description: 'Vínculo proibido ou ausente para o tipo, reserva sem check-in, quarto fora da reserva, diária fora de ROOM ou segunda conta cobrando a diária do quarto na estadia (RN-005)' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}': {
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Busca uma conta com os itens e o total',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        200: { description: 'Conta encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountDetail' } } } },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        404: { description: 'Conta não encontrada no hotel' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/items': {
+                post: {
+                    tags: ['Comandas'],
+                    summary: 'Lança um item na conta',
+                    description: [
+                        'Com `product_id`, descrição e preço vêm do cardápio (o que o cliente mandar é ignorado). Sem `product_id`, `description` e `unit_price` são obrigatórios. `total` é sempre calculado no servidor.',
+                        '',
+                        '**Idempotência:** o reenvio do mesmo `client_item_id` responde **200** com o item original e não duplica — inclusive se o item já foi excluído (vem com `deleted_at`) ou se a conta fechou depois. O mesmo `client_item_id` em outra conta do hotel dá 409.',
+                        '',
+                        '**Cortesia e avulso:** `billable: false` exige `reason`. Cortesia e lançamento sem `product_id` exigem papel ADMIN ou RECEPTIONIST — o garçom só lança item do cardápio, faturável.',
+                        '',
+                        'Conta `ROOM` só recebe item enquanto a reserva estiver `CHECKED_IN`.'
+                    ].join('\n'),
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    requestBody: {
+                        required: true,
+                        content: { 'application/json': { schema: {
+                            type: 'object',
+                            properties: {
+                                product_id:     { type: 'string', format: 'uuid' },
+                                description:    { type: 'string', maxLength: 200, example: 'Taxa de rolha' },
+                                unit_price:     { type: 'number', format: 'float', minimum: 0, example: 30.00, description: 'No máximo 2 casas decimais' },
+                                quantity:       { type: 'integer', minimum: 1, maximum: 9999, default: 1 },
+                                billable:       { type: 'boolean', default: true },
+                                reason:         { type: 'string', enum: ITEM_REASONS },
+                                client_item_id: { type: 'string', format: 'uuid' }
+                            }
+                        }}}
+                    },
+                    responses: {
+                        200: { description: 'Reenvio: item original, sem duplicar', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountItemResult' } } } },
+                        201: { description: 'Item lançado', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountItemResult' } } } },
+                        400: { description: 'Campo inválido, description/unit_price ausentes sem product_id, preço com mais de 2 casas, quantity fora de 1–9999, reason fora da allowlist ou total acima do limite' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom lançando cortesia ou item avulso (sem product_id)' },
+                        404: { description: 'Conta ou produto não encontrado no hotel' },
+                        409: { description: 'client_item_id já usado em outra conta' },
+                        422: { description: 'Conta fora de OPEN (o check-out já a fecha), conta ROOM com check-out feito, produto inativo, cortesia sem reason ou reason em item faturável' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/bill': {
+                get: {
+                    tags: ['Comandas'],
+                    summary: 'Bill da conta: diária, consumos, total, pagamentos e saldo (ADMIN, RECEPTIONIST)',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        200: { description: 'Bill calculado na hora', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountBill' } } } },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom não vê o bill' },
+                        404: { description: 'Conta não encontrada no hotel' },
+                        503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/close': {
+                put: {
+                    tags: ['Comandas'],
+                    summary: 'Fecha a conta: OPEN → CLOSED, ou PAID se já está paga (ADMIN, RECEPTIONIST)',
+                    description: 'Grava a diária apresentada (D-39). A conta que cobra a diária só fecha com a reserva em check-out ou cancelada; as outras fecham com o hóspede ainda hospedado. Conta fechada não recebe nem perde item. Se a conta já tem pagamento e o saldo é ≤ 0, sai do fechamento PAID (D-43). O check-out, o cancelamento, o cancelamento do contrato e a exclusão da reserva fecham as contas abertas dela automaticamente (D-36).',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        200: { description: 'Conta fechada; devolve o bill', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountBill' } } } },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Garçom não fecha conta' },
+                        404: { description: 'Conta não encontrada no hotel' },
+                        422: { description: 'Conta já CLOSED ou PAID, ou conta que cobra diária com a estadia ainda em andamento' },
+                        503: { description: 'A reserva da conta tem consumo antigo ainda não migrado (D-31)' },
+                        500: { description: 'Erro interno' }
+                    }
+                }
+            },
+            '/accounts/{id}/items/{itemId}': {
+                delete: {
+                    tags: ['Comandas'],
+                    summary: 'Exclui um item — soft delete com auditoria (ADMIN)',
+                    parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }, { in: 'path', name: 'itemId', required: true, schema: { type: 'string', format: 'uuid' } }],
+                    responses: {
+                        204: { description: 'Item excluído; quem excluiu fica registrado' },
+                        401: { description: 'Token não fornecido ou inválido' },
+                        403: { description: 'Requer papel ADMIN' },
+                        404: { description: 'Conta ou item não encontrado' },
+                        422: { description: 'Conta fora de OPEN' },
                         500: { description: 'Erro interno' }
                     }
                 }

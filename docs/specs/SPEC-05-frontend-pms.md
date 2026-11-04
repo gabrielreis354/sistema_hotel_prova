@@ -27,7 +27,7 @@ Verificado em `frontend/apps/pms/src/App.tsx`:
 | `/hospedes` · `/novo` · `/:id` · `/:id/editar` | ✅ Implementadas — CRUD com busca e ficha de histórico |
 | `/` (Hoje) | 🔲 **`<Placeholder title="Hoje" />`** |
 | `/reservas` | 🔲 **`<Placeholder title="Reservas" />`** |
-| `/comanda` | 🔲 **`<Placeholder title="Comanda" />`** |
+| `/comanda` | ✅ Comanda do garçom — Fase A (T-05.5, 26/10) |
 | `/config/usuarios` | 🔲 **`<Placeholder title="Usuários" />`** |
 
 Não existem telas de quartos, categorias, check-in/out, rack, financeiro, analytics nem B2B.
@@ -76,38 +76,39 @@ Completar a interface do PMS até o nível de demonstração ao vivo na defesa, 
 
 ---
 
-### T-05.1 — Completar a Fase 1: quartos e categorias 🔲 *(~3 dias)*
+### T-05.1 — Completar a Fase 1: quartos e categorias 🟡 *(implementada em `feature/t051-quartos-categorias` em 21/10 — aguarda o qa-redteam e o merge)*
 
-Endpoints já existem: `/rooms`, `/room-categories`.
+Endpoints já existem: `/rooms`, `/room-categories`. Telas em `apps/pms/src/features/rooms/`; rotas `/quartos` e `/quartos/categorias` (listas, para ADMIN e RECEPTIONIST) e `/quartos/novo`, `/quartos/:id/editar`, `/quartos/categorias/nova`, `/quartos/categorias/:id/editar` (gate ADMIN). Evidência completa em `docs/historico_sessao/gabriel/t051_quartos_categorias_21102026.md`.
 
 **Critérios de aceitação**
-- [ ] **CA-05.1.a** — CRUD de categorias com capacidade e tarifa
-- [ ] **CA-05.1.b** — CRUD de quartos com número, andar, categoria e status
-- [ ] **CA-05.1.c** — Status do quarto exibido com **cor + rótulo**, nunca só cor
-- [ ] **CA-05.1.d** — Escrita restrita a `ADMIN`, refletindo o backend
-- [ ] **CA-05.1.e** — Estados de carregamento, vazio e erro em todas as telas
-- [ ] **CA-05.1.f** — Alvo de toque ≥ 48px nas ações usadas em mobile
+- [x] **CA-05.1.a** — CRUD de categorias com capacidade e tarifa — *evidência: categoria criada no navegador com diária digitada "1.234,56", que aparece como "R$ 1.234,56" na lista (via `parseBRLInput`/`formatBRL` de `@hotel/domain`); edição traz "1234,56" no campo; 409 de nome duplicado → "Já existe uma categoria com esse nome neste hotel. Use outro nome."; exclusão em dois passos — desde 24/10 sem trava no cliente: o 409 de categoria em uso vira "Esta categoria ainda tem quartos…"; diária acima de R$ 999.999,99 é recusada no formulário*
+- [x] **CA-05.1.b** — CRUD de quartos com número, andar, categoria e status — *evidência: quarto T51 criado, editado para Manutenção (gravado `MAINTENANCE` no banco e refletido na lista na volta) e excluído; 409 de número duplicado → "Já existe um quarto 101 neste hotel. Use outro número."; status no formulário limitado à máquina de estados (Ocupado e Limpeza desabilitados com motivo: são do check-in e do check-out). Desde 24/10 o PUT leva só o que mudou: corrigir o andar envia `{"floor":7}`, mudar o status envia `{"status":"MAINTENANCE"}`, salvar sem mudança não envia nada — o formulário não desfaz mais check-in/check-out feito em paralelo*
+- [x] **CA-05.1.c** — Status do quarto exibido com **cor + rótulo**, nunca só cor — *evidência: `StatusBadge` (ponto + rótulo) na lista e no seletor de status; o `StatusBadge` foi generalizado (`tone` + `label`) sem quebrar o uso por `status`*
+- [x] **CA-05.1.d** — Escrita restrita a `ADMIN`, refletindo o backend — *evidência: `recep1@aurora.example` vê as listas com a faixa "Modo consulta", "Novo quarto" desabilitado com `aria-describedby` para o motivo, 15 "Editar" desabilitados e nenhum link de edição; `/quartos/novo` digitado na URL redireciona para `/`*
+- [x] **CA-05.1.e** — Estados de carregamento, vazio e erro em todas as telas — *evidência: carregando ("Carregando quartos…"), vazio (com o próximo passo) e erro (com "Tentar de novo") forçados por interceptação no navegador e capturados; o cadastro de quarto sem categoria mostra "Cadastre uma categoria antes"; edição de registro apagado mostra "não encontrado"*
+- [x] **CA-05.1.f** — Alvo de toque ≥ 48px nas ações usadas em mobile — *evidência: medição em 375×812 de todo link, botão, campo e select visível nas listas e no formulário: nenhum abaixo de 48px; sem scroll horizontal*
 
 ---
 
-### T-05.2 — Reservas e check-in/out 🔲 *(~4 dias)*
+### T-05.2 — Reservas e check-in/out 🟡 *(~4 dias)* — `feature/t052-reservas`: reauditoria delta APROVADA COM RESSALVAS (24/10), ressalvas tratadas em 29/10; integra depois da T-05.1 (ordem do parecer de 28/10)
 
 Endpoints já existem, incluindo `?from=&to=` e paginação (Fatia 0).
+Relatório: `docs/historico_sessao/gabriel/t052_reservas_21102026.md`. qa-redteam: APROVADO COM RESSALVAS (`docs/qa/redteam_t052-reservas_21out2026.md`), ressalvas tratadas em 24/10; reauditoria delta (`docs/qa/redteam_t052-reservas_delta_24out2026.md`) APROVADA COM RESSALVAS, tratadas em 29/10. Evidência E2E: Playwright em 1366×900 e 375×812, fluxo do balcão criar → check-in direto → conta (com estorno) → check-out, 49 PASS / 0 FAIL.
 
 **Critérios de aceitação**
-- [ ] **CA-05.2.a** — Lista de reservas com filtro por período e paginação
-- [ ] **CA-05.2.b** — Detalhe da reserva com hóspede, quarto, período e valores
-- [ ] **CA-05.2.c** — Criação de reserva usando `GET /rooms/available`
-- [ ] **CA-05.2.d** — Ações de check-in, check-out e cancelar, respeitando a máquina de estados
-- [ ] **CA-05.2.e** — Ação indisponível fica **desabilitada com motivo**, não some
-- [ ] **CA-05.2.f** — Conta da reserva (`/bill`) exibida no check-out
-- [ ] **CA-05.2.g** — Valores formatados via `@hotel/domain`, sem `Number()` direto
-- [ ] **CA-05.2.h** — Conta em **linha do tempo** — diárias, consumos, pagamentos e saldo — e não apenas o total (RT-15)
-- [ ] **CA-05.2.i** — Saldo da estadia visível no cabeçalho, em qualquer aba da reserva (RT-14)
-- [ ] **CA-05.2.j** — Estorno de consumo exibindo quem autorizou, a partir de `deleted_by` (RT-18)
-- [ ] **CA-05.2.k** — Comprovante da conta imprimível ou em PDF, para entregar no check-out (RT-20)
-- [ ] **CA-05.2.l** — No fluxo de nova reserva, hóspede reaproveitado da base por CPF, e-mail ou telefone, e cadastrável sem perder o que já foi preenchido (RT-23, RT-24)
-- [ ] **CA-05.2.m** — Valor da estadia e número de diárias exibidos **antes** de confirmar (RT-22)
+- [x] **CA-05.2.a** — Lista de reservas com filtro por período e paginação — `ReservationsListPage`: `?from=&to=&page=&limit=20` no servidor, período e página na URL; E2E "Página 1 de 2 · 31 reservas" e avanço para a página 2
+- [x] **CA-05.2.b** — Detalhe da reserva com hóspede, quarto, período e valores — `ReservationDetailPage`, aba Resumo (hóspede, quartos principal e extras, período, diárias, total, criada por)
+- [x] **CA-05.2.c** — Criação de reserva usando `GET /rooms/available` — `NewReservationPage` + `RoomPicker`; E2E cria reserva e cai no detalhe
+- [x] **CA-05.2.d** — Ações de check-in, check-out e cancelar, respeitando a máquina de estados — endpoints dedicados, allowlist de `@hotel/domain`; reserva criada no balcão (`PENDING`) faz check-in direto — **decisão do Gabriel de 24/10/2026** (`PENDING → CHECKED_IN` no `/domain`, alinhado ao `CheckInController`); E2E criar → check-in → Hospedado → check-out → Finalizada; 422 tratado
+- [x] **CA-05.2.e** — Ação indisponível fica **desabilitada com motivo**, não some — `reservationActions()` (testado) + `ActionSlot`; motivo visível e ligado por `aria-describedby`
+- [x] **CA-05.2.f** — Conta da reserva (`/bill`) exibida no check-out — "Fazer check-out" abre a aba Conta com a linha do tempo, o saldo em aberto e a confirmação
+- [x] **CA-05.2.g** — Valores formatados via `@hotel/domain`, sem `Number()` direto — `decimalToCents`/`formatBRL`/`multiplyCents`; grep sem `Number(`, `parseFloat` nem `as unknown as` no módulo
+- [x] **CA-05.2.h** — Conta em **linha do tempo** — diárias, consumos, pagamentos e saldo — e não apenas o total (RT-15) — `buildBillTimeline()` (testado): uma diária por noite, consumos e pagamentos em ordem, saldo correndo; pagamento não confirmado aparece sem abater
+- [x] **CA-05.2.i** — Saldo da estadia visível no cabeçalho, em qualquer aba da reserva (RT-14) — cabeçalho acima das abas, `balance_due` do servidor
+- [ ] **CA-05.2.j** — Estorno de consumo exibindo quem autorizou, a partir de `deleted_by` (RT-18) — ⛔ **bloqueado no backend**: nenhum endpoint devolve item excluído (`AccountItem` é *paranoid*; `/bill` e `/consumptions` só trazem os vivos)
+- [x] **CA-05.2.k** — Comprovante da conta imprimível ou em PDF, para entregar no check-out (RT-20) — `/reservas/:id/comprovante`, fora do AppShell, barra de ações `print:hidden`; PDF pelo "Salvar como PDF" do navegador
+- [x] **CA-05.2.l** — No fluxo de nova reserva, hóspede reaproveitado da base por CPF, e-mail ou telefone, e cadastrável sem perder o que já foi preenchido (RT-23, RT-24) — `GuestPicker`; cadastro inline pré-preenchido com o termo buscado; busca no servidor por `GET /guests?q=&limit=` (3+ caracteres, até 6 resultados, sempre por `tenant_id`) — o navegador não recebe mais o cadastro
+- [x] **CA-05.2.m** — Valor da estadia e número de diárias exibidos **antes** de confirmar (RT-22) — resumo lateral com tarifa × noites por quarto; E2E confere que o total gravado pelo servidor é igual à prévia
 
 ---
 
@@ -149,21 +150,21 @@ Tela inicial da recepção. Substitui o placeholder.
 
 ---
 
-### T-05.5 — Comanda do garçom 🔲 *(~4 dias)*
+### T-05.5 — Comanda do garçom 🟡 *(~4 dias — Fase A, CA-a a j, concluída em 26/10/2026; decisões em `anexos/SPEC-05-decisoes-T-05.5.md`; k, l, m são a Fase B)*
 
 **DEP:** ⛔ **SPEC-04 T-04.3** (endpoints `/accounts` e `/products`)
 
 **Critérios de aceitação**
-- [ ] **CA-05.5.a** — Tela inicial do garçom **é** a lista de contas abertas, sem tela intermediária
-- [ ] **CA-05.5.b** — Cardápio em grade, categorias como chips, preço visível
-- [ ] **CA-05.5.c** — Um toque no produto lança quantidade 1; quantidade só se diferente
-- [ ] **CA-05.5.d** — Rodapé fixo com total da conta
-- [ ] **CA-05.5.e** — **Fila offline** com `client_item_id` — reconexão não duplica
-- [ ] **CA-05.5.f** — Confirmação otimista; erro de rede não aparece como falha
-- [ ] **CA-05.5.g** — **Desfazer** em vez de diálogo de confirmação
-- [ ] **CA-05.5.h** — Cortesia exibida com **preço riscado e rótulo**, somando zero
-- [ ] **CA-05.5.i** — Alvo ≥ 48px; ações na metade inferior — uso com uma mão
-- [ ] **CA-05.5.j** — `WAITER` não vê nada além da comanda
+- [x] **CA-05.5.a** — Tela inicial do garçom **é** a lista de contas abertas, sem tela intermediária *(26/10 — `/comanda`, busca por mesa/suíte)*
+- [x] **CA-05.5.b** — Cardápio em grade, categorias como chips, preço visível *(26/10 — `MenuGrid`)*
+- [x] **CA-05.5.c** — Um toque no produto lança quantidade 1; quantidade só se diferente *(26/10 — toques no mesmo produto na janela somam na linha)*
+- [x] **CA-05.5.d** — Rodapé fixo com total da conta *(26/10 — total do servidor + fila, "inclui R$ X na fila")*
+- [x] **CA-05.5.e** — **Fila offline** com `client_item_id` — reconexão não duplica *(26/10 — `queueCore`/`queueStore`; offline com recarga sem duplicata, verificado no navegador)*
+- [x] **CA-05.5.f** — Confirmação otimista; erro de rede não aparece como falha *(26/10 — sem rede vira "Na fila"; rede ruim mantém a tela)*
+- [x] **CA-05.5.g** — **Desfazer** em vez de diálogo de confirmação *(26/10 — janela de 5 s antes do envio; o garçom não exclui item gravado, D-8)*
+- [x] **CA-05.5.h** — Cortesia exibida com **preço riscado e rótulo**, somando zero *(26/10)*
+- [x] **CA-05.5.i** — Alvo ≥ 48px; ações na metade inferior — uso com uma mão *(26/10 — alvos ≥ 48 px conferidos no navegador; cardápio e total na metade de baixo)*
+- [x] **CA-05.5.j** — `WAITER` não vê nada além da comanda *(26/10 — bill e fechamento só para recepção/admin)*
 - [ ] **CA-05.5.k** — Produtos mais lançados em destaque, acima do cardápio completo — a curva de uso é curta e repetitiva (RT-36)
 - [ ] **CA-05.5.l** — Transferir item entre contas e conta inteira entre quartos ou mesas (RT-37)
 - [ ] **CA-05.5.m** — Dividir a conta por pessoa **no fechamento**, não só na abertura (RT-38)
@@ -177,10 +178,10 @@ Tela inicial da recepção. Substitui o placeholder.
 Endpoints já existem (7 de analytics + `/payments`).
 
 **Critérios de aceitação**
-- [ ] **CA-05.6.a** — Registro e listagem de pagamentos
-- [ ] **CA-05.6.b** — Telas de ocupação, receita, sazonalidade e ranking
-- [ ] **CA-05.6.c** — Desktop: gráficos; **mobile: 4 números do dia em cartões**
-- [ ] **CA-05.6.d** — Relatório de cortesias e perdas (depende de SPEC-04 T-04.7)
+- [ ] **CA-05.6.a** — Registro e listagem de pagamentos *(passou para o Sirlande em 28/10)*
+- [x] **CA-05.6.b** — Telas de ocupação, receita, sazonalidade e ranking *(31/10, Weslley — `feature/t056-indicadores`)*
+- [x] **CA-05.6.c** — Desktop: gráficos; **mobile: 4 números do dia em cartões** *(31/10, Weslley)*
+- [ ] **CA-05.6.d** — Relatório de cortesias e perdas (depende de SPEC-04 T-04.7) *(passou para o Sirlande em 28/10)*
 
 ---
 
@@ -259,7 +260,7 @@ A tela que **não existe**. Camareira e supervisora não usam a tela da recepç�
 **Problema atual:** `GuestsListPage.tsx` chama `filterGuests(data, term)` — filtra **no cliente**, sobre o `findAll` inteiro. Funciona com 20 hóspedes e falha com 5.000.
 
 **Critérios de aceitação**
-- [ ] **CA-05.12.a** — Busca global por hóspede, reserva e quarto, aberta por atalho de teclado (RT-55)
+- [ ] **CA-05.12.a** — Busca global por hóspede, reserva e quarto, aberta por atalho de teclado (RT-55) — *a busca de hóspede no servidor (`GET /guests?q=&limit=`) já existe desde a T-05.2 (29/10); falta a busca global e a lista de hóspedes usá-la*
 - [ ] **CA-05.12.b** — Listagens paginadas, ordenadas e filtradas **no servidor** (RT-57)
 - [ ] **CA-05.12.c** — Nenhuma tela baixa a coleção inteira do tenant para filtrar na memória
 - [ ] **CA-05.12.d** — Atalhos de teclado nas telas de recepção (RT-56)
@@ -274,8 +275,13 @@ Do `qa-redteam` nas Fases 0 e 1:
 |----------|--------|
 | Swagger sem schema de resposta em **82%** dos endpoints 2xx (51 de 62, medido em 09/09) — força `as unknown as` no cliente "tipado" | 🔲 Ver **SPEC-06 T-06.2** |
 | Ficha do hóspede baixa **todas** as reservas do tenant e filtra no cliente | 🔲 Ver **T-05.12** — é o mesmo defeito da lista de hóspedes |
-| `openapi.json` do `api-client` está defasado: 37 paths, sem `/products` | 🔲 Regenerar ao executar a T-06.2; cliente tipado hoje sai de spec antiga |
-| `StatusBadge` só cobre status de quarto; reserva ficará sem | 🔲 Generalizar antes da T-05.2 |
+| `openapi.json` do `api-client` está defasado: 37 paths, sem `/products` | ✅ Regenerado em 21/10 (T-05.1, commit `0a0b9b4`): 46 paths, com `/products` e `/accounts`. Regenerar de novo sempre que o Swagger mudar (`pnpm gen:api`). Em 24/10 (correção do qa-redteam, commit `75395a0`) os `PUT /rooms/{id}`, `PUT /room-categories/{id}` e `PUT /guests/{id}` ganharam `requestBody`, e os três `as never` saíram do front |
+| Trava "categoria em uso" só no cliente, baixando todos os quartos (qa-redteam T-05.1, 🟡-3) | ✅ 24/10: a tela não decide mais; quem recusa é o backend (409 em `fix/tenant-fk-validation`), com mensagem de balcão. A coluna "Quartos" da lista de categorias segue contando sobre a lista de quartos em cache e **deixa de ser completa com a paginação da T-06.10**; até lá precisa de um campo de contagem no backend |
+| `StatusBadge` só cobre status de quarto; reserva ficará sem | ✅ Generalizado em 21/10 (T-05.1): aceita `tone` (`StatusTone`) + `label`; a T-05.2 escolhe o tom de cada status de reserva |
+| **T-05.2** — `@hotel/domain` proibia `PENDING → CHECKED_IN`, mas o backend e o Swagger aceitam (`CheckInController`), e a recepção não tem endpoint de confirmar reserva | ✅ **Decisão do Gabriel em 24/10/2026: walk-in — `PENDING → CHECKED_IN` liberado** em `packages/domain/src/state-machines.ts`, com teste (commit `58e37b5`); a tela habilitou o check-in de reserva `PENDING` (`4755177`). Cancelamento continua só de `PENDING`/`CONFIRMED`. Pendente: atualizar o diagrama do CLAUDE.md §3 |
+| **T-05.2** — Nova reserva buscava hóspede sobre `GET /guests` inteiro (não havia busca no backend) | ✅ 29/10: `GET /guests?q=&limit=` no backend (ILIKE escapado, `tenant_id`, limite 10/20, testes em `tests/guests-search.test.js`) e o `GuestPicker` só consulta o servidor. **Continua na T-05.12:** a tela de hóspedes ainda lista o cadastro inteiro e filtra no cliente (sem `q` o contrato antigo foi mantido de propósito) |
+| **T-05.2** — CA-05.2.j: nenhum endpoint devolve consumo estornado com `deleted_by` | 🔲 Backend: expor itens excluídos (ADMIN/RECEPTIONIST) no bill da conta ou da reserva |
+| **T-05.2** — `ReservationStatusBadge` local em `features/reservations/components/` | 🔲 Trocar pelo `StatusBadge` generalizado do `@hotel/ui` (T-05.1) — pendência pós-merge |
 
 ---
 
@@ -313,3 +319,5 @@ Do `qa-redteam` nas Fases 0 e 1:
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Estado verificado em `App.tsx` — 4 rotas ainda são placeholder |
 | 2.0 | 09/09/2026 | Gabriel Reis Cunha | Absorve o levantamento `docs/frontend/REQUISITOS_TELAS_PMS_09set2026.md` (RT-01 a RT-62). Acrescenta o mapa RT → tarefa em §4, novos critérios nas tarefas T-05.2 a T-05.7, e quatro tarefas: **T-05.9** governança, **T-05.10** ficha de registro do hóspede (RF-055), **T-05.11** fechamento de caixa por turno (RF-056) e **T-05.12** busca global e listagens no servidor. Tarifas por período saíram para a **SPEC-07** por serem majoritariamente backend. Ressalva do Swagger atualizada de 79% para **82%**, remedida em 09/09, e registrada a defasagem do `openapi.json` do `api-client` |
+| 2.1 | 21/10/2026 | Agente executor (trilha do Gabriel) | T-05.1 implementada: CA-05.1.a–f marcados com evidência. Ressalvas do `openapi.json` defasado e do `StatusBadge` encerradas |
+| 2.2 | 24/10/2026 | Agente executor (trilha do Gabriel) | Correções do qa-redteam da T-05.1 (🟡-1 a 🟡-3): PUT parcial de quarto, `requestBody` dos três PUTs no Swagger, exclusão de categoria confiando no 409 |

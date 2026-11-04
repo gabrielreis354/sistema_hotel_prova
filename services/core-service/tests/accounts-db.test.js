@@ -290,3 +290,112 @@ describe('isolamento multi-tenant no banco (CA-04.1.m)', () => {
         expect(rows.map(r => r.confdeltype)).toEqual([acao]);
     });
 });
+
+// T-04.2 — origem do item e horário do consumo (decisões D-25 e D-26).
+describe('account_items — origem e consumed_at (T-04.2)', () => {
+    async function inserirComOrigem({ origin, created_by }) {
+        return sequelize.query(
+            `INSERT INTO account_items (id, tenant_id, account_id, description, quantity, unit_price, total,
+                                        billable, created_by, origin, created_at, updated_at)
+             VALUES (gen_random_uuid(), :tenant, :conta, 'Frigobar', 1, 10, 10, true, :created_by, :origin, now(), now())`,
+            { replacements: { tenant: ctx.tenantId, conta: contaBase, created_by, origin } }
+        );
+    }
+
+    it.each(['account_items_origin_allowlist', 'account_items_created_by_required'])('CHECK %s existe', async (nome) => {
+        const [rows] = await sequelize.query(
+            `SELECT 1 FROM pg_constraint WHERE conrelid = 'account_items'::regclass AND conname = :nome`,
+            { replacements: { nome } }
+        );
+        expect(rows).toHaveLength(1);
+    });
+
+    it('item sem origem informada nasce ACCOUNT e com consumed_at preenchido', async () => {
+        const id = await inserirItem();
+        const [[item]] = await sequelize.query('SELECT origin, consumed_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.origin).toBe('ACCOUNT');
+        expect(item.consumed_at).not.toBeNull();
+    });
+
+    it('item migrado do consumo antigo aceita created_by nulo (autoria desconhecida, não inventada)', async () => {
+        await inserirComOrigem({ origin: 'LEGACY_CONSUMPTION', created_by: null });
+    });
+
+    it('recusa item da API sem autor', async () => {
+        await recusadoPor(inserirComOrigem({ origin: 'ACCOUNT', created_by: null }), 'account_items_created_by_required');
+    });
+
+    it('recusa origem fora da allowlist', async () => {
+        await recusadoPor(inserirComOrigem({ origin: 'IMPORT', created_by: ctx.userId }), 'account_items_origin_allowlist');
+    });
+});
+
+// Achado ao migrar um banco no estado do develop (19/10): com FK na coluna, o
+// sync({ alter: true }) só refaz a FK e NÃO tira o NOT NULL de created_by — a migração
+// do consumo antigo morria. O applyDbConstraints é quem garante.
+describe('account_items.created_by em banco provisionado antes da T-04.2', () => {
+    it('applyDbConstraints tira o NOT NULL que o sync deixa para trás', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        await sequelize.query(`DELETE FROM account_items WHERE created_by IS NULL`);
+        await sequelize.query(`ALTER TABLE account_items ALTER COLUMN created_by SET NOT NULL`);
+
+        try {
+            await applyDbConstraints(sequelize);
+
+            const [[col]] = await sequelize.query(
+                `SELECT is_nullable FROM information_schema.columns WHERE table_name = 'account_items' AND column_name = 'created_by'`
+            );
+            expect(col.is_nullable).toBe('YES');
+        } finally {
+            // Se falhar, não deixa o banco de teste mais restrito para os outros arquivos.
+            await sequelize.query(`ALTER TABLE account_items ALTER COLUMN created_by DROP NOT NULL`);
+        }
+    });
+});
+
+// Achado no mesmo ensaio: ao ganhar a coluna, os itens que já existiam recebem como
+// consumed_at o horário do migrate — DEPOIS de terem sido gravados, o que é impossível.
+describe('consumed_at de item anterior à coluna', () => {
+    it('applyDbConstraints traz para o created_at o consumed_at posterior a ele', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        const id = await inserirItem();
+        await sequelize.query(
+            `UPDATE account_items SET created_at = '2026-10-19T12:00:00Z', consumed_at = '2026-10-19T15:39:00Z' WHERE id = :id`,
+            { replacements: { id } }
+        );
+
+        await applyDbConstraints(sequelize);
+
+        const [[item]] = await sequelize.query('SELECT consumed_at, created_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.consumed_at.toISOString()).toBe('2026-10-19T12:00:00.000Z');
+    });
+
+    it('não mexe no consumo antigo migrado, que pode ter horário agendado (qa-redteam 🟡-1)', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        const id = await inserirItem();
+        await sequelize.query(
+            `UPDATE account_items SET origin = 'LEGACY_CONSUMPTION', created_by = NULL,
+                    created_at = '2026-10-19T12:00:00Z', consumed_at = '2026-10-21T20:00:00Z' WHERE id = :id`,
+            { replacements: { id } }
+        );
+
+        await applyDbConstraints(sequelize);
+
+        const [[item]] = await sequelize.query('SELECT consumed_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.consumed_at.toISOString()).toBe('2026-10-21T20:00:00.000Z');
+    });
+
+    it('não mexe no consumed_at anterior ao created_at (fila offline)', async () => {
+        const { default: applyDbConstraints } = await import('../database/applyDbConstraints.js');
+        const id = await inserirItem();
+        await sequelize.query(
+            `UPDATE account_items SET created_at = '2026-10-19T22:00:00Z', consumed_at = '2026-10-19T20:00:00Z' WHERE id = :id`,
+            { replacements: { id } }
+        );
+
+        await applyDbConstraints(sequelize);
+
+        const [[item]] = await sequelize.query('SELECT consumed_at FROM account_items WHERE id = :id', { replacements: { id } });
+        expect(item.consumed_at.toISOString()).toBe('2026-10-19T20:00:00.000Z');
+    });
+});

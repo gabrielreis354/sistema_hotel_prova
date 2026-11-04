@@ -56,8 +56,11 @@ export function toCents(value) {
     return Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0'));
 }
 
+/** Centavos inteiros → "150.00". Negativo (saldo a devolver, T-04.4) → "-0.05", com o sinal uma vez só. */
 export function fromCents(cents) {
-    return `${Math.trunc(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
+    const abs = Math.abs(cents);
+    const sign = cents < 0 ? '-' : '';
+    return `${sign}${Math.trunc(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
 /** Total de uma categoria por N noites, em string decimal — para quem não tem quartos (motor público). */

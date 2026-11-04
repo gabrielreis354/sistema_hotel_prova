@@ -171,15 +171,18 @@ Antes, um quarto que só existia aqui (quarto extra, ou os quartos 2..N de uma r
 | `tenant_id` | UUID | FK → tenants(id) NOT NULL | Desnormalizado — acelera relatórios financeiros por hotel sem JOIN extra |
 | `reservation_id` | UUID | FK → reservations(id) ON DELETE CASCADE | |
 | `amount` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | Valor do pagamento |
-| `method` | TEXT | NOT NULL | PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO |
-| `status` | TEXT | NOT NULL, DEFAULT 'PAID', CHECK IN ('PENDING','PAID','EXPIRED','FAILED') | Ciclo de vida: `PAID` (pagamentos manuais) ou `PENDING` → `PAID` (PIX online via webhook). `EXPIRED`/`FAILED` reservados para o PSP real |
+| `method` | TEXT | NOT NULL | PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO — allowlist da API (`PAYMENT_METHODS`, POST e PUT); sem CHECK no banco: o seed e linhas antigas usam `CARTAO` |
+| `status` | TEXT | NOT NULL, DEFAULT 'PAID', `payments_status_allowlist` IN ('PENDING','PAID','EXPIRED','FAILED','VOIDED') | Ciclo de vida: `PAID` (pagamentos manuais) ou `PENDING` → `PAID` (PIX online via webhook). `EXPIRED`/`FAILED` reservados para o PSP real. `VOIDED`: lançamento estornado (T-06.13) — só `PAID` sem PSP vira `VOIDED`; fica no histórico, fora da receita e do saldo |
 | `kind` | TEXT | NOT NULL, DEFAULT 'FULL' | Natureza do valor: `FULL`, `DEPOSIT` (sinal online) ou `BALANCE` (saldo no check-in) |
 | `provider` | TEXT | nullable | Nome do PSP (provedor de pagamento). NULL em pagamentos manuais |
 | `provider_charge_id` | TEXT | nullable | ID da cobrança no PSP. NULL em pagamentos manuais |
 | `pix_qr_code` | TEXT | nullable | Payload PIX copia-e-cola (EMV). NULL em pagamentos manuais |
 | `pix_expiration` | TIMESTAMPTZ | nullable | Validade da cobrança PIX. NULL em pagamentos manuais |
-| `paid_at` | TIMESTAMPTZ | nullable | Momento do pagamento — NULL enquanto PIX está pendente; preenchido no webhook |
-| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete — histórico financeiro nunca é destruído |
+| `paid_at` | TIMESTAMPTZ | nullable; `payments_paid_has_paid_at` (NOT VALID) | Momento do pagamento — NULL enquanto PIX está pendente; preenchido no webhook. Obrigatório em `PAID`: a receita conta pelo `paid_at` e o saldo das contas pelo `status` |
+| `void_reason` | TEXT | nullable | Motivo do estorno (T-06.13). Obrigatório e não vazio no `VOIDED` (`payments_voided_has_trail`); nulo nos demais (`payments_trail_only_voided`) |
+| `voided_by` | UUID | FK → users(id), nullable | ADMIN que estornou — mesma regra de nulidade |
+| `voided_at` | TIMESTAMPTZ | nullable | Horário do estorno (relógio do banco) — mesma regra de nulidade |
+| `deleted_at` | TIMESTAMPTZ | nullable | Soft delete legado. Desde a T-06.13 nenhuma rota exclui pagamento: lançamento financeiro se estorna |
 
 ---
 
@@ -239,7 +242,7 @@ O projeto não usa `sequelize-cli`. As tabelas são criadas e atualizadas via:
 
 ```bash
 # Kubernetes (ambiente principal)
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+./start.sh migrate   # Job com a imagem do backend (docs/infra/KUBERNETES.md)
 
 # Docker Compose (alternativo — testes)
 docker compose exec node_web node command.js migrate

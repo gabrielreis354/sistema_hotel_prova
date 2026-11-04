@@ -80,6 +80,7 @@ describe('WAITER — least privilege (CA-04.1.n)', () => {
     const bloqueadasPorAllowlist = [
         ['POST', '/reservations'],
         ['GET',  '/reservations/:reservation/consumptions'],
+        ['GET',  '/reservations/:reservation/accounts'],
         ['POST', '/guests'],
         ['GET',  '/tenants/me'],
         ['GET',  '/room-categories'],

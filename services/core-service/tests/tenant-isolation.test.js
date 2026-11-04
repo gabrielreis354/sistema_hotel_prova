@@ -193,3 +193,89 @@ describe('Mutação cross-tenant bloqueada', () => {
         expect(res.status).toBe(404);
     });
 });
+
+// ── Comanda (T-04.7, CA-04.7.f) ─────────────────────────────────────────────
+// Cardápio e contas do Tenant A são invisíveis e imutáveis para o Tenant B, inclusive
+// quando B tenta usar um id de A como referência dentro de um registro dele.
+describe('Isolamento do cardápio (Product)', () => {
+    let productA;
+
+    beforeAll(async () => {
+        const res = await request(app).post('/products').set('Authorization', `Bearer ${jwtA}`)
+            .send({ name: 'Cerveja Alpha', price: 12, category: 'DRINK' });
+        productA = res.body;
+    });
+
+    it('Tenant B não enxerga produtos do Tenant A na listagem', async () => {
+        const res = await request(app).get('/products').set('Authorization', `Bearer ${jwtB}`);
+        expect(res.status).toBe(200);
+        expect(res.body.map((p) => p.id)).not.toContain(productA.id);
+    });
+
+    it('Tenant B recebe 404 ao buscar, alterar ou excluir produto do Tenant A', async () => {
+        const auth = { Authorization: `Bearer ${jwtB}` };
+        expect((await request(app).get(`/products/${productA.id}`).set(auth)).status).toBe(404);
+        expect((await request(app).put(`/products/${productA.id}`).set(auth).send({ price: 0.5 })).status).toBe(404);
+        expect((await request(app).delete(`/products/${productA.id}`).set(auth)).status).toBe(404);
+
+        const own = await request(app).get(`/products/${productA.id}`).set('Authorization', `Bearer ${jwtA}`);
+        expect(own.status).toBe(200);
+        expect(Number(own.body.price)).toBe(12);
+        expect(own.body.active).toBe(true);
+    });
+
+    it('Tenant B recebe 404 ao lançar produto do Tenant A na própria conta', async () => {
+        const auth = { Authorization: `Bearer ${jwtB}` };
+        const accountB = await request(app).post('/accounts').set(auth).send({ type: 'TABLE', label: 'Mesa Beta' });
+        const res = await request(app).post(`/accounts/${accountB.body.id}/items`).set(auth)
+            .send({ product_id: productA.id, quantity: 1 });
+        expect(res.status).toBe(404);
+    });
+});
+
+describe('Isolamento das contas (Account)', () => {
+    let accountA, itemA;
+    const authB = () => ({ Authorization: `Bearer ${jwtB}` });
+
+    beforeAll(async () => {
+        const authA = { Authorization: `Bearer ${jwtA}` };
+        accountA = (await request(app).post('/accounts').set(authA).send({ type: 'TABLE', label: 'Mesa Alpha' })).body;
+        itemA = (await request(app).post(`/accounts/${accountA.id}/items`).set(authA)
+            .send({ description: 'Porção', unit_price: 30, quantity: 1 })).body.item;
+    });
+
+    it('Tenant B não enxerga contas do Tenant A na listagem', async () => {
+        const res = await request(app).get('/accounts').set(authB());
+        expect(res.status).toBe(200);
+        expect(res.body.map((a) => a.id)).not.toContain(accountA.id);
+    });
+
+    it('Tenant B recebe 404 ao ler a conta ou o bill do Tenant A', async () => {
+        expect((await request(app).get(`/accounts/${accountA.id}`).set(authB())).status).toBe(404);
+        expect((await request(app).get(`/accounts/${accountA.id}/bill`).set(authB())).status).toBe(404);
+    });
+
+    it('Tenant B recebe 404 ao lançar, excluir item ou fechar a conta do Tenant A', async () => {
+        const items = await request(app).post(`/accounts/${accountA.id}/items`).set(authB())
+            .send({ description: 'Intruso', unit_price: 1, quantity: 1 });
+        expect(items.status).toBe(404);
+        expect((await request(app).delete(`/accounts/${accountA.id}/items/${itemA.id}`).set(authB())).status).toBe(404);
+        expect((await request(app).put(`/accounts/${accountA.id}/close`).set(authB())).status).toBe(404);
+
+        // A conta de A segue aberta, com o mesmo item e nada a mais.
+        const own = await request(app).get(`/accounts/${accountA.id}`).set('Authorization', `Bearer ${jwtA}`);
+        expect(own.body.status).toBe('OPEN');
+        expect(own.body.items.map((i) => i.id)).toEqual([itemA.id]);
+    });
+
+    it('Tenant B recebe 404 ao listar as contas de uma reserva do Tenant A', async () => {
+        const res = await request(app).get(`/reservations/${reservationIdA}/accounts`).set(authB());
+        expect(res.status).toBe(404);
+    });
+
+    it('Tenant B recebe 404 ao abrir conta ligada a hóspede do Tenant A', async () => {
+        const res = await request(app).post('/accounts').set(authB())
+            .send({ type: 'DAY_USE', label: 'Day-use intruso', guest_id: guestIdA });
+        expect(res.status).toBe(404);
+    });
+});

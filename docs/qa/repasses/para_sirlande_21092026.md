@@ -51,3 +51,5 @@ novo por `sync({ alter })`; o caminho é `applyDbConstraints.js`.
 
 > Observação de escopo: **não reprova** a branch `feature/mercadopago-pix`. O defeito é da modelagem,
 > anterior a ela; a integração apenas o torna alcançável.
+
+> **Resolvido em 26/10/2026** (Sirlande, branch `fix/repasses-payments-products`): índice `payments_provider_charge_id_unique` em `(provider_charge_id) WHERE deleted_at IS NULL`, aplicado por `applyDbConstraints.js` (`indicesParciais`) e `schema.sql` (fora do model, de propósito: ver comentário em `PaymentModel.provider_charge_id`). **Global, sem `tenant_id` e sem `provider`**, diferente da sugestão: o id vem do PSP e o webhook busca só por ele, então um índice por tenant ou por provider deixaria a mesma ambiguidade. Teste em `tests/db-constraints.test.js`; relatório em `docs/historico_sessao/sirlande/repasses_payments_products_26out2026.md`.

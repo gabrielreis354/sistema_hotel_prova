@@ -24,7 +24,10 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 CORE="services/core-service"
-SRC_DIRS="$CORE/app $CORE/routes $CORE/middlewares $CORE/database $CORE/config $CORE/bootstrap"
+ANALYTICS="services/analytics-service"
+# As regras de ESM, findByPk, tenant_id do cliente e log de requisição valem para todo serviço (T-01.4).
+SRC_DIRS="$CORE/app $CORE/routes $CORE/middlewares $CORE/database $CORE/config $CORE/bootstrap \
+$ANALYTICS/app $ANALYTICS/routes $ANALYTICS/middlewares $ANALYTICS/database $ANALYTICS/bootstrap"
 ERRORS=0
 WARNS=0
 

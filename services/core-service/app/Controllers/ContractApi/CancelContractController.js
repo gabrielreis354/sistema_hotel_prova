@@ -1,6 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import ContractModel from '../../Models/ContractModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
+import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
 
 // Allowlist (fail-safe, regra do CLAUDE.md): só uma reserva-bloco ainda não ocupada pode ser
 // cancelada junto com o contrato. Com hóspede hospedado (CHECKED_IN) ou estadia encerrada
@@ -53,6 +54,8 @@ export default async function CancelContractController(request, response) {
                     }
                     block.status = 'CANCELLED';
                     await block.save({ transaction: t });
+                    // As contas da reserva-bloco fecham junto (SPEC-04, T-04.3, D-36).
+                    await closeReservationAccounts(block, t);
                 }
             }
 

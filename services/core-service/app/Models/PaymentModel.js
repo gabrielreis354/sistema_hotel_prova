@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../../database/connections/sequelize.js';
+import { PAYMENT_STATUSES } from '../utils/paymentEnums.js';
 
 const PaymentModel = sequelize.define(
     'PaymentModel',
@@ -14,10 +15,21 @@ const PaymentModel = sequelize.define(
             allowNull: false,
             references: { model: 'tenants', key: 'id' }
         },
+        // Reserva OU conta (CA-04.4.b, CHECK payments_reservation_or_account). Day-use, mesa e
+        // balcão pagam a conta, sem reserva. Pagamento de conta da suíte grava as duas: a
+        // reserva vem da conta (o servidor preenche) e o bill da reserva segue somando.
         reservation_id: {
             type: DataTypes.UUID,
-            allowNull: false,
+            allowNull: true,
             references: { model: 'reservations', key: 'id' }
+        },
+        // Conta paga (T-04.4). Nulo = pagamento da reserva, que entra na conta titular
+        // (app/utils/accountPayments.js). RESTRICT: pagamento é registro financeiro.
+        account_id: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: { model: 'accounts', key: 'id' },
+            onDelete: 'RESTRICT'
         },
         amount: {
             type: DataTypes.DECIMAL(12, 2),
@@ -27,14 +39,32 @@ const PaymentModel = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: false
         },
-        // Ciclo de vida do pagamento (conjunto canônico): PENDING, PAID, EXPIRED, FAILED.
-        // Pagamentos manuais (recepção) já nascem PAID; cobranças PIX online nascem PENDING
-        // e viram PAID quando o webhook confirma. EXPIRED (cobrança PIX vencida) e FAILED
-        // (recusada pelo PSP) ficam reservados para o provedor de pagamento real.
+        // Ciclo de vida do pagamento: allowlist em app/utils/paymentEnums.js (CHECK
+        // payments_status_allowlist no banco). Pagamentos manuais (recepção) já nascem
+        // PAID; cobranças PIX online nascem PENDING e viram PAID quando o webhook confirma.
+        // EXPIRED (cobrança PIX vencida) e FAILED (recusada pelo PSP) ficam reservados para
+        // o provedor real. VOIDED é o estorno do lançamento (T-06.13): só PAID vira VOIDED,
+        // pelo POST /payments/:id/void, e o pagamento fica no histórico.
         status: {
             type: DataTypes.TEXT,
             allowNull: false,
-            defaultValue: 'PAID'
+            defaultValue: 'PAID',
+            validate: { isIn: [PAYMENT_STATUSES] }
+        },
+        // Trilha do estorno (CA-06.13.b, e). Nulos em todo pagamento não anulado; os três
+        // obrigatórios no VOIDED — CHECKs payments_voided_has_trail e payments_trail_only_voided.
+        void_reason: {
+            type: DataTypes.TEXT,
+            allowNull: true
+        },
+        voided_by: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: { model: 'users', key: 'id' }
+        },
+        voided_at: {
+            type: DataTypes.DATE,
+            allowNull: true
         },
         // Natureza do valor: FULL (integral), DEPOSIT (sinal online) ou BALANCE (saldo no check-in).
         kind: {
@@ -47,6 +77,12 @@ const PaymentModel = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: true
         },
+        // Único entre os pagamentos vivos, GLOBAL (sem tenant_id): o webhook PIX (rota
+        // pública) acha o pagamento só por este id. O índice payments_provider_charge_id_unique
+        // NÃO está em `indexes` de propósito — vive em database/applyDbConstraints.js
+        // (indicesParciais) e db/schema.sql. No model, uma duplicata legada pararia o
+        // sync({ alter }) do migrate no meio, sem migrar as tabelas seguintes (🟡-1 do
+        // qa-redteam de 26/10); no applyDbConstraints ela é reportada e o resto segue.
         provider_charge_id: {
             type: DataTypes.TEXT,
             allowNull: true
@@ -67,6 +103,18 @@ const PaymentModel = sequelize.define(
         }
     },
     {
+        // Mesma regra do CHECK payments_paid_has_paid_at, antes do INSERT/UPDATE (reauditoria
+        // delta, 🟢-3): o status nasce PAID por padrão e paid_at não tem default, então um
+        // create manual sem data (migração, job, teste) falha aqui, com nome e mensagem.
+        // Cobre create e save/update de instância; o UPDATE estático por where não carrega a
+        // linha inteira — aí quem garante é o banco.
+        validate: {
+            paidHasPaidAt() {
+                if (this.status === 'PAID' && (this.paid_at === null || this.paid_at === undefined)) {
+                    throw new Error('payments_paid_has_paid_at: pagamento PAID exige paid_at');
+                }
+            }
+        },
         tableName: 'payments',
         timestamps: true,
         createdAt: 'created_at',
