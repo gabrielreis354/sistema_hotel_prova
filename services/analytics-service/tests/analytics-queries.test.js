@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'crypto';
 import createApp from '../bootstrap/createApp.js';
@@ -490,6 +490,66 @@ describe('RevPAR com arredondamento único', () => {
         });
         const { body } = await get(`/analytics/occupancy?date=${today}`, tokenFor({ tenantId: hotel }));
         expect(body).toMatchObject({ total_rooms: 3, occupied: 1, occupancy_rate: 33.33, adr: '333.33', revpar: '111.11' });
+    });
+});
+
+// 🟢-3 do qa-redteam da H.3 (e repasse D-8 da T-05.3): o dia é o do hotel (D-68, mesma constante do
+// core, `HOTEL_TIMEZONE` = America/Sao_Paulo), não o de UTC. Relógio fixo em 22h30 de Brasília, que em
+// UTC já é o dia seguinte.
+describe('Dia do hotel, não de UTC (D-68)', () => {
+    let hotel;
+    let token;
+    const ids = { cat: randomUUID(), room: randomUUID(), guest: randomUUID(), resHoje: randomUUID(), resAmanha: randomUUID(), resSet: randomUUID() };
+
+    beforeAll(async () => {
+        hotel = randomUUID();
+        token = tokenFor({ tenantId: hotel });
+        await evento('tenant.created', hotel, hotel, { status: 'ACTIVE' });
+        await evento('room_category.created', hotel, ids.cat, { name: 'Std' });
+        await evento('room.created', hotel, ids.room, { category_id: ids.cat, number: '1', status: 'AVAILABLE' });
+        await evento('guest.created', hotel, ids.guest, { full_name: 'Hóspede' });
+        const res = (id, over) => evento('reservation.created', hotel, id, {
+            guest_id: ids.guest, room_id: ids.room, status: 'CONFIRMED', total_amount: '100.00',
+            created_at: '2026-09-01T12:00:00Z', ...over
+        });
+        await res(ids.resHoje, { check_in_date: '2026-11-03', check_out_date: '2026-11-04' });
+        await res(ids.resAmanha, { check_in_date: '2026-11-04', check_out_date: '2026-11-05' });
+        await res(ids.resSet, { check_in_date: '2026-09-15', check_out_date: '2026-09-16' });
+        const pago = (paidAt, amount) => evento('payment.created', hotel, randomUUID(), {
+            reservation_id: ids.resSet, amount, method: 'PIX', status: 'PAID', paid_at: paidAt
+        });
+        await pago('2026-11-04T01:00:00Z', '10.00');   // 03/11 às 22h em Brasília
+        await pago('2026-12-01T02:00:00Z', '20.00');   // 30/11 às 23h em Brasília
+    });
+
+    afterEach(() => { vi.useRealTimers(); });
+
+    const relogio = (iso) => vi.useFakeTimers({ toFake: ['Date'], now: new Date(iso) });
+
+    it('occupancy sem date usa o dia de Brasília', async () => {
+        relogio('2026-11-04T01:30:00Z');   // 03/11 às 22h30 em Brasília
+        expect((await get('/analytics/occupancy', token)).body.date).toBe('2026-11-03');
+    });
+
+    it('no-show de "hoje" é o check-in de hoje em Brasília, não o de amanhã (repasse D-8)', async () => {
+        relogio('2026-11-04T01:30:00Z');
+        const risco = (await get('/analytics/alerts', token)).body.no_show_risk.map((r) => r.reservation_id);
+        expect(risco).toEqual([ids.resHoje]);
+    });
+
+    it('revenue e payment-mix filtram e agrupam pelo dia e mês de Brasília', async () => {
+        const rev = (await get('/analytics/revenue?start=2026-11-03&end=2026-11-03', token)).body;
+        expect(rev.realized.total).toBe('10.00');
+        const mes = (await get('/analytics/revenue?start=2026-11-01&end=2026-11-30', token)).body;
+        expect(mes.realized).toEqual({ total: '30.00', by_month: [{ month: '2026-11', total: '30.00' }] });
+        const mix = (await get('/analytics/payment-mix?start=2026-11-03&end=2026-11-03', token)).body;
+        expect(mix).toEqual([{ method: 'PIX', count: 1, total: '10.00', pct: 100 }]);
+    });
+
+    it('seasonality conta os meses a partir do mês de Brasília', async () => {
+        relogio('2026-11-01T01:30:00Z');   // 31/10 às 22h30 em Brasília
+        const meses = (await get('/analytics/seasonality?months=1', token)).body.map((m) => m.month);
+        expect(meses).toContain('2026-09');   // outubro − 1 mês; com UTC (novembro) setembro sairia
     });
 });
 
