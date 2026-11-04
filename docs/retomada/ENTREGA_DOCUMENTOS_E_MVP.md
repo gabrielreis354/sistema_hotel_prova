@@ -1,7 +1,13 @@
 # Retomada — Entrega dos documentos e do MVP (até 10/12/2026)
 
 > **Leia isto primeiro ao retomar uma sessão.** Atualize ao fim de cada checkpoint.
-> **Último checkpoint:** 02/11/2026 (orquestrador, sessão do Gabriel). Pauta do encontro de 03/11 em `docs/delegacoes/pauta_ponto_controle_03nov2026.md`; reauditoria da t052 e qa-redteam da H.3 em curso
+> **Último checkpoint:** 03/11/2026 (orquestrador, sessão do Gabriel).
+> - As 4 integrações do parecer estão na `develop`: #104, #105, #106 (t051, `e4c9ae3`) e #108 (t052, `cb04f85`).
+> - Release `develop → main` aberta: **#110**, aguardando a aprovação do Sirlande.
+> - PRs dos 8 documentos abertos ao professor: #32 a #39.
+> - H.3 (#109, rascunho): correção dos 4 🟡 em curso.
+> - Painel reorganizado por meta (`caeeb59`).
+> - **O estado vivo das metas está no `PAINEL_DE_ANDAMENTO_MVP.md` §3; as tabelas §2 e §3 abaixo são o histórico de 29/10.**
 > **Fontes:**
 > - `docs/PLANO_MVP_ATE_10DEZ2026.md`
 > - `docs/PAINEL_DE_ANDAMENTO_MVP.md`
