@@ -844,13 +844,13 @@ const options = {
                         category_id: { type: 'string', format: 'uuid', description: 'Categoria do próprio hotel, não excluída' },
                         number: { type: 'string', example: '101', description: 'Texto não vazio; gravado aparado' },
                         floor: { type: 'integer', nullable: true, description: '0 é o térreo; null tira o andar' },
-                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
+                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE (limpeza concluída) e CLEANING → MAINTENANCE (defeito achado na limpeza). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
                         400: { description: 'code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         404: { description: 'code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/RoomError' }, { $ref: '#/components/schemas/Error' }] } } } },
-                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE e CLEANING → MAINTENANCE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 },
                 delete: {

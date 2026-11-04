@@ -1369,7 +1369,7 @@ export interface paths {
                         /** @description 0 é o térreo; null tira o andar */
                         floor?: number | null;
                         /**
-                         * @description Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito
+                         * @description Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE (limpeza concluída) e CLEANING → MAINTENANCE (defeito achado na limpeza). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito
                          * @enum {string}
                          */
                         status?: "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE";
@@ -1404,7 +1404,7 @@ export interface paths {
                         "application/json": components["schemas"]["RoomError"] | components["schemas"]["Error"];
                     };
                 };
-                /** @description code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito) */
+                /** @description code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE e CLEANING → MAINTENANCE; reenviar o status atual é aceito) */
                 409: {
                     headers: {
                         [name: string]: unknown;
