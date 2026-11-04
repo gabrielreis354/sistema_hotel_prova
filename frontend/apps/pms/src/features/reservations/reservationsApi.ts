@@ -25,6 +25,19 @@ export interface ReservationListParams {
   limit: number;
 }
 
+/**
+ * Consulta geral da listagem: período opcional e situação (`status=A,B`, allowlist no servidor).
+ * O painel "Hoje" pede `status=CHECKED_IN` sem período — o hóspede com saída atrasada sairia
+ * da janela de datas. A tela de Reservas continua usando ReservationListParams (período fixo).
+ */
+export interface ReservationQuery {
+  from?: string;
+  to?: string;
+  status?: string;
+  page: number;
+  limit: number;
+}
+
 export interface CreateReservationInput {
   guest_id: string;
   room_id: string;
@@ -63,7 +76,7 @@ export class RoomConflictError extends ApiError {
  * tenant inteiro (princípio 7). Com page/limit o backend responde sempre { data, total, … };
  * o ramo de array só existe porque o Swagger declara os dois formatos no mesmo 200.
  */
-export async function listReservations(params: ReservationListParams): Promise<ReservationPage> {
+export async function listReservations(params: ReservationQuery): Promise<ReservationPage> {
   const { data, error, response } = await api.GET('/reservations', { params: { query: params } });
   if (error || !response.ok || !data) {
     throw new ApiError(serverMessage(error) ?? 'Falha ao carregar reservas.', response.status);
