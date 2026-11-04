@@ -1,7 +1,13 @@
 # Retomada — Entrega dos documentos e do MVP (até 10/12/2026)
 
 > **Leia isto primeiro ao retomar uma sessão.** Atualize ao fim de cada checkpoint.
-> **Último checkpoint:** 29/10/2026 (orquestrador, sessão do Gabriel)
+> **Último checkpoint:** 03/11/2026 (orquestrador, sessão do Gabriel).
+> - As 4 integrações do parecer estão na `develop`: #104, #105, #106 (t051, `e4c9ae3`) e #108 (t052, `cb04f85`).
+> - Release `develop → main` aberta: **#110**, aguardando a aprovação do Sirlande.
+> - PRs dos 8 documentos abertos ao professor: #32 a #39.
+> - H.3 (#109, rascunho): correção dos 4 🟡 em curso.
+> - Painel reorganizado por meta (`caeeb59`).
+> - **O estado vivo das metas está no `PAINEL_DE_ANDAMENTO_MVP.md` §3; as tabelas §2 e §3 abaixo são o histórico de 29/10.**
 > **Fontes:**
 > - `docs/PLANO_MVP_ATE_10DEZ2026.md`
 > - `docs/PAINEL_DE_ANDAMENTO_MVP.md`
@@ -31,14 +37,32 @@ Fork: `C:\Users\gabri\unifaat_4sem\UniFAAT-projeto-experimental-2027-1` (`origin
 
 | Doc | Versão entregue | Branch no fork | Situação 29/10 | Falta |
 |---|---|---|---|---|
-| 01 Solicitação | v1.0 (23/08) | `entrega-1-solicitacao-v11` | Em redação (agente) | Nota dos checkboxes §5.1, walk-in, nota de papéis §8 → v1.1 |
-| 02 Requisitos | v1.3 (09/09) | `entrega-2-requisitos-v14` | Em redação (agente) | Os 🔴 e 🟡 da auditoria. **Reentrega obrigatória** |
-| 03 DFD | v1.2 (09/10) | `entrega-3-dfd-v13` | Em redação (agente) | 🔷 indevidos, PDF de orçamento no D-005, D-001 completo. **Reentrega obrigatória** |
-| 04 MER | v1.3 (15/10) | `entrega-4-mer-v13-historico` | Em redação (agente) | Retirar 🔷 de payments/VOIDED, §10.4 e allowlist. Conferir as tabelas novas do schema |
+| 01 Solicitação | v1.0 (23/08) | `entrega-1-solicitacao-v11` @ `99fef8f` | **Pronto (v1.1)** | Entregar junto com o Doc 08 ou depois dele, porque o Doc 01 cita o 08 |
+| 02 Requisitos | v1.3 (09/09) | `entrega-2-requisitos-v14` @ `2fde2bb` | **Pronto (v1.4)**: todos os 🔴, 🟡 e 🟢; RF-014 corrigido para amount > 0 e account_id, como no código | Reentrega obrigatória |
+| 03 DFD | v1.2 (09/10) | `entrega-3-dfd-v13` @ `6f5fcbd` | **Pronto (v1.3)**: revisão do grupo sobre a v1.2 do Sirlande | Reentrega obrigatória. Entregar junto com o 06 ou antes dele. Mermaid não renderizado (só os rótulos mudaram): renderizar antes do PR |
+| 04 MER | v1.3 (15/10) | `entrega-4-mer-v13-historico` @ `16b0d7f` | **Pronto (v1.4)**: varredura coluna a coluna contra o schema da develop 093d14b, sem divergência | As citações das ADR-007 e 010 dependem da entrega do Doc 07 |
 | 05 Arquitetura em nuvem | — (v1.1 em 19/10) | `entrega-5-arquitetura-nuvem` @ `ff69a36` | **Pronto (v1.2)**: 1× t3.small, cerca de US$ 0,35 por sessão de 4 h, conta de memória com folga de cerca de 125 MiB | Decidir sobre o diagrama com ícones oficiais da AWS (precisa baixar o pacote). Confirmar no console se ECR e RDS estão disponíveis no plano gratuito |
-| 06 C4 | — (v1.1 em 19/10) | `entrega-6-c4` | Em redação (agente) | v1.2: walk-in, token do PSP, §5 #5, porta 3001, categorias |
+| 06 C4 | — (v1.1 em 19/10) | `entrega-6-c4` @ `449a3f2` | **Pronto (v1.2)** | A branch parte de um upstream antigo (79bcce2): antes do PR, recriar a partir de `upstream/main`. Renderizar o Mermaid |
 | 07 ADR | — | fork `entrega-7-adr` @ `fb11fc6` (hotel `docs/doc07-adr` @ `070c339`, PR #97) | **Pronto (v1.1)**: 11 ADRs; Termo §6 item 7 atendido; ADR-004 bate com o Doc 05 v1.2 | Nada. O PR #97 pode ser fechado ou mergeado depois da entrega ao professor |
 | 08 Sprints | — (v1.0 sugestão em 07/10) | `entrega-8-sprints` @ `4e5b557` | **Pronto (v1.1)** | Revisar o registro da S8 e a situação das metas depois de 03/11 |
+
+**30/10: pacote de entrega montado.** As 16 contradições foram resolvidas, os 15 diagramas Mermaid renderizam e cada branch parte do `upstream/main` atual, tocando só o seu arquivo (o Doc 06 passou para `entrega-6-c4-v12`). Hashes finais:
+- 01 `866dc91`
+- 02 `3933978`
+- 03 `6f5fcbd`
+- 04 `885d2b4`
+- 05 `ff69a36`
+- 06 `51bf706`
+- 07 `fb11fc6`
+- 08 `381464e`
+
+Plano de PRs e descrições prontas: `docs/entrega-documentos/`. Um PR por documento, todos na mesma rodada.
+
+Feito: RNF-029 (monitoramento, Termo §5) no Doc 02 e premissas do Doc 01 alinhadas ao Doc 05 (plano em `1a5c038`).
+
+Decisões do Gabriel:
+- diagrama do Doc 05 com ícones oficiais da AWS;
+- PR do Doc 08 só depois de 03/11, por causa das pendências datadas.
 
 Pacote de PRs ao professor (ordem recomendada):
 1. **05 + 06 + 07**, juntos e coerentes com a ADR-004.
@@ -54,10 +78,10 @@ Antes de cada PR, conferir o documento contra:
 
 | Ordem | Branch | Meta | Data | Situação | Próximo passo |
 |---|---|---|---|---|---|
-| 1 | `fix/tenant-fk-validation` @ `02ab6f4` | segurança | 29/10 | develop integrada, 1054 testes verdes, linhas 87% | **qa-redteam em curso** → autorização → merge |
-| 2 | `feature/analytics-service` @ `f09af9d` | M7-a | 29/10 | develop integrada sem conflito; analytics com 84 testes (95% de linhas), core com 1006; catálogo 1.1.1 com `payment.deleted` corrigido | Reauditoria em `8c74407`: APROVADO COM RESSALVAS. A correção do 🟡-A (perda silenciosa acima de 20 entregas na fila quorum) está em curso → depois, autorização e merge. **Decisão L-1 aberta:** o consumo interno (T-04.7) não tem evento no catálogo |
-| 3 | `feature/t051-quartos-categorias` @ `6501a9a` | M1 | 30/10 | develop integrada (989 testes, frontend 111/111, build ok); rotas isoladas em `routes/roomsRoutes.tsx` | Depois do merge da 1: segundo merge da develop + `pnpm gen:api` (passo a passo na retomada da branch) |
-| 4 | `feature/t052-reservas` | M2, M5-a | 30/10 | Fechando as ressalvas e recebendo a develop | Depois da 3: merge da develop + `pnpm gen:api` |
+| 1 | `fix/tenant-fk-validation` | segurança | 29/10 | ✅ **Mergeada em 31/10** (PR #104, `4234915`), CI verde | Rodar em staging a consulta da pendência 1 de 24/10 |
+| 2 | `feature/analytics-service` | M7-a | 29/10 | ✅ **Mergeada em 31/10** (PR #105, `fbe086d`), 8 checks do CI verdes | H.3 (cutover) **implementada** em `feature/analytics-cutover` @ `5376786`: as 7 rotas no analytics-service, o core com 404, nginx com exceção para internal-consumption, k8s renderizado; analytics 162 testes, core 1126; Playwright /indicadores ok. qa-redteam em curso (pg 5463 / rmq 5699); /analytics/internal-consumption fica no core até a decisão L-1 |
+| 3 | `feature/t051-quartos-categorias` @ `5ea262f` | M1 | 30/10 | **Pronta.** Reauditoria delta 2 APROVADO; develop até fbe086d; 🟢-1/🟢-2 corrigidos; frontend 154 testes, core 1117 | Autorização do Gabriel → PR → CI → merge. A barra do celular com 7 itens vai para a T-05.3 |
+| 4 | `feature/t052-reservas` @ `483fe55` | M2, M5-a | 30/10 | develop até fbe086d; respostas do #104 tratadas (409 com e sem room_ids, 404); frontend 145 testes, core 1126, E2E 54/0 | Reauditoria delta 2 em curso → merge pequeno depois da t051 (gen:api, App.tsx) → autorização → merge |
 
 **Depois das 4 integrações:**
 - PR de release `develop → main` até 03/11 (o Sirlande aprova).
@@ -67,12 +91,13 @@ Antes de cada PR, conferir o documento contra:
 ## 4. Pendências de decisão
 
 **Com o Gabriel:**
-- Merge do PR #99, aberto desde 21/10.
+- PRs #97 e #99 mergeados pelo Gabriel em 29/10. Os commits de retomada posteriores a 093d14b ainda precisam de PR.
 - Merges das integrações.
 - PRs ao professor.
 
-**Na reunião de 03/11:**
+**Na reunião de 03/11** (pauta completa em `docs/delegacoes/pauta_ponto_controle_03nov2026.md`):
 - Decisões 5 a 7 do parecer; as propostas estão na resposta.
+- L-1, contrato da H.3, CLEANING → MAINTENANCE e diagrama do Doc 05.
 - Escopo do Weslley, a confirmar até 04/11.
 - Exposição de métricas por pessoa no Doc 08.
 

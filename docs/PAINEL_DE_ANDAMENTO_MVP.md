@@ -8,7 +8,7 @@
 > **Regra zero:** o estado do git manda. Se este painel disser uma coisa e o `git log` disser
 > outra, o git vence — e você corrige o painel.
 
-**Última atualização:** 21/10/2026, pelo orquestrador (sessão do Gabriel).
+**Última atualização:** 03/11/2026, pelo orquestrador (sessão do Gabriel). Organizado **por meta (M1 a M10)**, como foi aceito na resposta ao parecer do Sirlande de 28/10.
 
 ---
 
@@ -23,10 +23,10 @@ bash scripts/estado.sh                        # risco de perda, branches, portã
 ```
 
 Depois, nesta ordem:
-0. **`docs/retomada/`** — se você está **retomando** uma frente (depois de compactação, queda ou troca de sessão), leia primeiro o arquivo de retomada dela, na própria branch (`docs/retomada/<branch-com-hifens>.md`). Quem coordena começa por `docs/retomada/ORQUESTRADOR.md`. A regra está em `docs/retomada/README.md`.
-1. **§3** — o que está em curso (não pegue uma frente que já tem dono ativo).
-2. **§4** — a fila. Pegue o primeiro item **sem dono ativo** da sua trilha, ou o primeiro **livre**.
-3. **§5** — as regras de paralelismo (worktree, banco e porta próprios).
+0. **`docs/retomada/`**: se você está **retomando** uma frente (depois de compactação, queda ou troca de sessão), leia primeiro o arquivo de retomada dela, na própria branch (`docs/retomada/<branch-com-hifens>.md`). Quem coordena começa por `docs/retomada/ORQUESTRADOR.md` e `docs/retomada/ENTREGA_DOCUMENTOS_E_MVP.md`.
+1. **§3**: as metas e quem está em cada uma. Não pegue uma meta que já tem dono ativo.
+2. **§4**: a fila da sua trilha.
+3. **§5**: as regras de paralelismo (worktree, banco e porta próprios).
 4. A delegação ou o prompt indicado na fila.
 
 Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARDS.md`,
@@ -38,91 +38,92 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 
 | Data | Decisão |
 |---|---|
-| 21/10 | **ADR-007 adiada para o 5º semestre.** Tudo é construído sobre o modelo atual de reserva (quarto principal + `reservation_rooms`) e o catálogo de eventos v1.0 |
+| 21/10 | **ADR-007 adiada para o 5º semestre.** Tudo é construído sobre o modelo atual de reserva (quarto principal + `reservation_rooms`) e o catálogo de eventos v1.x |
 | 21/10 | **Retenção do outbox: 7 dias** |
-| 21/10 | **Promoção `develop → main` do PR #98 confirmada** pelo Gabriel |
-| 21/10 | **Escopo do 4º semestre = o roteiro de demonstração** do `PLANO_MVP_ATE_10DEZ2026.md` §2. Nuvem (T-02.2/2.3/2.5), SPEC-07, rack completo e T-05.7 a T-05.12 são do 5º semestre |
+| 21/10 | **Escopo do 4º semestre = o roteiro de demonstração** do `PLANO_MVP_ATE_10DEZ2026.md` §2. Nuvem, SPEC-07, rack completo e T-05.7 a T-05.12 são do 5º semestre |
 | 21/10 | **Congelamento de funcionalidades em 24/11.** Depois, só correção e ensaio |
-| 19/10 | Documentos oficiais passam pela **revisão do time** e podem ser corrigidos por ele antes da entrega |
-| 14/10 | **Doc 07 (ADR) é do Gabriel** |
+| 21/10 | Weslley sai da nuvem e vai para a T-05.6 (indicadores do gerente) e a T-01.5 (CI por serviço). Ambas entregues em 31/10 |
+| 24/10 | **Walk-in:** `PENDING → CHECKED_IN` liberado no domínio |
+| 24/10 | Alvo de nuvem: 1× `t3.small` no plano de créditos, com tudo destruído após cada sessão |
+| 28/10 | **Parecer do Sirlande aceito:** metas M1 a M10 como acompanhamento e ordem de integração fk → analytics → t051 → t052 |
+| 29/10 | **Os 8 documentos oficiais são do grupo**: qualquer um edita no fork, com crédito ao autor anterior no Histórico |
+| 02/11 | **PRs dos 8 documentos abertos ao professor** (#32 a #39 no repositório UniFAAT) |
 
-**Decisões pendentes do Gabriel** (registre aqui quando forem tomadas):
-- [ ] Weslley sai da nuvem e vai para T-05.6 (financeiro) e T-01.5 (CI por serviço) — *recomendado*
-- [ ] Entregar Docs 05, 06 e 07 num PR só — *recomendado*; **datas dos próximos encontros com o professor**
-- [ ] Publicar este painel e o plano (commit em `docs/` + PR)
+**Decisões do encontro de 03/11** (pauta: `docs/delegacoes/pauta_ponto_controle_03nov2026.md`). Registre aqui quando forem tomadas:
+- [ ] 5: passo 6, reserva direta do hóspede, demonstrada pela API pública
+- [ ] 6: fechamento de conta só no balcão; conta INTERNAL mantém o comportamento atual
+- [ ] 7: Playwright no CI como job não bloqueante
+- [ ] L-1: `/analytics/internal-consumption` continua no core
+- [ ] Contrato da H.3: dinheiro como string, `unpaid` com `guest_id`, `paid` e `balance`, 400 para entrada inválida
+- [ ] Quarto: `CLEANING → MAINTENANCE`
+- [ ] Diagrama do Doc 05 com ícones oficiais da AWS
+- [ ] Doc 08: métrica individual
 
 ---
 
-## 3. Em curso agora
+## 3. Metas M1 a M10: onde estamos
 
-> Antes de pegar qualquer item, confira se a branch abaixo ainda está ativa:
-> `git log -1 --format='%ad %s' --date=relative origin/<branch>`. Branch sem commit há mais de 2 dias
-> e sem relatório = pergunte ao Gabriel antes de assumir.
+> A meta só fica ✅ quando está **na `develop`**. Branch pronta não conta.
+> Antes de assumir uma meta, confira se a branch ainda está ativa:
+> `git log -1 --format="%ad %s" --date=relative origin/<branch>`.
 
-| Frente | Branch | Quem | Worktree | Portas | Estado em 21/10 |
+| Meta | O quê (passo do roteiro) | Dono | Data | Situação em 03/11 | Branch / PR |
 |---|---|---|---|---|---|
-| **H.2** — `analytics-service` (CA-01.4.g, h, i, j, l, m) | `feature/analytics-service` | agente (trilha Gabriel) | `/home/gabri/wt-h2-analytics` | PG 5441 · RabbitMQ 5682/15682 | em implementação |
-| **T-06.13** — estorno `VOIDED` | `fix/t0613-estorno-pagamento` | agente | `/home/gabri/wt-t0613` | PG 5442 | em implementação |
-| Repasses do QA ao Gabriel — conta de diária na troca de quarto; lock no ramo FAILED do webhook | `fix/repasses-gabriel-out` | agente | `/home/gabri/wt-repasses` | PG 5443 | RED do item 1 commitado |
-| **T-05.1** — quartos e categorias (frontend) | `feature/t051-quartos-categorias` | agente | `/home/gabri/wt-t051` | PG 5444 · backend 3051 | `api-client` regenerado e no remoto (`0a0b9b4`) |
-| **T-05.2** — reservas e check-in/out (frontend) | `feature/t052-reservas` | agente (trilha Gabriel) | `/home/gabri/wt-t052` | PG 5445 · backend 3052 | em implementação |
-| **T-05.5** — comanda do garçom (Fase A) | `feature/t055-comanda` | **Sirlande** | — | — | delegação pronta (PR #99) |
+| M1 | Quartos e categorias | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #106 (`e4c9ae3`) |
+| M2 | Reservas, check-in e check-out, walk-in | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #108 (`cb04f85`) |
+| M3 | Comanda P2 | Sirlande | 17/11 | Sirlande informa | — |
+| M4 | Painel Hoje (T-05.3) | Gabriel | 10/11 | 🔲 Começa agora. Inclui a barra inferior do celular com 7 itens | prompt §8.2 |
+| M5-a | Conta em linha do tempo | Gabriel | 30/10 | ✅ Na `develop`, junto com a M2 | #108 |
+| M5-b | Pagamento no check-out | Sirlande | 07/11 | Sirlande informa; o Gabriel revisa a tela antes de 07/11 | — |
+| M5-c | Estorno (backend) | Sirlande | 10/11 | Sirlande informa | — |
+| M6 | PIX | Weslley | 17/11 | Compose com o Asaas e SPEC-03 entraram em 31/10 | — |
+| M7-a | analytics-service (H.2) | Gabriel | 29/10 | ✅ Na `develop` em 31/10 | #105 (`fbe086d`) |
+| M7-b | H.3: indicadores servidos pelo analytics | Gabriel | 14/11 | 🟡 qa-redteam: APROVADO COM RESSALVAS; correção dos 4 🟡 em curso | #109 (rascunho), `feature/analytics-cutover` |
+| M8 | Seed e compose | Sirlande e Weslley | 17/11 | Seed do `start.sh` entrou em 30/10 | — |
+| M9 | Congelamento e ensaio, zero 🔴 aberto | todos | 24/11 | — | — |
+| M10 | Release `develop → main` | Gabriel, com aprovação do Sirlande | 01/12 | Release intermediária aberta em 03/11 | #110 |
 
-**PRs abertos** (`gh pr list --repo gabrielreis354/sistema_hotel_prova`):
-- **#97** — Doc 07 v1.0 (11 ADRs, ADR-007 adiada, ADR-008 com Asaas)
-- **#99** — decisões de 21/10 e a delegação da T-05.5
+**Fora das metas, mas já na `develop`:**
+- #104: vazamento de FK entre hotéis, em 31/10;
+- T-05.6 b/c (Weslley);
+- T-01.5, CI por serviço (Weslley);
+- painel e alertas do RabbitMQ (CA-01.4.f, parcial).
 
-**Fork da UniFAAT** (`gabrielreis354/UniFAAT-projeto-experimental-2027-1`) — branches de entrega prontas, **sem PR para o professor ainda**:
-- `entrega-6-c4` — Doc 06 v1.1, auditado e **pronto**
-- `entrega-5-arquitetura-nuvem` — Doc 05 v1.1, **não pronto** (ver §6)
+**PRs abertos:**
+- **Repositório do hotel:**
+  - #107: retomada, pacote dos documentos e pauta;
+  - #109: H.3, em rascunho;
+  - #110: release.
+- **Repositório UniFAAT:** #32 a #39, os 8 documentos oficiais.
 
 ---
 
-## 4. A fila — em ordem de prioridade
+## 4. A fila, por trilha
 
 Prioridade do projeto: trabalho em risco de perda → vulnerabilidade/dinheiro → bloqueio de outra
 frente → condição de aprovação → produto demonstrável → polimento.
 
-### Semana 1 — 21 a 27/10
+| # | Tarefa | Meta | Trilha | Depende de | Como começar |
+|---|---|---|---|---|---|
+| 1 | H.3: corrigir os 4 🟡 do qa-redteam, verificação estreita e merge | M7-b | Gabriel | `feature/ci-analytics-service` mergeada (🟡-2, Weslley) | `docs/qa/redteam_analytics-cutover-h3_02112026.md` |
+| 2 | **T-05.3**: painel Hoje | M4 | Gabriel | T-05.2 ✅ | Prompt §8.2 |
+| 3 | Revisar a tela de pagamento do Sirlande | M5-b | Gabriel | branch do Sirlande | — |
+| 4 | Pagamento no check-out e estorno | M5-b, M5-c | Sirlande | T-05.2 ✅ | — |
+| 5 | Comanda P2 | M3 | Sirlande | — | — |
+| 6 | Mergear `feature/ci-analytics-service` e pôr o RabbitMQ no `ci-core-service.yml` | M7-b | Weslley | — | `docs/qa/repasses/para_weslley_02112026.md` |
+| 7 | Revisar a infra da H.3 (nginx e k8s marcados com `[revisão do Weslley]`) | M7-b | Weslley | — | PR #109 |
+| 8 | PIX no roteiro | M6 | Weslley | — | SPEC-03 |
+| 9 | Seed e compose sobem o roteiro inteiro, com o analytics | M8 | Sirlande e Weslley | H.3 | — |
+| 10 | Roteiro de 7 passos no Playwright, como job não bloqueante | M9 | Weslley (workflow) e Gabriel (roteiro) | decisão 7 | — |
+| 11 | 🧊 24/11: congelamento, qa-redteam geral e cobertura (T-06.1) | M9 | todos | — | — |
+| 12 | Ensaio geral e release final `develop → main` | M10 | todos | 11 | — |
 
-| # | Tarefa | Trilha | Depende de | Como começar |
-|---|---|---|---|---|
-| 1 | Terminar as 5 frentes da §3 + **qa-redteam de cada uma** + PR | Gabriel | — | §7 (portão) |
-| 2 | **T-05.5** comanda, Fase A | Sirlande | — | `docs/delegacoes/t055_comanda_frontend_sirlande_21out2026.md` (no PR #99) |
-| 3 | Respostas do Weslley: data de criação da conta AWS e 1 nó × 2 nós | Weslley | — | mensagem enviada pelo Gabriel |
-| 4 | Painel do RabbitMQ no Grafana (CA-01.4.f) | Weslley | — | `docs/historico_sessao/gabriel/outbox_core_15102026.md`, pendência 1 |
-
-### Semana 2 — 28/10 a 03/11
-
-| # | Tarefa | Trilha | Depende de | Como começar |
-|---|---|---|---|---|
-| 5 | **H.3** — as 7 consultas sobre as projeções, nginx `/analytics/` → analytics, remoção do `/analytics` do core, serviço no compose (CA-01.4.k, n, o, p, q) | Gabriel | H.2 mergeada | Prompt §8.1 |
-| 6 | **T-05.3** — painel Hoje | Gabriel | T-05.2 mergeada | Prompt §8.2 |
-| 7 | **T-04.5** — bill da reserva delegando às contas | Sirlande | — | SPEC-04 T-04.5 |
-| 8 | **T-04.6 (só a)** — check-in cria a conta da suíte. Começa no fim da semana 2 ou na 3, assim que a T-04.5 entrar | Sirlande | T-04.5 | SPEC-04 CA-04.6.a, c, d. **b, e, f ficam para o 5º semestre** |
-| 9 | **T-05.6** — financeiro e indicadores (consome o analytics) | Weslley | — (o caminho `/analytics` não muda pelo nginx) | Prompt §8.3 |
-| 10 | **Doc 05** — aplicar a auditoria (§6) e entregar 05/06/07 | Gabriel | decisões §2 | §6 |
-
-### Semana 3 — 04 a 10/11
-
-| # | Tarefa | Trilha | Depende de | Como começar |
-|---|---|---|---|---|
-| 11 | Roteiro de demonstração de ponta a ponta no compose (as 7 etapas do plano §2) | Gabriel | 5, 6, 2, 9 | Prompt §8.4 |
-| 12 | **T-01.5** — CI por serviço (build, imagem em *registry*, testes por serviço, cobertura global). **Deploy no cluster (CA-01.5.c) é do 5º semestre** | Weslley | H.2 | SPEC-01 T-01.5 |
-| 13 | **T-04.7** — *seed* de demonstração e relatório de consumo interno | Sirlande | T-04.6 | SPEC-04 T-04.7 |
-| 14 | **T-06.12** — dado pessoal fora do log | livre | — | SPEC-06 T-06.12 |
-| 15 | `migrate` antes e depois do *rollout* (repasse) | Weslley | — | `docs/qa/repasses/para_weslley_19102026.md` |
-| 16 | **Doc 08** reescrito com esta grade e o registro real | Weslley | — | `docs/sugestoes-documentos-oficiais/08-sprints/` |
-
-### Semanas 4 a 7 — 11/11 a 10/12
-
-| # | Tarefa | Trilha |
-|---|---|---|
-| 17 | T-05.4 rack **simplificado**, só se a semana 4 sobrar | Gabriel |
-| 18 | Contingência: `docker compose up` sobe o roteiro inteiro, com o analytics | Weslley |
-| 19 | 🧊 24/11 — congelamento · qa-redteam geral · cobertura (T-06.1) | todos |
-| 20 | Ensaio geral · *release* `develop → main` · Doc 02 v1.4 e Doc 03 para a revisão final | todos |
-| 21 | Folga e entrega final (até 10/12) | — |
+**Pendências pós-merge registradas** (pegue quando a sua trilha folgar):
+- **T-05.2, LGPD:** o seletor de hóspede mostra CPF, telefone e e-mail completos. Mascarar o CPF. A busca deve ter `minLength: 3` no backend (🟢-1 e 🟢-3 de `docs/qa/redteam_t052-reservas_delta2_02nov2026.md`).
+- **T-05.2:** trocar o `ReservationStatusBadge` local pelo `StatusBadge` do `@hotel/ui`.
+- **Frontend:** `roomsApi.test.ts` falha às vezes quando o turbo roda tudo em paralelo (3 s sozinho).
+- **Sirlande:** `GET /rooms/:id` e `GET /room-categories/:id` com id não-UUID respondem 500. Registrar o D-xx do #104 na SPEC-04.
+- **Staging:** rodar a consulta que procura categoria de outro hotel gravada antes do #104.
 
 ---
 
@@ -177,31 +178,33 @@ AWS/Terraform (regra absoluta de free-tier; nuvem é do 5º semestre).
 
 ---
 
-## 6. Documentos oficiais — o que falta
+## 6. Documentos oficiais
 
-| Doc | Onde está | Falta |
-|---|---|---|
-| 05 | fork, `entrega-5-arquitetura-nuvem` | Aplicar a auditoria de 19/10 (abaixo) |
-| 06 | fork, `entrega-6-c4` | ✅ pronto |
-| 07 | hotel, PR #97 | ADR-004 alinhada ao Doc 05 final; transcrever no fork quando for a vez |
-| 08 | hotel, `docs/sugestoes-documentos-oficiais/08-sprints/` | Reescrever com esta grade e o registro real |
-| 02 | entregue v1.3 | v1.4 na revisão final: RF-045 no `b2b-service`, RNF-023, exceção do RNF-003 na nuvem, nomes de módulo |
-| 03 | entregue v1.2 | Revisão final: `PRODUCTS` 🔷 → ✅ e PDF de orçamento no D-005 |
+**Situação em 03/11:** os 8 documentos estão em PR ao professor (`AleTavares/UniFAAT-projeto-experimental-2027-1`). Cada PR mexe só no arquivo do próprio documento, e a descrição cita os PRs irmãos.
 
-**Doc 05 — achados da auditoria de 19/10 a aplicar** (o relatório não foi versionado; este é o resumo):
-1. 🔴 **Modelo de free-tier:** o modelo de 12 meses vale só para contas anteriores a 15/07/2025 e já expirou para elas. Reescrever a §6 sobre o **plano de créditos** (US$ 100–200, 6 meses, conta fecha ao fim), com consumo de crédito por sessão, e registrar que a conta é criada perto do 5º semestre. No plano de créditos a `t3.small` é elegível: reavaliar 1 nó × 2 nós (decisão do Weslley/Gabriel).
-2. 🟠 `cpu_credits = "standard"` nas instâncias T3 (o padrão *unlimited* cobra).
-3. 🟠 SG de saída: liberar 5432 → `sg-db` e o tráfego entre nós (6443, 10250, UDP 8472), ou saída livre.
-4. 🟠 Overlay `kustomize` da nuvem: sem postgres/redis/minio/`secret.yaml`, 1 réplica, PDB ajustado.
-5. 🟠 RNF-003 (3 réplicas) declarado como exceção consciente na nuvem, citando a ADR-004.
-6. 🟠 SSL obrigatório no RDS (PostgreSQL 15+): `dialectOptions.ssl` no Sequelize; URL assinada com papel IAM só de leitura (`sts:AssumeRole`).
-7. 🟠 RNF-010 na nuvem: NetworkPolicy de saída para o RDS só dos serviços.
-8. 🟡 Webhook do Asaas é por conta (trocar a URL a cada sessão); *credential provider* do ECR no k3s; Performance Insights/KMS desligados; endpoint *gateway* do S3; OIDC no CI; `REVOKE CONNECT … FROM PUBLIC` entre *databases*; onde o `app-pms` é hospedado.
+| Doc | Versão | PR | Natureza |
+|---|---|---|---|
+| 01 Solicitação | v1.1 | #38 | reentrega |
+| 02 Requisitos | v1.4 | #32 | reentrega |
+| 03 DFD | v1.3 | #33 | reentrega (revisão do grupo sobre a v1.2 do Sirlande) |
+| 04 MER | v1.4 | #39 | revisão (conferida coluna a coluna contra o schema) |
+| 05 Arquitetura em nuvem | v1.2 | #34 | entrega nova (1× `t3.small`, plano de créditos; a auditoria de 19/10 foi aplicada) |
+| 06 C4 Model | v1.2 | #35 | entrega nova |
+| 07 ADR | v1.1 | #36 | entrega nova (11 ADRs, ADR-004 revista) |
+| 08 Sprints | v1.1 | #37 | entrega nova. Atualizar a nota "a confirmar até 04/11" depois do encontro de 03/11, na mesma branch |
 
-**Regras de entrega ao professor:** título `[Gesway] - Entrega N - Descrição` (N = número do encontro
-no README do repo do professor: 5 nuvem, 6 C4, 7 ADR, 8 sprints); branch a partir de `upstream/main`
-com **só** os arquivos da entrega; **nunca renomear a branch de um PR aberto** (o GitHub fecha o PR).
-PR para o professor só com autorização explícita do Gabriel.
+- **Auditoria de coerência:** `docs/auditoria_coerencia_documentos_28out2026.md`, com as 16 contradições, todas resolvidas.
+- **Plano e descrições dos PRs:** `docs/entrega-documentos/`.
+- **Pendentes:**
+  - diagrama do Doc 05 com os ícones oficiais da AWS;
+  - conferência do Sirlande e do Weslley nas revisões dos Docs 03, 04 e 08.
+
+**Regras de entrega ao professor:**
+- Título: `[Gesway] - Entrega N - Descrição`, com N igual ao número do encontro no README do repositório do professor.
+- Branch a partir de `upstream/main`, com **só** os arquivos da entrega.
+- **Nunca renomear a branch de um PR aberto**, porque o GitHub fecha o PR.
+- Correção num PR aberto entra como commit novo na mesma branch.
+- PR ao professor só com autorização explícita do Gabriel.
 
 ---
 
