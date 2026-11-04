@@ -77,6 +77,12 @@ const PaymentModel = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: true
         },
+        // Único entre os pagamentos vivos, GLOBAL (sem tenant_id): o webhook PIX (rota
+        // pública) acha o pagamento só por este id. O índice payments_provider_charge_id_unique
+        // NÃO está em `indexes` de propósito — vive em database/applyDbConstraints.js
+        // (indicesParciais) e db/schema.sql. No model, uma duplicata legada pararia o
+        // sync({ alter }) do migrate no meio, sem migrar as tabelas seguintes (🟡-1 do
+        // qa-redteam de 26/10); no applyDbConstraints ela é reportada e o resto segue.
         provider_charge_id: {
             type: DataTypes.TEXT,
             allowNull: true

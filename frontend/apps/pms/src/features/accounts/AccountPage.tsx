@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Spinner } from '@hotel/ui';
+import { ErrorState, Spinner } from '@hotel/ui';
 import { formatBRL } from '@hotel/domain';
 import { useAuthStore } from '../../stores/auth.js';
 import { useAccount } from './queries.js';
@@ -8,7 +8,7 @@ import { queue, useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { footerTotals } from './accountTotals.js';
 import { ACCOUNT_TYPE_LABEL } from './accountFilter.js';
-import { ErrorState } from './components/ErrorState.js';
+import { Notice } from './components/Notice.js';
 import { ItemList } from './components/ItemList.js';
 import { MenuGrid } from './components/MenuGrid.js';
 import { StaffActions } from './components/StaffActions.js';
@@ -93,10 +93,10 @@ export function AccountPage() {
       )}
 
       {othersHere > 0 && (
-        <p role="status" className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+        <Notice>
           {othersHere === 1 ? 'Há 1 lançamento' : `Há ${othersHere} lançamentos`} de outro usuário nesta conta
           esperando neste aparelho. Eles só são enviados quando essa pessoa entrar de novo.
-        </p>
+        </Notice>
       )}
 
       <ItemList
@@ -117,7 +117,14 @@ export function AccountPage() {
         <p role="status" aria-live="polite" className="text-right text-xs text-gray-600">
           {totals.pendingCents > 0 ? `inclui ${formatBRL(totals.pendingCents)} na fila` : ''}
         </p>
-        {isStaff && <StaffActions account={account} pendingCount={pendingCount} othersPending={othersHere} />}
+        {isStaff && (
+          <StaffActions
+            account={account}
+            pendingCount={pendingCount}
+            othersPending={othersHere}
+            totalCents={totals.totalCents}
+          />
+        )}
       </div>
     </div>
   );

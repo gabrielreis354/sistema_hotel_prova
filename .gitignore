@@ -48,3 +48,6 @@ temp/
 
 # Cobertura de testes (vitest)
 coverage/
+
+# Impeccable: registros locais de critique/live (o que importa vai para o anexo da SPEC e o relatório)
+.impeccable/

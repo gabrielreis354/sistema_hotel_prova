@@ -242,7 +242,7 @@ O projeto não usa `sequelize-cli`. As tabelas são criadas e atualizadas via:
 
 ```bash
 # Kubernetes (ambiente principal)
-kubectl exec -n hotel-system deploy/backend -- node command.js migrate
+./start.sh migrate   # Job com a imagem do backend (docs/infra/KUBERNETES.md)
 
 # Docker Compose (alternativo — testes)
 docker compose exec node_web node command.js migrate

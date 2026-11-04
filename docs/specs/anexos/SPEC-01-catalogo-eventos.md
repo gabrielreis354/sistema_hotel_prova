@@ -65,10 +65,10 @@ Todo evento publicado pelo `core-service` tem este formato:
 | Objeto | Tipo | Função |
 |---|---|---|
 | `gesway.core.events` | *exchange* `topic`, durável | Onde o core publica. *Routing key* = `type` do evento |
-| `analytics.core-events` | fila *quorum*, durável | Fila do analytics, ligada com `#` (todos os eventos). `x-dead-letter-exchange = analytics.retry` |
+| `analytics.core-events` | fila *quorum*, durável | Fila do analytics, ligada com `#` (todos os eventos). `x-dead-letter-exchange = analytics.retry`. *Policy* `analytics-core-events`: `dead-letter-strategy = at-least-once` (com `overflow = reject-publish`, que ele exige) e `delivery-limit = 50`, bem acima do teto de 10 entregas do consumidor (§5.3): no caminho normal quem manda para a DLQ é o consumidor. Uma mensagem que **nunca** é confirmada (consumidor que cai a cada entrega) ainda é descartada na 51ª entrega, fora da DLQ, com `dead letter cycle` no log do broker. Trocar por `-1` (sem limite) está em decisão |
 | `analytics.retry` → `analytics.core-events.retry` | *exchange* `fanout` + fila com `x-message-ttl = 10000` | Espera de 10 s entre tentativas. Ao expirar, a mensagem vai para `analytics.requeue` |
 | `analytics.requeue` | *exchange* `fanout` | Devolve a mensagem **só** à fila do analytics — não à *exchange* do core, que a entregaria de novo a outros consumidores |
-| `analytics.dlx` → `analytics.core-events.dlq` | *exchange* `fanout` + fila sem TTL | Fila de mensagens mortas. Fica até alguém olhar |
+| `analytics.dlx` → `analytics.core-events.dlq` | *exchange* `fanout` + fila sem TTL | Fila de mensagens mortas. Fica até alguém olhar. *Policy* `analytics-core-events-dlq`: `delivery-limit = -1`, para a leitura pelo painel não apagar a mensagem na 21ª vez |
 
 A topologia é declarada por um *Job* de setup com o usuário administrador — os serviços **não**
 têm permissão de `configure` (§8).
@@ -183,7 +183,7 @@ endpoints — ver §9, decisão D-1.
 
 | Campo | Tipo | Usado por |
 |---|---|---|
-| `reservation_id` | UUID | `revenue.unpaid` e `alerts.no_show_risk` (reserva **sem** pagamento) |
+| `reservation_id` | UUID ou `null` | `revenue.unpaid` e `alerts.no_show_risk` (reserva **sem** pagamento). `null` no pagamento de conta sem reserva — day-use, mesa, balcão (T-04.4, CA-04.4.b); esse pagamento entra na receita e no mix, não em consulta por reserva *(desvio aceito pelo Gabriel em 21/10/2026)* |
 | `amount` | string decimal | `revenue.realized` · `payment-mix` |
 | `method` | string | `payment-mix` |
 | `status` | `PENDING` \| `PAID` \| `EXPIRED` \| `FAILED` \| `VOIDED` | ver §9, D-3. `VOIDED` (estorno de lançamento, T-06.13 da SPEC-06 — implementado em 21/10/2026) chega como `payment.status_changed` com `previous_status: "PAID"`; a projeção conta só `PAID`, então nenhum campo novo entra no evento. Motivo e autor do estorno **não** viajam (minimização): ficam em `payments` |
@@ -225,9 +225,11 @@ Um `*.deleted` vira marca de exclusão na projeção (com a versão), não remo�
 
 | Tipo de erro | Exemplos | O que acontece |
 |---|---|---|
-| **Transitório** | banco do analytics fora do ar, *deadlock*, *timeout* | *nack* sem reenfileirar → espera **10 s** na fila de nova tentativa → volta. **5 tentativas no total** (≈ 40 s). Na 5ª falha, a mensagem é publicada em `analytics.dlx` com o erro e o número de tentativas no cabeçalho, e recebe *ack* |
+| **Transitório** | *deadlock*, falha de serialização, *timeout* | *nack* sem reenfileirar → espera **10 s** na fila de nova tentativa → volta. **5 tentativas no total** (≈ 40 s). Na 5ª falha, a mensagem é publicada em `analytics.dlx` com o erro e o número de tentativas no cabeçalho, e recebe *ack* |
 | **Permanente** | JSON inválido, `tenant_id` ausente, `type` desconhecido, `version` maior que a suportada | Direto para `analytics.dlx`, **sem** nova tentativa — tentar de novo não muda o resultado |
 
+- **Banco do analytics fora do ar pausa o consumo, com teto** (H.2: ressalva 🟡-3 do qa-redteam, 23/10/2026; teto pela 🟡-A da reauditoria delta, 30/10/2026): erro de **conexão** (SQLSTATE `08*`, `57P01`–`57P03`, `53300`, erros de conexão do Sequelize) não é falha da mensagem. O consumidor cancela o consumo, espera as mensagens em andamento decidirem sozinhas (*ack*, *nack* acima do teto ou pausa) e fecha o canal e depois a conexão — só a mensagem que escolheu pausar fica sem *ack*/*nack* e o broker a devolve à fila sem `x-death`, e o consumo só volta quando o banco responde (espera de 1 s a 30 s, que zera quando o consumo volta). Sem isso, um *restart* de rotina de ~40 s do banco mandaria a fila inteira para a DLQ.
+  - **A pausa tem teto.** Cada devolução soma no `x-delivery-count` da fila *quorum*, e no `delivery-limit` o broker **descarta** a mensagem — ciclo de *dead-letter* sem `rejected`, fora da DLQ. O limite é **50**, pela *policy* `analytics-core-events` (§2); sem a *policy*, o padrão é 20. Por isso, quando a mensagem já foi entregue **10 vezes** (`x-delivery-count` ≥ 10, configurável) ou já voltou uma vez da fila de espera, o erro de conexão passa a contar como **tentativa transitória comum**: *nack* sem reenfileirar, `x-death` com `rejected`, e DLQ na 5ª tentativa. Na queda real do banco isso quase não acontece (o `ready()` segura o consumo); o teto cobre o banco "meio no ar" e a mensagem classificada errado como conexão. Por isso também a pausa **drena antes de fechar** e fecha **o canal antes da conexão** (reauditoria delta 2, 🟡-A2): fechar na hora devolvia as vizinhas em andamento sem `rejected` antes de decidirem, e fechar a conexão logo depois de um *nack* fazia o broker perder esse *nack* — nos dois casos a mensagem nunca chegava ao próprio teto e era descartada. A drenagem da pausa tem prazo **próprio** (60 s), bem maior que o pior processamento: cada operação no banco do analytics é limitada a **5 s** de espera por conexão do *pool* e **5 s** por comando (`statement_timeout`), configuráveis por env (reauditoria delta 3, 🟡-A3). Com o prazo curto do desligamento, uma mensagem mais lenta que ele voltava sem decidir a cada pausa. O comando cancelado pelo `statement_timeout` (SQLSTATE `57014`) conta como **tentativa**, não como banco fora. Invariante: nenhuma mensagem passa de 10 pausas + 5 tentativas, isto é, 15 entregas — 35 abaixo do limite de 50 (e ainda 5 abaixo do padrão de 20, se a *policy* faltar). O que sobra para o limite do broker é a mensagem que **nunca** é confirmada (consumidor que cai a cada entrega), descartada na 51ª entrega com `dead letter cycle` no log; trocar por `-1` é decisão pendente (§2).
 - A contagem de tentativas vem do cabeçalho `x-death` que o próprio RabbitMQ acrescenta a cada
   passagem pela fila de nova tentativa — o consumidor não guarda estado para isso.
 - **Uma mensagem com problema não bloqueia as outras**: o *nack* a tira da fila principal na
@@ -267,6 +269,19 @@ que a primeira confirma.
 *outbox*, para cada registro existente, um evento `*.updated` com o retrato atual. O
 publicador e o consumidor são os mesmos do fluxo normal — não existe caminho paralelo para
 testar. Rodar a carga duas vezes não duplica nada (§5.2).
+
+> **Registro com exclusão lógica sai como `*.deleted`**, com o mesmo retrato (desvio aceito pelo
+> Gabriel em 21/10/2026, H.2). Com `*.updated`, ele entraria vivo na projeção: um pagamento excluído
+> antes da T-06.13 voltaria a contar como receita, contra a **D-2**, e um quarto excluído entraria na
+> contagem de ocupação. (Pagamento estornado não é exclusão: sai como `payment.status_changed`
+> com `status: VOIDED`, e a projeção já o tira da receita por contar só `PAID`.) O retrato continua
+> necessário porque reservas antigas apontam para hóspede, quarto e
+> categoria excluídos (alertas, receita por categoria). O `deleted_at` da projeção recebe o instante da
+> carga, não o da exclusão original — nenhuma consulta usa essa data.
+>
+> **A carga não pode parar o hotel:** cada tabela é lida sob `LOCK TABLE ... IN SHARE MODE` (ordem por
+> agregado) com `lock_timeout` (3 s) e novas tentativas; esgotadas, a carga para com mensagem clara e
+> pode ser rodada de novo (idempotente). Comando: `node command.js outbox-initial-load` no core.
 
 ---
 
@@ -319,6 +334,13 @@ Cloud, Mews, Apaleo e Cloudbeds — não citação de documentação).
 | **D-2** | **Aceita.** `payment.deleted` tira o pagamento da receita na projeção | **Lançamento financeiro não se apaga — se estorna**, com motivo, usuário e horário, e o original fica no histórico | A correção de fundo é trocar `DELETE /payments/:id` por estorno. Registrado como tarefa nova da SPEC-06; quando existir, a receita fica certa sem filtro |
 | **D-3** | **Aceita, refinada em dois indicadores** | O mercado separa **garantia recebida** de **saldo devedor** | **Risco de *no-show***: reserva sem nenhum pagamento `PAID` — a garantia não chegou. **Valores em aberto** (`revenue.unpaid`): reserva com **saldo > 0**, isto é, `total_amount` − soma dos `PAID`. Uma reserva com sinal de 30% pago continua devendo 70%. Os campos necessários já estão nos eventos de §4.5 e §4.6 — o *payload* não muda; muda a consulta sobre a projeção |
 | **D-4** | **Aceita: manter nesta extração** | **Cada quarto é uma reserva própria**, dentro de um agrupador (*booking* ou grupo), com tarifa e status próprios | O modelo atual — `room_id` principal mais o pivô `reservation_rooms` — é a causa comum de D-4 e das pendências **P-1** e **P-4** (§11). Registrado como ADR candidata; combina com a SPEC-07 |
+
+> **Estado em 21/10/2026 — T-06.13 (estorno) implementada:** a correção de fundo da D-2 existe.
+> `DELETE /payments/:id` responde **`405`**; o caminho é `POST /payments/:id/void` (motivo obrigatório,
+> só ADMIN), que leva o pagamento a `VOIDED` e publica **`payment.status_changed`** com
+> `previous_status: "PAID"` (§4.6). Nenhuma rota emite mais `payment.deleted`: ele só sai se um
+> `deleted_at` for gravado por fora da API, ou na carga inicial (§6) para pagamentos excluídos antes da
+> T-06.13. O consumidor continua tratando os dois: `VOIDED` e excluído ficam fora da receita.
 
 **Dinheiro nas consultas sobre a projeção.** As consultas atuais do analytics convertem valor
 para ponto flutuante (`total_amount::float`), contra a regra do projeto. As consultas da T-01.4
@@ -503,3 +525,9 @@ os da projeção.
 |---|---|---|
 | 30/09/2026 | 0.1 | Proposta inicial — agente executor, trilha do Gabriel (delegação `rodada2_gabriel_28set2026.md`, etapa C) |
 | 04/10/2026 | 1.0 | **Aprovado pelo Gabriel.** Decisões D-1 a D-4 registradas na §9.1, com o critério de mercado. D-3 refinada em garantia × saldo. Regra de gravação do *outbox* depois da escrita de domínio (§6). Dinheiro sem `float` nas consultas sobre a projeção |
+| 24/10/2026 | 1.1 | Desvios registrados na H.2 (T-01.4): §6 carga inicial emite `*.deleted` para excluídos (D-2) e tem `lock_timeout`; §4.6 `reservation_id` pode ser `null` (T-04.4) — aceitos pelo Gabriel em 21/10. §5.3: banco do analytics fora do ar pausa o consumo sem gastar tentativa (ressalva 🟡-3 do qa-redteam). Nenhum `version` de evento muda: o core já publicava assim |
+| 29/10/2026 | 1.1.1 | Texto alinhado ao código da T-06.13: `DELETE /payments/:id` responde `405`, o estorno é `POST /payments/:id/void` (`payment.status_changed` → `VOIDED`) e `payment.deleted` não sai mais de nenhuma rota (nota na §9.1; ressalva no §6). Só documentação — nenhum evento muda |
+| 30/10/2026 | 1.1.2 | §5.3: a pausa por banco fora tem teto de `x-delivery-count` (10); acima dele, ou depois de uma volta pela fila de espera, conta como tentativa até a DLQ — evita o descarte silencioso no `delivery-limit` da fila *quorum* (🟡-A da reauditoria delta da H.2) |
+| 31/10/2026 | 1.1.3 | §5.3: a pausa por banco fora drena as mensagens em andamento antes de fechar e fecha o canal antes da conexão — cada mensagem decide sozinha e nenhuma passa de 10 pausas + 5 tentativas (🟡-A2 da reauditoria delta 2 da H.2) |
+| 31/10/2026 | 1.1.4 | §5.3: a drenagem da pausa tem prazo próprio (60 s), e cada operação do analytics no banco é limitada a 5 s (*acquire* do *pool* e `statement_timeout`); `57014` conta como tentativa (🟡-A3 da reauditoria delta 3 da H.2) |
+| 31/10/2026 | 1.1.5 | §5.3 alinhado à *policy* da develop (`delivery-limit` 50 na fila do analytics, DLQ com `-1`): a margem do invariante passa de 5 para 35 entregas; o repasse do `delivery-limit` explícito está resolvido. Nenhum evento muda |

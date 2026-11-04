@@ -4,10 +4,8 @@ import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
 import { moveRemovedRoomAccounts } from '../../utils/roomChangeAccounts.js';
-
 // PostgreSQL: "deadlock detected". A transação vítima volta inteira, então tentar de novo é seguro.
-const isDeadlock = (error) => (error?.parent ?? error?.original)?.code === '40P01';
-const DEADLOCK_ATTEMPTS = 2;
+import { isDeadlockError as isDeadlock, DEADLOCK_ATTEMPTS } from '../../utils/deadlockRetry.js';
 
 /**
  * Uma tentativa da remoção, numa transação só. Devolve { status, body } ou lança.

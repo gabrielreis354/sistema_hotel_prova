@@ -16,3 +16,5 @@ passar vazio").
 **Regra violada:** teste que passaria com a regra quebrada (checklist qa-redteam §8).
 **Correção sugerida:** criar o tenant no próprio teste (`INSERT … RETURNING id`, como em `:209`) e
 apagá-lo no fim; ou `expect.assertions(1)`.
+
+> **Resolvido em 26/10/2026** (Sirlande, branch `fix/repasses-payments-products`): os dois testes criam o próprio tenant e têm `expect.assertions(1)`, e o erro esperado é casado pelo nome do CHECK. Com zero asserções, eles falhavam (RED provado); com os CHECKs enfraquecidos no `applyDbConstraints`, também falham.

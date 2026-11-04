@@ -104,12 +104,17 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
         { tabela: 'guests',             colunas: ['email', 'tenant_id'],   nome: 'guests_email_tenant_unique' },
         { tabela: 'corporate_clients',  colunas: ['cnpj', 'tenant_id'],    nome: 'corporate_clients_cnpj_tenant_unique' },
         { tabela: 'corporate_clients',  colunas: ['cpf', 'tenant_id'],     nome: 'corporate_clients_cpf_tenant_unique' },
-        { tabela: 'products',           colunas: ['name', 'tenant_id'],    nome: 'products_name_tenant_unique' }
+        { tabela: 'products',           colunas: ['name', 'tenant_id'],    nome: 'products_name_tenant_unique' },
+        // Global, sem tenant_id, de propósito: o id da cobrança vem do PSP e o webhook PIX
+        // (rota pública) acha o pagamento só por ele. Duas linhas vivas com o mesmo id
+        // deixariam o webhook confirmar uma qualquer — até de outro hotel. Nulo (pagamento
+        // manual) não disputa: NULLs são distintos no índice único.
+        { tabela: 'payments',           colunas: ['provider_charge_id'],   nome: 'payments_provider_charge_id_unique' }
     ];
 
     // Índice a índice, não tudo-ou-nada: um índice que falhe (duplicata viva legada
-    // nas colunas — ver comentário do catch abaixo) não pode impedir a cura dos outros
-    // 6, nem dos índices compostos de performance logo depois deste laço. Falhas são
+    // nas colunas — ver comentário do catch abaixo) não pode impedir a cura dos
+    // outros, nem dos índices compostos de performance logo depois deste laço. Falhas são
     // acumuladas e relançadas ao final, com tabela+colunas+índice de cada uma — Fail
     // Fast na *reportagem*, mas Fail Safe na *execução*: o resto do banco sai curado.
     const falhas = [];

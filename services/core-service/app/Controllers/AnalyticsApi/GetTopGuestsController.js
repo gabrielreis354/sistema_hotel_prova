@@ -14,7 +14,6 @@ export default async function GetTopGuestsController(request, response) {
             SELECT
                 g.id                                      AS guest_id,
                 g.full_name,
-                g.email,
                 COUNT(r.id)::int                          AS total_reservations,
                 COALESCE(SUM(r.total_amount), 0)::float   AS lifetime_value,
                 MAX(r.check_out_date)                     AS last_stay
@@ -25,7 +24,7 @@ export default async function GetTopGuestsController(request, response) {
               AND r.status NOT IN ('CANCELLED')
               AND r.deleted_at IS NULL
               AND g.deleted_at IS NULL
-            GROUP BY g.id, g.full_name, g.email
+            GROUP BY g.id, g.full_name
             ORDER BY lifetime_value DESC
             LIMIT :limit
         `, {
