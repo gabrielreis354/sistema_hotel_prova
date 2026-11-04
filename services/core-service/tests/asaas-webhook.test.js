@@ -304,7 +304,7 @@ describe('POST /webhooks/pix — provider Asaas', () => {
         expect(res.body.status).toBe('ignored');
     });
 
-    it('cobrança desconhecida SEM token continua 401 (o 200 ignored só vale depois da autenticação)', async () => {
+    it('cobrança desconhecida com token inválido continua 401 (o 200 ignored só vale depois da autenticação)', async () => {
         useAsaas();
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const res = await notify('pay_999999', { token: 'token-falso' });
