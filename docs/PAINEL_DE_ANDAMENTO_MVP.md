@@ -49,15 +49,18 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 | 29/10 | **Os 8 documentos oficiais são do grupo**: qualquer um edita no fork, com crédito ao autor anterior no Histórico |
 | 02/11 | **PRs dos 8 documentos abertos ao professor** (#32 a #39 no repositório UniFAAT) |
 
-**Decisões do encontro de 03/11** (pauta: `docs/delegacoes/pauta_ponto_controle_03nov2026.md`). Registre aqui quando forem tomadas:
-- [ ] 5: passo 6, reserva direta do hóspede, demonstrada pela API pública
-- [ ] 6: fechamento de conta só no balcão; conta INTERNAL mantém o comportamento atual
-- [ ] 7: Playwright no CI como job não bloqueante
-- [ ] L-1: `/analytics/internal-consumption` continua no core
-- [ ] Contrato da H.3: dinheiro como string, `unpaid` com `guest_id`, `paid` e `balance`, 400 para entrada inválida
-- [ ] Quarto: `CLEANING → MAINTENANCE`
-- [ ] Diagrama do Doc 05 com ícones oficiais da AWS
-- [ ] Doc 08: métrica individual
+**Decisões do encontro de 03/11** (pauta: `docs/delegacoes/pauta_ponto_controle_03nov2026.md`; registradas em 04/11):
+- [x] 1 a 4: tabela de metas, M5-b, M5-c e M8 com o Sirlande, ordem de integração (cumprida) e escopo do Weslley (T-05.6 e T-01.5 entregues; M6 e CA-05.6.d confirmados), como proposto
+- [x] **5: passo 6 (reserva direta do hóspede) demonstrado pelo Swagger.** O `POST /public/:subdomain/bookings` ganha um exemplo pronto no Swagger, para a demonstração não depender de digitação, e o plano B é o provedor PIX simulado
+- [x] **6: o fechamento da conta continua só no balcão**, como já é hoje. A conta INTERNAL mantém o comportamento atual: nunca é receita (RN-006)
+- [x] 7: Playwright no CI como job não bloqueante até 24/11, cobrindo o roteiro de 7 passos
+- [x] L-1: `/analytics/internal-consumption` continua no core
+- [x] Contrato da H.3 aprovado, mais o limite nas listas e a linha "Sem categoria" (correções de 04/11)
+- [x] **Quarto: `CLEANING → MAINTENANCE` liberado**, para a camareira que acha defeito durante a limpeza
+- [x] Diagrama do Doc 05 com os ícones oficiais da AWS (delegação de 04/11)
+- [x] Doc 08 sem métrica individual
+- [x] Sirlande e Weslley conferem as revisões dos Docs 03, 04 e 08
+- [ ] Tema em aberto: a chegada PENDING sem pagamento ganha selo de no-show? (D-7 da T-05.3). Hoje o selo é só para CONFIRMED
 
 ---
 
@@ -119,6 +122,10 @@ frente → condição de aprovação → produto demonstrável → polimento.
 | 12 | Ensaio geral e release final `develop → main` | M10 | todos | 11 | — |
 
 **Pendências pós-merge registradas** (pegue quando a sua trilha folgar):
+- **🔴 Logout não limpava o cache do React Query** (vazamento entre hotéis no computador compartilhado): corrigido em `fix/logout-limpa-cache` (`23df72b`), esperando o qa-redteam e o merge.
+- **Decisão 10, `CLEANING → MAINTENANCE`:** entra na T-05.3, que já mexe nas regras de quarto. Atualizar também o diagrama de estados do CLAUDE.md §3.
+- **Decisão 5, exemplo do Swagger da reserva pública:** Weslley, dono do passo 6 (M6).
+- **Seed com datas fixas em junho:** os cartões do dia e o painel Hoje aparecem zerados. Precisa de seed ancorado em `CURRENT_DATE` (Sirlande, M8; pedido do Weslley em 31/10).
 - **T-05.2, LGPD:** o seletor de hóspede mostra CPF, telefone e e-mail completos. Mascarar o CPF. A busca deve ter `minLength: 3` no backend (🟢-1 e 🟢-3 de `docs/qa/redteam_t052-reservas_delta2_02nov2026.md`).
 - **T-05.2:** trocar o `ReservationStatusBadge` local pelo `StatusBadge` do `@hotel/ui`.
 - **Frontend:** `roomsApi.test.ts` falha às vezes quando o turbo roda tudo em paralelo (3 s sozinho).
