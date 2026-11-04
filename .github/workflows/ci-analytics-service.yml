@@ -107,6 +107,11 @@ jobs:
             -e 's/^RABBITMQ_ANALYTICS_PASSWORD=.*/RABBITMQ_ANALYTICS_PASSWORD=analytics_ci_password/' \
             -e 's/^RABBITMQ_CORE_PASSWORD=.*/RABBITMQ_CORE_PASSWORD=core_ci_password/' \
             .env.test
+          # Se o exemplo mudar de nome de variável, o sed não casa e o teste com RabbitMQ real é
+          # pulado em silêncio. Falha aqui em vez disso (qa-redteam de 04/11, 🟢-1).
+          for v in 'RABBITMQ_HOST=localhost' 'RABBITMQ_ANALYTICS_PASSWORD=analytics_ci_password' 'RABBITMQ_CORE_PASSWORD=core_ci_password'; do
+            grep -qx "$v" .env.test || { echo "::error::.env.test sem $v — o .env.test.example mudou?"; exit 1; }
+          done
 
       - name: Instalar dependências
         run: npm ci
