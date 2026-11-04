@@ -7,6 +7,7 @@ vi.mock('../../lib/api.js', () => ({ api }));
 
 import { ApiError } from '../../lib/http.js';
 import {
+  GuestNotFoundError,
   RoomConflictError,
   createReservation,
   listReservations,
@@ -73,16 +74,28 @@ describe('createReservation — 409 de corrida', () => {
     }
   });
 
-  it('404 (quarto, categoria ou hóspede excluído ou de outro hotel) explica e não mostra o id cru', async () => {
+  it('404 de hóspede (excluído ou de outro hotel) vira GuestNotFoundError, sem falar de quarto', async () => {
+    api.POST.mockResolvedValueOnce(reply(404, { error: 'Hóspede não encontrado' }));
+    const err = await createReservation(input).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(GuestNotFoundError);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 404 });
+    expect((err as Error).message).toMatch(/hóspede não foi encontrado/i);
+    expect((err as Error).message).toMatch(/escolha o hóspede de novo/i);
+    expect((err as Error).message).not.toMatch(/quarto/i);
+  });
+
+  it('404 (quarto ou categoria excluído ou de outro hotel) explica e não mostra o id cru', async () => {
     for (const body of [
       { error: 'Quarto extra não encontrado: 0b6f2a8e-1111-4c2d-9a3e-5f6a7b8c9d0e' },
       { error: 'Quarto não encontrado' },
-      { error: 'Hóspede não encontrado' },
     ]) {
       api.POST.mockResolvedValueOnce(reply(404, body));
       const err = await createReservation(input).catch((e: unknown) => e);
       expect(err).toBeInstanceOf(ApiError);
       expect(err).toMatchObject({ status: 404 });
+      expect(err).not.toBeInstanceOf(GuestNotFoundError);
+      expect((err as Error).message).toMatch(/quarto/i);
       expect((err as Error).message).toMatch(/não existe mais neste hotel/);
       expect((err as Error).message).toMatch(/escolha de novo/i);
       expect((err as Error).message).not.toMatch(/0b6f2a8e/);
