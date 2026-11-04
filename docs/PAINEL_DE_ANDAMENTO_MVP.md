@@ -76,7 +76,7 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 | M5-a | Conta em linha do tempo | Gabriel | 30/10 | ✅ Na `develop`, junto com a M2 | #108 |
 | M5-b | Pagamento no check-out | Sirlande | 07/11 | Sirlande informa; o Gabriel revisa a tela antes de 07/11 | — |
 | M5-c | Estorno (backend) | Sirlande | 10/11 | Sirlande informa | — |
-| M6 | PIX | Weslley | 17/11 | Compose com o Asaas e SPEC-03 entraram em 31/10 | — |
+| M6 | PIX | Weslley | 17/11 | Compose com o Asaas e SPEC-03 entraram em 31/10. Webhook com 200 `ignored` (ressalva 🟡-2 de 16/10) no PR #111, conflito resolvido em 04/11 | #111 |
 | M7-a | analytics-service (H.2) | Gabriel | 29/10 | ✅ Na `develop` em 31/10 | #105 (`fbe086d`) |
 | M7-b | H.3: indicadores servidos pelo analytics | Gabriel | 14/11 | 🟡 qa-redteam: APROVADO COM RESSALVAS; correção dos 4 🟡 em curso | #109 (rascunho), `feature/analytics-cutover` |
 | M8 | Seed e compose | Sirlande e Weslley | 17/11 | Seed do `start.sh` entrou em 30/10 | — |
@@ -110,7 +110,7 @@ frente → condição de aprovação → produto demonstrável → polimento.
 | 3 | Revisar a tela de pagamento do Sirlande | M5-b | Gabriel | branch do Sirlande | — |
 | 4 | Pagamento no check-out e estorno | M5-b, M5-c | Sirlande | T-05.2 ✅ | — |
 | 5 | Comanda P2 | M3 | Sirlande | — | — |
-| 6 | Mergear `feature/ci-analytics-service` e pôr o RabbitMQ no `ci-core-service.yml` | M7-b | Weslley | — | `docs/qa/repasses/para_weslley_02112026.md` |
+| 6 | Mergear `feature/ci-analytics-service` e pôr o RabbitMQ no `ci-core-service.yml` | M7-b | Weslley | — | 🟡 PRs #114 e #115 abertos em 04/11, qa-redteam APROVADO COM RESSALVAS e ressalvas corrigidas; com a H.3, os 28 casos do pipeline rodaram no CI (run 41928725922) |
 | 7 | Revisar a infra da H.3 (nginx e k8s marcados com `[revisão do Weslley]`) | M7-b | Weslley | — | PR #109 |
 | 8 | PIX no roteiro | M6 | Weslley | — | SPEC-03 |
 | 9 | Seed e compose sobem o roteiro inteiro, com o analytics | M8 | Sirlande e Weslley | H.3 | — |
