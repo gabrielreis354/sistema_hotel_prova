@@ -112,20 +112,32 @@ Relatório: `docs/historico_sessao/gabriel/t052_reservas_21102026.md`. qa-redtea
 
 ---
 
-### T-05.3 — Painel "Hoje" 🔲 *(~2 dias)*
+### T-05.3 — Painel "Hoje" 🟡 *(implementada em `feature/t053-painel-hoje` em 04/11 — aguarda o qa-redteam e o merge)*
 
 **DEP:** T-05.2
 
-Tela inicial da recepção. Substitui o placeholder.
+Tela inicial da recepção. Substitui o placeholder. Módulo `apps/pms/src/features/today/`; plano e decisões em `docs/retomada/feature-t053-painel-hoje.md`; relatório em `docs/historico_sessao/gabriel/t053_painel_hoje_04112026.md`. E2E Playwright (1366×900 e 375×812, ADMIN e RECEPTIONIST): **107 PASS / 0 FAIL**.
+
+**Decisões do Gabriel de 04/11/2026** (não reabrir):
+- **D-1** — liberação `CLEANING → AVAILABLE` por endpoint dedicado `PUT /rooms/:id/release`, ADMIN e RECEPTIONIST; o `PUT /rooms/:id` genérico continua só do ADMIN.
+- **D-2** — check-out na própria linha, com confirmação que mostra o saldo e o link "Abrir conta".
+- **D-3** — barra inferior do celular: Hoje · Reservas · Hóspedes · Comanda · Mais (Quartos, Indicadores, Usuários), por papel. Papel com até 5 itens fica sem "Mais".
+- **D-4** — blocos em ordem fixa.
+- **D-5** — só o quarto principal da reserva; "+N quartos" fica como pendência (exige `reservation_rooms` na listagem).
+- **D-6** — "Vendidos hoje" = ocupados agora + chegadas de hoje ainda sem check-in.
+- **D-7** — risco de *no-show* continua só para `CONFIRMED` (regra do analytics, D-3 do catálogo). Chegada `PENDING` sem pagamento é **tema para o grupo**.
+- **D-8** — o fuso do `/analytics/alerts` (`CURRENT_DATE` em UTC) é repasse para a H.3: `docs/qa/repasses/para_gabriel_h3_04112026.md`.
+- **D-9** — saída atrasada (CHECKED_IN com saída vencida) fica no bloco Saídas, com rótulo próprio.
+- **Decisão 10 do encontro de 03/11** — `CLEANING → MAINTENANCE` passa a valer (camareira acha defeito na limpeza), no backend, no `@hotel/domain` e no seletor de status da T-05.1. Não entrou no painel: o `PUT /rooms/:id` é só do ADMIN, e para a recepção seria um botão desabilitado em toda linha.
 
 **Critérios de aceitação**
-- [ ] **CA-05.3.a** — Chegadas, saídas e hóspedes na casa, do dia
-- [ ] **CA-05.3.b** — Ação direta de check-in/out a partir da lista
-- [ ] **CA-05.3.c** — Alertas relevantes (`/analytics/alerts`)
-- [ ] **CA-05.3.d** — Funciona bem no celular — é a tela que o gerente abre andando
-- [ ] **CA-05.3.e** — Contagem em cada bloco e, no topo, quartos vendidos, livres e ocupação do dia (RT-08, RT-12)
-- [ ] **CA-05.3.f** — Chegada sem pagamento registrado destacada como risco de *no-show* (RT-10)
-- [ ] **CA-05.3.g** — Quartos parados em `CLEANING` visíveis, com ação de liberar (RT-11)
+- [x] **CA-05.3.a** — Chegadas, saídas e hóspedes na casa, do dia — *blocos Chegadas (entrada hoje + atrasadas), Saídas (saída hoje + atrasadas, D-9) e Na casa. Servidor recorta: `GET /reservations?status=CHECKED_IN` e `?from=hoje&to=hoje&status=PENDING,CONFIRMED` (filtro `status` novo, allowlist, 10 testes); E2E confere que todo GET de reservas leva `status=` e que nenhum `/rooms`, `/guests` ou `/payments` inteiro é baixado*
+- [x] **CA-05.3.b** — Ação direta de check-in/out a partir da lista — *mesma `useTransitionReservation` e `reservationActions` da T-05.2; check-out com confirmação na linha mostrando o saldo da `/bill` e "Abrir conta" (`/reservas/:id?aba=conta`); E2E: check-in leva o hóspede para Na casa, check-out leva o quarto para Em limpeza*
+- [x] **CA-05.3.c** — Alertas relevantes (`/analytics/alerts`) — *faixa Atenção: no-show, saídas atrasadas, quartos em limpeza, pendentes há mais de 48 h; lê só os campos iguais no core e na H.3; com o `/analytics` em 500, chegadas e saídas continuam operando (E2E)*
+- [x] **CA-05.3.d** — Funciona bem no celular — *375×812: números do dia em 2 colunas na primeira tela, ações na largura da linha, todo alvo ≥ 48 px medido (inclusive com o "Mais" aberto), sem rolagem horizontal; barra inferior com no máximo 5 abas (D-3); aviso de resultado fixo no alto da área visível*
+- [x] **CA-05.3.e** — Contagem em cada bloco e, no topo, quartos vendidos, livres e ocupação do dia (RT-08, RT-12) — *contagem no título de cada bloco; topo com Vendidos hoje (D-6), Ocupados, Livres, Em limpeza e Ocupação, da `/analytics/occupancy` dos Indicadores*
+- [x] **CA-05.3.f** — Chegada sem pagamento registrado destacada como risco de *no-show* (RT-10) — *selo "Sem pagamento · risco de no-show" (ponto vermelho + texto), cruzado por id com o `no_show_risk` e no topo do bloco; chegada com pagamento PAID sem selo (E2E). Só CONFIRMED (D-7). Entre 21h e 0h (BRT) o selo some por causa do fuso do analytics — D-8*
+- [x] **CA-05.3.g** — Quartos parados em `CLEANING` visíveis, com ação de liberar (RT-11) — *bloco Em limpeza com "desde"; "Liberar quarto" pelo `PUT /rooms/:id/release` (D-1, 12 testes); E2E: ADMIN e RECEPTIONIST liberam, o quarto sai da lista, Livres sobe 1 e o banco fica AVAILABLE*
 
 ---
 
@@ -321,3 +333,4 @@ Do `qa-redteam` nas Fases 0 e 1:
 | 2.0 | 09/09/2026 | Gabriel Reis Cunha | Absorve o levantamento `docs/frontend/REQUISITOS_TELAS_PMS_09set2026.md` (RT-01 a RT-62). Acrescenta o mapa RT → tarefa em §4, novos critérios nas tarefas T-05.2 a T-05.7, e quatro tarefas: **T-05.9** governança, **T-05.10** ficha de registro do hóspede (RF-055), **T-05.11** fechamento de caixa por turno (RF-056) e **T-05.12** busca global e listagens no servidor. Tarifas por período saíram para a **SPEC-07** por serem majoritariamente backend. Ressalva do Swagger atualizada de 79% para **82%**, remedida em 09/09, e registrada a defasagem do `openapi.json` do `api-client` |
 | 2.1 | 21/10/2026 | Agente executor (trilha do Gabriel) | T-05.1 implementada: CA-05.1.a–f marcados com evidência. Ressalvas do `openapi.json` defasado e do `StatusBadge` encerradas |
 | 2.2 | 24/10/2026 | Agente executor (trilha do Gabriel) | Correções do qa-redteam da T-05.1 (🟡-1 a 🟡-3): PUT parcial de quarto, `requestBody` dos três PUTs no Swagger, exclusão de categoria confiando no 409 |
+| 2.3 | 04/11/2026 | Agente de frontend (trilha do Gabriel) | T-05.3 implementada: CA-05.3.a–g marcados com evidência; decisões D-1 a D-9 do Gabriel e a decisão 10 do encontro de 03/11 (`CLEANING → MAINTENANCE`) registradas na T-05.3 |

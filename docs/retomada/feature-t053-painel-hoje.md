@@ -1,7 +1,9 @@
 # Retomada — `feature/t053-painel-hoje` (T-05.3, painel "Hoje", meta M4, prazo 10/11)
 
-**Estado em 04/11/2026:** Research e Plan concluídos. **Nenhum código escrito.** Aguarda a aprovação
-do Gabriel (RPI, `CLAUDE.md` §4) e as respostas da §4 deste arquivo.
+**Estado em 04/11/2026 (noite):** plano **aprovado** pelo Gabriel em 04/11 com as recomendações
+(§5) e **implementado**: backend com TDD, painel, barra inferior, revisão de design e E2E
+(107 PASS / 0 FAIL). Falta o **qa-redteam** (disparado pelo coordenador) e o PR — nenhum PR aberto.
+Relatório: `docs/historico_sessao/gabriel/t053_painel_hoje_04112026.md`.
 
 - Worktree: `/home/gabri/wt-t053` · branch `feature/t053-painel-hoje` a partir de `origin/develop` em `cb04f85`
 - Portas reservadas (livres em 03/11, conferidas com `ss -ltn`): **PG 5464 · backend 3053 · Vite 5253**
@@ -234,3 +236,27 @@ Todos com corpo (o quê + porquê) e `Co-Authored-By: Claude Opus 5.5 <noreply@a
 - **D-7 — No-show e reservas PENDING:** a D-3 refinada só olha CONFIRMED. Chegada de hoje em PENDING sem pagamento também ganha o selo de risco? Se sim, é mudança de regra no analytics (H.3) — ou o painel marca PENDING de hoje apenas como "Pendente de confirmação".
 - **D-8 — Bug de fuso no `/analytics/alerts` (`CURRENT_DATE` em UTC):** aceita como repasse para a H.3 (recomendado) em vez de corrigir nesta branch?
 - **D-9 — Saída atrasada** (CHECKED_IN com saída já vencida) entra no bloco Saídas com rótulo próprio — confirma que é desejado?
+
+---
+
+## 5. Decisões do Gabriel de 04/11/2026 (respostas da §4)
+
+| # | Decisão |
+|---|---|
+| D-1 | **Sim**: `PUT /rooms/:id/release`, só `CLEANING → AVAILABLE`, ADMIN e RECEPTIONIST, TDD, tenant do JWT, allowlist, 409 fora de CLEANING, 404 de outro hotel, Swagger |
+| D-2 | Check-out com confirmação na própria linha, com o saldo, mais "Abrir conta" |
+| D-3 | Barra: Hoje · Reservas · Hóspedes · Comanda · Mais (Quartos, Indicadores, Usuários), cada item pelo papel. Implementado: papel com até 5 itens fica sem "Mais" (recepção, garçom) |
+| D-4 | Ordem **fixa** dos blocos |
+| D-5 | Só o quarto principal; "+N" é pendência |
+| D-6 | Vendidos hoje = ocupados agora + chegadas de hoje sem check-in |
+| D-7 | **Não**: no-show só CONFIRMED (regra do analytics). Chegada PENDING sem pagamento é tema para o grupo |
+| D-8 | Fuso do `/analytics/alerts` vira repasse para a H.3 (`docs/qa/repasses/para_gabriel_h3_04112026.md`), sem correção aqui |
+| D-9 | Saída atrasada no bloco Saídas, com rótulo próprio |
+| +10 | Acréscimo (decisão 10 do encontro de 03/11): `CLEANING → MAINTENANCE` no backend, no `@hotel/domain` e no seletor da T-05.1; diagrama do `CLAUDE.md` §3 atualizado. Fora do painel (o PUT genérico é só do ADMIN) |
+
+## 6. Retomar daqui
+
+1. Ler o relatório da sessão (`docs/historico_sessao/gabriel/t053_painel_hoje_04112026.md`), seção Pendências.
+2. Esperar o parecer do qa-redteam em `docs/qa/`; REPROVADO → corrigir e reauditar (delta).
+3. Rebase sobre `origin/develop` quando a H.3 (PR #109) entrar: rodar `pnpm gen:api` de novo e o typecheck. O painel só lê campos estáveis do `/analytics` (§1.3).
+4. Ambiente da verificação (derrubado no fim da sessão): PG 5464 (`pg-t053`), backend 3053, Vite 5253 com `vite.t053.local.config.ts` não versionado. Roteiro E2E `t053_e2e.mjs` no scratchpad da sessão (descrito no relatório).

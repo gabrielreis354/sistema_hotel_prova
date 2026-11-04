@@ -67,6 +67,7 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 | **T-05.1** — quartos e categorias (frontend) | `feature/t051-quartos-categorias` | agente | `/home/gabri/wt-t051` | PG 5444 · backend 3051 | `api-client` regenerado e no remoto (`0a0b9b4`) |
 | **T-05.2** — reservas e check-in/out (frontend) | `feature/t052-reservas` | agente (trilha Gabriel) | `/home/gabri/wt-t052` | PG 5445 · backend 3052 | em implementação |
 | **T-05.5** — comanda do garçom (Fase A) | `feature/t055-comanda` | **Sirlande** | — | — | delegação pronta (PR #99) |
+| **T-05.3** — painel Hoje (frontend + filtro `status` e `PUT /rooms/:id/release`) | `feature/t053-painel-hoje` | agente (trilha Gabriel) | `/home/gabri/wt-t053` | PG 5464 · backend 3053 · Vite 5253 | 04/11: implementada, E2E 107/0 — aguarda qa-redteam |
 
 **PRs abertos** (`gh pr list --repo gabrielreis354/sistema_hotel_prova`):
 - **#97** — Doc 07 v1.0 (11 ADRs, ADR-007 adiada, ADR-008 com Asaas)
@@ -153,6 +154,7 @@ Pare e remova o container no fim da sessão.
 | 5443 | PG | repasses |
 | 5444 · 3051 | PG · backend | T-05.1 |
 | 5445 · 3052 | PG · backend | T-05.2 |
+| 5464 · 3053 · 5253 | PG · backend · Vite | T-05.3 |
 | **5446 em diante · 3053 em diante** | livres | próxima frente |
 
 **Arquivos onde as frentes se esbarram:**
