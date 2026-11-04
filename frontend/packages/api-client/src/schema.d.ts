@@ -1460,6 +1460,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rooms/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Conclui a limpeza (CLEANING → AVAILABLE) — ADMIN e RECEPTIONIST
+         * @description Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel "Hoje" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Quarto liberado (status AVAILABLE) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Room"];
+                    };
+                };
+                /** @description Papel sem permissão (WAITER) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Quarto não encontrado neste hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guests": {
         parameters: {
             query?: never;
@@ -1765,6 +1835,8 @@ export interface paths {
                     page?: number;
                     /** @description Itens por página (máx. 100). */
                     limit?: number;
+                    /** @description Uma ou mais situações separadas por vírgula, entre PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT e CANCELLED (maiúsculas). Combina com from/to e paginação. Qualquer item fora da lista → 400. */
+                    status?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1781,7 +1853,7 @@ export interface paths {
                         "application/json": components["schemas"]["ReservationListItem"][] | components["schemas"]["ReservationListPage"];
                     };
                 };
-                /** @description from/to fora do formato YYYY-MM-DD */
+                /** @description from/to fora do formato YYYY-MM-DD, ou status fora da lista */
                 400: {
                     headers: {
                         [name: string]: unknown;
