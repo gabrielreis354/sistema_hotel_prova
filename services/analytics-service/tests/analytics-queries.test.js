@@ -298,12 +298,23 @@ describe('GET /analytics/revenue-by-category', () => {
     it('receita e ticket médio em string; cancelada fora', async () => {
         const { body } = await get('/analytics/revenue-by-category', admin());
         // 1000 + 500 + 200 + 150 + 180 + 400 + 900 = 3330 em 7 reservas → 475,71
-        expect(body).toEqual([{ category: 'Standard', reservations: 7, revenue: '3330.00', avg_ticket: '475.71' }]);
+        expect(body).toEqual([{ category_id: ids.cat, category: 'Standard', reservations: 7, revenue: '3330.00', avg_ticket: '475.71' }]);
     });
 
     it('filtro pelo check-in', async () => {
         const { body } = await get('/analytics/revenue-by-category?start=2027-04-01&end=2027-04-30', admin());
-        expect(body).toEqual([{ category: 'Standard', reservations: 1, revenue: '500.00', avg_ticket: '500.00' }]);
+        expect(body).toEqual([{ category_id: ids.cat, category: 'Standard', reservations: 1, revenue: '500.00', avg_ticket: '500.00' }]);
+    });
+
+    it('reserva cujo quarto ainda não chegou à projeção fica em "Sem categoria", sem sumir (decisão 3)', async () => {
+        const hotel = randomUUID();
+        await evento('tenant.created', hotel, hotel, { status: 'ACTIVE' });
+        await evento('reservation.created', hotel, randomUUID(), {
+            guest_id: randomUUID(), room_id: randomUUID(), status: 'CONFIRMED',
+            check_in_date: '2027-08-01', check_out_date: '2027-08-02', total_amount: '77.00', created_at: new Date().toISOString()
+        });
+        const { body } = await get('/analytics/revenue-by-category', tokenFor({ tenantId: hotel }));
+        expect(body).toEqual([{ category_id: null, category: null, reservations: 1, revenue: '77.00', avg_ticket: '77.00' }]);
     });
 
     it('400 com período invertido', async () => {
@@ -443,12 +454,15 @@ describe('Isolamento com o hotel vizinho povoado e referências cruzadas (CA-01.
         ]);
     });
 
-    it('revenue-by-category: nada de B entra nas categorias de A (M16)', async () => {
+    it('revenue-by-category: nada de B entra nas categorias de A (M16); referência a B vira "Sem categoria"', async () => {
         const { body } = await get('/analytics/revenue-by-category', comoVitima());
         // resA1 + resA3 no quarto 101 (Cat A). A resA2 (quarto de A com categoria de B) e a resA4
-        // (quarto de B) saem com o INNER JOIN — ver 🟢-5 do qa-redteam, pendente na retomada. A resB3
-        // (reserva de B no quarto 101) não entra.
-        expect(body).toEqual([{ category: 'Cat A', reservations: 2, revenue: '400.00', avg_ticket: '200.00' }]);
+        // (quarto de B) não somem (decisão 3, 🟢-5 do qa-redteam): vão para a linha sem categoria, sem
+        // o nome de B. A resB3 (reserva de B no quarto 101) não entra.
+        expect(body).toEqual([
+            { category_id: null, category: null, reservations: 2, revenue: '600.00', avg_ticket: '300.00' },
+            { category_id: x.catA, category: 'Cat A', reservations: 2, revenue: '400.00', avg_ticket: '200.00' }
+        ]);
     });
 
     it('payment-mix: só o pagamento de A', async () => {
