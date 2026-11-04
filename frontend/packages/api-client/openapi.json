@@ -4703,7 +4703,7 @@
               "format": "date",
               "example": "2026-01-01"
             },
-            "description": "Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com end."
+            "description": "Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com end."
           },
           {
             "in": "query",
@@ -4714,7 +4714,19 @@
               "format": "date",
               "example": "2026-06-30"
             },
-            "description": "Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com start."
+            "description": "Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com start."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "example": 50
+            },
+            "description": "Máximo de linhas em unpaid (1–100). Padrão: 50. O total vem à parte."
           }
         ],
         "responses": {
@@ -4809,6 +4821,11 @@
                           }
                         }
                       }
+                    },
+                    "unpaid_total": {
+                      "type": "integer",
+                      "example": 37,
+                      "description": "Quantas reservas estão em aberto; unpaid traz no máximo limit delas"
                     }
                   }
                 }
@@ -4932,7 +4949,20 @@
             "bearerAuth": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "example": 50
+            },
+            "description": "Máximo de linhas em cada lista (1–100). Padrão: 50. O total vem à parte."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Alertas agrupados",
@@ -5031,6 +5061,24 @@
                             "type": "number",
                             "example": 72.5
                           }
+                        }
+                      }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "description": "Total de cada lista; cada uma traz no máximo limit linhas",
+                      "properties": {
+                        "no_show_risk": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "cleaning_pending": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "pending_too_long": {
+                          "type": "integer",
+                          "example": 1
                         }
                       }
                     }

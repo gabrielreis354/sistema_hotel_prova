@@ -1,6 +1,7 @@
 import select from '../../utils/select.js';
 import { readPeriod } from '../../utils/queryParams.js';
 import { HOTEL_TIMEZONE } from '../../utils/hotelTimezone.js';
+import { readListLimit, TOTAL_COLUMN, splitTotal } from '../../utils/limitedList.js';
 
 // Receita efetivada = só PAID; VOIDED (estorno, T-06.13) e excluído (D-2) não contam.
 const PAID = `status = 'PAID' AND paid_at IS NOT NULL AND deleted_at IS NULL`;
@@ -11,12 +12,17 @@ const PAID = `status = 'PAID' AND paid_at IS NOT NULL AND deleted_at IS NULL`;
  * `unpaid` segue a D-3 refinada do catálogo (§9.1): reserva ativa com SALDO > 0, isto é,
  * `total_amount` − soma dos pagamentos PAID. Uma reserva com sinal de 30% continua na lista,
  * devendo 70% — no core ela saía da lista com qualquer pagamento PAID.
+ *
+ * `unpaid` tem teto (`limit`, padrão 50, máximo 100) e `unpaid_total` diz quantas há (🟢-4 do
+ * qa-redteam da H.3: sem teto, 1,9 MB com 50 mil reservas). Os totais não dependem do limite.
  */
 export default async function GetRevenueController(request, response) {
     try {
         const tenantId = request.tenantId;
         const { error, period } = readPeriod(request.query);
         if (error) return response.status(400).json({ error });
+        const { error: limitError, value: limit } = readListLimit(request.query);
+        if (limitError) return response.status(400).json({ error: limitError });
 
         // Dia e mês do hotel (D-68): o pagamento das 22h em Brasília é de hoje, não de amanhã.
         const dateFilter = period ? 'AND (paid_at AT TIME ZONE :timezone)::date BETWEEN :start AND :end' : '';
@@ -47,7 +53,7 @@ export default async function GetRevenueController(request, response) {
 
         // LEFT JOIN no hóspede: os eventos chegam em qualquer ordem, e a reserva não pode sumir da
         // lista só porque o guest.created ainda não foi consumido (guest fica null até lá).
-        const unpaid = await select(`
+        const unpaidRows = await select(`
             SELECT r.id                                            AS reservation_id,
                    r.guest_id,
                    g.full_name                                     AS guest,
@@ -55,7 +61,8 @@ export default async function GetRevenueController(request, response) {
                    COALESCE(p.paid, 0)::numeric(14,2)              AS paid,
                    (r.total_amount - COALESCE(p.paid, 0))::numeric(14,2) AS balance,
                    r.check_in_date,
-                   r.check_out_date
+                   r.check_out_date,
+                   ${TOTAL_COLUMN}
               FROM proj_reservations r
               LEFT JOIN proj_guests g
                      ON g.id = r.guest_id AND g.tenant_id = :tenantId
@@ -70,12 +77,15 @@ export default async function GetRevenueController(request, response) {
                AND r.deleted_at IS NULL
                AND r.total_amount - COALESCE(p.paid, 0) > 0
              ORDER BY r.check_in_date, r.id
-        `, { tenantId });
+             LIMIT :limit
+        `, { tenantId, limit });
+        const { rows: unpaid, total: unpaidTotal } = splitTotal(unpaidRows);
 
         return response.json({
             realized: { total: realized.total, by_month: byMonth },
             expected: { total: expected.total },
-            unpaid
+            unpaid,
+            unpaid_total: unpaidTotal
         });
     } catch (error) {
         console.error('GetRevenueController:', error.message);

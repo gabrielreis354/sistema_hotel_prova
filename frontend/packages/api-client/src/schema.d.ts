@@ -3037,10 +3037,12 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com end. */
+                    /** @description Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com end. */
                     start?: string;
-                    /** @description Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com start. */
+                    /** @description Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com start. */
                     end?: string;
+                    /** @description Máximo de linhas em unpaid (1–100). Padrão: 50. O total vem à parte. */
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -3099,6 +3101,11 @@ export interface paths {
                                 /** Format: date */
                                 check_out_date?: string;
                             }[];
+                            /**
+                             * @description Quantas reservas estão em aberto; unpaid traz no máximo limit delas
+                             * @example 37
+                             */
+                            unpaid_total?: number;
                         };
                     };
                 };
@@ -3249,7 +3256,10 @@ export interface paths {
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Máximo de linhas em cada lista (1–100). Padrão: 50. O total vem à parte. */
+                    limit?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3301,6 +3311,15 @@ export interface paths {
                                 /** @example 72.5 */
                                 hours_pending?: number;
                             }[];
+                            /** @description Total de cada lista; cada uma traz no máximo limit linhas */
+                            totals?: {
+                                /** @example 3 */
+                                no_show_risk?: number;
+                                /** @example 2 */
+                                cleaning_pending?: number;
+                                /** @example 1 */
+                                pending_too_long?: number;
+                            };
                         };
                     };
                 };

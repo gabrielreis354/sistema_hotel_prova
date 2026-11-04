@@ -21,6 +21,12 @@ const PERIOD_PARAMS = (campo) => [
     { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: `Data final (YYYY-MM-DD), inclusiva, sobre ${campo}. Só filtra junto com start.` }
 ];
 
+// Teto das listas detalhadas (🟢-4 do qa-redteam da H.3), no padrão do core: padrão 50, máximo 100.
+const LIST_LIMIT_PARAM = (lista) => ({
+    in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, example: 50 },
+    description: `Máximo de linhas em ${lista} (1–100). Padrão: 50. O total vem à parte.`
+});
+
 const ERRORS = {
     400: { description: 'Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)' },
     401: { description: 'Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics' },
@@ -67,10 +73,11 @@ const paths = {
                     balance:        MONEY('700.00', 'amount − paid, sempre > 0'),
                     check_in_date:  DATE,
                     check_out_date: DATE
-                } } }
+                } } },
+                unpaid_total: { type: 'integer', example: 37, description: 'Quantas reservas estão em aberto; unpaid traz no máximo limit delas' }
             }
         }),
-        PERIOD_PARAMS('o dia do pagamento (paid_at)')
+        [...PERIOD_PARAMS('o dia do pagamento (paid_at), no fuso do hotel'), LIST_LIMIT_PARAM('unpaid')]
     ),
     '/analytics/occupancy': op(
         'Taxa de ocupação + ADR + RevPAR',
@@ -117,9 +124,15 @@ const paths = {
                     amount:         MONEY('300.00'),
                     created_at:     { type: 'string', format: 'date-time' },
                     hours_pending:  { type: 'number', example: 72.5 }
-                } } }
+                } } },
+                totals: { type: 'object', description: 'Total de cada lista; cada uma traz no máximo limit linhas', properties: {
+                    no_show_risk:     { type: 'integer', example: 3 },
+                    cleaning_pending: { type: 'integer', example: 2 },
+                    pending_too_long: { type: 'integer', example: 1 }
+                } }
             }
-        })
+        }),
+        [LIST_LIMIT_PARAM('cada lista')]
     ),
     '/analytics/seasonality': op(
         'Histórico mensal de reservas e receita',

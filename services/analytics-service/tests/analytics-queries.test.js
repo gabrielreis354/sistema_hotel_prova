@@ -145,7 +145,10 @@ describe('Isolamento por tenant (CA-01.4.m)', () => {
         const occ = (await get('/analytics/occupancy', b)).body;
         expect(occ).toMatchObject({ total_rooms: 1, occupied: 1 });
         const alerts = (await get('/analytics/alerts', b)).body;
-        expect(alerts).toEqual({ no_show_risk: [], cleaning_pending: [], pending_too_long: [] });
+        expect(alerts).toEqual({
+            no_show_risk: [], cleaning_pending: [], pending_too_long: [],
+            totals: { no_show_risk: 0, cleaning_pending: 0, pending_too_long: 0 }
+        });
     });
 
     it('tenantId de query ou header não muda o hotel consultado', async () => {
