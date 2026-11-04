@@ -12,10 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
     "@hotel/api-client": "workspace:*",
     "@hotel/domain": "workspace:*",
     "@hotel/ui": "workspace:*",
-    "@hookform/resolvers": "^3.9.1",
     "@tanstack/react-query": "^5.62.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -26,10 +26,14 @@
   },
   "devDependencies": {
     "@hotel/config": "workspace:*",
+    "@testing-library/dom": "10",
+    "@testing-library/react": "16",
+    "@testing-library/user-event": "14",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "jsdom": "25",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.6.3",

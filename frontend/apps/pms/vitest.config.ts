@@ -1,10 +1,10 @@
 import { defineConfig } from 'vitest/config';
 
-// Testes de lógica pura do app (filtros, mapeamentos). Ambiente node — testes de componente
-// com DOM entram depois com jsdom, quando houver o primeiro caso que justifique.
+// Testes de lógica pura rodam em node; os de componente declaram `// @vitest-environment jsdom`
+// no topo do arquivo (.test.tsx), para não pagar o DOM onde não precisa.
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 });
