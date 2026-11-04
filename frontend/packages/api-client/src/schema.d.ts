@@ -1469,7 +1469,7 @@ export interface paths {
         };
         /**
          * Lista hóspedes ou busca por termo
-         * @description Sem `q`: todos os hóspedes do hotel (contrato antigo). Com `q`: busca no servidor por nome, CPF, e-mail ou telefone (ILIKE com `%`, `_` e `\` literais; termo numérico casa CPF/telefone só pelos dígitos), sempre no hotel do token, ordenada por nome, até `limit`. `q` vazio devolve lista vazia.
+         * @description Sem `q`: todos os hóspedes do hotel (contrato antigo). Com `q` (3 a 100 caracteres depois do trim): busca no servidor por nome, CPF, e-mail ou telefone completos (ILIKE com `%`, `_` e `\` literais; termo numérico casa CPF/telefone só pelos dígitos), sempre no hotel do token, ordenada por nome, até `limit`; a resposta traz só `GuestSearchResult` (CPF e telefone mascarados, sem e-mail). `q` com menos de 3 caracteres é 400.
          */
         get: {
             parameters: {
@@ -1488,22 +1488,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Sem `q`: `Guest[]` completo. Com `q`: `GuestSearchResult[]` mascarado */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Guest"][];
+                        "application/json": components["schemas"]["Guest"][] | components["schemas"]["GuestSearchResult"][];
                     };
                 };
-                /** @description `q` com mais de 100 caracteres */
+                /** @description code INVALID_INPUT, field `q` — com menos de 3 ou mais de 100 caracteres (depois do trim) ou não é texto */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
             };
@@ -4865,6 +4865,23 @@ export interface components {
             phone?: string;
             /** Format: email */
             email?: string;
+        };
+        /** @description Resultado da busca `GET /guests?q=`: só o necessário para escolher entre homônimos (LGPD art. 6º, III). Sem tenant_id, timestamps, e-mail, CPF ou telefone completos. `cpf` e `phone` são omitidos quando ausentes ou ilegíveis. */
+        GuestSearchResult: {
+            /** Format: uuid */
+            id?: string;
+            /** @example Maria Oliveira */
+            full_name?: string;
+            /**
+             * @description Só os 3 dígitos do meio visíveis
+             * @example ***.456.789-**
+             */
+            cpf?: string;
+            /**
+             * @description Só os 4 últimos dígitos visíveis
+             * @example ****-1111
+             */
+            phone?: string;
         };
         Address: {
             /** @example 01310100 */

@@ -1,11 +1,15 @@
 import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import GuestModel from '../../Models/GuestModel.js';
+import { invalidInputBody } from '../../utils/roomErrors.js';
+import { GUEST_SEARCH_ATTRIBUTES, toGuestSearchResult } from '../../utils/guestSearchResult.js';
 
 // Busca da nova reserva (T-05.2, adianta a T-05.12): poucos resultados, nunca o cadastro.
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 20;
 const MAX_Q_LENGTH = 100;
+// Busca não é listagem: abaixo disto o termo casaria com gente demais (enumeração do cadastro).
+const MIN_Q_LENGTH = 3;
 // Termo que parece documento ou telefone: dígitos com a pontuação das máscaras usuais.
 const NUMERIC_TERM = /^[\d\s().+-]+$/;
 const MIN_DIGITS = 3;
@@ -30,9 +34,10 @@ function digitsOf(column) {
  * GET /guests
  * - Sem `q`: contrato antigo, todos os hóspedes do hotel (tela de hóspedes; a paginação dela
  *   fica para a T-05.12).
- * - Com `q`: busca no servidor por nome, CPF, e-mail ou telefone (ILIKE com escape), sempre
- *   por tenant_id, ordenada por nome, até `limit` (padrão 10, máximo 20). `q` vazio devolve
- *   lista vazia — nunca o cadastro inteiro.
+ * - Com `q` (3 a 100 caracteres depois do trim; fora disso, 400 INVALID_INPUT): busca no
+ *   servidor por nome, CPF, e-mail ou telefone (ILIKE com escape), sempre por tenant_id,
+ *   ordenada por nome, até `limit` (padrão 10, máximo 20). O filtro usa os dados completos,
+ *   mas a resposta traz só o necessário para escolher (ver guestSearchResult.js).
  */
 export default async function ListGuestController(request, response) {
     try {
@@ -44,12 +49,11 @@ export default async function ListGuestController(request, response) {
             return response.json(guests);
         }
 
-        if (typeof q !== 'string') return response.status(400).json({ error: 'q deve ser um texto' });
+        const invalidQ = (message) => response.status(400).json(invalidInputBody([{ field: 'q', message }]));
+        if (typeof q !== 'string') return invalidQ('q deve ser um texto');
         const term = q.trim();
-        if (term.length > MAX_Q_LENGTH) {
-            return response.status(400).json({ error: `q aceita no máximo ${MAX_Q_LENGTH} caracteres` });
-        }
-        if (!term) return response.json([]);
+        if (term.length < MIN_Q_LENGTH) return invalidQ(`q exige ao menos ${MIN_Q_LENGTH} caracteres`);
+        if (term.length > MAX_Q_LENGTH) return invalidQ(`q aceita no máximo ${MAX_Q_LENGTH} caracteres`);
 
         const pattern = `%${escapeLike(term)}%`;
         const or = [
@@ -68,11 +72,12 @@ export default async function ListGuestController(request, response) {
         }
 
         const guests = await GuestModel.findAll({
+            attributes: GUEST_SEARCH_ATTRIBUTES,
             where: { tenant_id: tenantId, [Op.or]: or },
             order: [['full_name', 'ASC']],
             limit: parseLimit(request.query.limit)
         });
-        return response.json(guests);
+        return response.json(guests.map(toGuestSearchResult));
     } catch (error) {
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
