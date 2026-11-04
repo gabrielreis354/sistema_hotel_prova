@@ -83,11 +83,11 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
       {open && (
         <>
           {/* Fundo: toque fora fecha. Não é foco de teclado — o Esc faz o mesmo. */}
-          <div className="fixed inset-0 z-30 bg-gray-900/30" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30" aria-hidden="true" onClick={() => setOpen(false)} />
           <nav
             id="menu-mais"
             aria-label="Mais opções"
-            className="fixed inset-x-0 bottom-12 z-40 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
+            className="sheet-up fixed inset-x-0 bottom-12 z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
           >
             <ul>
               {more.map((item) => (

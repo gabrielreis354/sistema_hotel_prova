@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDateBR } from '@hotel/domain';
-import { ErrorState, Notice, Spinner, cn } from '@hotel/ui';
+import { Button, ErrorState, Notice, Spinner, cn } from '@hotel/ui';
 import { ButtonLink } from '../reservations/index.js';
 import { useOccupancy } from '../analytics/index.js';
 import { useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
@@ -24,6 +24,13 @@ export function TodayPage() {
   const alerts = useTodayAlerts();
   const occupancy = useOccupancy(today);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+  // Sucesso some sozinho (a lista já mostra o novo estado); erro fica até a pessoa fechar.
+  useEffect(() => {
+    if (feedback?.kind !== 'success') return;
+    const timer = window.setTimeout(() => setFeedback(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
 
   const noShowIds = alerts.data?.noShowIds ?? NO_IDS;
   const arrivalList = useMemo(() => arrivalRows(arrivals.data?.data ?? [], today, noShowIds), [arrivals.data, today, noShowIds]);
@@ -67,8 +74,17 @@ export function TodayPage() {
         onRetry={() => occupancy.refetch()}
       />
 
+      {/* Fixo no alto da área visível: no celular a ação acontece lá embaixo da lista, e o
+          resultado precisa aparecer onde o olho está — a linha some quando a lista recarrega. */}
       {feedback && (
-        <Notice tone={feedback.kind === 'error' ? 'error' : 'success'}>{feedback.text}</Notice>
+        <div className="sticky top-2 z-20 flex items-start gap-2 rounded-md bg-white shadow-md">
+          <div className="min-w-0 flex-1">
+            <Notice tone={feedback.kind === 'error' ? 'error' : 'success'}>{feedback.text}</Notice>
+          </div>
+          <Button variant="ghost" className="shrink-0 md:h-9 md:min-h-0 md:text-sm" onClick={() => setFeedback(null)}>
+            Fechar
+          </Button>
+        </div>
       )}
 
       {/* Atenção (CA-05.3.c): o que pede ação agora, com cor + rótulo. */}
