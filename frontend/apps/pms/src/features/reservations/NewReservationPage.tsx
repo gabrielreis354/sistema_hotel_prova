@@ -5,7 +5,7 @@ import { Button, Card, Field, Input } from '@hotel/ui';
 import type { Guest } from '../guests/index.js';
 import { ApiError } from '../../lib/http.js';
 import { useAvailableRooms, useCreateReservation } from './queries.js';
-import { RoomConflictError } from './reservationsApi.js';
+import { GuestNotFoundError, RoomConflictError } from './reservationsApi.js';
 import { quoteStay, roomConflictMessage, safeNights } from './reservationLogic.js';
 import { GuestPicker } from './components/GuestPicker.js';
 import { RoomPicker } from './components/RoomPicker.js';
@@ -78,6 +78,12 @@ export function NewReservationPage() {
       {
         onSuccess: (r) => navigate(r.id ? `/reservas/${r.id}` : '/reservas'),
         onError: (err) => {
+          if (err instanceof GuestNotFoundError) {
+            // O hóspede escolhido sumiu: sem limpar, "Confirmar" repetiria o mesmo 404.
+            setGuest(null);
+            setSubmitError(err.message);
+            return;
+          }
           if (err instanceof RoomConflictError) {
             const lost = new Set(err.roomIds);
             setSelectedIds((ids) => ids.filter((id) => !lost.has(id)));

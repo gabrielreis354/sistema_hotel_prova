@@ -115,8 +115,21 @@ export async function listAvailableRooms(checkIn: string, checkOut: string): Pro
  */
 export const CREATE_RETRY_MESSAGE =
   'Outra operação está usando estes quartos agora e nada foi gravado. Tente de novo — se algum quarto tiver sido reservado nesse meio-tempo, a lista de livres já mostra.';
+export const GUEST_GONE_MESSAGE =
+  'O hóspede não foi encontrado — pode ter sido excluído em outro atendimento. Escolha o hóspede de novo.';
 export const CREATE_GONE_MESSAGE =
-  'O hóspede ou um dos quartos escolhidos não existe mais neste hotel — pode ter sido excluído em outro atendimento. As listas foram atualizadas: escolha de novo.';
+  'Um dos quartos escolhidos não existe mais neste hotel — pode ter sido excluído em outro atendimento. As listas foram atualizadas: escolha de novo.';
+
+/** 404 da criação cujo corpo diz que o hóspede sumiu: a tela limpa a seleção do hóspede. */
+export class GuestNotFoundError extends ApiError {
+  constructor() {
+    super(GUEST_GONE_MESSAGE, 404);
+    this.name = 'GuestNotFoundError';
+  }
+}
+
+// O servidor não manda `code` neste 404; o que separa hóspede de quarto é o texto de CreateReservationController.
+const GUEST_NOT_FOUND_BODY = /^hóspede não encontrado/i;
 
 export async function createReservation(input: CreateReservationInput): Promise<Reservation> {
   const { data, error, response } = await api.POST('/reservations', { body: input });
@@ -128,7 +141,10 @@ export async function createReservation(input: CreateReservationInput): Promise<
       roomIds,
     );
   }
-  if (response.status === 404) throw new ApiError(CREATE_GONE_MESSAGE, 404);
+  if (response.status === 404) {
+    if (GUEST_NOT_FOUND_BODY.test(serverMessage(error) ?? '')) throw new GuestNotFoundError();
+    throw new ApiError(CREATE_GONE_MESSAGE, 404);
+  }
   if (error || !response.ok || !data) {
     throw new ApiError(serverMessage(error) ?? 'Não foi possível criar a reserva.', response.status);
   }

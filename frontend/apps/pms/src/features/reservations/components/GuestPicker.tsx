@@ -14,7 +14,9 @@ const SEARCH_DEBOUNCE_MS = 250;
  * não se perdem, porque este componente não navega.
  *
  * A busca é do servidor (`GET /guests?q=&limit=`): o navegador recebe no máximo os poucos
- * resultados que mostra, nunca o cadastro do hotel (princípio 7, LGPD art. 6º, III).
+ * resultados que mostra, nunca o cadastro do hotel (princípio 7, LGPD art. 6º, III). Cada
+ * resultado já chega mascarado (CPF com 3 dígitos, telefone com 4) — aqui só se exibe, sem
+ * mascarar de novo; o dado completo fica na ficha da reserva.
  */
 export function GuestPicker({ selected, onSelect }: { selected: Guest | null; onSelect: (g: Guest | null) => void }) {
   const [term, setTerm] = useState('');
@@ -38,7 +40,7 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
         <div className="min-w-0">
           <p className="font-medium">{selected.full_name}</p>
           <p className="text-sm text-gray-600">
-            {[selected.cpf, selected.phone, selected.email].filter(Boolean).join(' · ') || 'Sem documento ou contato'}
+            {[selected.cpf, selected.phone].filter(Boolean).join(' · ') || 'Sem documento ou telefone'}
           </p>
         </div>
         <Button variant="secondary" onClick={() => onSelect(null)}>
@@ -103,7 +105,7 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-gray-900">{g.full_name}</span>
                   <span className="block truncate text-sm font-normal text-gray-600">
-                    {[g.cpf, g.phone, g.email].filter(Boolean).join(' · ') || 'Sem documento ou contato'}
+                    {[g.cpf, g.phone].filter(Boolean).join(' · ') || 'Sem documento ou telefone'}
                   </span>
                 </span>
                 <span className="shrink-0 text-sm text-brand">Usar</span>
