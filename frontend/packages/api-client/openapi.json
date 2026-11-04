@@ -1586,6 +1586,7 @@
           "Reserva Direta (Público)"
         ],
         "summary": "Categorias disponíveis no período, com preço da estadia",
+        "description": "Passo 6 do roteiro, 2ª chamada: copie o `category_id` de uma das categorias da resposta para o POST /public/{subdomain}/bookings. O id muda a cada seed, por isso não há exemplo fixo. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.",
         "security": [],
         "parameters": [
           {
@@ -1605,7 +1606,7 @@
               "type": "string",
               "format": "date"
             },
-            "example": "2026-10-10"
+            "example": "2026-12-15"
           },
           {
             "in": "query",
@@ -1615,7 +1616,7 @@
               "type": "string",
               "format": "date"
             },
-            "example": "2026-10-13"
+            "example": "2026-12-18"
           },
           {
             "in": "query",
@@ -1667,6 +1668,7 @@
           "Reserva Direta (Público)"
         ],
         "summary": "Cria reserva online e gera cobrança PIX do sinal",
+        "description": "Passo 6 do roteiro, 3ª chamada: a reserva nasce PENDING e a resposta traz o QR do sinal (`pix.qr_code`) e o `pix.provider_charge_id`. Com PIX_PROVIDER=fake (plano B), passe esse id ao scripts/simular_pagamento_pix.js para o webhook confirmar a reserva. Com o Asaas (plano A), o CPF do hóspede é obrigatório. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.",
         "security": [],
         "parameters": [
           {
@@ -1694,17 +1696,18 @@
                 "properties": {
                   "category_id": {
                     "type": "string",
-                    "format": "uuid"
+                    "format": "uuid",
+                    "description": "Copie de categories[].category_id no GET /public/{subdomain}/availability"
                   },
                   "check_in": {
                     "type": "string",
                     "format": "date",
-                    "example": "2026-10-10"
+                    "example": "2026-12-15"
                   },
                   "check_out": {
                     "type": "string",
                     "format": "date",
-                    "example": "2026-10-13"
+                    "example": "2026-12-18"
                   },
                   "guests": {
                     "type": "integer",
@@ -1730,7 +1733,8 @@
                       },
                       "cpf": {
                         "type": "string",
-                        "example": "123.456.789-00"
+                        "example": "529.982.247-25",
+                        "description": "Obrigatório com PIX_PROVIDER=asaas"
                       }
                     }
                   }
@@ -1806,6 +1810,7 @@
           "Reserva Direta (Público)"
         ],
         "summary": "Status da reserva (polling pós-pagamento PIX)",
+        "description": "Passo 6 do roteiro, última chamada: use o `reservation.id` do POST. Antes do pagamento, status PENDING e deposit.status PENDING. Depois do webhook, CONFIRMED e PAID.",
         "security": [],
         "parameters": [
           {

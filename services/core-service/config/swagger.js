@@ -5,6 +5,12 @@ import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../
 import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
 import { ROOM_STATUSES } from '../app/utils/roomRules.js';
 
+// Datas de exemplo do passo 6 do roteiro (reserva direta pelo Swagger). Fixas, não relativas a
+// "hoje": o openapi.json é versionado e o job de contrato do CI falharia todo dia com data móvel.
+// Ficam depois do último ensaio e da entrega de 10/12/2026, então nunca mostram reserva no passado.
+const PASSO6_CHECK_IN = '2026-12-15';
+const PASSO6_CHECK_OUT = '2026-12-18';
+
 const options = {
     definition: {
         openapi: '3.0.0',
@@ -514,11 +520,12 @@ const options = {
                 get: {
                     tags: ['Reserva Direta (Público)'],
                     summary: 'Categorias disponíveis no período, com preço da estadia',
+                    description: 'Passo 6 do roteiro, 2ª chamada: copie o `category_id` de uma das categorias da resposta para o POST /public/{subdomain}/bookings. O id muda a cada seed, por isso não há exemplo fixo. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.',
                     security: [],
                     parameters: [
                         { in: 'path',  name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' },
-                        { in: 'query', name: 'check_in',  required: true, schema: { type: 'string', format: 'date' }, example: '2026-10-10' },
-                        { in: 'query', name: 'check_out', required: true, schema: { type: 'string', format: 'date' }, example: '2026-10-13' },
+                        { in: 'query', name: 'check_in',  required: true, schema: { type: 'string', format: 'date' }, example: PASSO6_CHECK_IN },
+                        { in: 'query', name: 'check_out', required: true, schema: { type: 'string', format: 'date' }, example: PASSO6_CHECK_OUT },
                         { in: 'query', name: 'guests',    required: false, schema: { type: 'integer' }, example: 2 }
                     ],
                     responses: {
@@ -532,20 +539,22 @@ const options = {
                 post: {
                     tags: ['Reserva Direta (Público)'],
                     summary: 'Cria reserva online e gera cobrança PIX do sinal',
+                    description: 'Passo 6 do roteiro, 3ª chamada: a reserva nasce PENDING e a resposta traz o QR do sinal (`pix.qr_code`) e o `pix.provider_charge_id`. Com PIX_PROVIDER=fake (plano B), passe esse id ao scripts/simular_pagamento_pix.js para o webhook confirmar a reserva. Com o Asaas (plano A), o CPF do hóspede é obrigatório. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.',
                     security: [],
                     parameters: [{ in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' }],
                     requestBody: {
                         required: true,
                         content: { 'application/json': { schema: { type: 'object', required: ['category_id', 'check_in', 'check_out', 'guest'], properties: {
-                            category_id: { type: 'string', format: 'uuid' },
-                            check_in:    { type: 'string', format: 'date', example: '2026-10-10' },
-                            check_out:   { type: 'string', format: 'date', example: '2026-10-13' },
+                            category_id: { type: 'string', format: 'uuid', description: 'Copie de categories[].category_id no GET /public/{subdomain}/availability' },
+                            check_in:    { type: 'string', format: 'date', example: PASSO6_CHECK_IN },
+                            check_out:   { type: 'string', format: 'date', example: PASSO6_CHECK_OUT },
                             guests:      { type: 'integer', example: 2 },
                             guest: { type: 'object', required: ['full_name'], properties: {
                                 full_name: { type: 'string', example: 'Maria Oliveira' },
                                 email:     { type: 'string', example: 'maria@example.com' },
                                 phone:     { type: 'string', example: '(11) 99999-9999' },
-                                cpf:       { type: 'string', example: '123.456.789-00' }
+                                // CPF com dígitos verificadores válidos: o Asaas recusa CPF malformado.
+                                cpf:       { type: 'string', example: '529.982.247-25', description: 'Obrigatório com PIX_PROVIDER=asaas' }
                             }}
                         }}}}
                     },
@@ -562,6 +571,7 @@ const options = {
                 get: {
                     tags: ['Reserva Direta (Público)'],
                     summary: 'Status da reserva (polling pós-pagamento PIX)',
+                    description: 'Passo 6 do roteiro, última chamada: use o `reservation.id` do POST. Antes do pagamento, status PENDING e deposit.status PENDING. Depois do webhook, CONFIRMED e PAID.',
                     security: [],
                     parameters: [
                         { in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' },
