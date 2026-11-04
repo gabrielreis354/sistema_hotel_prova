@@ -199,6 +199,32 @@ describe('GET /analytics/revenue', () => {
     });
 });
 
+// 🟢-4 do qa-redteam da H.3: listas com teto, no padrão do core (ListReservationController: limit
+// padrão 50, máximo 100) e com o total, para a tela saber que há mais.
+describe('Limite nas listas de revenue.unpaid e dos alertas', () => {
+    it('revenue: limit corta unpaid e unpaid_total traz o total', async () => {
+        const todos = (await get('/analytics/revenue', admin())).body;
+        expect(todos.unpaid_total).toBe(5);
+        expect(todos.unpaid).toHaveLength(5);
+        const um = (await get('/analytics/revenue?limit=1', admin())).body;
+        expect(um.unpaid).toEqual([todos.unpaid[0]]);
+        expect(um.unpaid_total).toBe(5);
+        expect(um.realized).toEqual(todos.realized);   // o limite não mexe nos totais
+    });
+
+    it('alerts: limit vale para cada lista e totals traz o total de cada uma', async () => {
+        const { body } = await get('/analytics/alerts?limit=1', admin());
+        expect(body.no_show_risk).toHaveLength(1);
+        expect(body.no_show_risk[0].reservation_id).toBe(ids.resTodayVoided);   // a ordem se mantém
+        expect(body.totals).toEqual({ no_show_risk: 2, cleaning_pending: 1, pending_too_long: 1 });
+    });
+
+    it.each(['0', '101', 'x'])('400 com limit=%s', async (limit) => {
+        expect((await get(`/analytics/revenue?limit=${limit}`, admin())).status).toBe(400);
+        expect((await get(`/analytics/alerts?limit=${limit}`, admin())).status).toBe(400);
+    });
+});
+
 describe('GET /analytics/payment-mix', () => {
     it('só PAID, total em string, pct em número', async () => {
         const { body } = await get('/analytics/payment-mix', admin());
