@@ -862,6 +862,19 @@ const options = {
                     }
                 }
             },
+            '/rooms/{id}/release': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                put: {
+                    tags: ['Quartos'], summary: 'Conclui a limpeza (CLEANING → AVAILABLE) — ADMIN e RECEPTIONIST',
+                    description: 'Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel "Hoje" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).',
+                    responses: {
+                        200: { description: 'Quarto liberado (status AVAILABLE)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
+                        403: { description: 'Papel sem permissão (WAITER)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Quarto não encontrado neste hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                    }
+                }
+            },
             '/guests': {
                 get: {
                     tags: ['Hóspedes'], summary: 'Lista hóspedes ou busca por termo',
@@ -931,7 +944,8 @@ const options = {
                         { in: 'query', name: 'from',  required: false, schema: { type: 'string', format: 'date' }, description: 'Início do intervalo (YYYY-MM-DD). Devolve reservas que se sobrepõem ao período.' },
                         { in: 'query', name: 'to',    required: false, schema: { type: 'string', format: 'date' }, description: 'Fim do intervalo (YYYY-MM-DD).' },
                         { in: 'query', name: 'page',  required: false, schema: { type: 'integer', minimum: 1 }, description: 'Página (1+). Presente page ou limit, a resposta vira { data, total, page, limit }.' },
-                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' }
+                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' },
+                        { in: 'query', name: 'status', required: false, schema: { type: 'string', example: 'PENDING,CONFIRMED' }, description: 'Uma ou mais situações separadas por vírgula, entre PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT e CANCELLED (maiúsculas). Combina com from/to e paginação. Qualquer item fora da lista → 400.' }
                     ],
                     responses: {
                         200: {
@@ -941,7 +955,7 @@ const options = {
                                 { $ref: '#/components/schemas/ReservationListPage' }
                             ]}}}
                         },
-                        400: { description: 'from/to fora do formato YYYY-MM-DD', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'from/to fora do formato YYYY-MM-DD, ou status fora da lista', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
                 post: {

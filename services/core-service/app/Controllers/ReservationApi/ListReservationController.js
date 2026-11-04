@@ -3,11 +3,12 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import GuestModel from '../../Models/GuestModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import UserModel from '../../Models/UserModel.js';
+import { parseStatusFilter } from '../../utils/reservationStatuses.js';
 
 export default async function ListReservationController(request, response) {
     try {
         const tenantId = request.user.tenantId;
-        const { from, to, page, limit } = request.query;
+        const { from, to, page, limit, status } = request.query;
 
         // Valida formato das datas — sem isso, um valor como ?from=abc chega ao
         // Postgres e vira 500 em vez de um 400 claro para o cliente.
@@ -16,7 +17,13 @@ export default async function ListReservationController(request, response) {
             return response.status(400).json({ error: 'from/to devem estar no formato YYYY-MM-DD' });
         }
 
+        // Filtro por situação (T-05.3, painel Hoje): ?status=CHECKED_IN traz os hóspedes na casa,
+        // inclusive a saída atrasada que a janela de datas perderia. Allowlist em parseStatusFilter.
+        const statusFilter = parseStatusFilter(status);
+        if (!statusFilter.ok) return response.status(400).json({ error: statusFilter.error });
+
         const where = { tenant_id: tenantId };
+        if (statusFilter.statuses) where.status = { [Op.in]: statusFilter.statuses };
 
         // Filtro por período: devolve as reservas que se SOBREPÕEM ao intervalo
         // [from, to] — check_in <= to AND check_out >= from. É o que o rack precisa
