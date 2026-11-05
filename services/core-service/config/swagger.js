@@ -7,7 +7,8 @@ import { ROOM_STATUSES } from '../app/utils/roomRules.js';
 
 // Datas de exemplo do passo 6 do roteiro (reserva direta pelo Swagger). Fixas, não relativas a
 // "hoje": o openapi.json é versionado e o job de contrato do CI falharia todo dia com data móvel.
-// Ficam depois do último ensaio e da entrega de 10/12/2026, então nunca mostram reserva no passado.
+// Ficam depois do último ensaio e da entrega de 10/12/2026. A partir de 15/12/2026 viram data
+// passada: troque antes de usar o passo 6 de novo (5º semestre).
 const PASSO6_CHECK_IN = '2026-12-15';
 const PASSO6_CHECK_OUT = '2026-12-18';
 
@@ -553,7 +554,7 @@ const options = {
                                 full_name: { type: 'string', example: 'Maria Oliveira' },
                                 email:     { type: 'string', example: 'maria@example.com' },
                                 phone:     { type: 'string', example: '(11) 99999-9999' },
-                                // CPF com dígitos verificadores válidos: o Asaas recusa CPF malformado.
+                                // CPF fictício de domínio público, com dígitos verificadores válidos: o Asaas recusa CPF malformado.
                                 cpf:       { type: 'string', example: '529.982.247-25', description: 'Obrigatório com PIX_PROVIDER=asaas' }
                             }}
                         }}}}
@@ -563,7 +564,8 @@ const options = {
                         400: { description: 'Campos obrigatórios ausentes (formato ValidationErrors) ou datas inválidas (formato Error)', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/ValidationErrors' }, { $ref: '#/components/schemas/Error' }] } } } },
                         404: { description: 'Hotel ou categoria não encontrados', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Sem disponibilidade na categoria para o período, ou CPF/e-mail do hóspede criado por outra requisição simultânea (corrida no find-or-create — reenviar resolve)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        422: { description: 'Categoria não comporta os hóspedes ou sem preço', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        422: { description: 'Categoria não comporta os hóspedes ou sem preço', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'Provider PIX indisponível ao gerar a cobrança (ex.: Asaas fora do ar ou chave inválida) — nenhuma reserva é criada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },

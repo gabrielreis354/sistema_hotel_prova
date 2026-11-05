@@ -1800,6 +1800,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Provider PIX indisponível ao gerar a cobrança (ex.: Asaas fora do ar ou chave inválida) — nenhuma reserva é criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }

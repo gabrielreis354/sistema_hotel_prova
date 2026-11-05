@@ -233,6 +233,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description Provider PIX indisponível ao gerar a cobrança (ex.: Asaas fora do ar ou chave inválida) — nenhuma reserva é criada */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
