@@ -23,7 +23,10 @@ async function chamar(token, metodo, caminho, corpo) {
     return dados;
 }
 
-const dia = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('sv-SE'); };
+// "Hoje" é o de Brasília (a diária é dia em America/Sao_Paulo), não o fuso da máquina: num CI em
+// UTC, depois das 21h, a "chegada de hoje" viraria de amanhã (🟢-4 do qa-redteam).
+const hojeSP = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+const dia = (n) => { const d = new Date(`${hojeSP()}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const login = async (email) => (await chamar(null, 'POST', '/auth/login', { email, password: SENHA })).token;
 
 async function hotel(nome, dominio) {

@@ -12,36 +12,68 @@ set -euo pipefail
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 CORE="$RAIZ/services/core-service"
 PMS="$RAIZ/frontend/apps/pms"
-ESTADO="${TMPDIR:-/tmp}/gesway-qa-explorador"
+# Uma pasta de estado por checkout: o parar de um worktree não mexe no de outro.
+ESTADO="${TMPDIR:-/tmp}/gesway-qa-explorador-$(printf '%s' "$RAIZ" | cksum | cut -d' ' -f1)"
 BANCO="gestao_hotel_qa"
 
 falha() { echo "✘ $*" >&2; exit 1; }
-porta_ocupada() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+# IPv4 e IPv6: um Vite de outro checkout em [::1] também ocupa a porta para o navegador.
+porta_ocupada() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null || (exec 3<>"/dev/tcp/::1/$1") 2>/dev/null; }
+
+# Só mata o PID gravado se ele ainda for o processo que este script subiu (PID reaproveitado
+# pelo sistema seria outro programa do usuário).
+parar_um() { # nome, padrão do comando
+    local arq="$ESTADO/$1.pid" pid
+    [ -f "$arq" ] || return 1
+    pid="$(cat "$arq")"
+    rm -f "$arq"
+    if ps -o args= -p "$pid" 2>/dev/null | grep -q -- "$2"; then
+        kill "$pid" 2>/dev/null || true
+        for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
+        echo "✔ $1 parado"
+    else
+        echo "• $1: o PID gravado não é mais deste ambiente; nada a parar"
+    fi
+}
 
 parar() {
-    for nome in backend tela; do
-        if [ -f "$ESTADO/$nome.pid" ]; then
-            kill "$(cat "$ESTADO/$nome.pid")" 2>/dev/null || true
-            rm -f "$ESTADO/$nome.pid"
-            echo "✔ $nome parado"
-        fi
-    done
+    local algum=0
+    parar_um backend "_web.js" && algum=1
+    parar_um tela "vite" && algum=1
+    [ "$algum" = 1 ] || echo "• nada estava no ar (pasta de estado: $ESTADO)"
 }
 
 esperar() { # url, nome
-    for _ in $(seq 1 60); do curl -sf "$1" >/dev/null && return 0; sleep 1; done
+    local pid; pid="$(cat "$ESTADO/$2.pid")"
+    for _ in $(seq 1 60); do
+        curl -sf "$1" >/dev/null && return 0
+        kill -0 "$pid" 2>/dev/null || falha "$2 caiu ao subir — veja $ESTADO/$2.log"
+        sleep 1
+    done
     falha "$2 não respondeu em 60 s — veja $ESTADO/$2.log"
 }
 
 subir() {
     [ -f "$CORE/.env.test" ] || falha "falta services/core-service/.env.test (copie do .env.test.example)"
+    [ -d "$CORE/node_modules" ] || falha "faltam os node_modules do backend: rode 'npm ci' em services/core-service"
+    [ -x "$PMS/node_modules/.bin/vite" ] || falha "faltam os node_modules do frontend: rode 'pnpm install' em frontend/"
     porta_ocupada 3000 && falha "porta 3000 ocupada: pare o backend que está rodando antes"
     porta_ocupada 5173 && falha "porta 5173 ocupada: pare o Vite que está rodando antes"
     mkdir -p "$ESTADO"
+    rm -f "$ESTADO/dados.json"
+    # Qualquer falha daqui em diante derruba o que já subiu: nada fica no ar pela metade.
+    trap 'parar >/dev/null 2>&1 || true' EXIT
 
     set -a; # shellcheck disable=SC1091
     source "$CORE/.env.test"; set +a
     export NODE_ENV=development POSTGRES_DB="$BANCO" NODE_WEB_PORT=3000
+    # Serviços externos DESLIGADOS. O _web.js também carrega o .env de desenvolvimento, e o
+    # dotenv não sobrescreve variável que já existe, mesmo vazia: sem isto, os eventos do
+    # "Hotel QA" iam para o RabbitMQ (e o analytics) de dev, o PIX para o provedor real e os
+    # PDFs para o bucket de dev (🟡-1 do qa-redteam de 09/11).
+    export RABBITMQ_HOST= RABBITMQ_CORE_USER= RABBITMQ_CORE_PASSWORD= \
+        PIX_PROVIDER=fake MERCADOPAGO_ACCESS_TOKEN= ASAAS_API_KEY= \
+        MINIO_ENDPOINT= MINIO_PUBLIC_ENDPOINT= MINIO_ROOT_USER= MINIO_ROOT_PASSWORD=
     # Os caminhos do .env.test são relativos ao core-service, de onde o backend roda.
     (cd "$CORE" && [ -f "$JWT_PRIVATE_KEY_PATH" ] && [ -f "$JWT_PUBLIC_KEY_PATH" ]) \
         || falha "faltam as chaves JWT do .env.test: rode 'npm test' uma vez em services/core-service"
@@ -58,14 +90,19 @@ subir() {
     (cd "$CORE" && exec nohup node _web.js >"$ESTADO/backend.log" 2>&1 </dev/null) &
     echo $! >"$ESTADO/backend.pid"
     esperar http://localhost:3000/health backend
-    echo "✔ backend em http://localhost:3000 (banco $BANCO)"
+    echo "✔ backend em http://localhost:3000 (banco $BANCO, serviços externos desligados)"
 
     (cd "$PMS" && exec nohup node_modules/.bin/vite --port 5173 --strictPort >"$ESTADO/tela.log" 2>&1 </dev/null) &
     echo $! >"$ESTADO/tela.pid"
     esperar http://localhost:5173/ tela
     echo "✔ tela em http://localhost:5173"
 
-    node "$RAIZ/scripts/qa_explorador_dados.mjs" http://localhost:3000 | tee "$ESTADO/dados.json"
+    # Dados em arquivo temporário: um dados.json pela metade nunca fica para o agente usar.
+    node "$RAIZ/scripts/qa_explorador_dados.mjs" http://localhost:3000 >"$ESTADO/dados.json.tmp" \
+        || { rm -f "$ESTADO/dados.json.tmp"; falha "criação dos dados falhou — backend e tela derrubados"; }
+    mv "$ESTADO/dados.json.tmp" "$ESTADO/dados.json"
+    trap - EXIT
+    cat "$ESTADO/dados.json"
     echo "✔ dados de teste em $ESTADO/dados.json"
 }
 
