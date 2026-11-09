@@ -485,9 +485,9 @@ const options = {
                 },
                 WebhookConfirmResponse: {
                     type: 'object',
-                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação)',
+                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e "ignored" para notificação autêntica sem id de cobrança ou com cobrança desconhecida',
                     properties: {
-                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending'] },
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending', 'ignored'] },
                         payment_id:         { type: 'string', format: 'uuid' },
                         reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Só vem quando status é confirmed' },
                         reservation_status: { type: 'string', nullable: true, description: 'Só vem quando status é confirmed' }
@@ -582,7 +582,8 @@ const options = {
                         '- `asaas`: cabeçalho `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (o Asaas não assina o corpo; o token não pode ser a API Key). Corpo: `{ event, payment: { id } }`. Cadastro em Integrações → Webhooks — ver docs/pagamentos/ASAAS_SANDBOX.md.\n' +
                         '- `mercadopago`: cabeçalhos `x-signature` (`ts=…,v1=…`) e `x-request-id`, HMAC com `MERCADOPAGO_WEBHOOK_SECRET`. Id em `?data.id=` ou `data.id` no corpo.\n' +
                         '- `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.\n\n' +
-                        'A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.',
+                        'A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.\n\n' +
+                        'Notificação **autêntica** que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 `{ status: "ignored" }`, com log: um 4xx faria o PSP reenviar para sempre, e o Asaas pausa a fila da conta inteira após 15 falhas seguidas.',
                     security: [],
                     parameters: [
                         { in: 'header', name: 'x-pix-signature', required: false, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'Provider fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>' },
@@ -608,10 +609,8 @@ const options = {
                         ] } } }
                     },
                     responses: {
-                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
-                        400: { description: 'Id da cobrança ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider, ainda pendente ou ignorada por não ter cobrança conhecida (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
                         401: { description: 'Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         503: { description: 'Status da cobrança indisponível no provider — o PSP deve reenviar', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }

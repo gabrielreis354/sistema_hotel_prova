@@ -297,6 +297,8 @@ export interface paths {
          *     - `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.
          *
          *     A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.
+         *
+         *     Notificação **autêntica** que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 `{ status: "ignored" }`, com log: um 4xx faria o PSP reenviar para sempre, e o Asaas pausa a fila da conta inteira após 15 falhas seguidas.
          */
         post: {
             parameters: {
@@ -340,7 +342,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status) */
+                /** @description Notificação aceita: confirmada, já processada, recusada pelo provider, ainda pendente ou ignorada por não ter cobrança conhecida (ver status) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -349,26 +351,8 @@ export interface paths {
                         "application/json": components["schemas"]["WebhookConfirmResponse"];
                     };
                 };
-                /** @description Id da cobrança ausente ou de tipo inválido */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
                 /** @description Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed) */
                 401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Cobrança não encontrada */
-                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5379,10 +5363,10 @@ export interface components {
                 paid_at?: string | null;
             } | null;
         };
-        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) */
+        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e "ignored" para notificação autêntica sem id de cobrança ou com cobrança desconhecida */
         WebhookConfirmResponse: {
             /** @enum {string} */
-            status?: "confirmed" | "already_processed" | "not_approved" | "pending";
+            status?: "confirmed" | "already_processed" | "not_approved" | "pending" | "ignored";
             /** Format: uuid */
             payment_id?: string;
             /**

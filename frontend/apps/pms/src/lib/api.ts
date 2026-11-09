@@ -13,9 +13,14 @@ const baseUrl = import.meta.env.VITE_API_URL ?? '/api';
 export const api = createApiClient({
   baseUrl,
   getToken: () => useAuthStore.getState().token,
-  onUnauthorized: () => {
-    // Só derruba se havia sessão — evita interferir no 401 do próprio login (credenciais
-    // inválidas), que a tela de login trata sozinha.
-    if (useAuthStore.getState().token) useAuthStore.getState().logout();
-  },
+  onUnauthorized: endSessionOnUnauthorized,
 });
+
+/**
+ * 401 com sessão aberta = token vencido: derruba a sessão pelo `logout()`, que também esvazia o
+ * cache. Só derruba se havia sessão — evita interferir no 401 do próprio login (credenciais
+ * inválidas), que a tela de login trata sozinha.
+ */
+export function endSessionOnUnauthorized(): void {
+  if (useAuthStore.getState().token) useAuthStore.getState().logout();
+}
