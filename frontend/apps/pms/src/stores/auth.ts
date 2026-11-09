@@ -40,25 +40,33 @@ export const useAuthStore = create<AuthState>()(
   ),
 );
 
-/** Sessão gravada pelo persist. Ausente ou ilegível vale como deslogado (fail-safe). */
+function isStoredUser(user: unknown): user is AuthUser {
+  const candidate = user as Partial<AuthUser> | null | undefined;
+  return typeof candidate?.id === 'string' && typeof candidate.role === 'string';
+}
+
+/** Sessão gravada pelo persist. Só vale completa: qualquer outra forma é deslogado (fail-safe). */
 function readStoredSession(raw: string | null): Pick<AuthState, 'token' | 'user'> {
   try {
     const state = raw ? JSON.parse(raw)?.state : null;
-    return { token: state?.token ?? null, user: state?.user ?? null };
+    if (typeof state?.token === 'string' && state.token && isStoredUser(state.user)) {
+      return { token: state.token, user: state.user };
+    }
   } catch {
-    return { token: null, user: null };
+    // JSON ilegível cai no deslogado abaixo.
   }
+  return { token: null, user: null };
 }
 
 /**
  * O persist grava no localStorage, mas não escuta mudanças feitas por outra aba. Sem isto, sair
  * numa aba deixava as outras logadas, com o cache na tela. `key` nula é o localStorage inteiro
- * sendo limpo. Mesma regra do setSession: só trocar de usuário esvazia o cache.
+ * sendo limpo. Sair ou trocar de usuário esvazia o cache. Renovar o token do mesmo usuário, não.
  */
 export function syncSessionFromOtherTab(event: Pick<StorageEvent, 'key' | 'newValue'>): void {
   if (event.key !== STORAGE_KEY && event.key !== null) return;
   const session = readStoredSession(event.newValue);
-  if (useAuthStore.getState().user?.id !== session.user?.id) queryClient.clear();
+  if (!session.token || useAuthStore.getState().user?.id !== session.user?.id) queryClient.clear();
   useAuthStore.setState(session);
 }
 
