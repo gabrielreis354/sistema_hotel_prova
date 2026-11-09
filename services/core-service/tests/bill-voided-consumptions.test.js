@@ -5,6 +5,7 @@ import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
+import spec from '../config/swagger.js';
 
 // M5-c, CA-05.2.j (RT-18): o bill da reserva mostra o consumo estornado e quem autorizou.
 // Estorno de consumo = exclusão lógica do item, só ADMIN, com deleted_by (D-7, D-8).
@@ -76,6 +77,13 @@ describe('GET /reservations/:id/bill — voided_consumptions (CA-05.2.j)', () =>
         });
         expect(entry.consumed_at).toBeTruthy();
         expect(entry.deleted_at).toBeTruthy();
+    });
+
+    it('o Swagger documenta exatamente os campos que a resposta devolve', async () => {
+        const [entry] = (await getBill()).body.voided_consumptions;
+        const doc = spec.components.schemas.Bill.properties.voided_consumptions.items;
+        expect(Object.keys(entry).sort()).toEqual(Object.keys(doc.properties).sort());
+        expect(Object.keys(entry.deleted_by).sort()).toEqual(Object.keys(doc.properties.deleted_by.properties).sort());
     });
 
     it('de quem autorizou, só id e nome: sem e-mail, papel ou senha', async () => {
