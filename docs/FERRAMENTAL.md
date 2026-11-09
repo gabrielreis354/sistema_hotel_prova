@@ -104,7 +104,12 @@ claude mcp add --scope local playwright -e LD_LIBRARY_PATH=<pasta das libs> -- \
 
 `--allowed-origins` é um **filtro** do "só localhost" (§5 das regras), não uma barreira de
 segurança — a documentação do próprio MCP avisa isso. O limite de verdade está nas regras do
-agente e nas permissões da sessão. Versão fixada: atualize de
+agente e nas permissões da sessão.
+
+**Risco aceito (09/11, decisão do Sirlande):** como o `qa-redteam`, o `qa-explorador` tem `Bash` e
+`Write`, então só o texto das regras o impede de editar código, commitar ou abrir outro banco.
+Bloquear por permissão valeria para a sessão inteira, não só para ele. Em troca, o relatório
+lista todos os comandos que ele rodou pelo Bash, para conferência. Versão fixada: atualize de
 propósito, nunca com `@latest`. Depois de registrar, reinicie a sessão do Claude Code para as
 ferramentas aparecerem.
 

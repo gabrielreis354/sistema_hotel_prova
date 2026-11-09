@@ -87,8 +87,18 @@ de cobertura (§7).
 - **Preferências do sistema:** `browser_emulate_media` simula movimento reduzido e tema escuro.
 - **Sem `browser_run_code_unsafe`:** ele roda código arbitrário e fica fora das suas ferramentas.
 - **Falha de rede e de servidor:** o navegador do MCP não simula ficar sem rede. Para esses
-  cenários, escreva um script curto do Playwright com `page.route()` ou `context.setOffline()`
-  e rode pelo Bash, numa pasta temporária fora do repositório.
+  cenários, escreva um script curto com o **Playwright que já veio com o MCP** (nunca instale
+  outro) e rode pelo Bash:
+    1. o `subir` grava os caminhos em `ambiente.env`, na pasta de estado que ele imprime. Se o
+       arquivo trouxer `QA_REDE_INDISPONIVEL`, marque Rede como não testada e diga o motivo;
+    2. o script fica em `docs/qa/evidencias/<tema>_<ddMMyyyy>/` (fora do git) e começa com
+       `const { chromium } = await import(process.env.QA_PLAYWRIGHT_CORE);` e
+       `chromium.launch({ executablePath: process.env.QA_CHROMIUM })`;
+    3. sem rede: `context.setOffline(true)`; erro do servidor: `page.route('**/api/<rota>', (r) =>
+       r.fulfill({ status: 502, body: '' }))`; rede lenta: um `route` que espera antes de seguir;
+    4. rode com `set -a; source <pasta de estado>/ambiente.env; set +a;
+       LD_LIBRARY_PATH=$QA_LD_LIBRARY_PATH node <script> <pasta de estado>/dados.json`.
+  O script vira a evidência do achado: quem ler o relatório reproduz rodando o mesmo comando.
 - **Dados e servidor:** prepare o ambiente com `bash scripts/qa_explorador_ambiente.sh` (§5).
 
 ## 5. Ambiente e limites de segurança
@@ -154,6 +164,9 @@ Uma por item: o que, quem ganha (pessoa do DESIGN_PMS §1) e quanto (cliques, se
 
 ## Não foi possível testar
 O que ficou de fora e por quê (ferramenta, dado, tempo).
+
+## Comandos rodados pelo Bash
+Todos, na ordem, um por linha — para o dono conferir que você ficou dentro do §5.
 ```
 
 **Severidade**

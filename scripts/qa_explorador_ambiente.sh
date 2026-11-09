@@ -53,6 +53,32 @@ esperar() { # url, nome
     falha "$2 não respondeu em 60 s — veja $ESTADO/$2.log"
 }
 
+# Caminhos para o eixo Rede (regras §4): o Playwright que veio com o MCP, o Chromium e as
+# bibliotecas, lidos do registro do MCP desta pasta no ~/.claude.json. Nada é instalado. Sem o
+# registro, o arquivo diz por quê e o agente marca Rede como não testada.
+ambiente_rede() {
+    local saida="$ESTADO/ambiente.env"
+    if ! node -e '
+        const fs = require("node:fs"), path = require("node:path"), os = require("node:os");
+        const cfg = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".claude.json"), "utf8"));
+        const mcp = cfg.projects?.[process.argv[1]]?.mcpServers?.playwright;
+        if (!mcp) process.exit(3);
+        const args = mcp.args ?? [];
+        const versao = (args.find((a) => a.startsWith("@playwright/mcp@")) ?? "").split("@").pop();
+        const chromium = args[args.indexOf("--executable-path") + 1];
+        const raiz = path.join(os.homedir(), ".npm", "_npx");
+        const core = fs.readdirSync(raiz).map((d) => path.join(raiz, d, "node_modules"))
+            .find((nm) => { try { return JSON.parse(fs.readFileSync(path.join(nm, "@playwright/mcp/package.json"))).version === versao; } catch { return false; } });
+        if (!core || !chromium) process.exit(4);
+        console.log(`QA_PLAYWRIGHT_CORE=${path.join(core, "playwright-core/index.mjs")}`);
+        console.log(`QA_CHROMIUM=${chromium}`);
+        console.log(`QA_LD_LIBRARY_PATH=${mcp.env?.LD_LIBRARY_PATH ?? ""}`);
+    ' "$RAIZ" >"$saida" 2>/dev/null; then
+        echo "QA_REDE_INDISPONIVEL=sem registro do Playwright MCP nesta pasta ($RAIZ) ou pacote fora do cache do npx" >"$saida"
+    fi
+    echo "✔ ambiente do eixo Rede em $saida"
+}
+
 subir() {
     [ -f "$CORE/.env.test" ] || falha "falta services/core-service/.env.test (copie do .env.test.example)"
     [ -d "$CORE/node_modules" ] || falha "faltam os node_modules do backend: rode 'npm ci' em services/core-service"
@@ -101,6 +127,7 @@ subir() {
     node "$RAIZ/scripts/qa_explorador_dados.mjs" http://localhost:3000 >"$ESTADO/dados.json.tmp" \
         || { rm -f "$ESTADO/dados.json.tmp"; falha "criação dos dados falhou — backend e tela derrubados"; }
     mv "$ESTADO/dados.json.tmp" "$ESTADO/dados.json"
+    ambiente_rede
     trap - EXIT
     cat "$ESTADO/dados.json"
     echo "✔ dados de teste em $ESTADO/dados.json"
