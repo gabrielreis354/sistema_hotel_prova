@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { queryClient } from '../lib/queryClient.js';
 import { endSessionOnUnauthorized } from '../lib/api.js';
 import { syncSessionFromOtherTab, useAuthStore } from './auth.js';
@@ -14,6 +14,7 @@ const adminHotelB: AuthUser = { id: 'b-1', name: 'Bia', email: 'bia@b.test', rol
 const cachedQueries = () => queryClient.getQueryCache().getAll().length;
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   useAuthStore.setState({ token: null, user: null });
   queryClient.clear();
 });
@@ -41,7 +42,7 @@ describe('sessão e cache do React Query', () => {
     useAuthStore.getState().setSession('token-a', recepcaoHotelA);
     queryClient.setQueryData(['guests'], [{ id: 'g-1', name: 'Hóspede do hotel A' }]);
 
-    endSessionOnUnauthorized();
+    endSessionOnUnauthorized({ path: '/guests', token: 'token-a' });
 
     expect(useAuthStore.getState().token).toBeNull();
     expect(cachedQueries()).toBe(0);
@@ -50,9 +51,25 @@ describe('sessão e cache do React Query', () => {
   it('401 sem sessão (credencial errada no login) não mexe em nada', () => {
     queryClient.setQueryData(['login-hint'], 'qualquer');
 
-    endSessionOnUnauthorized();
+    endSessionOnUnauthorized({ path: '/auth/login', token: null });
 
     expect(cachedQueries()).toBe(1);
+  });
+
+  it('senha errada no login com sessão aberta não derruba a sessão', () => {
+    useAuthStore.getState().setSession('token-a', recepcaoHotelA);
+
+    endSessionOnUnauthorized({ path: '/auth/login', token: 'token-a' });
+
+    expect(useAuthStore.getState().token).toBe('token-a');
+  });
+
+  it('401 atrasado de um token antigo não derruba a sessão nova', () => {
+    useAuthStore.getState().setSession('token-b', adminHotelB);
+
+    endSessionOnUnauthorized({ path: '/guests', token: 'token-a' });
+
+    expect(useAuthStore.getState().token).toBe('token-b');
   });
 
   it('renovar o token do mesmo usuário mantém o cache', () => {
@@ -121,6 +138,31 @@ describe('sessão alterada em outra aba', () => {
 
     expect(useAuthStore.getState().token).toBeNull();
     expect(cachedQueries()).toBe(0);
+  });
+
+  it.each([
+    ['token sem usuário', { token: 't-x' }],
+    ['usuário sem papel', { token: 't-x', user: { id: 'z' } }],
+    ['tipos errados', { token: 123, user: 'abc' }],
+    ['token nulo com o mesmo usuário', { token: null, user: recepcaoHotelA }],
+  ])('formato inesperado (%s) vale como deslogado e esvazia o cache', (_caso, state) => {
+    logadaNoHotelA();
+
+    syncSessionFromOtherTab({ key: KEY, newValue: JSON.stringify({ state, version: 0 }) });
+
+    expect(useAuthStore.getState().token).toBeNull();
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(cachedQueries()).toBe(0);
+  });
+
+  it('no navegador, o módulo escuta as mudanças de outra aba', async () => {
+    const addEventListener = vi.fn();
+    vi.stubGlobal('window', { addEventListener });
+    vi.resetModules();
+
+    const { syncSessionFromOtherTab: listener } = await import('./auth.js');
+
+    expect(addEventListener).toHaveBeenCalledWith('storage', listener);
   });
 
   it('mudança em outra chave não mexe na sessão', () => {
