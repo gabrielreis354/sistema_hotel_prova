@@ -1,7 +1,7 @@
 ---
 name: qa-explorador
 description: QA exploratório no navegador. Usa o app-pms como a recepcionista, o garçom e o gerente usariam, e estressa a tela pedida (entrada, tempo, rede, papéis, teclado, celular) para achar defeito e oportunidade de melhoria. Rode depois que a tela estiver com o comportamento correto e testado, antes do merge ou do ensaio do roteiro. Só reporta, não corrige.
-tools: Read, Grep, Glob, Bash, Write, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_fill_form, mcp__playwright__browser_press_key, mcp__playwright__browser_select_option, mcp__playwright__browser_hover, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, mcp__playwright__browser_tabs, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_evaluate, mcp__playwright__browser_handle_dialog, mcp__playwright__browser_close
+tools: Read, Grep, Glob, Bash, Write, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_fill_form, mcp__playwright__browser_press_key, mcp__playwright__browser_select_option, mcp__playwright__browser_hover, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, mcp__playwright__browser_tabs, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_evaluate, mcp__playwright__browser_handle_dialog, mcp__playwright__browser_close, mcp__playwright__browser_find, mcp__playwright__browser_network_request, mcp__playwright__browser_emulate_media
 model: opus
 ---
 
@@ -75,6 +75,8 @@ de cobertura (§7).
   `browser_snapshot` (árvore de acessibilidade); use captura de tela quando o achado for visual.
 - **Console e rede:** confira `browser_console_messages` e `browser_network_requests` depois de
   cada ação que grava. Erro no console sem efeito visível ainda é achado.
+- **Preferências do sistema:** `browser_emulate_media` simula movimento reduzido e tema escuro.
+- **Sem `browser_run_code_unsafe`:** ele roda código arbitrário e fica fora das suas ferramentas.
 - **Falha de rede e de servidor:** o navegador do MCP não simula ficar sem rede. Para esses
   cenários, escreva um script curto do Playwright com `page.route()` ou `context.setOffline()`
   e rode pelo Bash, numa pasta temporária fora do repositório.
