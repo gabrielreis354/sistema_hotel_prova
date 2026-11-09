@@ -123,15 +123,15 @@ export interface TodayAlerts {
 }
 
 /**
- * Formato bruto dos alertas, com SÓ os campos que existem igual no core e no analytics-service
- * da H.3 (PR 109). `amount` (número hoje, string depois), `guest_phone` (sai) e `guest_id`
- * (entra) ficam de fora de propósito: o nome, o quarto e o valor da chegada vêm da lista de
- * reservas do core. Assim o rebase sobre a H.3 não quebra o painel.
+ * Formato bruto dos alertas do analytics-service, só com o que o painel usa: o nome, o quarto e
+ * o valor da chegada vêm da lista de reservas do core. `category` pode ser nula porque eventos de
+ * agregados diferentes chegam em qualquer ordem, e `totals` existe porque cada lista tem teto.
  */
 export interface RawAlerts {
   no_show_risk?: { reservation_id?: string }[];
-  cleaning_pending?: { room_id?: string; room_number?: string; category?: string; cleaning_since?: string }[];
+  cleaning_pending?: { room_id?: string; room_number?: string; category?: string | null; cleaning_since?: string }[];
   pending_too_long?: { reservation_id?: string }[];
+  totals?: { pending_too_long?: number };
 }
 
 export function toTodayAlerts(raw: RawAlerts): TodayAlerts {
@@ -144,7 +144,7 @@ export function toTodayAlerts(raw: RawAlerts): TodayAlerts {
     cleaning.push({ id: c.room_id, number: c.room_number ?? '—', category: c.category ?? '', since: c.cleaning_since ?? undefined });
   }
 
-  return { noShowIds, cleaning, pendingTooLong: (raw.pending_too_long ?? []).length };
+  return { noShowIds, cleaning, pendingTooLong: raw.totals?.pending_too_long ?? (raw.pending_too_long ?? []).length };
 }
 
 /** Percentual de ocupação em pt-BR, sem casas inúteis ("72,5%", "100%"). Não é dinheiro. */
