@@ -5504,7 +5504,7 @@ export interface components {
                 paid_at?: string | null;
             } | null;
         };
-        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e "ignored" para notificação autêntica sem id de cobrança ou com cobrança desconhecida */
+        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED), "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e "ignored" para notificação autêntica sem id de cobrança ou com cobrança desconhecida */
         WebhookConfirmResponse: {
             /** @enum {string} */
             status?: "confirmed" | "already_processed" | "not_approved" | "pending" | "ignored";

@@ -192,8 +192,9 @@ Eles provam que o sistema chama as rotas/campos da documentação e reage certo 
   o `cus_...` do hóspede entre reservas.
 - **Cobrança órfã**: se o Asaas criar a cobrança e a gravação da reserva falhar, o id `pay_...`
   vai para o log para conciliação manual.
-- **Webhook de cobrança desconhecida responde 404**: o Asaas reenvia e, após 15 falhas
-  seguidas, pausa a fila. Não use a mesma conta sandbox para cobranças de outros sistemas.
+- **Webhook de cobrança desconhecida responde 200 `ignored`**, com o id no log para
+  conciliação. Um 4xx faria o Asaas reenviar e, após 15 falhas seguidas, pausar a fila da conta.
+  Mesmo assim, não use a mesma conta sandbox para cobranças de outros sistemas.
 - **Validade do QR**: o sistema grava a `expirationDate` do Asaas. Não existe job que expire a
   reserva `PENDING` por falta de pagamento.
 - **PIX pago para reserva cancelada** só gera log de aviso (herdado do controller atual).

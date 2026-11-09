@@ -40,8 +40,8 @@ export default async function PixWebhookController(request, response) {
         const provider = getPixProvider();
 
         // A assinatura é validada ANTES de qualquer consulta ao banco — uma requisição não
-        // assinada não deve nem ganhar a chance de descobrir se um charge_id existe (404) ou
-        // não (400), sinal que ajudaria um atacante a enumerar cobranças.
+        // assinada recebe 401 e não ganha a chance de descobrir se um charge_id existe, sinal
+        // que ajudaria um atacante a enumerar cobranças.
         let provider_charge_id;
         try {
             ({ providerChargeId: provider_charge_id } = provider.verifyWebhook(request));
@@ -61,7 +61,7 @@ export default async function PixWebhookController(request, response) {
         // em vez de um erro que o PSP reenviaria para sempre (qa-redteam de 16/10, 🟡-2).
         // O typeof continua barrando array/objeto antes da query (viraria IN() no Sequelize).
         if (!provider_charge_id || typeof provider_charge_id !== 'string') {
-            console.warn('PixWebhookController: notificação autêntica sem id de cobrança — ignorada');
+            console.warn('PixWebhookController: notificação autêntica sem id de cobrança — ignorada', { event: typeof request.body?.event === 'string' ? request.body.event : undefined });
             return response.status(200).json({ status: 'ignored' });
         }
 
