@@ -52,7 +52,7 @@ describe('GET /reservations?status=', () => {
     it('cada item traz room.status, para o painel avisar antes do toque (🟡-3 da T-05.3)', async () => {
         const res = await list({ status: 'CHECKED_IN' });
         expect(res.status).toBe(200);
-        expect(res.body.data.find((r) => r.id === ids.checkedIn).room.status).toBe('OCCUPIED');
+        expect(res.body.find((r) => r.id === ids.checkedIn).room.status).toBe('OCCUPIED');
     });
 
     it('filtra por um status', async () => {
