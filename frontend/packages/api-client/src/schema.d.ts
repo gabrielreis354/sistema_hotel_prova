@@ -1478,6 +1478,15 @@ export interface paths {
                         "application/json": components["schemas"]["Room"];
                     };
                 };
+                /** @description Token ausente ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description Papel sem permissão (WAITER) */
                 403: {
                     headers: {
@@ -1496,7 +1505,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING */
+                /** @description code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING, ou ainda tem reserva CHECKED_IN (como quarto principal ou extra) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2165,6 +2174,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
                 /** @description Check-in não permitido no status atual */
@@ -4970,7 +4988,7 @@ export interface components {
         RoomError: {
             error: string;
             /** @enum {string} */
-            code: "INVALID_INPUT" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CATEGORY_NAME_TAKEN" | "ROOM_NUMBER_TAKEN" | "ROOM_IN_USE" | "ROOM_STATUS_TRANSITION_NOT_ALLOWED";
+            code: "INVALID_INPUT" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CATEGORY_NAME_TAKEN" | "ROOM_NUMBER_TAKEN" | "ROOM_IN_USE" | "ROOM_STATUS_TRANSITION_NOT_ALLOWED" | "ROOM_NOT_AVAILABLE";
             /**
              * @description Só no 400 INVALID_INPUT
              * @example price_per_night

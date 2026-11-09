@@ -1,5 +1,8 @@
+import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import RoomModel from '../../Models/RoomModel.js';
+import ReservationModel from '../../Models/ReservationModel.js';
+import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 
@@ -35,6 +38,25 @@ export default async function ReleaseRoomController(request, response) {
             return response.status(409).json(roomError(
                 ROOM_ERROR_CODES.ROOM_STATUS_TRANSITION_NOT_ALLOWED,
                 `Só quarto em limpeza pode ser liberado — o quarto ${room.number} está em ${room.status}`
+            ));
+        }
+
+        // Defesa em profundidade (🟡-3 do qa-redteam da T-05.3): CLEANING não prova quarto vazio.
+        // Quarto extra só aparece na pivot, por isso as duas origens.
+        const pivotRows = await ReservationRoomModel.findAll({ where: { room_id: room.id }, attributes: ['reservation_id'], transaction });
+        const guestsInside = await ReservationModel.count({
+            where: {
+                tenant_id: tenantId,
+                status: 'CHECKED_IN',
+                [Op.or]: [{ room_id: room.id }, { id: pivotRows.map(p => p.reservation_id) }],
+            },
+            transaction,
+        });
+        if (guestsInside > 0) {
+            await transaction.rollback();
+            return response.status(409).json(roomError(
+                ROOM_ERROR_CODES.ROOM_STATUS_TRANSITION_NOT_ALLOWED,
+                `O quarto ${room.number} ainda tem hóspede na casa — faça o check-out antes de liberar`
             ));
         }
 

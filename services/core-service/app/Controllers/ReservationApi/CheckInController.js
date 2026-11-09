@@ -3,6 +3,15 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { openStayAccount } from '../../utils/reservationRoomAccount.js';
+import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
+
+const CHECK_IN_FROM = 'AVAILABLE';
+
+const UNAVAILABLE_LABEL = { OCCUPIED: 'ainda ocupado', CLEANING: 'em limpeza', MAINTENANCE: 'em manutenção' };
+
+function unavailableMessage(room) {
+    return `Quarto ${room.number} ${UNAVAILABLE_LABEL[room.status] ?? 'indisponível'}: o check-in precisa do quarto livre`;
+}
 
 export default async function CheckInController(request, response) {
     const { id } = request.params;
@@ -28,18 +37,34 @@ export default async function CheckInController(request, response) {
             return await fail(422, { error: `Check-in não permitido no status '${reservation.status}'` });
         }
 
-        const room = await RoomModel.findOne({ where: { id: reservation.room_id, tenant_id: tenantId }, transaction });
+        const pivotRows = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id }, transaction });
+        const extraRoomIds = pivotRows
+            .map(r => r.room_id)
+            .filter(rid => rid !== reservation.room_id);
+
+        // Quartos travados em ordem de id: dois check-ins que dividem quartos não se bloqueiam em
+        // ciclo, e um release ou edição simultânea espera este status ser gravado.
+        const rooms = await RoomModel.findAll({
+            where: { id: [reservation.room_id, ...extraRoomIds], tenant_id: tenantId },
+            order: [['id', 'ASC']],
+            lock: transaction.LOCK.UPDATE,
+            transaction,
+        });
+        const room = rooms.find(r => r.id === reservation.room_id);
         if (!room) return await fail(404, { error: 'Quarto da reserva não encontrado' });
+
+        // Allowlist (CLAUDE.md §3 e §7): o check-in só leva AVAILABLE → OCCUPIED. Sem isto, a
+        // chegada entrava no quarto de uma saída atrasada e o check-out do primeiro hóspede
+        // devolvia o quarto à venda com o segundo dentro (🔴 do qa-redteam da T-05.3).
+        const blocked = rooms.find(r => r.status !== CHECK_IN_FROM);
+        if (blocked) {
+            return await fail(409, roomError(ROOM_ERROR_CODES.ROOM_NOT_AVAILABLE, unavailableMessage(blocked)));
+        }
 
         reservation.status = 'CHECKED_IN';
         room.status = 'OCCUPIED';
         await reservation.save({ transaction });
         await room.save({ transaction });
-
-        const pivotRows = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id }, transaction });
-        const extraRoomIds = pivotRows
-            .map(r => r.room_id)
-            .filter(rid => rid !== reservation.room_id);
 
         if (extraRoomIds.length > 0) {
             await RoomModel.update(

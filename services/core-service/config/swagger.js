@@ -240,7 +240,7 @@ const options = {
                     required: ['error', 'code'],
                     properties: {
                         error:  { type: 'string' },
-                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED'] },
+                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED', 'ROOM_NOT_AVAILABLE'] },
                         field:  { type: 'string', description: 'Só no 400 INVALID_INPUT', example: 'price_per_night' },
                         errors: { type: 'array', items: { type: 'string' }, description: 'Só no 400 INVALID_INPUT' }
                     }
@@ -868,9 +868,10 @@ const options = {
                     description: 'Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel "Hoje" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).',
                     responses: {
                         200: { description: 'Quarto liberado (status AVAILABLE)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
+                        401: { description: 'Token ausente ou inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         403: { description: 'Papel sem permissão (WAITER)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Quarto não encontrado neste hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        409: { description: 'code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                        409: { description: 'code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING, ou ainda tem reserva CHECKED_IN (como quarto principal ou extra)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
@@ -1019,6 +1020,7 @@ const options = {
                     responses: {
                         200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam.', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         422: { description: 'Check-in não permitido no status atual', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
