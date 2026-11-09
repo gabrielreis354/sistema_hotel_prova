@@ -11,8 +11,8 @@ import { createOutboxPublisher, rabbitConnectFromEnv } from '../../app/services/
  * responde /analytics/*. Os testes semeiam pelo core e leem do analytics.
  *
  * Precisa de RabbitMQ com a topologia de infra/k8s/rabbitmq-setup.sh e das variáveis do
- * .env.test.example (RABBITMQ_*). Sem elas, `pipelineConfigured` é falso e o arquivo é pulado —
- * como o teste de integração do analytics (o CI do core ainda não tem broker: pendência do Weslley).
+ * .env.test.example (RABBITMQ_*). Sem elas, `pipelineConfigured` é falso e o arquivo é pulado na
+ * máquina do dev, como o teste de integração do analytics. No CI, a falta delas reprova o job.
  */
 const ANALYTICS_DIR = resolve(process.cwd(), '../analytics-service');
 // Database à parte no mesmo PostgreSQL de teste: não colide com o gesway_analytics_test da suíte do

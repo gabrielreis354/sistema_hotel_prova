@@ -23,6 +23,10 @@ import { pipelineConfigured, startPipeline, analyticsGet, waitForConsumption } f
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
+// Fail-safe: no CI o job tem broker, então pular aqui faria os casos de dinheiro sumirem com o job verde.
+if (!pipelineConfigured && process.env.CI) {
+    throw new Error('analytics.test.js: CI sem RABBITMQ_HOST/RABBITMQ_*_PASSWORD. O pipeline dos indicadores não pode ser pulado.');
+}
 const describePipeline = pipelineConfigured ? describe : describe.skip;
 if (!pipelineConfigured) {
     console.warn('⚠️  analytics.test.js: pipeline PULADO — sem RABBITMQ_HOST/RABBITMQ_*_PASSWORD no .env.test (ver .env.test.example).');

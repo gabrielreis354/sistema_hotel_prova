@@ -15,6 +15,10 @@ import { envelope, toBuffer, truncateAll } from './helpers/events.js';
 const EXCHANGE = 'gesway.core.events';
 const DLQ = 'analytics.core-events.dlq';
 const temBroker = Boolean(process.env.RABBITMQ_HOST);
+// Fail-safe: no CI o job tem broker, então pular aqui faria a integração sumir com o job verde.
+if (!temBroker && process.env.CI) {
+    throw new Error('rabbitmq.integration.test.js: CI sem RABBITMQ_HOST. A integração com o broker não pode ser pulada.');
+}
 const silencioso = { info: () => {}, warn: () => {}, error: () => {} };
 
 async function conectar(usuario, senha) {
