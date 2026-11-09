@@ -53,11 +53,15 @@ subir() {
     (cd "$CORE" && node command.js migrate >"$ESTADO/migrate.log" 2>&1) || falha "migrate falhou — veja $ESTADO/migrate.log"
     echo "✔ banco $BANCO recriado"
 
-    (cd "$CORE" && nohup node _web.js >"$ESTADO/backend.log" 2>&1 & echo $! >"$ESTADO/backend.pid")
+    # exec: o PID guardado é o do próprio node (o parar mata o processo certo), e nenhum
+    # bash intermediário fica preso à saída deste script — senão quem chama nunca recebe o fim.
+    (cd "$CORE" && exec nohup node _web.js >"$ESTADO/backend.log" 2>&1 </dev/null) &
+    echo $! >"$ESTADO/backend.pid"
     esperar http://localhost:3000/health backend
     echo "✔ backend em http://localhost:3000 (banco $BANCO)"
 
-    (cd "$PMS" && nohup node_modules/.bin/vite --port 5173 --strictPort >"$ESTADO/tela.log" 2>&1 & echo $! >"$ESTADO/tela.pid")
+    (cd "$PMS" && exec nohup node_modules/.bin/vite --port 5173 --strictPort >"$ESTADO/tela.log" 2>&1 </dev/null) &
+    echo $! >"$ESTADO/tela.pid"
     esperar http://localhost:5173/ tela
     echo "✔ tela em http://localhost:5173"
 
