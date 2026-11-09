@@ -324,6 +324,8 @@ const options = {
                 Bill: {
                     type: 'object',
                     description: 'Fechamento de conta — GET /reservations/{id}/bill',
+                    // O servidor sempre manda a lista (vazia sem estorno): obrigatória no cliente tipado.
+                    required: ['voided_consumptions'],
                     properties: {
                         reservation_id:      { type: 'string', format: 'uuid' },
                         status:              { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED'] },
@@ -343,7 +345,7 @@ const options = {
                         }}},
                         voided_consumptions: {
                             type: 'array',
-                            description: 'Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno',
+                            description: 'Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui',
                             items: { type: 'object', required: ['id', 'description', 'amount', 'consumed_at', 'deleted_at', 'deleted_by'], properties: {
                                 id: { type: 'string', format: 'uuid' }, description: { type: 'string' },
                                 amount: { type: 'number', example: 120.00 },
@@ -351,7 +353,8 @@ const options = {
                                 deleted_at: { type: 'string', format: 'date-time', description: 'Quando foi estornado' },
                                 deleted_by: {
                                     type: 'object', nullable: true,
-                                    description: 'Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo em estorno antigo sem registro (consumo migrado)',
+                                    description: 'Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo quando não há registro de quem autorizou: estorno antigo do consumo migrado sem deleted_by, ou usuário gravado que não é deste hotel (dado inconsistente — o nome de outro hotel nunca sai)',
+                                    required: ['id', 'name'],
                                     properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string', example: 'Marta Gerente' } }
                                 }
                             }}

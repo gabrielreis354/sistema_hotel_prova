@@ -5042,8 +5042,8 @@ export interface components {
                 /** Format: date-time */
                 consumed_at?: string;
             }[];
-            /** @description Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno */
-            voided_consumptions?: {
+            /** @description Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui */
+            voided_consumptions: {
                 /** Format: uuid */
                 id: string;
                 description: string;
@@ -5056,12 +5056,12 @@ export interface components {
                  * @description Quando foi estornado
                  */
                 deleted_at: string;
-                /** @description Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo em estorno antigo sem registro (consumo migrado) */
+                /** @description Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo quando não há registro de quem autorizou: estorno antigo do consumo migrado sem deleted_by, ou usuário gravado que não é deste hotel (dado inconsistente — o nome de outro hotel nunca sai) */
                 deleted_by: {
                     /** Format: uuid */
-                    id?: string;
+                    id: string;
                     /** @example Marta Gerente */
-                    name?: string;
+                    name: string;
                 } | null;
             }[];
             payments?: {

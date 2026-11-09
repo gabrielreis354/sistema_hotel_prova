@@ -948,6 +948,9 @@
       "Bill": {
         "type": "object",
         "description": "Fechamento de conta — GET /reservations/{id}/bill",
+        "required": [
+          "voided_consumptions"
+        ],
         "properties": {
           "reservation_id": {
             "type": "string",
@@ -1028,7 +1031,7 @@
           },
           "voided_consumptions": {
             "type": "array",
-            "description": "Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno",
+            "description": "Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui",
             "items": {
               "type": "object",
               "required": [
@@ -1063,7 +1066,11 @@
                 "deleted_by": {
                   "type": "object",
                   "nullable": true,
-                  "description": "Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo em estorno antigo sem registro (consumo migrado)",
+                  "description": "Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo quando não há registro de quem autorizou: estorno antigo do consumo migrado sem deleted_by, ou usuário gravado que não é deste hotel (dado inconsistente — o nome de outro hotel nunca sai)",
+                  "required": [
+                    "id",
+                    "name"
+                  ],
                   "properties": {
                     "id": {
                       "type": "string",

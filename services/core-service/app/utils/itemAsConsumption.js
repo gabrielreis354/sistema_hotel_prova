@@ -58,6 +58,10 @@ export function reservationConsumptionItems(reservationId, tenantId, transaction
  * - Quem autorizou vem mesmo removido do sistema (paranoid: false no usuário, D-71), e só
  *   dele: id e nome. O usuário também é filtrado pelo hotel — nunca um nome de outro tenant.
  * - Em ordem de estorno, o mais antigo primeiro.
+ * - Limitação (🟡 do qa-redteam de 09/11): lê só account_items. Um estorno antigo da tabela
+ *   consumptions ainda não migrado (janela antes do migrate) não aparece, e o
+ *   pendingLegacyConsumption do bill só barra consumo VIVO pendente. Os totais não mudam;
+ *   só o histórico fica incompleto até o migrate.
  *
  * @param {string} reservationId
  * @param {string} tenantId
