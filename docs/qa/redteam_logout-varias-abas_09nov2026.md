@@ -121,3 +121,16 @@ pnpm typecheck  exit=0   tsc --noEmit
 - **Backend real:** a API foi simulada na rede. O 401 do login foi conferido em `LoginController.js:47`.
 - **Aba congelada pelo navegador** (economia de memória): não reproduzido. O bfcache foi testado uma vez.
 - **Cobertura:** o portão de 60% não foi medido; esta branch só adiciona testes.
+
+## Desfecho (09/11/2026, depois da auditoria)
+Corrigidos o 🔴 e os quatro 🟡, com teste antes da correção. Os dois 🟢 ficaram como estão: o eco só ocorre em colisão de até 2 ms e sempre converge, e o acúmulo de listeners só existe em desenvolvimento.
+
+| Achado | Correção | Conferido no Chrome 155 (API simulada) |
+|---|---|---|
+| 🔴 Tela do usuário anterior | `key` por usuário no `ProtectedRoute` | S1: só o hóspede do Hotel B, GET com `token-b`, igual após 35 s. S8: sai do "Carregando…" |
+| 🟡 401 de token antigo | O cliente informa o token usado e a sessão só cai se for o atual | S4: as duas abas seguem na sessão nova |
+| 🟡 Senha errada em `/login` | 401 de `/auth/login` não encerra sessão | S3: a outra aba segue logada |
+| 🟡 Formato inesperado | Sessão só vale completa, e token nulo esvazia o cache | S6: os 6 valores viram deslogado, com cache vazio |
+| 🟡 Listener sem teste | Teste com `window` simulado | Teste de unidade |
+
+Continua sem verificação em Firefox e Safari.
