@@ -14,10 +14,12 @@ export const CREATABLE_ROOM_STATUSES = ['AVAILABLE', 'MAINTENANCE'];
 // Transições pela edição manual (PUT /rooms/:id). OCCUPIED e CLEANING só entram e saem
 // pelos endpoints de check-in e check-out — exceto CLEANING → AVAILABLE, que é a limpeza
 // concluída. Liberar à mão um quarto OCCUPIED o devolvia a /rooms/available com hóspede dentro.
+// CLEANING → MAINTENANCE: a camareira acha defeito durante a limpeza (decisão 10 do encontro de
+// 03/11, aprovada pelo Gabriel em 04/11).
 export const MANUAL_ROOM_TRANSITIONS = {
     AVAILABLE:   ['MAINTENANCE'],
     MAINTENANCE: ['AVAILABLE'],
-    CLEANING:    ['AVAILABLE'],
+    CLEANING:    ['AVAILABLE', 'MAINTENANCE'],
     OCCUPIED:    []
 };
 

@@ -7,6 +7,7 @@ import {
   createRoom,
   updateRoom,
   deleteRoom,
+  releaseRoom,
   listCategories,
   getCategory,
   createCategory,
@@ -84,6 +85,25 @@ export function useDeleteRoom() {
     onSuccess: (_d, id) => {
       qc.setQueryData<Room[]>(roomKeys.all, (old) => old?.filter((r) => r.id !== id));
     },
+  });
+}
+
+/**
+ * Limpeza concluída (CLEANING → AVAILABLE), usada pelo painel "Hoje". onSettled: no 409 o
+ * quarto mudou em outro atendimento e a tela precisa recarregar do mesmo jeito. Invalida
+ * quartos e os indicadores (contagem de livres e a lista de limpeza vêm do `/analytics`).
+ */
+export function useReleaseRoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, number }: { id: string; number?: string }) => releaseRoom(id, number),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: roomKeys.all }),
+        qc.invalidateQueries({ queryKey: ['analytics'] }),
+        // A chegada do quarto liberado destrava o check-in sem esperar o próximo ciclo do painel.
+        qc.invalidateQueries({ queryKey: ['reservations'] }),
+      ]),
   });
 }
 

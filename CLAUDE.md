@@ -74,10 +74,16 @@ CHECKED_IN → CANCELLED            (não permitido)
 ### Máquina de estados — Quartos
 
 ```
-AVAILABLE → OCCUPIED (check-in)
-OCCUPIED  → CLEANING (check-out)
-CLEANING  → AVAILABLE (limpeza concluída — manual pelo admin)
+AVAILABLE   → OCCUPIED    (check-in)
+OCCUPIED    → CLEANING    (check-out)
+CLEANING    → AVAILABLE   (limpeza concluída — admin ou recepção, PUT /rooms/:id/release)
+CLEANING    → MAINTENANCE (defeito achado na limpeza — manual pelo admin)
+AVAILABLE  ↔  MAINTENANCE (bloqueio manual pelo admin)
 ```
+
+> Decisões do Gabriel de 04/11/2026 (T-05.3): a recepção libera o quarto pelo endpoint
+> dedicado `PUT /rooms/:id/release` (D-1), e `CLEANING → MAINTENANCE` passa a valer
+> (decisão 10 do encontro de 03/11).
 
 ### Estrutura de pastas
 

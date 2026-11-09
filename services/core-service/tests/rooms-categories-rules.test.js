@@ -103,7 +103,9 @@ describe('R-3 — transição de status validada na edição', () => {
     it.each([
         ['AVAILABLE', 'MAINTENANCE'],
         ['MAINTENANCE', 'AVAILABLE'],
-        ['CLEANING', 'AVAILABLE']
+        ['CLEANING', 'AVAILABLE'],
+        // Decisão 10 do encontro de 03/11 (Gabriel, 04/11): a camareira acha defeito na limpeza.
+        ['CLEANING', 'MAINTENANCE']
     ])('%s → %s pela edição manual (200)', async (from, to) => {
         const room = await roomWithStatus(from);
         const res = await request(app).put(`/rooms/${room.id}`).set(auth()).send({ status: to });
@@ -118,6 +120,7 @@ describe('R-3 — transição de status validada na edição', () => {
         ['AVAILABLE', 'OCCUPIED'],
         ['AVAILABLE', 'CLEANING'],
         ['MAINTENANCE', 'OCCUPIED'],
+        ['MAINTENANCE', 'CLEANING'],
         ['CLEANING', 'OCCUPIED']
     ])('%s → %s pela edição manual é recusado (409), e o status não muda', async (from, to) => {
         const room = await roomWithStatus(from);

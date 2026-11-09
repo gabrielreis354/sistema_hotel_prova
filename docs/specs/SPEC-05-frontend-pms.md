@@ -105,27 +105,39 @@ Relatório: `docs/historico_sessao/gabriel/t052_reservas_21102026.md`. qa-redtea
 - [x] **CA-05.2.g** — Valores formatados via `@hotel/domain`, sem `Number()` direto — `decimalToCents`/`formatBRL`/`multiplyCents`; grep sem `Number(`, `parseFloat` nem `as unknown as` no módulo
 - [x] **CA-05.2.h** — Conta em **linha do tempo** — diárias, consumos, pagamentos e saldo — e não apenas o total (RT-15) — `buildBillTimeline()` (testado): uma diária por noite, consumos e pagamentos em ordem, saldo correndo; pagamento não confirmado aparece sem abater
 - [x] **CA-05.2.i** — Saldo da estadia visível no cabeçalho, em qualquer aba da reserva (RT-14) — cabeçalho acima das abas, `balance_due` do servidor
-- [ ] **CA-05.2.j** — Estorno de consumo exibindo quem autorizou, a partir de `deleted_by` (RT-18) — ⛔ **bloqueado no backend**: nenhum endpoint devolve item excluído (`AccountItem` é *paranoid*; `/bill` e `/consumptions` só trazem os vivos)
+- [ ] **CA-05.2.j** — Estorno de consumo exibindo quem autorizou, a partir de `deleted_by` (RT-18) — ✅ **backend desbloqueado em 09/11** (Sirlande, `feature/m5c-estorno-visivel`): `GET /reservations/:id/bill` devolve `voided_consumptions` com `deleted_by: { id, name }` (decisões em `anexos/SPEC-05-decisoes-CA-05.2.j.md`). Falta a tela (Gabriel)
 - [x] **CA-05.2.k** — Comprovante da conta imprimível ou em PDF, para entregar no check-out (RT-20) — `/reservas/:id/comprovante`, fora do AppShell, barra de ações `print:hidden`; PDF pelo "Salvar como PDF" do navegador
 - [x] **CA-05.2.l** — No fluxo de nova reserva, hóspede reaproveitado da base por CPF, e-mail ou telefone, e cadastrável sem perder o que já foi preenchido (RT-23, RT-24) — `GuestPicker`; cadastro inline pré-preenchido com o termo buscado; busca no servidor por `GET /guests?q=&limit=` (3+ caracteres, até 6 resultados, sempre por `tenant_id`) — o navegador não recebe mais o cadastro
 - [x] **CA-05.2.m** — Valor da estadia e número de diárias exibidos **antes** de confirmar (RT-22) — resumo lateral com tarifa × noites por quarto; E2E confere que o total gravado pelo servidor é igual à prévia
 
 ---
 
-### T-05.3 — Painel "Hoje" 🔲 *(~2 dias)*
+### T-05.3 — Painel "Hoje" 🟡 *(implementada em `feature/t053-painel-hoje` em 04/11 — aguarda o qa-redteam e o merge)*
 
 **DEP:** T-05.2
 
-Tela inicial da recepção. Substitui o placeholder.
+Tela inicial da recepção. Substitui o placeholder. Módulo `apps/pms/src/features/today/`; plano e decisões em `docs/retomada/feature-t053-painel-hoje.md`; relatório em `docs/historico_sessao/gabriel/t053_painel_hoje_04112026.md`. E2E Playwright (1366×900 e 375×812, ADMIN e RECEPTIONIST): **107 PASS / 0 FAIL**.
+
+**Decisões do Gabriel de 04/11/2026** (não reabrir):
+- **D-1** — liberação `CLEANING → AVAILABLE` por endpoint dedicado `PUT /rooms/:id/release`, ADMIN e RECEPTIONIST; o `PUT /rooms/:id` genérico continua só do ADMIN.
+- **D-2** — check-out na própria linha, com confirmação que mostra o saldo e o link "Abrir conta".
+- **D-3** — barra inferior do celular: Hoje · Reservas · Hóspedes · Comanda · Mais (Quartos, Indicadores, Usuários), por papel. Papel com até 5 itens fica sem "Mais".
+- **D-4** — blocos em ordem fixa.
+- **D-5** — só o quarto principal da reserva; "+N quartos" fica como pendência (exige `reservation_rooms` na listagem).
+- **D-6** — "Vendidos hoje" = ocupados agora + chegadas de hoje ainda sem check-in.
+- **D-7** — risco de *no-show* continua só para `CONFIRMED` (regra do analytics, D-3 do catálogo). Chegada `PENDING` sem pagamento é **tema para o grupo**.
+- **D-8** — o fuso do `/analytics/alerts` (`CURRENT_DATE` em UTC) é repasse para a H.3: `docs/qa/repasses/para_gabriel_h3_04112026.md`.
+- **D-9** — saída atrasada (CHECKED_IN com saída vencida) fica no bloco Saídas, com rótulo próprio.
+- **Decisão 10 do encontro de 03/11** — `CLEANING → MAINTENANCE` passa a valer (camareira acha defeito na limpeza), no backend, no `@hotel/domain` e no seletor de status da T-05.1. Não entrou no painel: o `PUT /rooms/:id` é só do ADMIN, e para a recepção seria um botão desabilitado em toda linha.
 
 **Critérios de aceitação**
-- [ ] **CA-05.3.a** — Chegadas, saídas e hóspedes na casa, do dia
-- [ ] **CA-05.3.b** — Ação direta de check-in/out a partir da lista
-- [ ] **CA-05.3.c** — Alertas relevantes (`/analytics/alerts`)
-- [ ] **CA-05.3.d** — Funciona bem no celular — é a tela que o gerente abre andando
-- [ ] **CA-05.3.e** — Contagem em cada bloco e, no topo, quartos vendidos, livres e ocupação do dia (RT-08, RT-12)
-- [ ] **CA-05.3.f** — Chegada sem pagamento registrado destacada como risco de *no-show* (RT-10)
-- [ ] **CA-05.3.g** — Quartos parados em `CLEANING` visíveis, com ação de liberar (RT-11)
+- [x] **CA-05.3.a** — Chegadas, saídas e hóspedes na casa, do dia — *blocos Chegadas (entrada hoje + atrasadas), Saídas (saída hoje + atrasadas, D-9) e Na casa. Servidor recorta: `GET /reservations?status=CHECKED_IN` e `?from=hoje&to=hoje&status=PENDING,CONFIRMED` (filtro `status` novo, allowlist, 10 testes); E2E confere que todo GET de reservas leva `status=` e que nenhum `/rooms`, `/guests` ou `/payments` inteiro é baixado*
+- [x] **CA-05.3.b** — Ação direta de check-in/out a partir da lista — *mesma `useTransitionReservation` e `reservationActions` da T-05.2; check-out com confirmação na linha mostrando o saldo da `/bill` e "Abrir conta" (`/reservas/:id?aba=conta`); E2E: check-in leva o hóspede para Na casa, check-out leva o quarto para Em limpeza*
+- [x] **CA-05.3.c** — Alertas relevantes (`/analytics/alerts`) — *faixa Atenção: no-show, saídas atrasadas, quartos em limpeza, pendentes há mais de 48 h; lê só os campos iguais no core e na H.3; com o `/analytics` em 500, chegadas e saídas continuam operando (E2E)*
+- [x] **CA-05.3.d** — Funciona bem no celular — *375×812: números do dia em 2 colunas na primeira tela, ações na largura da linha, todo alvo ≥ 48 px medido (inclusive com o "Mais" aberto), sem rolagem horizontal; barra inferior com no máximo 5 abas (D-3); aviso de resultado fixo no alto da área visível*
+- [x] **CA-05.3.e** — Contagem em cada bloco e, no topo, quartos vendidos, livres e ocupação do dia (RT-08, RT-12) — *contagem no título de cada bloco; topo com Vendidos hoje (D-6), Ocupados, Livres, Em limpeza e Ocupação, da `/analytics/occupancy` dos Indicadores*
+- [x] **CA-05.3.f** — Chegada sem pagamento registrado destacada como risco de *no-show* (RT-10) — *selo "Sem pagamento · risco de no-show" (ponto vermelho + texto), cruzado por id com o `no_show_risk` e no topo do bloco; chegada com pagamento PAID sem selo (E2E). Só CONFIRMED (D-7). Entre 21h e 0h (BRT) o selo some por causa do fuso do analytics — D-8*
+- [x] **CA-05.3.g** — Quartos parados em `CLEANING` visíveis, com ação de liberar (RT-11) — *bloco Em limpeza com "desde"; "Liberar quarto" pelo `PUT /rooms/:id/release` (D-1, 12 testes); E2E: ADMIN e RECEPTIONIST liberam, o quarto sai da lista, Livres sobe 1 e o banco fica AVAILABLE*
 
 ---
 
@@ -178,7 +190,7 @@ Tela inicial da recepção. Substitui o placeholder.
 Endpoints já existem (7 de analytics + `/payments`).
 
 **Critérios de aceitação**
-- [ ] **CA-05.6.a** — Registro e listagem de pagamentos *(passou para o Sirlande em 28/10)*
+- [x] **CA-05.6.a** — Registro e listagem de pagamentos *(passou para o Sirlande em 28/10 · 09/11, Sirlande — `feature/m5b-pagamento-checkout`: registro na aba Conta da reserva, listagem na linha do tempo da M5-a; decisões em `anexos/SPEC-05-decisoes-CA-05.6.a.md`)*
 - [x] **CA-05.6.b** — Telas de ocupação, receita, sazonalidade e ranking *(31/10, Weslley — `feature/t056-indicadores`)*
 - [x] **CA-05.6.c** — Desktop: gráficos; **mobile: 4 números do dia em cartões** *(31/10, Weslley)*
 - [ ] **CA-05.6.d** — Relatório de cortesias e perdas (depende de SPEC-04 T-04.7) *(passou para o Sirlande em 28/10)*
@@ -280,7 +292,7 @@ Do `qa-redteam` nas Fases 0 e 1:
 | `StatusBadge` só cobre status de quarto; reserva ficará sem | ✅ Generalizado em 21/10 (T-05.1): aceita `tone` (`StatusTone`) + `label`; a T-05.2 escolhe o tom de cada status de reserva |
 | **T-05.2** — `@hotel/domain` proibia `PENDING → CHECKED_IN`, mas o backend e o Swagger aceitam (`CheckInController`), e a recepção não tem endpoint de confirmar reserva | ✅ **Decisão do Gabriel em 24/10/2026: walk-in — `PENDING → CHECKED_IN` liberado** em `packages/domain/src/state-machines.ts`, com teste (commit `58e37b5`); a tela habilitou o check-in de reserva `PENDING` (`4755177`). Cancelamento continua só de `PENDING`/`CONFIRMED`. Pendente: atualizar o diagrama do CLAUDE.md §3 |
 | **T-05.2** — Nova reserva buscava hóspede sobre `GET /guests` inteiro (não havia busca no backend) | ✅ 29/10: `GET /guests?q=&limit=` no backend (ILIKE escapado, `tenant_id`, limite 10/20, testes em `tests/guests-search.test.js`) e o `GuestPicker` só consulta o servidor. **Continua na T-05.12:** a tela de hóspedes ainda lista o cadastro inteiro e filtra no cliente (sem `q` o contrato antigo foi mantido de propósito) |
-| **T-05.2** — CA-05.2.j: nenhum endpoint devolve consumo estornado com `deleted_by` | 🔲 Backend: expor itens excluídos (ADMIN/RECEPTIONIST) no bill da conta ou da reserva |
+| **T-05.2** — CA-05.2.j: nenhum endpoint devolve consumo estornado com `deleted_by` | ✅ 09/11: `voided_consumptions` no bill da reserva (D-69 a D-72, M5-c). Bill da conta fica fora (D-72). Falta a tela |
 | **T-05.2** — `ReservationStatusBadge` local em `features/reservations/components/` | 🔲 Trocar pelo `StatusBadge` generalizado do `@hotel/ui` (T-05.1) — pendência pós-merge |
 
 ---
@@ -321,3 +333,5 @@ Do `qa-redteam` nas Fases 0 e 1:
 | 2.0 | 09/09/2026 | Gabriel Reis Cunha | Absorve o levantamento `docs/frontend/REQUISITOS_TELAS_PMS_09set2026.md` (RT-01 a RT-62). Acrescenta o mapa RT → tarefa em §4, novos critérios nas tarefas T-05.2 a T-05.7, e quatro tarefas: **T-05.9** governança, **T-05.10** ficha de registro do hóspede (RF-055), **T-05.11** fechamento de caixa por turno (RF-056) e **T-05.12** busca global e listagens no servidor. Tarifas por período saíram para a **SPEC-07** por serem majoritariamente backend. Ressalva do Swagger atualizada de 79% para **82%**, remedida em 09/09, e registrada a defasagem do `openapi.json` do `api-client` |
 | 2.1 | 21/10/2026 | Agente executor (trilha do Gabriel) | T-05.1 implementada: CA-05.1.a–f marcados com evidência. Ressalvas do `openapi.json` defasado e do `StatusBadge` encerradas |
 | 2.2 | 24/10/2026 | Agente executor (trilha do Gabriel) | Correções do qa-redteam da T-05.1 (🟡-1 a 🟡-3): PUT parcial de quarto, `requestBody` dos três PUTs no Swagger, exclusão de categoria confiando no 409 |
+| 2.3 | 04/11/2026 | Agente de frontend (trilha do Gabriel) | T-05.3 implementada: CA-05.3.a–g marcados com evidência; decisões D-1 a D-9 do Gabriel e a decisão 10 do encontro de 03/11 (`CLEANING → MAINTENANCE`) registradas na T-05.3 |
+| 2.4 | 09/11/2026 | Agente de frontend (trilha do Gabriel) | Correções do qa-redteam da T-05.3: check-in e release com 409 quando o quarto não pode mudar, check-in da linha desabilitado com motivo, saldo sempre fresco na confirmação do check-out, 48 px até 1279 px |

@@ -33,6 +33,9 @@ ter uma pessoa aprovando componente dos outros.
 | `Spinner` | Carregando, com `role="status"` e rótulo acessível | Espera longa em tela cheia — aí o certo é *skeleton*, que ainda não existe |
 | `EmptyState` | Lista vazia, com título, descrição e **ação sugerida** | Erro. Vazio e erro são coisas diferentes: vazio ensina o próximo passo, erro diz o que fazer para recuperar |
 | `ErrorState` | Erro com mensagem (`role="alert"`) e botão "Tentar de novo" | Erro de campo de formulário — isso é o `error` do `Field`. Vazio — isso é o `EmptyState` |
+| `Money` | Valor em reais a partir de **centavos** (`decimalToCents` antes): tabular, duas casas, sem quebrar. Promovido na T-05.3 | Para converter o DECIMAL — isso é do `@hotel/domain`. Nem para percentual ou quantidade |
+| `Notice` | Aviso de resultado de uma ação (`success` → `role="status"`, `error` → `role="alert"`), focável para o leitor de tela anunciar. Promovido na T-05.3 | Erro de carregamento com "tentar de novo" — isso é o `ErrorState` |
+| `ActionSlot` | Ação + o **motivo** quando está desabilitada, ligado por `aria-describedby` (RNF-026). Promovido na T-05.3 | Ação que o papel nunca terá — essa não aparece; o slot é para "agora não dá" |
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
 
 ---
@@ -50,7 +53,6 @@ primeiro cria local; o segundo promove.
 |---|---|---|
 | `Table` | reservas, hóspedes, financeiro, B2B | Cabeçalho, coluna que some no mobile, estado vazio embutido |
 | `DateRangePicker` | reservas, rack, indicadores | Todo filtro por período do sistema |
-| `Money` | reserva, conta, financeiro, indicadores | `DECIMAL` chega do `pg` como **string**. Um componente central evita `Number()` espalhado |
 | `Skeleton` | listas e rack | Espera longa sem tela em branco |
 | `Select` | reservas, comanda, configurações | Lista de escolha com o visual do `Input`. Hoje só existe a versão local da T-05.1 |
 

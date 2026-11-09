@@ -9,6 +9,7 @@ import GetRoomController from '../../app/Controllers/RoomApi/GetRoomController.j
 import CreateRoomController from '../../app/Controllers/RoomApi/CreateRoomController.js';
 import UpdateRoomController from '../../app/Controllers/RoomApi/UpdateRoomController.js';
 import DeleteRoomController from '../../app/Controllers/RoomApi/DeleteRoomController.js';
+import ReleaseRoomController from '../../app/Controllers/RoomApi/ReleaseRoomController.js';
 
 export default (() => {
     const router = Router();
@@ -23,6 +24,8 @@ export default (() => {
     router.get('/:id', requireRole('ADMIN', 'RECEPTIONIST'), GetRoomController);
     router.post('/', requireRole('ADMIN'), CreateRoomController);
     router.put('/:id', requireRole('ADMIN'), UpdateRoomController);
+    // Limpeza concluída (CLEANING → AVAILABLE): a recepção também — D-1 da T-05.3.
+    router.put('/:id/release', requireRole('ADMIN', 'RECEPTIONIST'), ReleaseRoomController);
     router.delete('/:id', requireRole('ADMIN'), DeleteRoomController);
 
     return router;

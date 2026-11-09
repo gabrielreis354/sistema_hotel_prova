@@ -26,8 +26,9 @@ export interface StatusOption {
  *
  * Ocupar e mandar para limpeza são efeitos do check-in e do check-out — se o formulário
  * permitisse, um quarto apareceria ocupado sem hóspede, ou livre com hóspede dentro. O que
- * sobra para a mão é o que não tem operação própria: bloquear para manutenção, desbloquear e
- * liberar depois da limpeza. Tudo filtrado pela máquina de estados de @hotel/domain (allowlist).
+ * sobra para a mão é o que não tem operação própria: bloquear para manutenção (inclusive direto
+ * da limpeza, quando a camareira acha defeito — 04/11), desbloquear e liberar depois da limpeza.
+ * Tudo filtrado pela máquina de estados de @hotel/domain (allowlist).
  *
  * `current` ausente = quarto novo, que nasce Livre ou em Manutenção.
  */

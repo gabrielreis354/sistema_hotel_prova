@@ -1353,7 +1353,7 @@ export interface paths {
                         /** @description 0 é o térreo; null tira o andar */
                         floor?: number | null;
                         /**
-                         * @description Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito
+                         * @description Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE (limpeza concluída) e CLEANING → MAINTENANCE (defeito achado na limpeza). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito
                          * @enum {string}
                          */
                         status?: "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE";
@@ -1388,7 +1388,7 @@ export interface paths {
                         "application/json": components["schemas"]["RoomError"] | components["schemas"]["Error"];
                     };
                 };
-                /** @description code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito) */
+                /** @description code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE e CLEANING → MAINTENANCE; reenviar o status atual é aceito) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1439,6 +1439,85 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Conclui a limpeza (CLEANING → AVAILABLE) — ADMIN e RECEPTIONIST
+         * @description Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel "Hoje" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Quarto liberado (status AVAILABLE) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Room"];
+                    };
+                };
+                /** @description Token ausente ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Papel sem permissão (WAITER) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Quarto não encontrado neste hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING, ou ainda tem reserva CHECKED_IN (como quarto principal ou extra) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1749,6 +1828,8 @@ export interface paths {
                     page?: number;
                     /** @description Itens por página (máx. 100). */
                     limit?: number;
+                    /** @description Uma ou mais situações separadas por vírgula, entre PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT e CANCELLED (maiúsculas). Combina com from/to e paginação. Qualquer item fora da lista → 400. */
+                    status?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1765,7 +1846,7 @@ export interface paths {
                         "application/json": components["schemas"]["ReservationListItem"][] | components["schemas"]["ReservationListPage"];
                     };
                 };
-                /** @description from/to fora do formato YYYY-MM-DD */
+                /** @description from/to fora do formato YYYY-MM-DD, ou status fora da lista */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2093,6 +2174,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
                 /** @description Check-in não permitido no status atual */
@@ -2682,8 +2772,11 @@ export interface paths {
                          * @description Conta a pagar (T-04.4)
                          */
                         account_id?: string;
-                        /** @example 300 */
-                        amount: number;
+                        /**
+                         * @description Valor positivo com até 2 casas, em texto (DECIMAL(12,2))
+                         * @example 300.00
+                         */
+                        amount: string;
                         /**
                          * @example PIX
                          * @enum {string}
@@ -5015,7 +5108,7 @@ export interface components {
         RoomError: {
             error: string;
             /** @enum {string} */
-            code: "INVALID_INPUT" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CATEGORY_NAME_TAKEN" | "ROOM_NUMBER_TAKEN" | "ROOM_IN_USE" | "ROOM_STATUS_TRANSITION_NOT_ALLOWED";
+            code: "INVALID_INPUT" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CATEGORY_NAME_TAKEN" | "ROOM_NUMBER_TAKEN" | "ROOM_IN_USE" | "ROOM_STATUS_TRANSITION_NOT_ALLOWED" | "ROOM_NOT_AVAILABLE";
             /**
              * @description Só no 400 INVALID_INPUT
              * @example price_per_night
@@ -5044,6 +5137,8 @@ export interface components {
                 id?: string;
                 number?: string;
                 floor?: number | null;
+                /** @enum {string} */
+                status?: "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE";
             } | null;
             user?: {
                 /** Format: uuid */
@@ -5158,6 +5253,28 @@ export interface components {
                 amount?: number;
                 /** Format: date-time */
                 consumed_at?: string;
+            }[];
+            /** @description Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui */
+            voided_consumptions: {
+                /** Format: uuid */
+                id: string;
+                description: string;
+                /** @example 120 */
+                amount: number;
+                /** Format: date-time */
+                consumed_at: string;
+                /**
+                 * Format: date-time
+                 * @description Quando foi estornado
+                 */
+                deleted_at: string;
+                /** @description Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo quando não há registro de quem autorizou: estorno antigo do consumo migrado sem deleted_by, ou usuário gravado que não é deste hotel (dado inconsistente — o nome de outro hotel nunca sai) */
+                deleted_by: {
+                    /** Format: uuid */
+                    id: string;
+                    /** @example Marta Gerente */
+                    name: string;
+                } | null;
             }[];
             payments?: {
                 /** Format: uuid */

@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { ApiError } from '../../lib/http.js';
 import { guestKeys } from '../guests/index.js';
 import {
+  createPayment,
   createReservation,
   getBill,
   getReservation,
@@ -9,6 +10,7 @@ import {
   listReservations,
   transitionReservation,
   type CreateReservationInput,
+  type PaymentInput,
   type ReservationListParams,
   type ReservationTransition,
 } from './reservationsApi.js';
@@ -55,6 +57,25 @@ export function useBill(id: string | undefined) {
   });
 }
 
+/**
+ * A conta de quem vai confirmar um check-out: sempre busca de novo, mesmo com cache recente — um
+ * consumo lançado em outro aparelho não invalida este. Quem usa só libera a ação com
+ * `isSuccess && !isFetching`.
+ */
+export function freshBillOptions(id: string | undefined) {
+  return {
+    queryKey: reservationKeys.bill(id ?? ''),
+    queryFn: () => getBill(id ?? ''),
+    enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: 'always' as const,
+  };
+}
+
+export function useFreshBill(id: string | undefined) {
+  return useQuery(freshBillOptions(id));
+}
+
 export function useAvailableRooms(checkIn: string, checkOut: string, enabled: boolean) {
   return useQuery({
     queryKey: reservationKeys.available(checkIn, checkOut),
@@ -91,6 +112,22 @@ export function useTransitionReservation(id: string) {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: reservationKeys.all });
       qc.invalidateQueries({ queryKey: ['rooms'] });
+    },
+  });
+}
+
+/**
+ * Registra o pagamento do check-out (M5-b). onSettled, não onSuccess: sem resposta o pagamento
+ * pode ter gravado, e a conta recarregada é o que a recepção confere antes de repetir (D7).
+ * Recarrega a reserva inteira (bill e detalhe) e as contas, que mudam de CLOSED para PAID.
+ */
+export function useCreatePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PaymentInput) => createPayment(body),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: reservationKeys.all });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
     },
   });
 }
