@@ -156,3 +156,34 @@ Cortar de baixo para cima: T-08.6, T-08.5, T-08.4. **T-08.1, T-08.2 e T-08.3 sã
 | Teste quebrar por mudança de texto ou de papel do botão | Ajustar seletor e texto, nunca a lógica (CA-08.j). Se a lógica precisar mudar, parar e registrar |
 | Polir antes de o comportamento estar certo | Ordem do `DESIGN_PMS.md` §6: comportamento, auditoria, crítica e só então polimento |
 | Dependência nova pesar no celular do garçom | Importar ícones individualmente e conferir o tamanho do bundle antes e depois |
+
+---
+
+## 9. Bibliotecas de componentes — sugestão
+
+> **Esta seção é uma sugestão de Gabriel, registrada em 09/11. A decisão é do Sirlande,** que cuida do frontend. Se ele escolher outro caminho, basta registrar o motivo aqui.
+
+**Sugestão:** não adotar uma biblioteca completa. Seguir o que o `docs/frontend/PLANEJAMENTO_FRONTEND.md` já previa, Tailwind com shadcn/ui sobre Radix, trazendo componente só quando uma tela precisar. O `@hotel/ui` já usa `class-variance-authority`, `clsx` e `tailwind-merge`, a mesma base do shadcn, e o código copiado continua obedecendo aos tokens e às regras do projeto.
+
+| Opção | Sugestão | Motivo |
+|---|---|---|
+| shadcn/ui + Radix | Adotar aos poucos | Sem amarra a um fornecedor, e o Radix resolve foco, teclado e leitor de tela |
+| React Aria | Alternativa válida | Boa acessibilidade, com menos afinidade com o que já existe |
+| MUI, Ant Design | Não adotar | Visual e tema próprios competem com o Tailwind e exigem reescrever as telas |
+| Mantine | Não adotar | A versão atual exige React 19.2; o projeto está no 18.3 |
+
+**Antes do congelamento de 24/11:** só `lucide-react` e `@fontsource-variable/inter`, já previstas nas T-08.1 e T-08.2.
+
+**Depois do congelamento, quando a tela pedir:**
+
+| Necessidade | Biblioteca | Quando |
+|---|---|---|
+| Janela, menu, popover | Radix, via shadcn | No primeiro caso real. A folha "Mais" é candidata |
+| Seleção de período | `react-day-picker` | Filtros de reservas, rack e indicadores |
+| Rack quartos × dias | `@tanstack/react-virtual` | Quando o rack for construído |
+| Ordenar e paginar tabela | `@tanstack/react-table` | Financeiro. Lista simples continua com o `Table` local |
+| Busca rápida no balcão | `cmdk` | Evolução futura |
+
+**Sugestão de manter como está:** `<select>` nativo, que funciona melhor em celular simples; `Notice` e `feedback.tsx` em vez de `sonner`; o `BarChart` próprio enquanto não surgir gráfico mais complexo.
+
+**A conferir antes de instalar:** caminho do shadcn para Tailwind 3.4, porque as versões recentes priorizam o Tailwind 4, e o peso de cada dependência no bundle. Em 09/11, licença (MIT/ISC) e compatibilidade com React 18 foram conferidas no npm para `lucide-react` e para as bibliotecas das tabelas acima; instalação e bundle não foram testados.
