@@ -3,11 +3,14 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatDateBR } from '@hotel/domain';
 import { ActionSlot, Button, Card, ErrorState, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
+import { useAuthStore } from '../../stores/auth.js';
 import { useBill, useReservation, useTransitionReservation } from './queries.js';
 import type { ReservationTransition } from './reservationsApi.js';
 import { buildBillTimeline, officialBalanceCents, reservationActions, safeNights } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
+import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
+import { canReceivePayment } from './paymentLogic.js';
 import { BackLink, ButtonLink, CardHeading, InfoItem, Money, Notice } from './components/primitives.js';
 
 type Tab = 'resumo' | 'conta';
@@ -33,10 +36,18 @@ export function ReservationDetailPage() {
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
+  const role = useAuthStore((s) => s.user?.role);
+  // Fora do cartão do formulário: quando o saldo zera, o formulário some e o aviso fica.
+  const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+  const paymentResultRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     if (feedback) feedbackRef.current?.focus();
   }, [feedback]);
+
+  useEffect(() => {
+    if (paymentResult) paymentResultRef.current?.focus();
+  }, [paymentResult]);
 
   function setTab(next: Tab) {
     const merged = new URLSearchParams(params);
@@ -82,6 +93,7 @@ export function ReservationDetailPage() {
   const balance = bill.data ? officialBalanceCents(bill.data) : null;
   const busy = transition.isPending;
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
+  const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
   function openCheckOut() {
     setFeedback(null);
@@ -281,8 +293,8 @@ export function ReservationDetailPage() {
               </p>
               {balance !== null && balance > 0 && (
                 <p className="rounded-md bg-status-cleaning/10 p-2 text-sm text-gray-900">
-                  Há <Money cents={balance} className="font-semibold" /> em aberto. Receba antes de liberar o hóspede — depois
-                  do check-out a conta não aceita mais consumo.
+                  Há <Money cents={balance} className="font-semibold" /> em aberto. Registre o pagamento logo abaixo antes de
+                  liberar o hóspede — depois do check-out a conta não aceita mais consumo.
                 </p>
               )}
               {bill.isError && (
@@ -298,6 +310,20 @@ export function ReservationDetailPage() {
                   Voltar
                 </Button>
               </div>
+            </Card>
+          )}
+
+          {paymentResult && (
+            <Notice ref={paymentResultRef} tone={paymentResult.kind === 'error' ? 'error' : 'success'}>
+              {paymentResult.text}
+            </Notice>
+          )}
+
+          {receiving && balance !== null && r.id && (
+            <Card className="space-y-3 p-4">
+              <h2 className="text-sm font-semibold text-gray-800">Registrar pagamento</h2>
+              {/* key: o valor preenchido acompanha o saldo depois de cada pagamento. */}
+              <PaymentForm key={balance} reservationId={r.id} balanceCents={balance} onResult={setPaymentResult} />
             </Card>
           )}
 

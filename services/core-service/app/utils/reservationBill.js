@@ -1,5 +1,5 @@
 import { reservationLedger } from './accountPayments.js';
-import { reservationConsumptionItems } from './itemAsConsumption.js';
+import { reservationConsumptionItems, reservationVoidedItems } from './itemAsConsumption.js';
 import { toCents } from './calculateStayTotal.js';
 
 // Centavos com sinal: toCents não lê negativo, e um pagamento negativo anterior ao CHECK
@@ -32,6 +32,7 @@ export default async function reservationBill(reservation, transaction) {
     // Em sequência: dentro de uma transação as consultas dividem a mesma conexão.
     const ledger = [...(await reservationLedger(reservation.id, tenantId, transaction)).values()];
     const consumptions = await reservationConsumptionItems(reservation.id, tenantId, transaction);
+    const voided = await reservationVoidedItems(reservation.id, tenantId, transaction);
 
     const sum = (list, pick) => list.reduce((acc, item) => acc + pick(item), 0);
 
@@ -61,6 +62,12 @@ export default async function reservationBill(reservation, transaction) {
         fully_paid: balanceCents <= 0,
         consumptions: consumptions.map((c) => ({
             id: c.id, description: c.description, amount: Number(c.total), consumed_at: c.consumed_at
+        })),
+        // Estornados: histórico com quem autorizou (M5-c, CA-05.2.j). Não somam em nada acima.
+        voided_consumptions: voided.map((c) => ({
+            id: c.id, description: c.description, amount: Number(c.total),
+            consumed_at: c.consumed_at, deleted_at: c.deleted_at,
+            deleted_by: c.deleter ? { id: c.deleter.id, name: c.deleter.name } : null
         })),
         payments: payments.map((p) => ({
             id: p.id, amount: Number(p.amount), method: p.method,
