@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { centsToBRLInput, formatBRL, type Cents } from '@hotel/domain';
 import { Button, Field, Input, cn } from '@hotel/ui';
 import { ApiError } from '../../../lib/http.js';
@@ -7,6 +7,7 @@ import {
   PAYMENT_METHOD_OPTIONS,
   paymentBody,
   readPaymentAmount,
+  submitStep,
   type PaymentMethod,
 } from '../paymentLogic.js';
 import { Money } from './primitives.js';
@@ -38,24 +39,41 @@ export function PaymentForm({
   const [error, setError] = useState<string | null>(null);
   const [overpaid, setOverpaid] = useState<Cents | null>(null);
   const busy = create.isPending;
+  // Trava síncrona: o isPending só chega à tela no próximo ciclo, e um segundo toque nesse
+  // intervalo chamaria mutate de novo (🟢-4 do qa-redteam). O disabled continua para o visual.
+  const sending = useRef(false);
+  const fixButton = useRef<HTMLButtonElement>(null);
+
+  // Ao abrir a confirmação do "a maior", o foco vai para "Corrigir o valor": um Enter a mais
+  // corrige em vez de gravar (🟡-1 do qa-redteam).
+  useEffect(() => {
+    if (overpaid !== null) fixButton.current?.focus();
+  }, [overpaid]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const reading = readPaymentAmount(amountText, balanceCents);
-    if (!reading.ok) return setError(reading.error);
-    if (!method) return setError('Escolha como o hóspede pagou.');
+    const step = submitStep({
+      reading: readPaymentAmount(amountText, balanceCents),
+      method,
+      confirming: overpaid !== null,
+    });
+    if (step.kind === 'wait') return;
+    if (step.kind === 'error') return setError(step.error);
+    setError(null);
     // A maior: um passo a mais, com o quanto sobra, antes de gravar (D3).
-    if (reading.overpaidCents > 0 && overpaid === null) {
-      setError(null);
-      return setOverpaid(reading.overpaidCents);
-    }
-    send(reading.cents, method);
+    if (step.kind === 'confirm') return setOverpaid(step.overpaidCents);
+    if (method) send(step.cents, method);
   }
 
   function send(cents: Cents, chosen: PaymentMethod) {
+    if (sending.current) return;
+    sending.current = true;
     setError(null);
     const label = PAYMENT_METHOD_OPTIONS.find((m) => m.id === chosen)?.label ?? chosen;
     create.mutate(paymentBody(reservationId, cents, chosen), {
+      onSettled: () => {
+        sending.current = false;
+      },
       onSuccess: () => {
         onResult({ kind: 'ok', text: `Pagamento de ${formatBRL(cents)} em ${label} registrado.` });
         setOverpaid(null);
@@ -125,7 +143,8 @@ export function PaymentForm({
       </fieldset>
 
       {overpaid !== null ? (
-        <div className="space-y-3 rounded-md border border-status-cleaning/60 bg-status-cleaning/10 p-3">
+        // role="alert": o leitor de tela avisa que o registro parou à espera da confirmação (🟢-4).
+        <div role="alert" className="space-y-3 rounded-md border border-status-cleaning/60 bg-status-cleaning/10 p-3">
           <p className="text-sm text-gray-900">
             O valor passa do saldo em <Money cents={overpaid} className="font-semibold" />. Esse valor fica como{' '}
             <strong>a devolver</strong> ao hóspede. Registrar assim mesmo?
@@ -134,7 +153,7 @@ export function PaymentForm({
             <Button disabled={busy} onClick={confirmOverpaid}>
               {busy ? 'Registrando…' : 'Sim, registrar'}
             </Button>
-            <Button variant="ghost" disabled={busy} onClick={() => setOverpaid(null)}>
+            <Button ref={fixButton} variant="ghost" disabled={busy} onClick={() => setOverpaid(null)}>
               Corrigir o valor
             </Button>
           </div>

@@ -99,7 +99,7 @@ export function ReservationDetailPage() {
   const balance = bill.data ? officialBalanceCents(bill.data) : null;
   const busy = transition.isPending;
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
-  const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role });
+  const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
   function openCheckOut() {
     setFeedback(null);

@@ -157,6 +157,12 @@ export async function createPayment(body: PaymentInput): Promise<Payment> {
   if (response.status === 404) {
     throw new ApiError('A reserva não existe mais neste hotel — pode ter sido excluída. Nada foi registrado.', 404);
   }
+  // 502/503/504 sem o corpo do backend: o proxy desistiu ou o servidor caiu, talvez depois do
+  // commit. Mesmo caso da rede: conferir antes de repetir (🟡-2 do qa-redteam). O 503 do próprio
+  // backend (consumo em migração) vem com motivo e é recusado antes de gravar.
+  if ([502, 503, 504].includes(response.status) && !serverMessage(error)) {
+    throw new ApiError(PAYMENT_UNKNOWN_MESSAGE, response.status);
+  }
   if (error || !response.ok || !data) {
     throw new ApiError(serverMessage(error) ?? 'Não foi possível registrar o pagamento.', response.status);
   }
