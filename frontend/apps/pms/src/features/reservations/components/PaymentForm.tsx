@@ -83,7 +83,7 @@ export function PaymentForm({
           inputMode="decimal"
           autoComplete="off"
           aria-invalid={!!error}
-          className={cn(TOUCH, 'text-right text-lg tabular-nums sm:max-w-[12rem]')}
+          className={cn(TOUCH, 'block text-right text-lg tabular-nums sm:max-w-[12rem]')}
           value={amountText}
           disabled={busy}
           onChange={(e) => {
