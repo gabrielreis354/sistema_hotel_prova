@@ -4,6 +4,7 @@ import {
   canReceivePayment,
   paymentBody,
   readPaymentAmount,
+  submitStep,
 } from './paymentLogic.js';
 
 describe('canReceivePayment — quando a recepção vê o formulário (D2)', () => {
@@ -18,6 +19,11 @@ describe('canReceivePayment — quando a recepção vê o formulário (D2)', () 
   it('sem saldo a receber, não há o que registrar (quitada ou a devolver)', () => {
     expect(canReceivePayment({ status: 'CHECKED_IN', balanceCents: 0, role: 'RECEPTIONIST' })).toBe(false);
     expect(canReceivePayment({ status: 'CHECKED_OUT', balanceCents: -500, role: 'RECEPTIONIST' })).toBe(false);
+  });
+
+  it('conta que não recarregou esconde o formulário: o saldo na tela pode ser o de antes do pagamento (🟡-3 do qa-redteam)', () => {
+    expect(canReceivePayment({ status: 'CHECKED_IN', balanceCents: 41250, role: 'ADMIN', billFailed: true })).toBe(false);
+    expect(canReceivePayment({ status: 'CHECKED_IN', balanceCents: 41250, role: 'ADMIN', billFailed: false })).toBe(true);
   });
 
   it('saldo ainda não carregado não mostra o formulário', () => {
@@ -95,5 +101,30 @@ describe('PAYMENT_METHOD_OPTIONS', () => {
       ['CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO', 'PIX'],
     );
     for (const m of PAYMENT_METHOD_OPTIONS) expect(m.label.length).toBeGreaterThan(0);
+  });
+});
+
+describe('submitStep — o que o envio do formulário faz (D3, 🟡-1 do qa-redteam)', () => {
+  const ok = (cents: number, overpaidCents = 0) => ({ ok: true as const, cents, overpaidCents });
+
+  it('valor inválido ou sem método: mostra o erro', () => {
+    expect(submitStep({ reading: { ok: false, error: 'x' }, method: 'PIX', confirming: false })).toEqual({ kind: 'error', error: 'x' });
+    expect(submitStep({ reading: ok(100), method: null, confirming: false })).toEqual({
+      kind: 'error',
+      error: 'Escolha como o hóspede pagou.',
+    });
+  });
+
+  it('dentro do saldo: envia', () => {
+    expect(submitStep({ reading: ok(100), method: 'PIX', confirming: false })).toEqual({ kind: 'send', cents: 100 });
+  });
+
+  it('a maior: primeiro pede confirmação', () => {
+    expect(submitStep({ reading: ok(500, 100), method: 'PIX', confirming: false })).toEqual({ kind: 'confirm', overpaidCents: 100 });
+  });
+
+  it('com a confirmação aberta, um novo Enter no campo NÃO grava: só "Sim, registrar" grava', () => {
+    expect(submitStep({ reading: ok(500, 100), method: 'PIX', confirming: true })).toEqual({ kind: 'wait' });
+    expect(submitStep({ reading: ok(100), method: 'PIX', confirming: true })).toEqual({ kind: 'wait' });
   });
 });

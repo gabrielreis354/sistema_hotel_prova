@@ -173,6 +173,18 @@ describe('createPayment — registro do pagamento no check-out (M5-b)', () => {
     await expect(createPayment(body)).rejects.toMatchObject({ status: 422, message: 'Conta PAID já está quitada.' });
   });
 
+  it('502/503/504 sem resposta do backend (gateway): o pagamento pode ter gravado — manda conferir (🟡-2 do qa-redteam)', async () => {
+    for (const status of [502, 503, 504]) {
+      api.POST.mockResolvedValue(reply(status, undefined));
+      await expect(createPayment(body), String(status)).rejects.toMatchObject({ status, message: PAYMENT_UNKNOWN_MESSAGE });
+    }
+  });
+
+  it('503 do próprio backend (consumo em migração, antes de gravar) segue com o motivo dele', async () => {
+    api.POST.mockResolvedValue(reply(503, { error: 'Consumos desta reserva em migração — conta temporariamente indisponível' }));
+    await expect(createPayment(body)).rejects.toMatchObject({ status: 503, message: expect.stringMatching(/migração/) });
+  });
+
   it('5xx sem corpo cai na mensagem padrão', async () => {
     api.POST.mockResolvedValue(reply(500, undefined));
     await expect(createPayment(body)).rejects.toMatchObject({ status: 500 });
