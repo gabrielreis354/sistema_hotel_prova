@@ -1,5 +1,7 @@
+import { Op } from 'sequelize';
 import AccountModel from '../Models/AccountModel.js';
 import AccountItemModel from '../Models/AccountItemModel.js';
+import UserModel from '../Models/UserModel.js';
 
 /**
  * Item de conta no formato do consumo antigo (contrato de /reservations/:id/consumptions).
@@ -43,6 +45,45 @@ export function reservationConsumptionItems(reservationId, tenantId, transaction
             attributes: []
         }],
         order: [['consumed_at', 'ASC'], ['created_at', 'ASC']],
+        transaction
+    });
+}
+
+/**
+ * Consumos estornados de uma reserva (M5-c, CA-05.2.j): itens faturáveis excluídos de
+ * qualquer conta da reserva, com quem autorizou. Estorno é a exclusão lógica do item, só
+ * ADMIN, com deleted_by (D-7, D-8).
+ *
+ * - Só faturáveis, o mesmo filtro dos consumos (D-70): cortesia excluída nunca foi cobrada.
+ * - Quem autorizou vem mesmo removido do sistema (paranoid: false no usuário, D-71), e só
+ *   dele: id e nome. O usuário também é filtrado pelo hotel — nunca um nome de outro tenant.
+ * - Em ordem de estorno, o mais antigo primeiro.
+ *
+ * @param {string} reservationId
+ * @param {string} tenantId
+ * @param {import('sequelize').Transaction} [transaction] a mesma foto do bill (D-57)
+ */
+export function reservationVoidedItems(reservationId, tenantId, transaction) {
+    return AccountItemModel.findAll({
+        where: { tenant_id: tenantId, billable: true, deleted_at: { [Op.ne]: null } },
+        paranoid: false,
+        include: [
+            {
+                model: AccountModel,
+                as: 'account',
+                where: { reservation_id: reservationId, tenant_id: tenantId },
+                attributes: []
+            },
+            {
+                model: UserModel,
+                as: 'deleter',
+                where: { tenant_id: tenantId },
+                required: false,
+                paranoid: false,
+                attributes: ['id', 'name']
+            }
+        ],
+        order: [['deleted_at', 'ASC'], ['id', 'ASC']],
         transaction
     });
 }

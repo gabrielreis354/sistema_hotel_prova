@@ -118,6 +118,17 @@ describe('GET /reservations/:id/bill — voided_consumptions (CA-05.2.j)', () =>
         expect(res.body.voided_consumptions.find((v) => v.id === item.id).deleted_by).toBeNull();
     });
 
+    it('deleted_by de outro hotel (dado corrompido) nunca mostra o nome de lá', async () => {
+        const { userId: foreignId } = await registerAndLogin(app, { tenantName: 'Hotel Alheio Estorno', name: 'Nome Alheio' });
+        const item = await addItem({ description: 'Frigobar', quantity: 1, unit_price: '9.00' });
+        expect((await voidItem(item.id)).status).toBe(204);
+        await AccountItemModel.update({ deleted_by: foreignId }, { where: { id: item.id }, paranoid: false });
+
+        const res = await getBill();
+        expect(res.body.voided_consumptions.find((v) => v.id === item.id).deleted_by).toBeNull();
+        expect(JSON.stringify(res.body)).not.toContain('Nome Alheio');
+    });
+
     it('em ordem de estorno, o mais antigo primeiro', async () => {
         const list = (await getBill()).body.voided_consumptions;
         const times = list.map((v) => new Date(v.deleted_at).getTime());
