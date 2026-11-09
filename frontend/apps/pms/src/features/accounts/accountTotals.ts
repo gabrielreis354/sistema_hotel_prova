@@ -71,3 +71,16 @@ export function closedNotice(label: string, bill: Partial<AccountBill> | undefin
   const balance = balanceLine(bill);
   return balance ? `${label} fechada. ${balance}.` : `${label} fechada.`;
 }
+
+/**
+ * Onde receber o saldo de uma conta que acabou de fechar (C-19, D6 do M5-b). Conta com reserva:
+ * a aba Conta da reserva, onde a recepção registra o pagamento — o crédito da reserva cobre as
+ * contas fechadas primeiro (D-45). Mesa e day-use ainda não têm tela de pagamento: sem link.
+ */
+export function receiveAt(
+  account: { reservation_id?: string | null },
+  bill: Partial<AccountBill> | undefined,
+): string | null {
+  if (!account.reservation_id || !bill?.balance) return null;
+  return decimalToCents(bill.balance) > 0 ? `/reservas/${account.reservation_id}?aba=conta` : null;
+}

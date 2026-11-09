@@ -8,6 +8,8 @@ vi.mock('../../lib/api.js', () => ({ api }));
 import { ApiError } from '../../lib/http.js';
 import {
   RoomConflictError,
+  PAYMENT_UNKNOWN_MESSAGE,
+  createPayment,
   createReservation,
   listReservations,
   serverMessage,
@@ -147,5 +149,54 @@ describe('listReservations', () => {
     expect(api.GET).toHaveBeenCalledWith('/reservations', {
       params: { query: { from: '2026-10-01', to: '2026-10-31', page: 2, limit: 20 } },
     });
+  });
+});
+
+describe('createPayment — registro do pagamento no check-out (M5-b)', () => {
+  const body = { reservation_id: 'res-1', amount: '150.00', method: 'PIX' as const };
+
+  it('201 devolve o pagamento e manda o corpo como veio', async () => {
+    api.POST.mockResolvedValue(reply(201, { id: 'p1', amount: '150.00', status: 'PAID' }));
+    await expect(createPayment(body)).resolves.toMatchObject({ id: 'p1' });
+    expect(api.POST).toHaveBeenCalledWith('/payments', { body });
+  });
+
+  it('404: a reserva sumiu e nada foi registrado', async () => {
+    api.POST.mockResolvedValue(reply(404, { error: 'Reserva não encontrada.' }));
+    const err = await createPayment(body).catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 404 });
+    expect((err as Error).message).toMatch(/nada foi registrado/i);
+  });
+
+  it('400 e 422 trazem o motivo do servidor', async () => {
+    api.POST.mockResolvedValue(reply(422, { error: 'Conta PAID já está quitada.' }));
+    await expect(createPayment(body)).rejects.toMatchObject({ status: 422, message: 'Conta PAID já está quitada.' });
+  });
+
+  it('502/503/504 sem resposta do backend (gateway): o pagamento pode ter gravado — manda conferir (🟡-2 do qa-redteam)', async () => {
+    for (const status of [502, 503, 504]) {
+      api.POST.mockResolvedValue(reply(status, undefined));
+      await expect(createPayment(body), String(status)).rejects.toMatchObject({ status, message: PAYMENT_UNKNOWN_MESSAGE });
+    }
+  });
+
+  it('503 do próprio backend (consumo em migração, antes de gravar) segue com o motivo dele', async () => {
+    api.POST.mockResolvedValue(reply(503, { error: 'Consumos desta reserva em migração — conta temporariamente indisponível' }));
+    await expect(createPayment(body)).rejects.toMatchObject({ status: 503, message: expect.stringMatching(/migração/) });
+  });
+
+  it('5xx sem corpo cai na mensagem padrão', async () => {
+    api.POST.mockResolvedValue(reply(500, undefined));
+    await expect(createPayment(body)).rejects.toMatchObject({ status: 500 });
+  });
+
+  it('sem resposta (rede caiu) não diz que falhou: pede para conferir a conta antes de repetir', async () => {
+    // O pedido pode ter chegado e gravado. Dizer "falhou" leva a recepção a registrar de novo
+    // e cobrar duas vezes (D7).
+    api.POST.mockRejectedValue(new TypeError('Failed to fetch'));
+    const err = await createPayment(body).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 0, message: PAYMENT_UNKNOWN_MESSAGE });
+    expect(PAYMENT_UNKNOWN_MESSAGE).toMatch(/confira a conta/i);
   });
 });

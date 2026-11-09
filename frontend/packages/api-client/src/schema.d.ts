@@ -2682,8 +2682,11 @@ export interface paths {
                          * @description Conta a pagar (T-04.4)
                          */
                         account_id?: string;
-                        /** @example 300 */
-                        amount: number;
+                        /**
+                         * @description Valor positivo com até 2 casas, em texto (DECIMAL(12,2))
+                         * @example 300.00
+                         */
+                        amount: string;
                         /**
                          * @example PIX
                          * @enum {string}

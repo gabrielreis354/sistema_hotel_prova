@@ -4382,8 +4382,10 @@
                     "description": "Conta a pagar (T-04.4)"
                   },
                   "amount": {
-                    "type": "number",
-                    "example": 300
+                    "type": "string",
+                    "pattern": "^\\d+(\\.\\d{1,2})?$",
+                    "example": "300.00",
+                    "description": "Valor positivo com até 2 casas, em texto (DECIMAL(12,2))"
                   },
                   "method": {
                     "type": "string",

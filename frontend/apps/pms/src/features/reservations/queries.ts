@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { ApiError } from '../../lib/http.js';
 import { guestKeys } from '../guests/index.js';
 import {
+  createPayment,
   createReservation,
   getBill,
   getReservation,
@@ -9,6 +10,7 @@ import {
   listReservations,
   transitionReservation,
   type CreateReservationInput,
+  type PaymentInput,
   type ReservationListParams,
   type ReservationTransition,
 } from './reservationsApi.js';
@@ -91,6 +93,22 @@ export function useTransitionReservation(id: string) {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: reservationKeys.all });
       qc.invalidateQueries({ queryKey: ['rooms'] });
+    },
+  });
+}
+
+/**
+ * Registra o pagamento do check-out (M5-b). onSettled, não onSuccess: sem resposta o pagamento
+ * pode ter gravado, e a conta recarregada é o que a recepção confere antes de repetir (D7).
+ * Recarrega a reserva inteira (bill e detalhe) e as contas, que mudam de CLOSED para PAID.
+ */
+export function useCreatePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PaymentInput) => createPayment(body),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: reservationKeys.all });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
     },
   });
 }
