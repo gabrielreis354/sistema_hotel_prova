@@ -8,8 +8,9 @@ const occupancy = {
   available: 5,
   cleaning: 2,
   occupancy_rate: 65,
-  adr: 312.5,
-  revpar: 203.13,
+  // String DECIMAL, como o analytics-service devolve desde a T-01.4/H.3.
+  adr: '312.50',
+  revpar: '203.13',
 };
 
 // O Intl separa "R$" do valor com espaço não separável.
@@ -25,9 +26,14 @@ describe('buildKpis', () => {
     expect(brl(kpis[3]!.value)).toBe('R$ 1.250,40');
   });
 
-  it('o float do SQL é arredondado para centavo, sem resto de ponto flutuante', () => {
-    const [, adr] = buildKpis({ ...occupancy, adr: 0.1 + 0.2 }, 0);
+  it('a string DECIMAL vira centavo exato, sem passar por float', () => {
+    const [, adr, , revenue] = buildKpis({ ...occupancy, adr: '0.30' }, '1250.40');
     expect(brl(adr!.value)).toBe('R$ 0,30');
+    expect(brl(revenue!.value)).toBe('R$ 1.250,40');
+  });
+
+  it('número (contrato antigo do core) continua aceito e arredondado para centavo', () => {
+    expect(brl(buildKpis(undefined, 0.1 + 0.2)[3]!.value)).toBe('R$ 0,30');
   });
 
   it('receita zero é zero, não traço', () => {

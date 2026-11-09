@@ -82,8 +82,12 @@ spec:
         - podSelector:
             matchLabels:
               app: backend
+        # [revisão do Weslley] O consumidor do analytics lê a própria fila (T-01.4/H.3).
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       # Só AMQP: a topologia é declarada pelo contêiner `setup` dentro do próprio pod (localhost),
-      # então o backend não tem motivo para alcançar a UI/API de gestão (15672).
+      # então nem o backend nem o analytics têm motivo para alcançar a UI/API de gestão (15672).
       ports:
         - protocol: TCP
           port: 5672
@@ -155,3 +159,47 @@ spec:
   policyTypes:
     - Ingress
   ingress: []
+---
+# [revisão do Weslley] Banco do analytics (T-01.4/H.3): só o próprio analytics-service fala com ele
+# (database per service, ADR-003). O backend não alcança este banco.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: analytics-postgres-ingress
+  namespace: hotel-system
+spec:
+  podSelector:
+    matchLabels:
+      app: analytics-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# [revisão do Weslley] analytics-service (T-01.4/H.3): só o nginx chega à porta HTTP — é por ele que
+# o navegador consulta /analytics/*. O kubelet faz as probes direto no nó, fora da NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: analytics-service-ingress
+  namespace: hotel-system
+spec:
+  podSelector:
+    matchLabels:
+      app: analytics-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nginx
+      ports:
+        - protocol: TCP
+          port: 3001

@@ -3,9 +3,10 @@ import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 
 /**
- * Indicadores do gerente (T-05.6). Hoje vêm do core (`/analytics/*`); quando a H.3 do
- * analytics-service entrar, o nginx passa a rotear o mesmo caminho para ele. Por isso a tela
- * depende só do contrato do Swagger, nunca de detalhe do serviço.
+ * Indicadores do gerente (T-05.6). Desde a H.3 da T-01.4 vêm do analytics-service: o nginx
+ * roteia o mesmo caminho `/analytics/*` para ele, e o contrato está no OpenAPI do analytics,
+ * juntado ao do core no api-client. A tela depende só desse contrato, nunca de detalhe do serviço.
+ * Dinheiro chega como string DECIMAL.
  */
 type Ok<P extends keyof paths> = paths[P] extends {
   get: { responses: { 200: { content: { 'application/json': infer T } } } };
@@ -30,7 +31,7 @@ function fail(what: string, status: number): never {
   throw new ApiError(`Não foi possível carregar ${what}.`, status);
 }
 
-/** `date` vai sempre explícito: o padrão do backend é o dia em UTC, que depois das 21h já é amanhã. */
+/** `date` vai sempre explícito: a tela manda o dia que mostra. Sem ele, o backend usa o dia do hotel (D-68). */
 export async function getOccupancy(date: string): Promise<Occupancy> {
   const { data, response } = await api.GET('/analytics/occupancy', { params: { query: { date } } });
   if (!response.ok || !data) fail('a ocupação', response.status);

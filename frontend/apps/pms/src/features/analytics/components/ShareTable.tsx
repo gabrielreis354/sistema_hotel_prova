@@ -8,7 +8,7 @@ interface ShareTableProps {
   countHeader: string;
   rows: ShareRow[];
   /** Valores em reais das linhas, para o total do rodapé (somado em centavos). */
-  values: number[];
+  values: (string | number)[];
 }
 
 /**
