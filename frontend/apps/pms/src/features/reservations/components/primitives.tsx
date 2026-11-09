@@ -1,6 +1,5 @@
-import { forwardRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
-import { formatBRL, type Cents } from '@hotel/domain';
 import { cn } from '@hotel/ui';
 
 /**
@@ -36,34 +35,9 @@ export function ButtonLink({
   );
 }
 
-/** Valor em reais: alinhado à direita pelo pai, algarismos tabulares, sempre duas casas. */
-export function Money({ cents, className }: { cents: Cents; className?: string }) {
-  return <span className={cn('whitespace-nowrap tabular-nums', className)}>{formatBRL(cents)}</span>;
-}
-
-const NOTICE_TONE = {
-  success: 'border-status-occupied bg-status-occupied/10',
-  error: 'border-status-maintenance bg-status-maintenance/10',
-} as const;
-
-/**
- * Aviso de resultado (sucesso ou erro). O texto é `gray-900` sobre o fundo tingido — o verde
- * e o vermelho do preset não passam de 4,5:1 sobre o próprio tom claro (3,0 e 4,1). A cor fica
- * na borda e no fundo; a leitura fica no texto, que diz o que aconteceu.
- */
-export const Notice = forwardRef<HTMLParagraphElement, { tone: keyof typeof NOTICE_TONE; children: ReactNode }>(
-  ({ tone, children }, ref) => (
-    <p
-      ref={ref}
-      tabIndex={-1}
-      role={tone === 'error' ? 'alert' : 'status'}
-      className={cn('rounded-md border-l-4 p-2 text-sm text-gray-900 focus:outline-none', NOTICE_TONE[tone])}
-    >
-      {children}
-    </p>
-  ),
-);
-Notice.displayName = 'Notice';
+// `Money` e `Notice` subiram para o @hotel/ui na T-05.3 (painel Hoje, segundo módulo).
+// Reexportados aqui para as telas de reservas não mudarem de import.
+export { Money, Notice } from '@hotel/ui';
 
 /** Cabeçalho de página: título à esquerda, ação à direita (quebra no celular). */
 export function PageHeader({ title, action }: { title: string; action?: ReactNode }) {

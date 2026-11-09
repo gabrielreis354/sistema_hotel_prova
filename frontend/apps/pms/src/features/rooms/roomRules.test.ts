@@ -36,8 +36,8 @@ describe('roomStatusOptions', () => {
     expect(enabled('AVAILABLE')).toEqual(['AVAILABLE', 'MAINTENANCE']);
   });
 
-  it('Limpeza so volta para Livre', () => {
-    expect(enabled('CLEANING')).toEqual(['AVAILABLE', 'CLEANING']);
+  it('Limpeza volta para Livre ou vai para Manutencao (defeito achado na limpeza — 04/11)', () => {
+    expect(enabled('CLEANING')).toEqual(['AVAILABLE', 'CLEANING', 'MAINTENANCE']);
   });
 
   it('Manutencao so volta para Livre', () => {

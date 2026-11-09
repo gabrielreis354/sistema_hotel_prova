@@ -1,4 +1,4 @@
-import type { components } from '@hotel/api-client';
+import type { components, paths } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 
@@ -21,6 +21,19 @@ export interface ReservationPage {
 export interface ReservationListParams {
   from: string;
   to: string;
+  page: number;
+  limit: number;
+}
+
+/**
+ * Consulta geral da listagem: período opcional e situação (`status=A,B`, allowlist no servidor).
+ * O painel "Hoje" pede `status=CHECKED_IN` sem período — o hóspede com saída atrasada sairia
+ * da janela de datas. A tela de Reservas continua usando ReservationListParams (período fixo).
+ */
+export interface ReservationQuery {
+  from?: string;
+  to?: string;
+  status?: string;
   page: number;
   limit: number;
 }
@@ -63,7 +76,7 @@ export class RoomConflictError extends ApiError {
  * tenant inteiro (princípio 7). Com page/limit o backend responde sempre { data, total, … };
  * o ramo de array só existe porque o Swagger declara os dois formatos no mesmo 200.
  */
-export async function listReservations(params: ReservationListParams): Promise<ReservationPage> {
+export async function listReservations(params: ReservationQuery): Promise<ReservationPage> {
   const { data, error, response } = await api.GET('/reservations', { params: { query: params } });
   if (error || !response.ok || !data) {
     throw new ApiError(serverMessage(error) ?? 'Falha ao carregar reservas.', response.status);
@@ -131,6 +144,40 @@ export async function createReservation(input: CreateReservationInput): Promise<
   if (response.status === 404) throw new ApiError(CREATE_GONE_MESSAGE, 404);
   if (error || !response.ok || !data) {
     throw new ApiError(serverMessage(error) ?? 'Não foi possível criar a reserva.', response.status);
+  }
+  return data;
+}
+
+export type Payment = components['schemas']['Payment'];
+export type PaymentInput = paths['/payments']['post']['requestBody']['content']['application/json'];
+
+/**
+ * Sem resposta, não se sabe se o pagamento gravou. "Falhou" faria a recepção registrar de novo e
+ * cobrar duas vezes (D7 do M5-b): a mensagem manda conferir a conta, que a tela recarrega.
+ */
+export const PAYMENT_UNKNOWN_MESSAGE =
+  'Sem resposta do servidor. O pagamento pode ter sido registrado: confira a conta abaixo antes de registrar de novo.';
+
+/** Registra um pagamento (POST /payments). Pela reserva no check-out — ver paymentLogic.paymentBody. */
+export async function createPayment(body: PaymentInput): Promise<Payment> {
+  let result;
+  try {
+    result = await api.POST('/payments', { body });
+  } catch {
+    throw new ApiError(PAYMENT_UNKNOWN_MESSAGE, 0);
+  }
+  const { data, error, response } = result;
+  if (response.status === 404) {
+    throw new ApiError('A reserva não existe mais neste hotel — pode ter sido excluída. Nada foi registrado.', 404);
+  }
+  // 502/503/504 sem o corpo do backend: o proxy desistiu ou o servidor caiu, talvez depois do
+  // commit. Mesmo caso da rede: conferir antes de repetir (🟡-2 do qa-redteam). O 503 do próprio
+  // backend (consumo em migração) vem com motivo e é recusado antes de gravar.
+  if ([502, 503, 504].includes(response.status) && !serverMessage(error)) {
+    throw new ApiError(PAYMENT_UNKNOWN_MESSAGE, response.status);
+  }
+  if (error || !response.ok || !data) {
+    throw new ApiError(serverMessage(error) ?? 'Não foi possível registrar o pagamento.', response.status);
   }
   return data;
 }

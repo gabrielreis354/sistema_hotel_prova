@@ -72,11 +72,11 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 | M1 | Quartos e categorias | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #106 (`e4c9ae3`) |
 | M2 | Reservas, check-in e check-out, walk-in | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #108 (`cb04f85`) |
 | M3 | Comanda P2 | Sirlande | 17/11 | Sirlande informa | — |
-| M4 | Painel Hoje (T-05.3) | Gabriel | 10/11 | 🔲 Começa agora. Inclui a barra inferior do celular com 7 itens | prompt §8.2 |
+| M4 | Painel Hoje (T-05.3) | Gabriel | 10/11 | 🟡 Implementada; qa-redteam de 04/11 corrigido na branch em 09/11 (resta 🟡-4 e 🟢); falta o PR. Barra inferior com até 5 abas e menu "Mais" | `feature/t053-painel-hoje` (wt-t053 · PG 5464 · backend 3053 · Vite 5253) |
 | M5-a | Conta em linha do tempo | Gabriel | 30/10 | ✅ Na `develop`, junto com a M2 | #108 |
 | M5-b | Pagamento no check-out | Sirlande | 07/11 | Sirlande informa; o Gabriel revisa a tela antes de 07/11 | — |
-| M5-c | Estorno (backend) | Sirlande | 10/11 | Sirlande informa | — |
-| M6 | PIX | Weslley | 17/11 | Compose com o Asaas e SPEC-03 entraram em 31/10. Webhook com 200 `ignored` (ressalva 🟡-2 de 16/10) no PR #111, conflito resolvido em 04/11 | #111 |
+| M5-c | Estorno (backend) | Sirlande | 10/11 | ✅ Backend pronto em 09/11 (`voided_consumptions` no bill da reserva), aguarda revisão e merge. **Gabriel: a tela pode começar** (sugestão no anexo `SPEC-05-decisoes-CA-05.2.j.md` §1) | `feature/m5c-estorno-visivel` |
+| M6 | PIX | Weslley | 17/11 | Compose com o Asaas e SPEC-03 entraram em 31/10. Webhook com 200 `ignored` (ressalva 🟡-2 de 16/10) na `develop` em 04/11 | #111 |
 | M7-a | analytics-service (H.2) | Gabriel | 29/10 | ✅ Na `develop` em 31/10 | #105 (`fbe086d`) |
 | M7-b | H.3: indicadores servidos pelo analytics | Gabriel | 14/11 | 🟡 qa-redteam: APROVADO COM RESSALVAS; correção dos 4 🟡 em curso | #109 (rascunho), `feature/analytics-cutover` |
 | M8 | Seed e compose | Sirlande e Weslley | 17/11 | Seed do `start.sh` entrou em 30/10 | — |
@@ -154,6 +154,7 @@ Pare e remova o container no fim da sessão.
 | 5443 | PG | repasses |
 | 5444 · 3051 | PG · backend | T-05.1 |
 | 5445 · 3052 | PG · backend | T-05.2 |
+| 5464 · 3053 · 5253 | PG · backend · Vite | T-05.3 |
 | **5446 em diante · 3053 em diante** | livres | próxima frente |
 
 **Arquivos onde as frentes se esbarram:**

@@ -68,13 +68,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Categorias disponíveis no período, com preço da estadia */
+        /**
+         * Categorias disponíveis no período, com preço da estadia
+         * @description Passo 6 do roteiro, 2ª chamada: copie o `category_id` de uma das categorias da resposta para o POST /public/{subdomain}/bookings. O id muda a cada seed, por isso não há exemplo fixo. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.
+         */
         get: {
             parameters: {
                 query: {
-                    /** @example 2026-10-10 */
+                    /** @example 2026-12-15 */
                     check_in: string;
-                    /** @example 2026-10-13 */
+                    /** @example 2026-12-18 */
                     check_out: string;
                     /** @example 2 */
                     guests?: number;
@@ -134,7 +137,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cria reserva online e gera cobrança PIX do sinal */
+        /**
+         * Cria reserva online e gera cobrança PIX do sinal
+         * @description Passo 6 do roteiro, 3ª chamada: a reserva nasce PENDING e a resposta traz o QR do sinal (`pix.qr_code`) e o `pix.provider_charge_id`. Com PIX_PROVIDER=fake (plano B), passe esse id ao scripts/simular_pagamento_pix.js para o webhook confirmar a reserva. Com o Asaas (plano A), o CPF do hóspede é obrigatório. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -148,16 +154,19 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** Format: uuid */
+                        /**
+                         * Format: uuid
+                         * @description Copie de categories[].category_id no GET /public/{subdomain}/availability
+                         */
                         category_id: string;
                         /**
                          * Format: date
-                         * @example 2026-10-10
+                         * @example 2026-12-15
                          */
                         check_in: string;
                         /**
                          * Format: date
-                         * @example 2026-10-13
+                         * @example 2026-12-18
                          */
                         check_out: string;
                         /** @example 2 */
@@ -169,7 +178,10 @@ export interface paths {
                             email?: string;
                             /** @example (11) 99999-9999 */
                             phone?: string;
-                            /** @example 123.456.789-00 */
+                            /**
+                             * @description Obrigatório com PIX_PROVIDER=asaas
+                             * @example 529.982.247-25
+                             */
                             cpf?: string;
                         };
                     };
@@ -221,6 +233,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description Provider PIX indisponível ao gerar a cobrança (ex.: Asaas fora do ar ou chave inválida) — nenhuma reserva é criada */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -236,7 +257,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Status da reserva (polling pós-pagamento PIX) */
+        /**
+         * Status da reserva (polling pós-pagamento PIX)
+         * @description Passo 6 do roteiro, última chamada: use o `reservation.id` do POST. Antes do pagamento, status PENDING e deposit.status PENDING. Depois do webhook, CONFIRMED e PAID.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -297,6 +321,8 @@ export interface paths {
          *     - `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.
          *
          *     A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.
+         *
+         *     Notificação **autêntica** que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 `{ status: "ignored" }`, com log: um 4xx faria o PSP reenviar para sempre, e o Asaas pausa a fila da conta inteira após 15 falhas seguidas.
          */
         post: {
             parameters: {
@@ -340,7 +366,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status) */
+                /** @description Notificação aceita: confirmada, já processada, recusada pelo provider, ainda pendente ou ignorada por não ter cobrança conhecida (ver status) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -349,26 +375,8 @@ export interface paths {
                         "application/json": components["schemas"]["WebhookConfirmResponse"];
                     };
                 };
-                /** @description Id da cobrança ausente ou de tipo inválido */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
                 /** @description Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed) */
                 401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Cobrança não encontrada */
-                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1369,7 +1377,7 @@ export interface paths {
                         /** @description 0 é o térreo; null tira o andar */
                         floor?: number | null;
                         /**
-                         * @description Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito
+                         * @description Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE (limpeza concluída) e CLEANING → MAINTENANCE (defeito achado na limpeza). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito
                          * @enum {string}
                          */
                         status?: "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE";
@@ -1404,7 +1412,7 @@ export interface paths {
                         "application/json": components["schemas"]["RoomError"] | components["schemas"]["Error"];
                     };
                 };
-                /** @description code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito) */
+                /** @description code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE e CLEANING → MAINTENANCE; reenviar o status atual é aceito) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1455,6 +1463,85 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Conclui a limpeza (CLEANING → AVAILABLE) — ADMIN e RECEPTIONIST
+         * @description Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel "Hoje" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Quarto liberado (status AVAILABLE) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Room"];
+                    };
+                };
+                /** @description Token ausente ou inválido */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Papel sem permissão (WAITER) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Quarto não encontrado neste hotel */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING, ou ainda tem reserva CHECKED_IN (como quarto principal ou extra) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1765,6 +1852,8 @@ export interface paths {
                     page?: number;
                     /** @description Itens por página (máx. 100). */
                     limit?: number;
+                    /** @description Uma ou mais situações separadas por vírgula, entre PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT e CANCELLED (maiúsculas). Combina com from/to e paginação. Qualquer item fora da lista → 400. */
+                    status?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1781,7 +1870,7 @@ export interface paths {
                         "application/json": components["schemas"]["ReservationListItem"][] | components["schemas"]["ReservationListPage"];
                     };
                 };
-                /** @description from/to fora do formato YYYY-MM-DD */
+                /** @description from/to fora do formato YYYY-MM-DD, ou status fora da lista */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2109,6 +2198,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoomError"];
                     };
                 };
                 /** @description Check-in não permitido no status atual */
@@ -2698,8 +2796,11 @@ export interface paths {
                          * @description Conta a pagar (T-04.4)
                          */
                         account_id?: string;
-                        /** @example 300 */
-                        amount: number;
+                        /**
+                         * @description Valor positivo com até 2 casas, em texto (DECIMAL(12,2))
+                         * @example 300.00
+                         */
+                        amount: string;
                         /**
                          * @example PIX
                          * @enum {string}
@@ -3031,16 +3132,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Caixa realizado vs esperado vs inadimplência
-         * @description Retorna receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes (reservas ativas sem nenhum pagamento PAID). Filtro por período opcional.
+         * Caixa realizado vs esperado vs valores em aberto
+         * @description Receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13, D-2) por mês, receita esperada (reservas CONFIRMED e CHECKED_IN) e valores em aberto: reservas ativas com saldo > 0, isto é, total_amount − soma dos PAID (D-3). O período filtra a receita realizada pelo dia do pagamento. ADMIN e RECEPTIONIST.
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Data inicial do filtro (YYYY-MM-DD) */
+                    /** @description Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com end. */
                     start?: string;
-                    /** @description Data final do filtro (YYYY-MM-DD) */
+                    /** @description Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com start. */
                     end?: string;
+                    /** @description Máximo de linhas em unpaid (1–100). Padrão: 50. O total vem à parte. */
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -3048,7 +3151,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Resumo financeiro do tenant */
+                /** @description Resumo financeiro do hotel */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3056,36 +3159,73 @@ export interface paths {
                     content: {
                         "application/json": {
                             realized?: {
-                                /** @example 18500 */
-                                total?: number;
+                                /** @example 18500.00 */
+                                total?: string;
                                 by_month?: {
                                     /** @example 2026-01 */
                                     month?: string;
-                                    /** @example 4200 */
-                                    total?: number;
+                                    /** @example 4200.00 */
+                                    total?: string;
                                 }[];
                             };
                             expected?: {
-                                /** @example 6200 */
-                                total?: number;
+                                /** @example 6200.00 */
+                                total?: string;
                             };
                             unpaid?: {
                                 /** Format: uuid */
                                 reservation_id?: string;
-                                /** @example Maria Oliveira */
-                                guest?: string;
-                                /** @example 600 */
-                                amount?: number;
+                                /** Format: uuid */
+                                guest_id?: string;
+                                /**
+                                 * @description null enquanto o evento do hóspede não chegou
+                                 * @example Maria Oliveira
+                                 */
+                                guest?: string | null;
+                                /**
+                                 * @description total_amount da reserva
+                                 * @example 1000.00
+                                 */
+                                amount?: string;
+                                /**
+                                 * @description Soma dos pagamentos PAID
+                                 * @example 300.00
+                                 */
+                                paid?: string;
+                                /**
+                                 * @description amount − paid, sempre > 0
+                                 * @example 700.00
+                                 */
+                                balance?: string;
                                 /** Format: date */
                                 check_in_date?: string;
                                 /** Format: date */
                                 check_out_date?: string;
                             }[];
+                            /**
+                             * @description Quantas reservas estão em aberto; unpaid traz no máximo limit delas
+                             * @example 37
+                             */
+                            unpaid_total?: number;
                         };
                     };
                 };
-                /** @description Token não fornecido ou inválido */
+                /** @description Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Papel sem permissão (WAITER) ou hotel suspenso */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3117,12 +3257,12 @@ export interface paths {
         };
         /**
          * Taxa de ocupação + ADR + RevPAR
-         * @description Retorna contagem de quartos por status, taxa de ocupação percentual, ADR (diária média) e RevPAR (receita por quarto disponível) para a data informada.
+         * @description Quartos por status, taxa de ocupação, ADR (diária média das estadias CHECKED_IN/CHECKED_OUT que passam pela data) e RevPAR (ADR × ocupados / total de quartos). ADMIN e RECEPTIONIST.
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Data de referência (YYYY-MM-DD). Default: hoje. */
+                    /** @description Data de referência (YYYY-MM-DD). Padrão: hoje no fuso do hotel (America/Sao_Paulo, D-68). */
                     date?: string;
                 };
                 header?: never;
@@ -3138,10 +3278,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            /**
-                             * Format: date
-                             * @example 2026-06-27
-                             */
+                            /** Format: date */
                             date?: string;
                             /** @example 15 */
                             total_rooms?: number;
@@ -3157,20 +3294,34 @@ export interface paths {
                              */
                             occupancy_rate?: number;
                             /**
-                             * @description Average Daily Rate — diária média dos quartos vendidos
-                             * @example 312.5
+                             * @description Average Daily Rate — diária média
+                             * @example 312.50
                              */
-                            adr?: number;
+                            adr?: string;
                             /**
-                             * @description Revenue Per Available Room — ADR × occupancy_rate / 100
-                             * @example 187.5
+                             * @description Revenue Per Available Room — ADR × ocupados / total
+                             * @example 187.50
                              */
-                            revpar?: number;
+                            revpar?: string;
                         };
                     };
                 };
-                /** @description Token não fornecido ou inválido */
+                /** @description Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Papel sem permissão (WAITER) ou hotel suspenso */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3202,66 +3353,93 @@ export interface paths {
         };
         /**
          * Alertas operacionais do dia
-         * @description Retorna três listas de atenção imediata: risco de no-show (CONFIRMED sem pagamento com check-in hoje), quartos em limpeza há tempo e reservas PENDING há mais de 48h.
+         * @description Risco de no-show (CONFIRMED com check-in hoje sem nenhum pagamento PAID — D-3), quartos em limpeza e reservas PENDING há mais de 48 h. Sem telefone do hóspede (D-1): a tela abre a ficha no core pelo guest_id. ADMIN e RECEPTIONIST.
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Máximo de linhas em cada lista (1–100). Padrão: 50. O total vem à parte. */
+                    limit?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description Alertas agrupados por categoria */
+                /** @description Alertas agrupados */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            /** @description Reservas confirmadas para hoje sem pagamento */
                             no_show_risk?: {
                                 /** Format: uuid */
                                 reservation_id?: string;
+                                /** Format: uuid */
+                                guest_id?: string;
                                 /** @example João Silva */
-                                guest?: string;
-                                /** @example (11) 99999-9999 */
-                                guest_phone?: string;
+                                guest?: string | null;
                                 /** Format: date */
                                 check_in_date?: string;
-                                /** @example 450 */
-                                amount?: number;
+                                /** @example 450.00 */
+                                amount?: string;
                             }[];
-                            /** @description Quartos com status CLEANING */
                             cleaning_pending?: {
                                 /** Format: uuid */
                                 room_id?: string;
                                 /** @example 204 */
                                 room_number?: string;
                                 /** @example Standard */
-                                category?: string;
+                                category?: string | null;
                                 /** Format: date-time */
                                 cleaning_since?: string;
                             }[];
-                            /** @description Reservas PENDING criadas há mais de 48h */
                             pending_too_long?: {
                                 /** Format: uuid */
                                 reservation_id?: string;
+                                /** Format: uuid */
+                                guest_id?: string;
                                 /** @example Ana Costa */
-                                guest?: string;
+                                guest?: string | null;
                                 /** Format: date */
                                 check_in_date?: string;
-                                /** @example 300 */
-                                amount?: number;
+                                /** @example 300.00 */
+                                amount?: string;
+                                /** Format: date-time */
+                                created_at?: string;
                                 /** @example 72.5 */
                                 hours_pending?: number;
                             }[];
+                            /** @description Total de cada lista; cada uma traz no máximo limit linhas */
+                            totals?: {
+                                /** @example 3 */
+                                no_show_risk?: number;
+                                /** @example 2 */
+                                cleaning_pending?: number;
+                                /** @example 1 */
+                                pending_too_long?: number;
+                            };
                         };
                     };
                 };
-                /** @description Token não fornecido ou inválido */
+                /** @description Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Papel sem permissão (WAITER) ou hotel suspenso */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3293,12 +3471,12 @@ export interface paths {
         };
         /**
          * Histórico mensal de reservas e receita
-         * @description Retorna dados agrupados por mês para identificar sazonalidade: número de reservas, receita total e média de noites por reserva.
+         * @description Por mês de check-in: reservas não canceladas, receita e noites médias. ADMIN e RECEPTIONIST.
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Quantos meses de histórico retornar (1–60). Default: 12. */
+                    /** @description Meses de histórico (1–60). Padrão: 12. */
                     months?: number;
                 };
                 header?: never;
@@ -3307,7 +3485,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Array de meses com indicadores */
+                /** @description Meses com indicadores */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3318,22 +3496,29 @@ export interface paths {
                             month?: string;
                             /** @example 8 */
                             reservations?: number;
-                            /** @example 5200 */
-                            revenue?: number;
+                            /** @example 5200.00 */
+                            revenue?: string;
                             /** @example 3.2 */
                             avg_nights?: number;
                         }[];
                     };
                 };
-                /** @description months fora do intervalo permitido (1–60) */
+                /** @description Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo) */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description Token não fornecido ou inválido */
+                /** @description Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Papel sem permissão (WAITER) ou hotel suspenso */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3364,15 +3549,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Receita e rentabilidade por categoria de quarto
-         * @description Ranqueia as categorias de quarto por receita gerada, mostrando número de reservas e ticket médio por categoria.
+         * Receita e ticket médio por categoria de quarto
+         * @description Categorias do quarto principal ordenadas pela receita das reservas não canceladas. Reserva cujo quarto ou categoria ainda não chegou à projeção entra na linha "Sem categoria" (category_id e category null). ADMIN e RECEPTIONIST.
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Data inicial (YYYY-MM-DD) */
+                    /** @description Data inicial (YYYY-MM-DD), inclusiva, sobre a data de check-in. Só filtra junto com end. */
                     start?: string;
-                    /** @description Data final (YYYY-MM-DD) */
+                    /** @description Data final (YYYY-MM-DD), inclusiva, sobre a data de check-in. Só filtra junto com start. */
                     end?: string;
                 };
                 header?: never;
@@ -3381,26 +3566,48 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Ranking de categorias por receita */
+                /** @description Ranking de categorias */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            /** @example Suite Presidencial */
-                            category?: string;
+                            /**
+                             * Format: uuid
+                             * @description null = sem categoria
+                             */
+                            category_id?: string | null;
+                            /**
+                             * @description null = sem categoria
+                             * @example Suíte
+                             */
+                            category?: string | null;
                             /** @example 2 */
                             reservations?: number;
-                            /** @example 5600 */
-                            revenue?: number;
-                            /** @example 2800 */
-                            avg_ticket?: number;
+                            /** @example 5600.00 */
+                            revenue?: string;
+                            /** @example 2800.00 */
+                            avg_ticket?: string;
                         }[];
                     };
                 };
-                /** @description Token não fornecido ou inválido */
+                /** @description Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Papel sem permissão (WAITER) ou hotel suspenso */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3432,14 +3639,14 @@ export interface paths {
         };
         /**
          * Mix de meios de pagamento com percentual
-         * @description Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período. Só pagamentos PAID (estornados VOIDED e excluídos não contam — T-06.13).
+         * @description Pagamentos PAID por meio (estornados VOIDED e excluídos não contam), com total e percentual sobre o período. ADMIN e RECEPTIONIST.
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Data inicial (YYYY-MM-DD) */
+                    /** @description Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com end. */
                     start?: string;
-                    /** @description Data final (YYYY-MM-DD) */
+                    /** @description Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com start. */
                     end?: string;
                 };
                 header?: never;
@@ -3448,7 +3655,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Mix de pagamentos ordenado por total */
+                /** @description Mix ordenado por total */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3459,8 +3666,8 @@ export interface paths {
                             method?: string;
                             /** @example 9 */
                             count?: number;
-                            /** @example 11200 */
-                            total?: number;
+                            /** @example 11200.00 */
+                            total?: string;
                             /**
                              * @description Percentual sobre o total do período
                              * @example 60.54
@@ -3469,8 +3676,22 @@ export interface paths {
                         }[];
                     };
                 };
-                /** @description Token não fornecido ou inválido */
+                /** @description Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Papel sem permissão (WAITER) ou hotel suspenso */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3501,13 +3722,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Hóspedes mais valiosos por lifetime value
-         * @description Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).
+         * Hóspedes mais valiosos por valor acumulado
+         * @description Soma das reservas não canceladas por hóspede, com estadias e última saída. Só ADMIN: é dado pessoal (RT-51). Sem e-mail (D-1).
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Quantidade de hóspedes a retornar (1–100). Default: 10. */
+                    /** @description Quantos hóspedes (1–100). Padrão: 10. */
                     limit?: number;
                 };
                 header?: never;
@@ -3516,7 +3737,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Ranking de hóspedes por lifetime value */
+                /** @description Ranking de hóspedes */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3529,24 +3750,21 @@ export interface paths {
                             full_name?: string;
                             /** @example 3 */
                             total_reservations?: number;
-                            /** @example 4200 */
-                            lifetime_value?: number;
-                            /**
-                             * Format: date
-                             * @example 2026-06-20
-                             */
+                            /** @example 4200.00 */
+                            lifetime_value?: string;
+                            /** Format: date */
                             last_stay?: string;
                         }[];
                     };
                 };
-                /** @description limit fora do intervalo permitido (1–100) */
+                /** @description Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo) */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description Token não fornecido ou inválido */
+                /** @description Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics */
                 401: {
                     headers: {
                         [name: string]: unknown;
@@ -4914,7 +5132,7 @@ export interface components {
         RoomError: {
             error: string;
             /** @enum {string} */
-            code: "INVALID_INPUT" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CATEGORY_NAME_TAKEN" | "ROOM_NUMBER_TAKEN" | "ROOM_IN_USE" | "ROOM_STATUS_TRANSITION_NOT_ALLOWED";
+            code: "INVALID_INPUT" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CATEGORY_NAME_TAKEN" | "ROOM_NUMBER_TAKEN" | "ROOM_IN_USE" | "ROOM_STATUS_TRANSITION_NOT_ALLOWED" | "ROOM_NOT_AVAILABLE";
             /**
              * @description Só no 400 INVALID_INPUT
              * @example price_per_night
@@ -4943,6 +5161,8 @@ export interface components {
                 id?: string;
                 number?: string;
                 floor?: number | null;
+                /** @enum {string} */
+                status?: "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE";
             } | null;
             user?: {
                 /** Format: uuid */
@@ -5057,6 +5277,28 @@ export interface components {
                 amount?: number;
                 /** Format: date-time */
                 consumed_at?: string;
+            }[];
+            /** @description Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui */
+            voided_consumptions: {
+                /** Format: uuid */
+                id: string;
+                description: string;
+                /** @example 120 */
+                amount: number;
+                /** Format: date-time */
+                consumed_at: string;
+                /**
+                 * Format: date-time
+                 * @description Quando foi estornado
+                 */
+                deleted_at: string;
+                /** @description Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo quando não há registro de quem autorizou: estorno antigo do consumo migrado sem deleted_by, ou usuário gravado que não é deste hotel (dado inconsistente — o nome de outro hotel nunca sai) */
+                deleted_by: {
+                    /** Format: uuid */
+                    id: string;
+                    /** @example Marta Gerente */
+                    name: string;
+                } | null;
             }[];
             payments?: {
                 /** Format: uuid */
@@ -5262,10 +5504,10 @@ export interface components {
                 paid_at?: string | null;
             } | null;
         };
-        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) */
+        /** @description POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e "ignored" para notificação autêntica sem id de cobrança ou com cobrança desconhecida */
         WebhookConfirmResponse: {
             /** @enum {string} */
-            status?: "confirmed" | "already_processed" | "not_approved" | "pending";
+            status?: "confirmed" | "already_processed" | "not_approved" | "pending" | "ignored";
             /** Format: uuid */
             payment_id?: string;
             /**

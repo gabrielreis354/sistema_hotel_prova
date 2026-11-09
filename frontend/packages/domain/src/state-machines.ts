@@ -47,11 +47,12 @@ export const ROOM_STATUSES = ['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'
 export type RoomStatus = (typeof ROOM_STATUSES)[number];
 
 // AVAILABLE → OCCUPIED (check-in) → CLEANING (check-out) → AVAILABLE (limpeza concluída).
-// MAINTENANCE é bloqueio manual; entra/sai de AVAILABLE.
+// MAINTENANCE é bloqueio manual; entra/sai de AVAILABLE, e entra também de CLEANING (defeito
+// achado na limpeza — decisão do Gabriel de 04/11/2026).
 const ROOM_TRANSITIONS: Record<RoomStatus, RoomStatus[]> = {
   AVAILABLE: ['OCCUPIED', 'MAINTENANCE'],
   OCCUPIED: ['CLEANING'],
-  CLEANING: ['AVAILABLE'],
+  CLEANING: ['AVAILABLE', 'MAINTENANCE'],
   MAINTENANCE: ['AVAILABLE'],
 };
 

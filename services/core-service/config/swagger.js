@@ -5,6 +5,13 @@ import { ACCOUNT_TYPES, ACCOUNT_STATUSES, ITEM_REASONS, ITEM_ORIGINS } from '../
 import { PAYMENT_METHODS, PAYMENT_STATUSES } from '../app/utils/paymentEnums.js';
 import { ROOM_STATUSES } from '../app/utils/roomRules.js';
 
+// Datas de exemplo do passo 6 do roteiro (reserva direta pelo Swagger). Fixas, não relativas a
+// "hoje": o openapi.json é versionado e o job de contrato do CI falharia todo dia com data móvel.
+// Ficam depois do último ensaio e da entrega de 10/12/2026. A partir de 15/12/2026 viram data
+// passada: troque antes de usar o passo 6 de novo (5º semestre).
+const PASSO6_CHECK_IN = '2026-12-15';
+const PASSO6_CHECK_OUT = '2026-12-18';
+
 const options = {
     definition: {
         openapi: '3.0.0',
@@ -240,7 +247,7 @@ const options = {
                     required: ['error', 'code'],
                     properties: {
                         error:  { type: 'string' },
-                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED'] },
+                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED', 'ROOM_NOT_AVAILABLE'] },
                         field:  { type: 'string', description: 'Só no 400 INVALID_INPUT', example: 'price_per_night' },
                         errors: { type: 'array', items: { type: 'string' }, description: 'Só no 400 INVALID_INPUT' }
                     }
@@ -262,7 +269,8 @@ const options = {
                                 id: { type: 'string', format: 'uuid' }, full_name: { type: 'string' }, email: { type: 'string', nullable: true }
                             }},
                             room: { type: 'object', nullable: true, properties: {
-                                id: { type: 'string', format: 'uuid' }, number: { type: 'string' }, floor: { type: 'integer', nullable: true }
+                                id: { type: 'string', format: 'uuid' }, number: { type: 'string' }, floor: { type: 'integer', nullable: true },
+                                status: { type: 'string', enum: ROOM_STATUSES }
                             }},
                             user: { type: 'object', nullable: true, properties: {
                                 id: { type: 'string', format: 'uuid' }, name: { type: 'string' }
@@ -324,6 +332,8 @@ const options = {
                 Bill: {
                     type: 'object',
                     description: 'Fechamento de conta — GET /reservations/{id}/bill',
+                    // O servidor sempre manda a lista (vazia sem estorno): obrigatória no cliente tipado.
+                    required: ['voided_consumptions'],
                     properties: {
                         reservation_id:      { type: 'string', format: 'uuid' },
                         status:              { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED'] },
@@ -341,6 +351,22 @@ const options = {
                             id: { type: 'string', format: 'uuid' }, description: { type: 'string' },
                             amount: { type: 'number' }, consumed_at: { type: 'string', format: 'date-time' }
                         }}},
+                        voided_consumptions: {
+                            type: 'array',
+                            description: 'Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui',
+                            items: { type: 'object', required: ['id', 'description', 'amount', 'consumed_at', 'deleted_at', 'deleted_by'], properties: {
+                                id: { type: 'string', format: 'uuid' }, description: { type: 'string' },
+                                amount: { type: 'number', example: 120.00 },
+                                consumed_at: { type: 'string', format: 'date-time' },
+                                deleted_at: { type: 'string', format: 'date-time', description: 'Quando foi estornado' },
+                                deleted_by: {
+                                    type: 'object', nullable: true,
+                                    description: 'Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo quando não há registro de quem autorizou: estorno antigo do consumo migrado sem deleted_by, ou usuário gravado que não é deste hotel (dado inconsistente — o nome de outro hotel nunca sai)',
+                                    required: ['id', 'name'],
+                                    properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string', example: 'Marta Gerente' } }
+                                }
+                            }}
+                        },
                         payments: { type: 'array', items: { type: 'object', properties: {
                             id: { type: 'string', format: 'uuid' }, amount: { type: 'number' }, method: { type: 'string' },
                             kind: { type: 'string', enum: ['FULL', 'DEPOSIT', 'BALANCE'] },
@@ -485,9 +511,9 @@ const options = {
                 },
                 WebhookConfirmResponse: {
                     type: 'object',
-                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) e "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação)',
+                    description: 'POST /webhooks/pix — "confirmed" na primeira confirmação, "already_processed" em reenvio (idempotência), "not_approved" quando o provider recusou a cobrança (o pagamento vira FAILED) "pending" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e "ignored" para notificação autêntica sem id de cobrança ou com cobrança desconhecida',
                     properties: {
-                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending'] },
+                        status:             { type: 'string', enum: ['confirmed', 'already_processed', 'not_approved', 'pending', 'ignored'] },
                         payment_id:         { type: 'string', format: 'uuid' },
                         reservation_id:     { type: 'string', format: 'uuid', nullable: true, description: 'Só vem quando status é confirmed' },
                         reservation_status: { type: 'string', nullable: true, description: 'Só vem quando status é confirmed' }
@@ -514,11 +540,12 @@ const options = {
                 get: {
                     tags: ['Reserva Direta (Público)'],
                     summary: 'Categorias disponíveis no período, com preço da estadia',
+                    description: 'Passo 6 do roteiro, 2ª chamada: copie o `category_id` de uma das categorias da resposta para o POST /public/{subdomain}/bookings. O id muda a cada seed, por isso não há exemplo fixo. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.',
                     security: [],
                     parameters: [
                         { in: 'path',  name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' },
-                        { in: 'query', name: 'check_in',  required: true, schema: { type: 'string', format: 'date' }, example: '2026-10-10' },
-                        { in: 'query', name: 'check_out', required: true, schema: { type: 'string', format: 'date' }, example: '2026-10-13' },
+                        { in: 'query', name: 'check_in',  required: true, schema: { type: 'string', format: 'date' }, example: PASSO6_CHECK_IN },
+                        { in: 'query', name: 'check_out', required: true, schema: { type: 'string', format: 'date' }, example: PASSO6_CHECK_OUT },
                         { in: 'query', name: 'guests',    required: false, schema: { type: 'integer' }, example: 2 }
                     ],
                     responses: {
@@ -532,20 +559,22 @@ const options = {
                 post: {
                     tags: ['Reserva Direta (Público)'],
                     summary: 'Cria reserva online e gera cobrança PIX do sinal',
+                    description: 'Passo 6 do roteiro, 3ª chamada: a reserva nasce PENDING e a resposta traz o QR do sinal (`pix.qr_code`) e o `pix.provider_charge_id`. Com PIX_PROVIDER=fake (plano B), passe esse id ao scripts/simular_pagamento_pix.js para o webhook confirmar a reserva. Com o Asaas (plano A), o CPF do hóspede é obrigatório. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.',
                     security: [],
                     parameters: [{ in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' }],
                     requestBody: {
                         required: true,
                         content: { 'application/json': { schema: { type: 'object', required: ['category_id', 'check_in', 'check_out', 'guest'], properties: {
-                            category_id: { type: 'string', format: 'uuid' },
-                            check_in:    { type: 'string', format: 'date', example: '2026-10-10' },
-                            check_out:   { type: 'string', format: 'date', example: '2026-10-13' },
+                            category_id: { type: 'string', format: 'uuid', description: 'Copie de categories[].category_id no GET /public/{subdomain}/availability' },
+                            check_in:    { type: 'string', format: 'date', example: PASSO6_CHECK_IN },
+                            check_out:   { type: 'string', format: 'date', example: PASSO6_CHECK_OUT },
                             guests:      { type: 'integer', example: 2 },
                             guest: { type: 'object', required: ['full_name'], properties: {
                                 full_name: { type: 'string', example: 'Maria Oliveira' },
                                 email:     { type: 'string', example: 'maria@example.com' },
                                 phone:     { type: 'string', example: '(11) 99999-9999' },
-                                cpf:       { type: 'string', example: '123.456.789-00' }
+                                // CPF fictício de domínio público, com dígitos verificadores válidos: o Asaas recusa CPF malformado.
+                                cpf:       { type: 'string', example: '529.982.247-25', description: 'Obrigatório com PIX_PROVIDER=asaas' }
                             }}
                         }}}}
                     },
@@ -554,7 +583,8 @@ const options = {
                         400: { description: 'Campos obrigatórios ausentes (formato ValidationErrors) ou datas inválidas (formato Error)', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/ValidationErrors' }, { $ref: '#/components/schemas/Error' }] } } } },
                         404: { description: 'Hotel ou categoria não encontrados', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Sem disponibilidade na categoria para o período, ou CPF/e-mail do hóspede criado por outra requisição simultânea (corrida no find-or-create — reenviar resolve)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        422: { description: 'Categoria não comporta os hóspedes ou sem preço', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        422: { description: 'Categoria não comporta os hóspedes ou sem preço', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        503: { description: 'Provider PIX indisponível ao gerar a cobrança (ex.: Asaas fora do ar ou chave inválida) — nenhuma reserva é criada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
             },
@@ -562,6 +592,7 @@ const options = {
                 get: {
                     tags: ['Reserva Direta (Público)'],
                     summary: 'Status da reserva (polling pós-pagamento PIX)',
+                    description: 'Passo 6 do roteiro, última chamada: use o `reservation.id` do POST. Antes do pagamento, status PENDING e deposit.status PENDING. Depois do webhook, CONFIRMED e PAID.',
                     security: [],
                     parameters: [
                         { in: 'path', name: 'subdomain', required: true, schema: { type: 'string' }, example: 'aurora' },
@@ -582,7 +613,8 @@ const options = {
                         '- `asaas`: cabeçalho `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (o Asaas não assina o corpo; o token não pode ser a API Key). Corpo: `{ event, payment: { id } }`. Cadastro em Integrações → Webhooks — ver docs/pagamentos/ASAAS_SANDBOX.md.\n' +
                         '- `mercadopago`: cabeçalhos `x-signature` (`ts=…,v1=…`) e `x-request-id`, HMAC com `MERCADOPAGO_WEBHOOK_SECRET`. Id em `?data.id=` ou `data.id` no corpo.\n' +
                         '- `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.\n\n' +
-                        'A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.',
+                        'A notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.\n\n' +
+                        'Notificação **autêntica** que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 `{ status: "ignored" }`, com log: um 4xx faria o PSP reenviar para sempre, e o Asaas pausa a fila da conta inteira após 15 falhas seguidas.',
                     security: [],
                     parameters: [
                         { in: 'header', name: 'x-pix-signature', required: false, schema: { type: 'string', example: 'sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2' }, description: 'Provider fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>' },
@@ -608,10 +640,8 @@ const options = {
                         ] } } }
                     },
                     responses: {
-                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider ou ainda pendente (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
-                        400: { description: 'Id da cobrança ausente ou de tipo inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        200: { description: 'Notificação aceita: confirmada, já processada, recusada pelo provider, ainda pendente ou ignorada por não ter cobrança conhecida (ver status)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookConfirmResponse' } } } },
                         401: { description: 'Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-                        404: { description: 'Cobrança não encontrada', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         503: { description: 'Status da cobrança indisponível no provider — o PSP deve reenviar', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
@@ -844,13 +874,13 @@ const options = {
                         category_id: { type: 'string', format: 'uuid', description: 'Categoria do próprio hotel, não excluída' },
                         number: { type: 'string', example: '101', description: 'Texto não vazio; gravado aparado' },
                         floor: { type: 'integer', nullable: true, description: '0 é o térreo; null tira o andar' },
-                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
+                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE (limpeza concluída) e CLEANING → MAINTENANCE (defeito achado na limpeza). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
                         400: { description: 'code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         404: { description: 'code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/RoomError' }, { $ref: '#/components/schemas/Error' }] } } } },
-                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE e CLEANING → MAINTENANCE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 },
                 delete: {
@@ -859,6 +889,20 @@ const options = {
                         204: { description: 'OK' },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'code ROOM_IN_USE — Quarto OCCUPIED ou com reserva PENDING, CONFIRMED ou CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                    }
+                }
+            },
+            '/rooms/{id}/release': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                put: {
+                    tags: ['Quartos'], summary: 'Conclui a limpeza (CLEANING → AVAILABLE) — ADMIN e RECEPTIONIST',
+                    description: 'Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel "Hoje" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).',
+                    responses: {
+                        200: { description: 'Quarto liberado (status AVAILABLE)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
+                        401: { description: 'Token ausente ou inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Papel sem permissão (WAITER)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Quarto não encontrado neste hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING, ou ainda tem reserva CHECKED_IN (como quarto principal ou extra)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
@@ -931,7 +975,8 @@ const options = {
                         { in: 'query', name: 'from',  required: false, schema: { type: 'string', format: 'date' }, description: 'Início do intervalo (YYYY-MM-DD). Devolve reservas que se sobrepõem ao período.' },
                         { in: 'query', name: 'to',    required: false, schema: { type: 'string', format: 'date' }, description: 'Fim do intervalo (YYYY-MM-DD).' },
                         { in: 'query', name: 'page',  required: false, schema: { type: 'integer', minimum: 1 }, description: 'Página (1+). Presente page ou limit, a resposta vira { data, total, page, limit }.' },
-                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' }
+                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' },
+                        { in: 'query', name: 'status', required: false, schema: { type: 'string', example: 'PENDING,CONFIRMED' }, description: 'Uma ou mais situações separadas por vírgula, entre PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT e CANCELLED (maiúsculas). Combina com from/to e paginação. Qualquer item fora da lista → 400.' }
                     ],
                     responses: {
                         200: {
@@ -941,7 +986,7 @@ const options = {
                                 { $ref: '#/components/schemas/ReservationListPage' }
                             ]}}}
                         },
-                        400: { description: 'from/to fora do formato YYYY-MM-DD', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'from/to fora do formato YYYY-MM-DD, ou status fora da lista', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
                 post: {
@@ -1006,6 +1051,7 @@ const options = {
                     responses: {
                         200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam.', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         422: { description: 'Check-in não permitido no status atual', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
@@ -1128,7 +1174,9 @@ const options = {
                         properties: {
                             reservation_id: { type: 'string', format: 'uuid', description: 'Com account_id, opcional; se vier, tem de ser a reserva da conta' },
                             account_id:     { type: 'string', format: 'uuid', description: 'Conta a pagar (T-04.4)' },
-                            amount:         { type: 'number', example: 300.00 },
+                            // Texto, como na resposta e no PUT: dinheiro não passa por float no cliente (M5-b).
+                            // O backend lê pelo toCents, que aceita texto e número; cliente antigo segue valendo.
+                            amount:         { type: 'string', pattern: '^\\d+(\\.\\d{1,2})?$', example: '300.00', description: 'Valor positivo com até 2 casas, em texto (DECIMAL(12,2))' },
                             method:         { type: 'string', enum: PAYMENT_METHODS, example: 'PIX' },
                             paid_at:        { type: 'string', format: 'date-time', description: 'Opcional; ausente ou nulo = agora. Se vier, data ISO-8601 válida' }
                         }
@@ -1198,226 +1246,9 @@ const options = {
                     }
                 }
             },
-            '/analytics/revenue': {
-                get: {
-                    tags: ['Analytics'],
-                    summary: 'Caixa realizado vs esperado vs inadimplência',
-                    description: 'Retorna receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes (reservas ativas sem nenhum pagamento PAID). Filtro por período opcional.',
-                    parameters: [
-                        { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-01-01' }, description: 'Data inicial do filtro (YYYY-MM-DD)' },
-                        { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: 'Data final do filtro (YYYY-MM-DD)' }
-                    ],
-                    responses: {
-                        200: {
-                            description: 'Resumo financeiro do tenant',
-                            content: { 'application/json': { schema: {
-                                type: 'object',
-                                properties: {
-                                    realized: {
-                                        type: 'object',
-                                        properties: {
-                                            total:    { type: 'number', example: 18500.00 },
-                                            by_month: { type: 'array', items: { type: 'object', properties: {
-                                                month: { type: 'string', example: '2026-01' },
-                                                total: { type: 'number', example: 4200.00 }
-                                            }}}
-                                        }
-                                    },
-                                    expected: { type: 'object', properties: { total: { type: 'number', example: 6200.00 } } },
-                                    unpaid: { type: 'array', items: { type: 'object', properties: {
-                                        reservation_id: { type: 'string', format: 'uuid' },
-                                        guest:          { type: 'string', example: 'Maria Oliveira' },
-                                        amount:         { type: 'number', example: 600.00 },
-                                        check_in_date:  { type: 'string', format: 'date' },
-                                        check_out_date: { type: 'string', format: 'date' }
-                                    }}}
-                                }
-                            }}}
-                        },
-                        401: { description: 'Token não fornecido ou inválido' },
-                        500: { description: 'Erro interno' }
-                    }
-                }
-            },
-            '/analytics/occupancy': {
-                get: {
-                    tags: ['Analytics'],
-                    summary: 'Taxa de ocupação + ADR + RevPAR',
-                    description: 'Retorna contagem de quartos por status, taxa de ocupação percentual, ADR (diária média) e RevPAR (receita por quarto disponível) para a data informada.',
-                    parameters: [
-                        { in: 'query', name: 'date', required: false, schema: { type: 'string', format: 'date', example: '2026-06-27' }, description: 'Data de referência (YYYY-MM-DD). Default: hoje.' }
-                    ],
-                    responses: {
-                        200: {
-                            description: 'Indicadores de ocupação do dia',
-                            content: { 'application/json': { schema: {
-                                type: 'object',
-                                properties: {
-                                    date:            { type: 'string', format: 'date', example: '2026-06-27' },
-                                    total_rooms:     { type: 'integer', example: 15 },
-                                    occupied:        { type: 'integer', example: 9 },
-                                    available:       { type: 'integer', example: 4 },
-                                    cleaning:        { type: 'integer', example: 2 },
-                                    occupancy_rate:  { type: 'number', example: 60.00, description: 'Percentual de ocupação (0–100)' },
-                                    adr:             { type: 'number', example: 312.50, description: 'Average Daily Rate — diária média dos quartos vendidos' },
-                                    revpar:          { type: 'number', example: 187.50, description: 'Revenue Per Available Room — ADR × occupancy_rate / 100' }
-                                }
-                            }}}
-                        },
-                        401: { description: 'Token não fornecido ou inválido' },
-                        500: { description: 'Erro interno' }
-                    }
-                }
-            },
-            '/analytics/alerts': {
-                get: {
-                    tags: ['Analytics'],
-                    summary: 'Alertas operacionais do dia',
-                    description: 'Retorna três listas de atenção imediata: risco de no-show (CONFIRMED sem pagamento com check-in hoje), quartos em limpeza há tempo e reservas PENDING há mais de 48h.',
-                    responses: {
-                        200: {
-                            description: 'Alertas agrupados por categoria',
-                            content: { 'application/json': { schema: {
-                                type: 'object',
-                                properties: {
-                                    no_show_risk: { type: 'array', description: 'Reservas confirmadas para hoje sem pagamento', items: { type: 'object', properties: {
-                                        reservation_id: { type: 'string', format: 'uuid' },
-                                        guest:          { type: 'string', example: 'João Silva' },
-                                        guest_phone:    { type: 'string', example: '(11) 99999-9999' },
-                                        check_in_date:  { type: 'string', format: 'date' },
-                                        amount:         { type: 'number', example: 450.00 }
-                                    }}},
-                                    cleaning_pending: { type: 'array', description: 'Quartos com status CLEANING', items: { type: 'object', properties: {
-                                        room_id:        { type: 'string', format: 'uuid' },
-                                        room_number:    { type: 'string', example: '204' },
-                                        category:       { type: 'string', example: 'Standard' },
-                                        cleaning_since: { type: 'string', format: 'date-time' }
-                                    }}},
-                                    pending_too_long: { type: 'array', description: 'Reservas PENDING criadas há mais de 48h', items: { type: 'object', properties: {
-                                        reservation_id: { type: 'string', format: 'uuid' },
-                                        guest:          { type: 'string', example: 'Ana Costa' },
-                                        check_in_date:  { type: 'string', format: 'date' },
-                                        amount:         { type: 'number', example: 300.00 },
-                                        hours_pending:  { type: 'number', example: 72.5 }
-                                    }}}
-                                }
-                            }}}
-                        },
-                        401: { description: 'Token não fornecido ou inválido' },
-                        500: { description: 'Erro interno' }
-                    }
-                }
-            },
-            '/analytics/seasonality': {
-                get: {
-                    tags: ['Analytics'],
-                    summary: 'Histórico mensal de reservas e receita',
-                    description: 'Retorna dados agrupados por mês para identificar sazonalidade: número de reservas, receita total e média de noites por reserva.',
-                    parameters: [
-                        { in: 'query', name: 'months', required: false, schema: { type: 'integer', minimum: 1, maximum: 60, example: 12 }, description: 'Quantos meses de histórico retornar (1–60). Default: 12.' }
-                    ],
-                    responses: {
-                        200: {
-                            description: 'Array de meses com indicadores',
-                            content: { 'application/json': { schema: {
-                                type: 'array',
-                                items: { type: 'object', properties: {
-                                    month:        { type: 'string', example: '2026-01' },
-                                    reservations: { type: 'integer', example: 8 },
-                                    revenue:      { type: 'number', example: 5200.00 },
-                                    avg_nights:   { type: 'number', example: 3.2 }
-                                }}
-                            }}}
-                        },
-                        400: { description: 'months fora do intervalo permitido (1–60)' },
-                        401: { description: 'Token não fornecido ou inválido' },
-                        500: { description: 'Erro interno' }
-                    }
-                }
-            },
-            '/analytics/revenue-by-category': {
-                get: {
-                    tags: ['Analytics'],
-                    summary: 'Receita e rentabilidade por categoria de quarto',
-                    description: 'Ranqueia as categorias de quarto por receita gerada, mostrando número de reservas e ticket médio por categoria.',
-                    parameters: [
-                        { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-01-01' }, description: 'Data inicial (YYYY-MM-DD)' },
-                        { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: 'Data final (YYYY-MM-DD)' }
-                    ],
-                    responses: {
-                        200: {
-                            description: 'Ranking de categorias por receita',
-                            content: { 'application/json': { schema: {
-                                type: 'array',
-                                items: { type: 'object', properties: {
-                                    category:     { type: 'string', example: 'Suite Presidencial' },
-                                    reservations: { type: 'integer', example: 2 },
-                                    revenue:      { type: 'number', example: 5600.00 },
-                                    avg_ticket:   { type: 'number', example: 2800.00 }
-                                }}
-                            }}}
-                        },
-                        401: { description: 'Token não fornecido ou inválido' },
-                        500: { description: 'Erro interno' }
-                    }
-                }
-            },
-            '/analytics/payment-mix': {
-                get: {
-                    tags: ['Analytics'],
-                    summary: 'Mix de meios de pagamento com percentual',
-                    description: 'Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período. Só pagamentos PAID (estornados VOIDED e excluídos não contam — T-06.13).',
-                    parameters: [
-                        { in: 'query', name: 'start', required: false, schema: { type: 'string', format: 'date', example: '2026-01-01' }, description: 'Data inicial (YYYY-MM-DD)' },
-                        { in: 'query', name: 'end',   required: false, schema: { type: 'string', format: 'date', example: '2026-06-30' }, description: 'Data final (YYYY-MM-DD)' }
-                    ],
-                    responses: {
-                        200: {
-                            description: 'Mix de pagamentos ordenado por total',
-                            content: { 'application/json': { schema: {
-                                type: 'array',
-                                items: { type: 'object', properties: {
-                                    method: { type: 'string', example: 'PIX' },
-                                    count:  { type: 'integer', example: 9 },
-                                    total:  { type: 'number', example: 11200.00 },
-                                    pct:    { type: 'number', example: 60.54, description: 'Percentual sobre o total do período' }
-                                }}
-                            }}}
-                        },
-                        401: { description: 'Token não fornecido ou inválido' },
-                        500: { description: 'Erro interno' }
-                    }
-                }
-            },
-            '/analytics/top-guests': {
-                get: {
-                    tags: ['Analytics'],
-                    summary: 'Hóspedes mais valiosos por lifetime value',
-                    description: 'Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita. Só ADMIN: é dado pessoal (RT-51).',
-                    parameters: [
-                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, example: 10 }, description: 'Quantidade de hóspedes a retornar (1–100). Default: 10.' }
-                    ],
-                    responses: {
-                        200: {
-                            description: 'Ranking de hóspedes por lifetime value',
-                            content: { 'application/json': { schema: {
-                                type: 'array',
-                                items: { type: 'object', properties: {
-                                    guest_id:           { type: 'string', format: 'uuid' },
-                                    full_name:          { type: 'string', example: 'Carlos Eduardo' },
-                                    total_reservations: { type: 'integer', example: 3 },
-                                    lifetime_value:     { type: 'number', example: 4200.00 },
-                                    last_stay:          { type: 'string', format: 'date', example: '2026-06-20' }
-                                }}
-                            }}}
-                        },
-                        400: { description: 'limit fora do intervalo permitido (1–100)' },
-                        401: { description: 'Token não fornecido ou inválido' },
-                        403: { description: 'Requer papel ADMIN' },
-                        500: { description: 'Erro interno' }
-                    }
-                }
-            },
+            // Os 7 indicadores (revenue, occupancy, alerts, seasonality, revenue-by-category, payment-mix,
+            // top-guests) são do analytics-service desde a T-01.4/H.3: documentados em
+            // services/analytics-service/config/openapi.js, juntados a este no dump do api-client.
             '/analytics/internal-consumption': {
                 get: {
                     tags: ['Analytics'],

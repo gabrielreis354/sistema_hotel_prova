@@ -9,6 +9,9 @@ resources:
   - redis.yaml
   - rabbitmq.yaml
   - backend.yaml
+  # [revisão do Weslley] analytics-service e o banco próprio dele (T-01.4/H.3). Precisa do secret
+  # analytics-db, criado por scripts/k8s_garantir_secret_analytics.sh.
+  - analytics.yaml
   - nginx.yaml
   - pdb.yaml
   - minio.yaml

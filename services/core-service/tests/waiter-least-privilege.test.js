@@ -90,7 +90,8 @@ describe('WAITER — least privilege (CA-04.1.n)', () => {
         ['GET',  '/address/01310100'],
         ['GET',  '/rooms'],
         ['GET',  '/users'],
-        ['GET',  '/analytics/revenue']
+        // Os 7 indicadores são do analytics-service desde a H.3 (WAITER → 403 lá também); este ficou no core.
+        ['GET',  '/analytics/internal-consumption']
     ];
 
     // `:reservation` e `:guest` viram os IDs reais criados no beforeAll.

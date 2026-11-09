@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 IMAGE="sistema-gestao-hotel-backend:latest"
+ANALYTICS_IMAGE="sistema-gestao-hotel-analytics:latest"
 NS="hotel-system"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -49,6 +50,9 @@ echo ""
 info "=== FASE 1: BUILD ==="
 docker build -t "$IMAGE" services/core-service
 success "Imagem '$IMAGE' construída."
+# [revisão do Weslley] analytics-service (T-01.4/H.3, CA-01.4.n): imagem própria, Deployment próprio.
+docker build -t "$ANALYTICS_IMAGE" services/analytics-service
+success "Imagem '$ANALYTICS_IMAGE' construída."
 echo ""
 
 # ── FASE 2: Aplicar manifests ───────────────────────────────────────────────
@@ -56,6 +60,8 @@ info "=== FASE 2: APPLY ==="
 # Secret jwt-rsa-keys (ADR-006) antes do backend: sem ele os pods ficam em ContainerCreating
 # e a FASE 3 estoura por timeout, sem dizer o motivo.
 bash scripts/k8s_garantir_secret_jwt.sh
+# [revisão do Weslley] Secret analytics-db (T-01.4/H.3): banco próprio do analytics, senha por ambiente.
+bash scripts/k8s_garantir_secret_analytics.sh
 kubectl apply -k infra/k8s/
 success "Manifests aplicados no namespace '$NS'."
 echo ""

@@ -181,7 +181,7 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * A espera cresce só com falhas SEGUIDAS de `ready()`/`connect()`; quando o consumo volta, zera
  * (reauditoria delta, 🟢-C) — senão, depois de algumas quedas do banco, toda pausa esperaria 30 s.
  *
- * `status()`: 'stopped' | 'connecting' | 'consuming' — o /health usa (degradado → 503).
+ * `status()`: 'stopped' | 'connecting' | 'consuming' — o /health usa (sem consumir → 200 DEGRADED, 🟡-4 da H.3).
  * `stop()`: desligamento ordenado (SIGTERM) — cancela o consumo, espera as mensagens em andamento
  * terminarem (com ack) até `stopTimeoutMs`, e só então fecha a conexão. Interrompe também a espera do
  * backoff e não fica preso num `connect()`/`ready()` que não responde (🟢-B). Com o broker sem

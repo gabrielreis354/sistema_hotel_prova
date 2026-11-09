@@ -121,11 +121,14 @@ describe('Contrato de resposta (CA-04.5.b)', () => {
         const reservation = await createReservation(app, jwt, guest.id, room.id, nextDates(2));
         const body = await reservationBill(reservation.id);
 
+        // Os campos de antes continuam todos, com os mesmos tipos. Único acréscimo:
+        // voided_consumptions (M5-c, CA-05.2.j, D-69) — histórico que não soma em nada.
         expect(Object.keys(body).sort()).toEqual([
             'balance_due', 'check_in_date', 'check_out_date', 'consumptions', 'consumptions_total',
             'fully_paid', 'grand_total', 'guest', 'payments', 'reservation_id', 'room_total',
-            'status', 'total_paid', 'total_pending'
+            'status', 'total_paid', 'total_pending', 'voided_consumptions'
         ]);
+        expect(body.voided_consumptions).toEqual([]);
         for (const field of ['room_total', 'consumptions_total', 'grand_total', 'total_paid', 'total_pending', 'balance_due']) {
             expect(typeof body[field]).toBe('number');
         }
