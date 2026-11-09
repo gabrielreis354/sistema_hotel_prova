@@ -14,7 +14,22 @@ export interface TodayReservation {
   check_in_date?: string;
   check_out_date?: string;
   guest?: { id?: string; full_name?: string } | null;
-  room?: { id?: string; number?: string } | null;
+  room?: { id?: string; number?: string; status?: string } | null;
+}
+
+const ROOM_BLOCK_LABEL: Record<string, string> = {
+  OCCUPIED: 'ainda ocupado',
+  CLEANING: 'em limpeza',
+  MAINTENANCE: 'em manutenção',
+};
+
+/**
+ * Por que o check-in da linha não pode sair agora, ou null. Só avisa antes do toque: quem decide
+ * é o servidor (409 ROOM_NOT_AVAILABLE), que também confere os quartos extras.
+ */
+export function checkInBlockedReason(room: { number?: string; status?: string } | null | undefined): string | null {
+  if (!room?.status || room.status === 'AVAILABLE') return null;
+  return `Quarto ${room.number ?? '—'} ${ROOM_BLOCK_LABEL[room.status] ?? 'indisponível'}`;
 }
 
 export interface ArrivalRow<R extends TodayReservation = TodayReservation> {

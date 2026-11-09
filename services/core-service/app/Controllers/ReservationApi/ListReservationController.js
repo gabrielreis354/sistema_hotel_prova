@@ -33,7 +33,7 @@ export default async function ListReservationController(request, response) {
 
         const include = [
             { model: GuestModel, as: 'guest', attributes: ['id', 'full_name', 'email'] },
-            { model: RoomModel,  as: 'room',  attributes: ['id', 'number', 'floor'] },
+            { model: RoomModel,  as: 'room',  attributes: ['id', 'number', 'floor', 'status'] },
             { model: UserModel,  as: 'user',  attributes: ['id', 'name'] }
         ];
         const order = [['check_in_date', 'ASC']];

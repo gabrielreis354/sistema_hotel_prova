@@ -5017,6 +5017,8 @@ export interface components {
                 id?: string;
                 number?: string;
                 floor?: number | null;
+                /** @enum {string} */
+                status?: "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE";
             } | null;
             user?: {
                 /** Format: uuid */

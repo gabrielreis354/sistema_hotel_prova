@@ -55,6 +55,25 @@ export function useBill(id: string | undefined) {
   });
 }
 
+/**
+ * A conta de quem vai confirmar um check-out: sempre busca de novo, mesmo com cache recente — um
+ * consumo lançado em outro aparelho não invalida este. Quem usa só libera a ação com
+ * `isSuccess && !isFetching`.
+ */
+export function freshBillOptions(id: string | undefined) {
+  return {
+    queryKey: reservationKeys.bill(id ?? ''),
+    queryFn: () => getBill(id ?? ''),
+    enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: 'always' as const,
+  };
+}
+
+export function useFreshBill(id: string | undefined) {
+  return useQuery(freshBillOptions(id));
+}
+
 export function useAvailableRooms(checkIn: string, checkOut: string, enabled: boolean) {
   return useQuery({
     queryKey: reservationKeys.available(checkIn, checkOut),

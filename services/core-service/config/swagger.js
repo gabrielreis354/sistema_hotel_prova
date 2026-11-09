@@ -262,7 +262,8 @@ const options = {
                                 id: { type: 'string', format: 'uuid' }, full_name: { type: 'string' }, email: { type: 'string', nullable: true }
                             }},
                             room: { type: 'object', nullable: true, properties: {
-                                id: { type: 'string', format: 'uuid' }, number: { type: 'string' }, floor: { type: 'integer', nullable: true }
+                                id: { type: 'string', format: 'uuid' }, number: { type: 'string' }, floor: { type: 'integer', nullable: true },
+                                status: { type: 'string', enum: ROOM_STATUSES }
                             }},
                             user: { type: 'object', nullable: true, properties: {
                                 id: { type: 'string', format: 'uuid' }, name: { type: 'string' }

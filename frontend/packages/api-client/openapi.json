@@ -771,6 +771,15 @@
                   "floor": {
                     "type": "integer",
                     "nullable": true
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "AVAILABLE",
+                      "OCCUPIED",
+                      "CLEANING",
+                      "MAINTENANCE"
+                    ]
                   }
                 }
               },

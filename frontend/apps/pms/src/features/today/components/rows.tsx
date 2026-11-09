@@ -10,19 +10,19 @@ import {
   officialBalanceCents,
   reservationActions,
   safeNights,
-  useBill,
+  useFreshBill,
   useTransitionReservation,
   type ReservationListItem,
   type ReservationTransition,
 } from '../../reservations/index.js';
 import { useReleaseRoom } from '../../rooms/index.js';
-import type { ArrivalRow, CleaningRoom, DepartureRow } from '../todayLogic.js';
+import { checkInBlockedReason, type ArrivalRow, type CleaningRoom, type DepartureRow } from '../todayLogic.js';
 
 export type Feedback = { kind: 'success' | 'error'; text: string };
 type OnResult = (f: Feedback) => void;
 
-/** Botão de ação da linha: 48 px no celular (alvo de toque), mais baixo no desktop denso. */
-const ROW_ACTION = 'w-full sm:w-auto md:min-h-0 md:h-10 md:text-sm';
+/** Botão de ação da linha: 48 px no celular e no tablet (toque), mais baixo só no desktop (≥ 1280). */
+const ROW_ACTION = 'w-full sm:w-auto xl:min-h-0 xl:h-10 xl:text-sm';
 
 /** Lista de linhas com divisória — a mesma em todos os blocos. */
 export function RowList({ children }: { children: ReactNode }) {
@@ -44,12 +44,12 @@ function HeadLine({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-center gap-x-2 gap-y-1">{children}</div>;
 }
 
-/** Nome do hóspede, que abre a reserva. Alvo de 48 px no celular. */
+/** Nome do hóspede, que abre a reserva. Alvo de 48 px no celular e no tablet. */
 function GuestLink({ reservation }: { reservation: ReservationListItem }) {
   return (
     <Link
       to={`/reservas/${reservation.id}`}
-      className="inline-flex min-h-touch items-center font-medium text-gray-900 underline-offset-2 hover:text-brand hover:underline md:min-h-0"
+      className="inline-flex min-h-touch items-center font-medium text-gray-900 underline-offset-2 hover:text-brand hover:underline xl:min-h-0"
     >
       {reservation.guest?.full_name ?? 'Hóspede removido'}
     </Link>
@@ -100,7 +100,9 @@ function useRowTransition(reservation: ReservationListItem, onResult: OnResult) 
 export function ArrivalItem({ row, onResult }: { row: ArrivalRow<ReservationListItem>; onResult: OnResult }) {
   const r = row.reservation;
   const { run, busy } = useRowTransition(r, onResult);
-  const checkIn = reservationActions(r.status).checkIn;
+  const allowed = reservationActions(r.status).checkIn;
+  const blocked = allowed.enabled ? checkInBlockedReason(r.room) : null;
+  const checkIn = blocked ? { enabled: false, reason: blocked } : allowed;
   const slot = `chegada-${r.id}`;
 
   return (
@@ -149,8 +151,10 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
   const r = row.reservation;
   const [confirming, setConfirming] = useState(false);
   const { run, busy } = useRowTransition(r, onResult);
-  const bill = useBill(confirming ? r.id : undefined);
-  const balance = bill.data ? officialBalanceCents(bill.data) : null;
+  const bill = useFreshBill(confirming ? r.id : undefined);
+  // Só o saldo desta busca vale: o do cache some enquanto ela roda, e um erro não o traz de volta.
+  const fresh = bill.isSuccess && !bill.isFetching;
+  const balance = fresh ? officialBalanceCents(bill.data) : null;
   const checkOut = reservationActions(r.status).checkOut;
   const slot = `saida-${r.id}`;
   const panelId = `${slot}-confirmacao`;
@@ -188,8 +192,8 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
         <div id={panelId} className="mt-3 space-y-3 rounded-md border border-brand/40 bg-brand/5 p-3">
           <p className="text-sm font-semibold text-gray-900">Confirmar check-out do quarto {r.room?.number ?? '—'}</p>
           <div aria-live="polite" className="text-sm text-gray-800">
-            {bill.isPending && <Spinner label="Conferindo a conta…" />}
-            {bill.isError && <p>A conta não carregou. Abra a conta para conferir antes de liberar o hóspede.</p>}
+            {bill.isFetching && <Spinner label="Conferindo a conta…" />}
+            {bill.isError && !bill.isFetching && <p>A conta não carregou. Abra a conta para conferir antes de liberar o hóspede.</p>}
             {balance !== null && balance > 0 && (
               <p className="rounded-md border-l-4 border-status-cleaning bg-status-cleaning/10 p-2 text-gray-900">
                 Saldo em aberto: <Money cents={balance} className="font-semibold" />. Receba antes de liberar o hóspede — depois do
@@ -204,10 +208,10 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
             )}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button className={ROW_ACTION} disabled={busy || !bill.data} onClick={() => run('check-out', () => setConfirming(false))}>
+            <Button className={ROW_ACTION} disabled={busy || !fresh} onClick={() => run('check-out', () => setConfirming(false))}>
               {busy ? 'Fazendo check-out…' : 'Confirmar check-out'}
             </Button>
-            <ButtonLink to={`/reservas/${r.id}?aba=conta`} variant="secondary" className={cn(ROW_ACTION, 'md:px-3')}>
+            <ButtonLink to={`/reservas/${r.id}?aba=conta`} variant="secondary" className={cn(ROW_ACTION, 'xl:px-3')}>
               Abrir conta
             </ButtonLink>
             <Button variant="ghost" className={ROW_ACTION} disabled={busy} onClick={() => setConfirming(false)}>

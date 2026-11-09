@@ -81,7 +81,7 @@ export function TodayPage() {
           <div className="min-w-0 flex-1">
             <Notice tone={feedback.kind === 'error' ? 'error' : 'success'}>{feedback.text}</Notice>
           </div>
-          <Button variant="ghost" className="shrink-0 md:h-9 md:min-h-0 md:text-sm" onClick={() => setFeedback(null)}>
+          <Button variant="ghost" className="shrink-0 xl:h-9 xl:min-h-0 xl:text-sm" onClick={() => setFeedback(null)}>
             Fechar
           </Button>
         </div>
@@ -219,7 +219,7 @@ function AttentionItem({
       </span>
     </>
   );
-  const linkClass = 'inline-flex min-h-touch items-center gap-2 hover:underline md:min-h-0 md:py-1';
+  const linkClass = 'inline-flex min-h-touch items-center gap-2 hover:underline xl:min-h-0 xl:py-1';
   return (
     <li>
       {to ? (

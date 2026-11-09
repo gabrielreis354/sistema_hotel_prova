@@ -101,6 +101,8 @@ export function useReleaseRoom() {
       Promise.all([
         qc.invalidateQueries({ queryKey: roomKeys.all }),
         qc.invalidateQueries({ queryKey: ['analytics'] }),
+        // A chegada do quarto liberado destrava o check-in sem esperar o próximo ciclo do painel.
+        qc.invalidateQueries({ queryKey: ['reservations'] }),
       ]),
   });
 }
