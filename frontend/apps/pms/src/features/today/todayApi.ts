@@ -42,9 +42,8 @@ export function listArrivals(today: string): Promise<ReservationPage> {
 }
 
 /**
- * Alertas do dia (`/analytics/alerts`). Hoje vêm do core; com a H.3 o nginx manda o mesmo
- * caminho ao analytics-service. A leitura passa por `toTodayAlerts`, que só usa os campos
- * iguais nos dois contratos.
+ * Alertas do dia (`/analytics/alerts`), servidos pelo analytics-service desde a H.3. A leitura
+ * passa por `toTodayAlerts`, que só usa os campos de que o painel precisa.
  */
 export async function getTodayAlerts(): Promise<TodayAlerts> {
   const { data, response } = await api.GET('/analytics/alerts');
