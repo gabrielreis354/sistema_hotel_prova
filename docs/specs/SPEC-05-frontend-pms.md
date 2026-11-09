@@ -178,7 +178,7 @@ Tela inicial da recepção. Substitui o placeholder.
 Endpoints já existem (7 de analytics + `/payments`).
 
 **Critérios de aceitação**
-- [ ] **CA-05.6.a** — Registro e listagem de pagamentos *(passou para o Sirlande em 28/10)*
+- [x] **CA-05.6.a** — Registro e listagem de pagamentos *(passou para o Sirlande em 28/10 · 09/11, Sirlande — `feature/m5b-pagamento-checkout`: registro na aba Conta da reserva, listagem na linha do tempo da M5-a; decisões em `anexos/SPEC-05-decisoes-CA-05.6.a.md`)*
 - [x] **CA-05.6.b** — Telas de ocupação, receita, sazonalidade e ranking *(31/10, Weslley — `feature/t056-indicadores`)*
 - [x] **CA-05.6.c** — Desktop: gráficos; **mobile: 4 números do dia em cartões** *(31/10, Weslley)*
 - [ ] **CA-05.6.d** — Relatório de cortesias e perdas (depende de SPEC-04 T-04.7) *(passou para o Sirlande em 28/10)*

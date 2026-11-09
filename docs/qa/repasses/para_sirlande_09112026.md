@@ -14,3 +14,9 @@ Fora do escopo do diff (backend sem mudança de código nesta branch), mas na á
 **Onde:** `services/core-service/app/Controllers/PaymentApi/CreatePaymentController.js:66-74`
 **Cenário:** `POST /payments { reservation_id: <reserva CANCELLED> }` → 201. A tela da M5-b só mostra o formulário em CHECKED_IN/CHECKED_OUT (allowlist em `paymentLogic.ts:478`), mas a regra vive só no cliente. Pode ser intencional (sinal/no-show cobrado); se for, registrar a decisão; se não, allowlist de status no servidor.
 **Correção sugerida:** decidir e documentar; se proibido, allowlist de status no ramo `reservation_id`.
+
+---
+
+### Decisão do Sirlande (09/11/2026)
+- **🟡 consumo antigo (D-31): fechado sem mudança.** Conferido: o `settleAccount` retorna sem acertar quando há consumo antigo pendente (`app/utils/accountBill.js:79`). O pagamento por reserva entra como crédito, mas nenhuma conta vira PAID com dívida fora dela; o próximo pagamento, fechamento ou `migrate` acerta.
+- **🟢 reserva CANCELLED/NO_SHOW aceita pagamento: para depois do congelamento.** Fora do roteiro, e a tela já não oferece. Registrado no anexo `docs/specs/anexos/SPEC-05-decisoes-CA-05.6.a.md` §4.
