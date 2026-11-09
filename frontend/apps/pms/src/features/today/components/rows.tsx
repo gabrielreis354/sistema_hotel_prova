@@ -251,14 +251,12 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
           variant="secondary"
           className={ROW_ACTION}
           disabled={busy}
+          // mutateAsync, não callbacks do mutate: a linha some ao recarregar a lista, e o React
+          // Query não chama callback de mutate de componente já desmontado.
           onClick={() =>
-            release.mutate(
-              { id: room.id, number: room.number },
-              {
-                onSuccess: () => onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` }),
-                onError: (err) =>
-                  onResult({ kind: 'error', text: err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.' }),
-              },
+            void release.mutateAsync({ id: room.id, number: room.number }).then(
+              () => onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` }),
+              (err: unknown) => onResult({ kind: 'error', text: err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.' }),
             )
           }
         >
