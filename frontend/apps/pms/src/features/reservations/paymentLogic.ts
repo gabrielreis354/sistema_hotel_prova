@@ -1,12 +1,11 @@
 import { centsToDecimalString, parseBRLInput, type Cents } from '@hotel/domain';
-import type { paths } from '@hotel/api-client';
+import type { PaymentInput } from './reservationsApi.js';
 
 /**
  * Regras do pagamento registrado no check-out (M5-b, CA-05.6.a). Puras, para o teste prender
  * cada decisão sem montar a tela.
  */
 
-export type PaymentInput = paths['/payments']['post']['requestBody']['content']['application/json'];
 export type PaymentMethod = PaymentInput['method'];
 
 // Ordem do balcão: o que mais se recebe primeiro.
