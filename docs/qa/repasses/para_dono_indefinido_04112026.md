@@ -1,5 +1,7 @@
 # Repasse — DONO INDEFINIDO — 04/11/2026
 
+> **Corrigido em `feature/t053-painel-hoje`** (commit `ee8e20e`, autorizado pelo Gabriel). O check-in trava os quartos da reserva e responde 409 `ROOM_NOT_AVAILABLE` se o principal ou um extra não estiver AVAILABLE; testes em `services/core-service/tests/checkin-room-status.test.js`. Este repasse fica só como histórico e não precisa de dono.
+
 Origem: qa-redteam da T-05.3, painel "Hoje" (`docs/qa/redteam_t053-painel-hoje_04nov2026.md`). Este achado **não** reprova a branch `feature/t053-painel-hoje`, porque o defeito é anterior a ela.
 
 A área é o backend da máquina de estados de reserva/quarto. Ela não tem dono declarado em `docs/DIVISAO_TRABALHO_TIME_09set2026.md` §3/§7. O histórico do arquivo tem commits do Gabriel (correções de qa-redteam) e da Sirlande (T-04.6). O orquestrador decide quem pega.

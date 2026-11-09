@@ -72,7 +72,7 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 | M1 | Quartos e categorias | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #106 (`e4c9ae3`) |
 | M2 | Reservas, check-in e check-out, walk-in | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #108 (`cb04f85`) |
 | M3 | Comanda P2 | Sirlande | 17/11 | Sirlande informa | — |
-| M4 | Painel Hoje (T-05.3) | Gabriel | 10/11 | 🟡 Implementada; qa-redteam em 04/11 (1 🔴, 4 🟡) com correção em curso na mesma branch. Barra inferior com até 5 abas e menu "Mais" | `feature/t053-painel-hoje` (wt-t053 · PG 5464 · backend 3053 · Vite 5253) |
+| M4 | Painel Hoje (T-05.3) | Gabriel | 10/11 | 🟡 Implementada; qa-redteam de 04/11 corrigido na branch em 09/11 (resta 🟡-4 e 🟢); falta o PR. Barra inferior com até 5 abas e menu "Mais" | `feature/t053-painel-hoje` (wt-t053 · PG 5464 · backend 3053 · Vite 5253) |
 | M5-a | Conta em linha do tempo | Gabriel | 30/10 | ✅ Na `develop`, junto com a M2 | #108 |
 | M5-b | Pagamento no check-out | Sirlande | 07/11 | Sirlande informa; o Gabriel revisa a tela antes de 07/11 | — |
 | M5-c | Estorno (backend) | Sirlande | 10/11 | Sirlande informa | — |

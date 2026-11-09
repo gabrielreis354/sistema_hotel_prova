@@ -2,7 +2,7 @@
 
 **Estado em 04/11/2026 (noite):** plano **aprovado** pelo Gabriel em 04/11 com as recomendações
 (§5) e **implementado**: backend com TDD, painel, barra inferior, revisão de design e E2E
-(107 PASS / 0 FAIL). Falta o **qa-redteam** (disparado pelo coordenador) e o PR — nenhum PR aberto.
+(107 PASS / 0 FAIL). qa-redteam feito em 04/11; correções do 🔴 e dos 🟡-1 a 🟡-3 feitas em 09/11 (relatório, §5). Falta o PR, que o coordenador abre.
 Relatório: `docs/historico_sessao/gabriel/t053_painel_hoje_04112026.md`.
 
 - Worktree: `/home/gabri/wt-t053` · branch `feature/t053-painel-hoje` a partir de `origin/develop` em `cb04f85`

@@ -334,3 +334,4 @@ Do `qa-redteam` nas Fases 0 e 1:
 | 2.1 | 21/10/2026 | Agente executor (trilha do Gabriel) | T-05.1 implementada: CA-05.1.a–f marcados com evidência. Ressalvas do `openapi.json` defasado e do `StatusBadge` encerradas |
 | 2.2 | 24/10/2026 | Agente executor (trilha do Gabriel) | Correções do qa-redteam da T-05.1 (🟡-1 a 🟡-3): PUT parcial de quarto, `requestBody` dos três PUTs no Swagger, exclusão de categoria confiando no 409 |
 | 2.3 | 04/11/2026 | Agente de frontend (trilha do Gabriel) | T-05.3 implementada: CA-05.3.a–g marcados com evidência; decisões D-1 a D-9 do Gabriel e a decisão 10 do encontro de 03/11 (`CLEANING → MAINTENANCE`) registradas na T-05.3 |
+| 2.4 | 09/11/2026 | Agente de frontend (trilha do Gabriel) | Correções do qa-redteam da T-05.3: check-in e release com 409 quando o quarto não pode mudar, check-in da linha desabilitado com motivo, saldo sempre fresco na confirmação do check-out, 48 px até 1279 px |
