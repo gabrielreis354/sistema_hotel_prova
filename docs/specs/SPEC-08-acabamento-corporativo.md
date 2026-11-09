@@ -118,7 +118,7 @@ Cada tarefa cabe numa branch própria e pode ser mergeada sozinha, nesta ordem.
 
 ### T-08.6 — Faxina
 
-- `PaymentForm`: trocar `md:min-h-0` pelo corte correto, mantendo 48 px no tablet. Só usar o tamanho compacto a partir de `lg`.
+- `PaymentForm`: trocar `md:min-h-0` pelo corte correto, mantendo 48 px no tablet. Só usar o tamanho compacto a partir de `xl` (1280 px), o mesmo corte da T-05.3.
 - Resolver o 🟡4 da T-05.3: as cópias locais de `Money` (`rooms/components/Money.tsx`) e `Notice` (`accounts/components/Notice.tsx`) têm contrato diferente da versão de `@hotel/ui`. Unificar ou renomear.
 
 ---

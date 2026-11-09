@@ -48,7 +48,7 @@ O teste é simples: **a recepcionista consegue dizer o que fazer em seguida olha
 6. **Dinheiro é tabular, alinhado à direita, com `R$` e duas casas,** com `Money`.
 7. **Ação irreversível confirma no próprio lugar,** dizendo o que vai acontecer e com botões que descrevem a ação: "Sim, cancelar reserva" e "Manter reserva". Nunca "OK" e "Cancelar".
 8. **Toda lista tem quatro estados:** carregando, vazio, erro e com dados. O vazio ensina o próximo passo; o erro diz como recuperar.
-9. **Toque ≥ 48 px no celular e no tablet.** O tamanho `compact` só vale a partir de `lg` (1024 px) e em tabela.
+9. **Toque ≥ 48 px no celular e no tablet.** O tamanho `compact` só vale a partir de `xl` (1280 px) e em tabela. Desktop no Gesway começa em 1280 px (`PLANEJAMENTO_FRONTEND.md`).
 10. **Só tokens e componentes de `@hotel/ui`.** Cor literal e `<button>` feito à mão reprovam no `qa_checks.sh`.
 
 ---
@@ -127,7 +127,7 @@ Só para confirmar que algo mudou ou mostrar de onde um painel veio, entre 150 e
 | Largura | Quem usa | Prioridade |
 |---|---|---|
 | **1366×768** (referência) | Recepção | O essencial sem rolar. Teclado funciona em tudo |
-| 768 a 1023 px | Tablet no balcão | Toque de 48 px, menu lateral pode recolher |
+| 768 a 1279 px | Tablet no balcão | Toque de 48 px, menu lateral pode recolher |
 | **375 px** | Garçom e gerente fora do balcão | Barra inferior com até 5 abas, uma coluna, sem hover |
 
 Teste sempre em 1366, 768 e 375 antes do PR.
