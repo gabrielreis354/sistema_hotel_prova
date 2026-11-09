@@ -23,7 +23,7 @@ export function AccountsListPage() {
   const location = useLocation();
   // Aviso de "conta fechada" que o fechamento deixa ao voltar, com o saldo e o caminho para a
   // conta fechada (🟡-1). Lido uma vez e tirado do histórico, para não reaparecer num recarregar.
-  const [closed] = useState(() => location.state as { notice?: string; closedId?: string } | null);
+  const [closed] = useState(() => location.state as { notice?: string; closedId?: string; receiveAt?: string | null } | null);
   const notice = closed?.notice;
   useEffect(() => {
     if (notice) navigate(location.pathname, { replace: true, state: null });
@@ -66,6 +66,12 @@ export function AccountsListPage() {
           {closed?.closedId && (
             <Link to={`/comanda/${closed.closedId}`} className="inline-flex min-h-touch items-center font-medium text-brand underline">
               Ver conta fechada
+            </Link>
+          )}
+          {/* Saldo da conta da suíte: o caminho para receber (C-19). */}
+          {closed?.receiveAt && (
+            <Link to={closed.receiveAt} className="ml-3 inline-flex min-h-touch items-center font-medium text-brand underline">
+              Receber na reserva
             </Link>
           )}
         </Notice>
