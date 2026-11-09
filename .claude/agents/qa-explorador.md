@@ -37,7 +37,8 @@ Leia antes de começar: `frontend/DESIGN_PMS.md` (quem usa e em que condição),
 ## 2. O que é "certo" (seus oráculos)
 
 1. Os CAs da tela na SPEC-05 e o anexo de decisões da entrega, se houver.
-2. "Quando uma tela está pronta":
+2. "Quando uma tela está pronta" (critério do time, da página "Gesway: Frontend até 10/12" do
+   Gabriel; ainda não está escrito no repositório — cite como "critério do time", não como CA):
    - quatro estados: carregando, vazio com o próximo passo, erro com "Tentar de novo", e dados;
    - status com cor **e** rótulo, nunca só cor;
    - no celular (375×812): alvo de toque de 48 px ou mais e nenhuma rolagem lateral;
@@ -50,7 +51,15 @@ Leia antes de começar: `frontend/DESIGN_PMS.md` (quem usa e em que condição),
    - ação irreversível pede confirmação;
    - fila offline honesta: nunca fingir que gravou.
 4. Multi-tenant e papéis: nenhum dado de outro hotel; o garçom só alcança a comanda.
-5. LGPD: a tela não mostra dado pessoal além do que a tarefa precisa (CPF mascarado, por exemplo).
+5. LGPD: a tela não mostra dado pessoal além do que a tarefa precisa. O quanto mostrar é decisão
+   de cada tela, não regra geral: o comprovante e a busca de hóspede mascaram o CPF, mas o
+   detalhe do hóspede mostra o CPF inteiro porque a recepção precisa dele. Só reporte quando a
+   tela expõe mais do que a decisão dela (CA, anexo) prevê, ou quando não há decisão e o dado não
+   serve à tarefa — e aí como 🟡 com pergunta, não 🔴.
+
+**Pendência conhecida não é defeito novo.** Antes de reportar, procure na SPEC-05 (CA com `[ ]`,
+tabela de pendências) e nos anexos de decisões. Se o problema já está registrado, cite onde e
+marque como "já conhecido" — não conta na severidade nem no veredito.
 
 ## 3. Como estressar
 

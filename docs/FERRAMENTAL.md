@@ -84,10 +84,13 @@ Contexto de domínio obrigatório antes de qualquer uma: **`frontend/DESIGN_PMS.
 
 ---
 
-## Como ligar o Playwright MCP (uma vez por máquina)
+## Como ligar o Playwright MCP (uma vez por pasta de projeto)
 
 O `qa-explorador` controla o navegador pelo servidor `@playwright/mcp`, registrado no escopo
-**local** de cada dev, porque os caminhos são da máquina. No WSL sem sudo, as bibliotecas do
+**local** de cada dev, porque os caminhos são da máquina. O escopo `local` vale **por pasta de
+projeto**: cada worktree precisa do seu registro (rode o comando de dentro dele), senão o agente
+sobe ali sem nenhuma ferramenta `mcp__playwright__*`. O `--output-dir` também é por pasta: aponte
+para o `docs/qa/evidencias` do próprio checkout. No WSL sem sudo, as bibliotecas do
 navegador que faltam (`libnspr4`, `libnss3`, `libasound2t64`) vêm por `apt-get download` +
 `dpkg-deb -x` numa pasta, passada em `LD_LIBRARY_PATH`.
 
@@ -99,7 +102,9 @@ claude mcp add --scope local playwright -e LD_LIBRARY_PATH=<pasta das libs> -- \
   --output-dir <repo>/docs/qa/evidencias
 ```
 
-`--allowed-origins` é a trava do "só localhost" (§5 das regras). Versão fixada: atualize de
+`--allowed-origins` é um **filtro** do "só localhost" (§5 das regras), não uma barreira de
+segurança — a documentação do próprio MCP avisa isso. O limite de verdade está nas regras do
+agente e nas permissões da sessão. Versão fixada: atualize de
 propósito, nunca com `@latest`. Depois de registrar, reinicie a sessão do Claude Code para as
 ferramentas aparecerem.
 
