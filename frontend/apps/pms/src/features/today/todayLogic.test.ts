@@ -109,6 +109,19 @@ describe('toTodayAlerts — só campos estáveis entre o core e a H.3', () => {
     expect(alerts.pendingTooLong).toBe(2);
   });
 
+  it('a contagem de pendentes vem do total, porque a lista tem teto', () => {
+    const alerts = toTodayAlerts({
+      pending_too_long: [{ reservation_id: 'p1' }],
+      totals: { pending_too_long: 73 },
+    });
+    expect(alerts.pendingTooLong).toBe(73);
+  });
+
+  it('quarto sem categoria projetada não quebra', () => {
+    const alerts = toTodayAlerts({ cleaning_pending: [{ room_id: 'q1', room_number: '204', category: null }] });
+    expect(alerts.cleaning[0]?.category).toBe('');
+  });
+
   it('resposta vazia não quebra', () => {
     const alerts = toTodayAlerts({});
     expect(alerts.noShowIds.size).toBe(0);
