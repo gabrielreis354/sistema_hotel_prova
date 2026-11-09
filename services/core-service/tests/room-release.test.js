@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
+import sequelize from '../database/connections/sequelize.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
@@ -110,6 +111,53 @@ describe('PUT /rooms/:id/release', () => {
     it('sem token → 401', async () => {
         const res = await request(app).put('/rooms/00000000-0000-0000-0000-000000000000/release');
         expect(res.status).toBe(401);
+    });
+
+    // 🟡-3 do qa-redteam da T-05.3: o release confiava só em room.status. Um quarto em CLEANING
+    // com reserva CHECKED_IN dentro (estado que o check-in antigo deixava criar) voltava à venda.
+    // O estado é montado por SQL porque o check-in corrigido já não deixa chegar nele pela API.
+    it('quarto em CLEANING com reserva CHECKED_IN no quarto principal → 409, continua CLEANING', async () => {
+        const id = await roomInCleaning('409');
+        const dentro = await createReservation(app, adminJwt, guestId, id, { check_in_date: '2027-07-02', check_out_date: '2027-07-04' });
+        await sequelize.query("UPDATE reservations SET status = 'CHECKED_IN' WHERE id = :id", { replacements: { id: dentro.id } });
+
+        const res = await release(id, receptionistJwt);
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('ROOM_STATUS_TRANSITION_NOT_ALLOWED');
+        expect(res.body.error).toMatch(/hóspede/i);
+        const get = await request(app).get(`/rooms/${id}`).set('Authorization', `Bearer ${adminJwt}`);
+        expect(get.body.status).toBe('CLEANING');
+    });
+
+    it('quarto EXTRA (reservation_rooms) de reserva CHECKED_IN → 409, mesmo com o quarto em CLEANING', async () => {
+        const principal = await createRoom(app, adminJwt, categoryId, { number: '410' });
+        const extra = await createRoom(app, adminJwt, categoryId, { number: '411' });
+        const criada = await request(app).post('/reservations').set('Authorization', `Bearer ${adminJwt}`).send({
+            guest_id: guestId, room_id: principal.id, extra_room_ids: [extra.id],
+            check_in_date: '2027-07-10', check_out_date: '2027-07-12',
+        });
+        expect(criada.status).toBe(201);
+        expect((await request(app).put(`/reservations/${criada.body.id}/check-in`).set('Authorization', `Bearer ${adminJwt}`)).status).toBe(200);
+        await sequelize.query("UPDATE rooms SET status = 'CLEANING' WHERE id = :id", { replacements: { id: extra.id } });
+
+        const res = await release(extra.id, receptionistJwt);
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('ROOM_STATUS_TRANSITION_NOT_ALLOWED');
+        const get = await request(app).get(`/rooms/${extra.id}`).set('Authorization', `Bearer ${adminJwt}`);
+        expect(get.body.status).toBe('CLEANING');
+    });
+
+    it('reserva CHECKED_OUT ou CANCELLED no quarto não impede a liberação', async () => {
+        const id = await roomInCleaning('412');
+        const cancelada = await createReservation(app, adminJwt, guestId, id, { check_in_date: '2027-07-20', check_out_date: '2027-07-21' });
+        expect((await request(app).put(`/reservations/${cancelada.id}/cancel`).set('Authorization', `Bearer ${adminJwt}`)).status).toBe(200);
+
+        const res = await release(id, receptionistJwt);
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('AVAILABLE');
     });
 
     it('a recepção continua sem o PUT genérico (D-1 não abre a edição)', async () => {
