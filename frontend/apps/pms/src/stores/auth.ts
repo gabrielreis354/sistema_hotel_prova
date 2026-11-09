@@ -10,6 +10,8 @@ interface AuthState {
   logout: () => void;
 }
 
+const STORAGE_KEY = 'hotel-pms-auth';
+
 /**
  * Sessão persistida em localStorage — o JWT tem que atravessar o turno (o garçom não
  * pode perder a comanda porque a aba recarregou). O backend é a autoridade; se o token
@@ -34,6 +36,30 @@ export const useAuthStore = create<AuthState>()(
         set({ token: null, user: null });
       },
     }),
-    { name: 'hotel-pms-auth' },
+    { name: STORAGE_KEY },
   ),
 );
+
+/** Sessão gravada pelo persist. Ausente ou ilegível vale como deslogado (fail-safe). */
+function readStoredSession(raw: string | null): Pick<AuthState, 'token' | 'user'> {
+  try {
+    const state = raw ? JSON.parse(raw)?.state : null;
+    return { token: state?.token ?? null, user: state?.user ?? null };
+  } catch {
+    return { token: null, user: null };
+  }
+}
+
+/**
+ * O persist grava no localStorage, mas não escuta mudanças feitas por outra aba. Sem isto, sair
+ * numa aba deixava as outras logadas, com o cache na tela. `key` nula é o localStorage inteiro
+ * sendo limpo. Mesma regra do setSession: só trocar de usuário esvazia o cache.
+ */
+export function syncSessionFromOtherTab(event: Pick<StorageEvent, 'key' | 'newValue'>): void {
+  if (event.key !== STORAGE_KEY && event.key !== null) return;
+  const session = readStoredSession(event.newValue);
+  if (useAuthStore.getState().user?.id !== session.user?.id) queryClient.clear();
+  useAuthStore.setState(session);
+}
+
+if (typeof window !== 'undefined') window.addEventListener('storage', syncSessionFromOtherTab);
