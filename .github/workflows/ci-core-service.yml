@@ -146,5 +146,14 @@ jobs:
           find app routes middlewares database -name '*.js' -print0 \
             | xargs -0 -n1 node --check
 
+      # O job tem broker: se o pipeline dos indicadores for pulado (variável RABBITMQ_* que deixou
+      # de chegar, renome no helper), os casos de dinheiro somem do CI com o job verde. A guarda
+      # falha nesse caso (qa-redteam de 04/11, 🟡-1).
       - name: Rodar testes + cobertura (falha abaixo de 60%)
-        run: npm run test:coverage
+        run: |
+          set -o pipefail
+          npm run test:coverage 2>&1 | tee vitest.out
+          if grep -q "pipeline PULADO" vitest.out; then
+            echo "::error::O pipeline dos indicadores foi PULADO com RabbitMQ no job. Confira as variáveis RABBITMQ_*."
+            exit 1
+          fi
