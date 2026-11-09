@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   arrivalRows,
+  checkInBlockedReason,
   departureRows,
   formatPercent,
   inHouseRows,
@@ -14,6 +15,26 @@ const TODAY = '2026-11-04';
 function res(id: string, status: string, checkIn: string, checkOut: string, room = '101', guest = 'Ana'): TodayReservation {
   return { id, status, check_in_date: checkIn, check_out_date: checkOut, room: { number: room }, guest: { full_name: guest } };
 }
+
+describe('checkInBlockedReason', () => {
+  it('quarto livre não bloqueia', () => {
+    expect(checkInBlockedReason({ number: '12', status: 'AVAILABLE' })).toBeNull();
+  });
+
+  it.each([
+    ['OCCUPIED', 'Quarto 12 ainda ocupado'],
+    ['CLEANING', 'Quarto 12 em limpeza'],
+    ['MAINTENANCE', 'Quarto 12 em manutenção'],
+    ['OUTRO', 'Quarto 12 indisponível'],
+  ])('quarto em %s bloqueia com o motivo', (status, reason) => {
+    expect(checkInBlockedReason({ number: '12', status })).toBe(reason);
+  });
+
+  it('sem o status do quarto a decisão fica com o servidor', () => {
+    expect(checkInBlockedReason({ number: '12' })).toBeNull();
+    expect(checkInBlockedReason(null)).toBeNull();
+  });
+});
 
 describe('arrivalRows', () => {
   const upcoming = [
