@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { balanceLine, billableCents, closedNotice, footerTotals, itemLine, undoLabel } from './accountTotals.js';
+import { balanceLine, billableCents, closedNotice, footerTotals, itemLine, receiveAt, undoLabel } from './accountTotals.js';
 import { addTap, markSending, applyOutcome } from './queueCore.js';
 
 const item = (total: string, billable = true, quantity = 1, reason: string | null = null) => ({
@@ -103,5 +103,26 @@ describe('balanceLine — o saldo que decide o fechamento (P1 do critique de 27/
   it('sem saldo na resposta: vazio, a tela não inventa valor', () => {
     expect(balanceLine(undefined)).toBe('');
     expect(balanceLine({ total: '10.00' })).toBe('');
+  });
+});
+
+describe('receiveAt — onde receber o saldo depois de fechar (C-19, D6 do M5-b)', () => {
+  it('conta da suíte com saldo: a aba Conta da reserva, onde a recepção registra o pagamento', () => {
+    expect(receiveAt({ reservation_id: 'res-1' }, { balance: '40.00' })).toBe('/reservas/res-1?aba=conta');
+  });
+
+  it('nada a receber ou crédito: sem link', () => {
+    expect(receiveAt({ reservation_id: 'res-1' }, { balance: '0.00' })).toBeNull();
+    expect(receiveAt({ reservation_id: 'res-1' }, { balance: '-5.00' })).toBeNull();
+  });
+
+  it('mesa ou day-use (sem reserva): sem link — o pagamento de conta avulsa fica para depois', () => {
+    expect(receiveAt({ reservation_id: null }, { balance: '40.00' })).toBeNull();
+    expect(receiveAt({}, { balance: '40.00' })).toBeNull();
+  });
+
+  it('sem saldo na resposta: sem link, a tela não supõe dívida', () => {
+    expect(receiveAt({ reservation_id: 'res-1' }, undefined)).toBeNull();
+    expect(receiveAt({ reservation_id: 'res-1' }, { total: '40.00' })).toBeNull();
   });
 });
