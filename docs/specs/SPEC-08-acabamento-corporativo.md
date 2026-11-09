@@ -163,6 +163,17 @@ Cortar de baixo para cima: T-08.6, T-08.5, T-08.4. **T-08.1, T-08.2 e T-08.3 sã
 
 > **Esta seção é uma sugestão de Gabriel, registrada em 09/11. A decisão é do Sirlande,** que cuida do frontend. Se ele escolher outro caminho, basta registrar o motivo aqui.
 
+**Estudo do Sirlande (09/11), ainda para o grupo decidir:** manter o `@hotel/ui` e adotar o Radix por baixo dele, no modelo do shadcn/ui, um componente por vez e **só no 5º semestre**, com ADR. A direção é a mesma desta sugestão. Ordem proposta: Tabs (as abas da reserva não tratam as setas do teclado), Combobox (o `GuestPicker` não tem semântica para leitor de tela), Dialog, DropdownMenu e Toast (Sonner).
+
+Pontos que o grupo precisa fechar:
+
+| Ponto | Estudo do Sirlande | Sugestão abaixo | Impacto |
+|---|---|---|---|
+| Dependência nova antes de 10/12 | Nenhuma | `lucide-react` e fonte Inter | Se valer "nenhuma", T-08.1 e T-08.2 perdem esses dois itens: o menu segue só com texto, ou com ícones em SVG próprio, e a fonte fica a do sistema |
+| Dialog nas confirmações | Substituir as confirmações inline | Confirmar no próprio lugar (seção 3) | Decidir no 5º semestre. Até lá vale a confirmação inline |
+| Toast | Sonner | `Notice` já atende | Decidir no 5º semestre |
+| Setas nas abas | À mão antes da entrega, se a revisão de acessibilidade apontar | Não tratado | Correção pequena, sem dependência |
+
 **Sugestão:** não adotar uma biblioteca completa. Seguir o que o `docs/frontend/PLANEJAMENTO_FRONTEND.md` já previa, Tailwind com shadcn/ui sobre Radix, trazendo componente só quando uma tela precisar. O `@hotel/ui` já usa `class-variance-authority`, `clsx` e `tailwind-merge`, a mesma base do shadcn, e o código copiado continua obedecendo aos tokens e às regras do projeto.
 
 | Opção | Sugestão | Motivo |
