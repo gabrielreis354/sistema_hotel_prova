@@ -51,3 +51,6 @@ coverage/
 
 # Impeccable: registros locais de critique/live (o que importa vai para o anexo da SPEC e o relatório)
 .impeccable/
+
+# Evidências do qa-explorador (capturas e scripts de reprodução): o relatório cita, o git não guarda
+docs/qa/evidencias/
