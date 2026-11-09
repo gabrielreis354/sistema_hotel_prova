@@ -79,6 +79,9 @@ describe('paymentBody — o que vai ao POST /payments', () => {
       method: 'DINHEIRO',
     });
     expect(paymentBody('res-1', 5, 'PIX').amount).toBe('0.05');
+    // Sempre duas casas: por float, 100 reais viraria "100" e 10 centavos "0.1" (achado da mutação).
+    expect(paymentBody('res-1', 10000, 'PIX').amount).toBe('100.00');
+    expect(paymentBody('res-1', 10, 'PIX').amount).toBe('0.10');
   });
 
   it('não manda paid_at: o servidor grava a hora do registro', () => {
