@@ -137,6 +137,33 @@ describe('GET /reservations/:id/bill — voided_consumptions (CA-05.2.j)', () =>
         expect(JSON.stringify(res.body)).not.toContain('Nome Alheio');
     });
 
+    it('estorno na conta dividida de um acompanhante também aparece (qualquer conta da reserva)', async () => {
+        const reservation = (await request(app).get(`/reservations/${reservationId}`).set(auth(jwt))).body;
+        const companion = await request(app).post('/accounts').set(auth(jwt)).send({
+            type: 'ROOM', reservation_id: reservationId, room_id: reservation.room_id,
+            guest_id: reservation.guest_id ?? reservation.guest?.id, charges_lodging: false, label: 'Acompanhante',
+        });
+        expect(companion.status).toBe(201);
+        const created = await request(app).post(`/accounts/${companion.body.id}/items`).set(auth(jwt))
+            .send({ description: 'Massagem', quantity: 1, unit_price: '90.00' });
+        const item = created.body.item ?? created.body;
+        expect((await request(app).delete(`/accounts/${companion.body.id}/items/${item.id}`).set(auth(jwt))).status).toBe(204);
+
+        const ids = (await getBill()).body.voided_consumptions.map((v) => v.id);
+        expect(ids).toContain(item.id);
+    });
+
+    it('estorno pela rota antiga DELETE /reservations/:id/consumptions/:id também aparece', async () => {
+        const created = await request(app).post(`/reservations/${reservationId}/consumptions`).set(auth(jwt))
+            .send({ description: 'Estacionamento', amount: 25 });
+        expect(created.status).toBe(201);
+        const del = await request(app).delete(`/reservations/${reservationId}/consumptions/${created.body.id}`).set(auth(manager.token));
+        expect(del.status).toBeLessThan(300);
+
+        const entry = (await getBill()).body.voided_consumptions.find((v) => v.id === created.body.id);
+        expect(entry).toMatchObject({ description: 'Estacionamento', amount: 25, deleted_by: { id: manager.id, name: 'Marta Gerente' } });
+    });
+
     it('em ordem de estorno, o mais antigo primeiro', async () => {
         const list = (await getBill()).body.voided_consumptions;
         const times = list.map((v) => new Date(v.deleted_at).getTime());
