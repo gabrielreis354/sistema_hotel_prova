@@ -68,13 +68,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Categorias disponíveis no período, com preço da estadia */
+        /**
+         * Categorias disponíveis no período, com preço da estadia
+         * @description Passo 6 do roteiro, 2ª chamada: copie o `category_id` de uma das categorias da resposta para o POST /public/{subdomain}/bookings. O id muda a cada seed, por isso não há exemplo fixo. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.
+         */
         get: {
             parameters: {
                 query: {
-                    /** @example 2026-10-10 */
+                    /** @example 2026-12-15 */
                     check_in: string;
-                    /** @example 2026-10-13 */
+                    /** @example 2026-12-18 */
                     check_out: string;
                     /** @example 2 */
                     guests?: number;
@@ -134,7 +137,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cria reserva online e gera cobrança PIX do sinal */
+        /**
+         * Cria reserva online e gera cobrança PIX do sinal
+         * @description Passo 6 do roteiro, 3ª chamada: a reserva nasce PENDING e a resposta traz o QR do sinal (`pix.qr_code`) e o `pix.provider_charge_id`. Com PIX_PROVIDER=fake (plano B), passe esse id ao scripts/simular_pagamento_pix.js para o webhook confirmar a reserva. Com o Asaas (plano A), o CPF do hóspede é obrigatório. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -148,16 +154,19 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** Format: uuid */
+                        /**
+                         * Format: uuid
+                         * @description Copie de categories[].category_id no GET /public/{subdomain}/availability
+                         */
                         category_id: string;
                         /**
                          * Format: date
-                         * @example 2026-10-10
+                         * @example 2026-12-15
                          */
                         check_in: string;
                         /**
                          * Format: date
-                         * @example 2026-10-13
+                         * @example 2026-12-18
                          */
                         check_out: string;
                         /** @example 2 */
@@ -169,7 +178,10 @@ export interface paths {
                             email?: string;
                             /** @example (11) 99999-9999 */
                             phone?: string;
-                            /** @example 123.456.789-00 */
+                            /**
+                             * @description Obrigatório com PIX_PROVIDER=asaas
+                             * @example 529.982.247-25
+                             */
                             cpf?: string;
                         };
                     };
@@ -221,6 +233,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description Provider PIX indisponível ao gerar a cobrança (ex.: Asaas fora do ar ou chave inválida) — nenhuma reserva é criada */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -236,7 +257,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Status da reserva (polling pós-pagamento PIX) */
+        /**
+         * Status da reserva (polling pós-pagamento PIX)
+         * @description Passo 6 do roteiro, última chamada: use o `reservation.id` do POST. Antes do pagamento, status PENDING e deposit.status PENDING. Depois do webhook, CONFIRMED e PAID.
+         */
         get: {
             parameters: {
                 query?: never;
