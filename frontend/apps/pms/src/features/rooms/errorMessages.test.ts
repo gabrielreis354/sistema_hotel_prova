@@ -112,7 +112,7 @@ describe('writeErrorMessage — sem code conhecido nao adivinha pelo status', ()
 });
 
 describe('contrato com o RoomError do backend (fix/tenant-fk-validation)', () => {
-  it('lista exatamente os 7 codes de app/utils/roomErrors.js', () => {
+  it('lista exatamente os 8 codes de app/utils/roomErrors.js', () => {
     expect([...ROOM_ERROR_CODES].sort()).toEqual(
       [
         'CATEGORY_IN_USE',
@@ -122,6 +122,7 @@ describe('contrato com o RoomError do backend (fix/tenant-fk-validation)', () =>
         'ROOM_IN_USE',
         'ROOM_NUMBER_TAKEN',
         'ROOM_STATUS_TRANSITION_NOT_ALLOWED',
+        'ROOM_NOT_AVAILABLE',
       ].sort(),
     );
   });

@@ -55,6 +55,12 @@ describe('quarto — allowlist', () => {
     expect(canTransitionRoom('OCCUPIED', 'AVAILABLE')).toBe(false);
   });
 
+  it('limpeza pode ir para manutencao (defeito achado na limpeza — decisao de 04/11)', () => {
+    expect(canTransitionRoom('CLEANING', 'MAINTENANCE')).toBe(true);
+    expect(canTransitionRoom('MAINTENANCE', 'CLEANING')).toBe(false);
+    expect(canTransitionRoom('CLEANING', 'OCCUPIED')).toBe(false);
+  });
+
   it('todo status tem metadados de exibicao (label + token de cor)', () => {
     for (const meta of Object.values(ROOM_STATUS_META)) {
       expect(meta.label.length).toBeGreaterThan(0);

@@ -29,6 +29,7 @@ export const ROOM_ERROR_CODES = [
   'ROOM_NUMBER_TAKEN',
   'ROOM_IN_USE',
   'ROOM_STATUS_TRANSITION_NOT_ALLOWED',
+  'ROOM_NOT_AVAILABLE',
 ] as const satisfies readonly RoomErrorCode[];
 type MissingCode = Exclude<RoomErrorCode, (typeof ROOM_ERROR_CODES)[number]>;
 const allCodesListed: [MissingCode] extends [never] ? true : MissingCode = true;
@@ -116,6 +117,8 @@ export function writeErrorMessage(ctx: WriteContext, status: number, body?: unkn
       return 'Já existe uma categoria com esse nome neste hotel. Use outro nome.';
     case 'ROOM_STATUS_TRANSITION_NOT_ALLOWED':
       return 'O status do quarto mudou enquanto você editava (check-in ou check-out na recepção). Recarregue a página para ver o status atual antes de alterar.';
+    case 'ROOM_NOT_AVAILABLE':
+      return detail ?? 'O quarto não está livre agora. Recarregue a página para ver o status atual.';
     case 'ROOM_IN_USE':
       return 'Este quarto está em uso e não pode ser excluído agora. Faça o check-out do hóspede, ou cancele ou mova para outro quarto as reservas dele, e tente excluir de novo.';
     case 'CATEGORY_IN_USE':

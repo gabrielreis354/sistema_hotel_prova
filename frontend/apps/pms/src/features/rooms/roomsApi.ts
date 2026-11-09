@@ -65,6 +65,23 @@ export async function updateRoom(id: string, changes: RoomUpdateBody, number?: s
   return data;
 }
 
+/**
+ * Limpeza concluída: CLEANING → AVAILABLE pelo endpoint dedicado (D-1 da T-05.3), que a
+ * recepção também pode chamar. 409 = o quarto já não está em limpeza (outro atendimento
+ * liberou, ou um check-in entrou) — a tela recarrega e diz isso.
+ */
+export async function releaseRoom(id: string, number?: string): Promise<Room> {
+  const { data, error, response } = await api.PUT('/rooms/{id}/release', { params: { path: { id } } });
+  if (response.status === 409) {
+    const which = number ? `O quarto ${number}` : 'O quarto';
+    throw new ApiError(`${which} já não está em limpeza — outro atendimento mudou a situação dele. A lista foi atualizada.`, 409);
+  }
+  if (response.status === 404) throw new ApiError('Quarto não encontrado — ele pode ter sido excluído.', 404);
+  if (response.status === 403) throw new ApiError('Seu perfil não pode liberar quartos.', 403);
+  if (error || !response.ok || !data) throw new ApiError('Não foi possível liberar o quarto. Tente de novo.', response.status);
+  return data;
+}
+
 export async function deleteRoom(id: string): Promise<void> {
   const { error, response } = await api.DELETE('/rooms/{id}', { params: { path: { id } } });
   if (error || !response.ok) fail({ entity: 'room', action: 'delete' }, response.status, error);

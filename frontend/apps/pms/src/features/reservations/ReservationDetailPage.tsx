@@ -1,18 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatDateBR } from '@hotel/domain';
-import { Button, Card, ErrorState, Spinner, cn } from '@hotel/ui';
+import { ActionSlot, Button, Card, ErrorState, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { useBill, useReservation, useTransitionReservation } from './queries.js';
 import type { ReservationTransition } from './reservationsApi.js';
-import {
-  buildBillTimeline,
-  officialBalanceCents,
-  reservationActions,
-  safeNights,
-  type ActionState,
-} from './reservationLogic.js';
+import { buildBillTimeline, officialBalanceCents, reservationActions, safeNights } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
 import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
@@ -354,28 +348,6 @@ export function ReservationDetailPage() {
             {timeline && balance !== null && <BillTimeline timeline={timeline} balanceCents={balance} />}
           </Card>
         </section>
-      )}
-    </div>
-  );
-}
-
-/** Uma ação e, embaixo, o motivo quando ela não está disponível (princípio 11). */
-function ActionSlot({
-  id,
-  state,
-  children,
-}: {
-  id: string;
-  state: ActionState;
-  children: (describedBy: string | undefined) => ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      {children(state.enabled ? undefined : `${id}-motivo`)}
-      {!state.enabled && (
-        <p id={`${id}-motivo`} className="text-xs text-gray-600">
-          {state.reason}
-        </p>
       )}
     </div>
   );

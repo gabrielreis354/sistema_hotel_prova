@@ -240,7 +240,7 @@ const options = {
                     required: ['error', 'code'],
                     properties: {
                         error:  { type: 'string' },
-                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED'] },
+                        code:   { type: 'string', enum: ['INVALID_INPUT', 'CATEGORY_NOT_FOUND', 'CATEGORY_IN_USE', 'CATEGORY_NAME_TAKEN', 'ROOM_NUMBER_TAKEN', 'ROOM_IN_USE', 'ROOM_STATUS_TRANSITION_NOT_ALLOWED', 'ROOM_NOT_AVAILABLE'] },
                         field:  { type: 'string', description: 'Só no 400 INVALID_INPUT', example: 'price_per_night' },
                         errors: { type: 'array', items: { type: 'string' }, description: 'Só no 400 INVALID_INPUT' }
                     }
@@ -262,7 +262,8 @@ const options = {
                                 id: { type: 'string', format: 'uuid' }, full_name: { type: 'string' }, email: { type: 'string', nullable: true }
                             }},
                             room: { type: 'object', nullable: true, properties: {
-                                id: { type: 'string', format: 'uuid' }, number: { type: 'string' }, floor: { type: 'integer', nullable: true }
+                                id: { type: 'string', format: 'uuid' }, number: { type: 'string' }, floor: { type: 'integer', nullable: true },
+                                status: { type: 'string', enum: ROOM_STATUSES }
                             }},
                             user: { type: 'object', nullable: true, properties: {
                                 id: { type: 'string', format: 'uuid' }, name: { type: 'string' }
@@ -861,13 +862,13 @@ const options = {
                         category_id: { type: 'string', format: 'uuid', description: 'Categoria do próprio hotel, não excluída' },
                         number: { type: 'string', example: '101', description: 'Texto não vazio; gravado aparado' },
                         floor: { type: 'integer', nullable: true, description: '0 é o térreo; null tira o andar' },
-                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE (limpeza concluída). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
+                        status: { type: 'string', enum: ROOM_STATUSES, description: 'Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE (limpeza concluída) e CLEANING → MAINTENANCE (defeito achado na limpeza). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito' }
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
                         400: { description: 'code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         404: { description: 'code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida', content: { 'application/json': { schema: { oneOf: [{ $ref: '#/components/schemas/RoomError' }, { $ref: '#/components/schemas/Error' }] } } } },
-                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE e CLEANING → AVAILABLE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                        409: { description: 'code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE e CLEANING → MAINTENANCE; reenviar o status atual é aceito)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 },
                 delete: {
@@ -876,6 +877,20 @@ const options = {
                         204: { description: 'OK' },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'code ROOM_IN_USE — Quarto OCCUPIED ou com reserva PENDING, CONFIRMED ou CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
+                    }
+                }
+            },
+            '/rooms/{id}/release': {
+                parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+                put: {
+                    tags: ['Quartos'], summary: 'Conclui a limpeza (CLEANING → AVAILABLE) — ADMIN e RECEPTIONIST',
+                    description: 'Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel "Hoje" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).',
+                    responses: {
+                        200: { description: 'Quarto liberado (status AVAILABLE)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Room' } } } },
+                        401: { description: 'Token ausente ou inválido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        403: { description: 'Papel sem permissão (WAITER)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        404: { description: 'Quarto não encontrado neste hotel', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING, ou ainda tem reserva CHECKED_IN (como quarto principal ou extra)', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
@@ -948,7 +963,8 @@ const options = {
                         { in: 'query', name: 'from',  required: false, schema: { type: 'string', format: 'date' }, description: 'Início do intervalo (YYYY-MM-DD). Devolve reservas que se sobrepõem ao período.' },
                         { in: 'query', name: 'to',    required: false, schema: { type: 'string', format: 'date' }, description: 'Fim do intervalo (YYYY-MM-DD).' },
                         { in: 'query', name: 'page',  required: false, schema: { type: 'integer', minimum: 1 }, description: 'Página (1+). Presente page ou limit, a resposta vira { data, total, page, limit }.' },
-                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' }
+                        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, description: 'Itens por página (máx. 100).' },
+                        { in: 'query', name: 'status', required: false, schema: { type: 'string', example: 'PENDING,CONFIRMED' }, description: 'Uma ou mais situações separadas por vírgula, entre PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT e CANCELLED (maiúsculas). Combina com from/to e paginação. Qualquer item fora da lista → 400.' }
                     ],
                     responses: {
                         200: {
@@ -958,7 +974,7 @@ const options = {
                                 { $ref: '#/components/schemas/ReservationListPage' }
                             ]}}}
                         },
-                        400: { description: 'from/to fora do formato YYYY-MM-DD', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        400: { description: 'from/to fora do formato YYYY-MM-DD, ou status fora da lista', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
                 post: {
@@ -1023,6 +1039,7 @@ const options = {
                     responses: {
                         200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam.', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
                         422: { description: 'Check-in não permitido no status atual', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
