@@ -1127,7 +1127,9 @@ const options = {
                         properties: {
                             reservation_id: { type: 'string', format: 'uuid', description: 'Com account_id, opcional; se vier, tem de ser a reserva da conta' },
                             account_id:     { type: 'string', format: 'uuid', description: 'Conta a pagar (T-04.4)' },
-                            amount:         { type: 'number', example: 300.00 },
+                            // Texto, como na resposta e no PUT: dinheiro não passa por float no cliente (M5-b).
+                            // O backend lê pelo toCents, que aceita texto e número; cliente antigo segue valendo.
+                            amount:         { type: 'string', pattern: '^\\d+(\\.\\d{1,2})?$', example: '300.00', description: 'Valor positivo com até 2 casas, em texto (DECIMAL(12,2))' },
                             method:         { type: 'string', enum: PAYMENT_METHODS, example: 'PIX' },
                             paid_at:        { type: 'string', format: 'date-time', description: 'Opcional; ausente ou nulo = agora. Se vier, data ISO-8601 válida' }
                         }
