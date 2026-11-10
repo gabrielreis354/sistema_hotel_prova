@@ -1,7 +1,7 @@
 # SPEC-05 · Anexo — Decisões do CA-05.2.j (estorno visível, meta M5-c, parte do backend)
 
 **Responsável:** Sirlande (orquestrando Claude Code) · **Data:** 09/11/2026
-**Estado:** ✅ backend pronto na `feature/m5c-estorno-visivel`. qa-redteam aprovado com ressalvas: os 🟢 foram corrigidos e o 🟡 ficou documentado, por decisão do Sirlande (§2). **A tela é do Gabriel** e ainda não existe.
+**Estado:** ✅ backend na `develop` desde 09/11/2026 (PR #123, mergeado pelo Gabriel). qa-redteam aprovado com ressalvas: os 🟢 foram corrigidos e o 🟡 ficou documentado, por decisão do Sirlande (§2). **A tela é do Gabriel** e ainda não existe.
 **Fonte:** parecer de 28/10 (§4, M5-c), aceito no ponto de controle de 03/11; relatório `docs/historico_sessao/sirlande/m5c_estorno_visivel_09nov2026.md`; auditoria `docs/qa/redteam_m5c-estorno-visivel_09nov2026.md`.
 
 > Numeração D-n, continuando a do backend de conta da SPEC-04 (a última era D-68).
