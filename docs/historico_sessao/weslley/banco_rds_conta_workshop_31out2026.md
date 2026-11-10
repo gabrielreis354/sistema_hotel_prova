@@ -1,5 +1,7 @@
 # Banco do Gesway no Amazon RDS (conta do Workshop Studio) — 31/10/2026
 
+> Endpoint, IDs de rede e IPs substituídos por marcadores em 09/11/2026, porque o repositório é público.
+
 **Dev:** Weslley (sessão orquestrada com Claude Code)
 **Conta:** AWS do Workshop Studio, `us-east-1`, papel `WSParticipantRole/Participant`. A conta é temporária e some quando o evento acaba.
 **Código:** `develop` em `4234915` (merge do PR #104), clonado do GitHub dentro do CloudShell.
@@ -22,9 +24,9 @@ Por isso tudo rodou **dentro do CloudShell**, digitado pelo console.
 |---|---|
 | Instância RDS | `gesway-db`, PostgreSQL **17.11**, `db.t4g.micro`, 20 GB gp2 |
 | Banco / usuário | `gestao_hotel` / `hotel_admin` |
-| Endpoint | `gesway-db.cwxymkwoywd4.us-east-1.rds.amazonaws.com:5432` |
-| Rede | VPC padrão `vpc-0d9948ce2bad3b95e`, acesso público **só por IP** |
-| Security group | `sg-066fade1da1fab28e`: 5432 liberada para o CloudShell (`100.28.230.139/32`) e o PC do dev (`138.99.162.83/32`) |
+| Endpoint | `<endpoint-do-rds>:5432` |
+| Rede | VPC padrão `<id-da-vpc>`, acesso público **só por IP** |
+| Security group | `<id-do-security-group>`: 5432 liberada para o CloudShell (`<ip-do-cloudshell>/32`) e o PC do dev (`<ip-do-pc-do-dev>/32`) |
 | Backup / Multi-AZ / proteção contra exclusão | desligados (banco descartável) |
 | Tag | `projeto=gesway` |
 | Senha | gerada no CloudShell (`openssl rand`), em `~/gesway/senha.txt` com `chmod 600`. Não saiu da AWS nem entrou no git |
@@ -80,7 +82,7 @@ A criação do RDS levou cerca de 5 minutos (18:27 a 18:32).
 | A4 | Recepção em `/analytics/top-guests` | 403 (RT-51) |
 | A5 | Isolamento entre hotéis | o ADMIN do Sol vê 20 hóspedes, o do Aurora vê 40 |
 
-**Do PC do dev:** a porta 5432 do endpoint abre a partir de `138.99.162.83`. Ficou só nesse teste de porta, porque a senha está no CloudShell.
+**Do PC do dev:** a porta 5432 do endpoint abre a partir de `<ip-do-pc-do-dev>`. Ficou só nesse teste de porta, porque a senha está no CloudShell.
 
 ## Achados
 
@@ -96,7 +98,7 @@ A conta é do workshop, sem cobrança para o time, e é apagada com o evento. Se
 ```bash
 aws rds delete-db-instance --db-instance-identifier gesway-db --skip-final-snapshot --delete-automated-backups
 aws rds wait db-instance-deleted --db-instance-identifier gesway-db
-aws ec2 delete-security-group --group-id sg-066fade1da1fab28e
+aws ec2 delete-security-group --group-id <id-do-security-group>
 ```
 
 ## Pendências
