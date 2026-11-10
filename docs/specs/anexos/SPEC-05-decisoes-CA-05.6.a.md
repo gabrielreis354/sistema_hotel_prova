@@ -1,7 +1,7 @@
 # SPEC-05 · Anexo — Decisões do CA-05.6.a (pagamento no check-out, meta M5-b)
 
 **Responsável:** Sirlande (orquestrando Claude Code) · **Data:** 09/11/2026
-**Estado:** ✅ implementado na `feature/m5b-pagamento-checkout`, qa-redteam aprovado com ressalvas (todas corrigidas). Aguarda a revisão da tela pelo Gabriel e a revisão humana (mexe em dinheiro) antes do merge.
+**Estado:** ✅ na `develop` desde 09/11/2026 (PR #124, mergeado pelo Gabriel). qa-redteam aprovado com ressalvas (todas corrigidas); revisão humana do Sirlande pelo guia de testes (fluxo completo, a maior, Enter duplo, rede, C-19, papéis e celular).
 **Fonte:** parecer de 28/10 (§4, M5-b), aceito no ponto de controle de 03/11; relatório `docs/historico_sessao/sirlande/m5b_pagamento_checkout_09nov2026.md`; auditoria `docs/qa/redteam_m5b-pagamento-checkout_09nov2026.md`.
 
 > Numeração própria (P-1 em diante), para não confundir com a SPEC-04 (D-n) nem com a comanda (C-n). No plano da sessão, as decisões P-1 a P-7 apareceram como D1 a D7.
@@ -77,7 +77,7 @@ Passo 5 do roteiro da banca: *"No check-out, a conta aparece em linha do tempo, 
 
 | # | Pendência | Dono | Quando |
 |---|---|---|---|
-| 1 | Revisão da tela pelo Gabriel (a página é dele) e revisão humana (mexe em dinheiro) antes do merge | Gabriel · Sirlande | antes do merge |
+| 1 | ~~Revisão da tela pelo Gabriel e revisão humana antes do merge~~ — feitas: o Gabriel mergeou o #124 e o Sirlande revisou pelo guia (09/11) | — | ✅ |
 | 2 | Chave contra repetição no `POST /payments` (P-7) | Sirlande | 5º semestre |
 | 3 | Pagamento de conta avulsa (mesa, day-use) e o link C-19 para ela (P-6) | Sirlande | 5º semestre |
 | 4 | Allowlist de status da reserva no `POST /payments` (repasse 🟢) | Sirlande | depois do congelamento |
