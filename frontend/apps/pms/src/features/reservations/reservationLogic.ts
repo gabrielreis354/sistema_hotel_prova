@@ -142,6 +142,14 @@ export interface BillLike {
   room_total?: number;
   balance_due?: number;
   consumptions?: { id?: string; description?: string; amount?: number; consumed_at?: string }[];
+  /** Consumos estornados (CA-05.2.j). `deleted_by` nulo = sem registro confiável de quem autorizou. */
+  voided_consumptions?: {
+    id?: string;
+    description?: string;
+    amount?: number;
+    consumed_at?: string;
+    deleted_by?: { name?: string } | null;
+  }[];
   payments?: {
     id?: string;
     amount?: number;
@@ -174,8 +182,8 @@ export interface TimelineEntry {
    */
   awaiting: boolean;
   /**
-   * Pagamento estornado (VOIDED, T-06.13): lançamento feito por engano e anulado pela gerência.
-   * Não abate nem soma; a tela mostra riscado, com o motivo, para não parecer pagamento.
+   * Lançamento estornado pela gerência: pagamento VOIDED (T-06.13), com o motivo, ou consumo
+   * excluído (CA-05.2.j), com quem autorizou. Não abate nem soma; a tela mostra riscado.
    */
   voided: boolean;
   /**
@@ -275,6 +283,26 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
     });
   }
 
+  // Fica na data em que foi lançado, onde a equipe procuraria o consumo. Fora do saldo e do
+  // comprovante, como o pagamento estornado.
+  for (const c of bill.voided_consumptions ?? []) {
+    const note = c.deleted_by?.name
+      ? `estornado por ${c.deleted_by.name}`
+      : 'estornado, sem registro de quem autorizou';
+    raw.push({
+      key: `voided-consumption-${c.id}`,
+      kind: 'consumption',
+      at: c.consumed_at ? new Date(c.consumed_at) : null,
+      dateOnly: false,
+      label: `${c.description || 'Consumo'} (${note})`,
+      amountCents: cents(c.amount),
+      notCounted: true,
+      awaiting: false,
+      voided: true,
+      onReceipt: false,
+    });
+  }
+
   for (const p of bill.payments ?? []) {
     const method = p.method ? (PAYMENT_METHOD_LABEL[p.method] ?? p.method) : 'Pagamento';
     const voided = p.status === 'VOIDED';
@@ -312,7 +340,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
     if (e.kind === 'payment') {
       if (e.awaiting) pending += -e.amountCents;
       else if (!e.notCounted) paid += -e.amountCents;
-    } else {
+    } else if (!e.notCounted) {
       charges += e.amountCents;
     }
     if (!e.notCounted) balance += e.amountCents;
