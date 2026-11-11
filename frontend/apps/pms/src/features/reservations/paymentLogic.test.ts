@@ -157,11 +157,11 @@ describe('freshBalanceStep — o saldo conferido no servidor antes de gravar (�
 
   it('a conta já tem valor a devolver: não grava e mostra quanto', () => {
     const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: -10000 } });
-    expect(step.kind).toBe('stop');
-    if (step.kind === 'stop') {
-      expect(step.text).toContain(formatBRL(10000));
-      expect(step.text).toContain('a devolver');
-    }
+    // Valor positivo: "R$ 100,00 a devolver", nunca "-R$ 100,00" (achado da mutação).
+    expect(step).toEqual({
+      kind: 'stop',
+      text: `A conta já tem ${formatBRL(10000)} a devolver por outro registro. Nada foi registrado.`,
+    });
   });
 
   it('não deu para conferir (rede, 5xx): não grava — fail-safe', () => {
