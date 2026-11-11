@@ -124,7 +124,7 @@ export default class AsaasPixProvider extends PixProvider {
         return response.json();
     }
 
-    async createCharge({ amount, description, externalId, payerName, payerEmail, payerCpf }) {
+    async createCharge({ amount, description, externalId, expiresInMinutes = 30, payerName, payerEmail, payerCpf }) {
         if (!payerCpf) {
             // O controller já valida antes (requiresPayerCpf); isto é a defesa do contrato.
             throw new PixProviderUnavailableError('Asaas exige o CPF do pagador');
@@ -167,11 +167,25 @@ export default class AsaasPixProvider extends PixProvider {
             throw new PixProviderUnavailableError('Asaas não retornou o QR Code PIX');
         }
 
+        // O QR do Asaas vale muito mais que o prazo do contrato (no teste real, 1 ano). O hóspede
+        // recebe o prazo do contrato, como no Mercado Pago; se o Asaas vencer antes, vale o dele.
+        // Quem impede o pagamento tardio de reserva cancelada é o cancelCharge (🟡-1 de 16/10).
+        const contractExpiration = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+        const asaasExpiration = parseAsaasDate(qr.expirationDate);
+        const expiration = asaasExpiration && asaasExpiration < contractExpiration ? asaasExpiration : contractExpiration;
+
         return {
             providerChargeId: String(payment.id),
             qrCode: qr.payload,
-            expiration: parseAsaasDate(qr.expirationDate)
+            expiration
         };
+    }
+
+    // DELETE /payments/{id}: o Asaas remove a cobrança e o QR deixa de ser pagável. Cobrança já
+    // paga não é removida (resposta não-2xx → PixProviderUnavailableError, via #request).
+    async cancelCharge(providerChargeId) {
+        const result = await this.#request(`/payments/${encodeURIComponent(providerChargeId)}`, { method: 'DELETE' });
+        return { cancelled: result?.deleted === true };
     }
 
     verifyWebhook(request) {

@@ -31,6 +31,18 @@ export default class PixProvider {
     }
 
     /**
+     * Cancela a cobrança no PSP, para que não possa mais ser paga (reserva cancelada).
+     * Padrão: no-op — o fake não cobra de verdade, e a cobrança do Mercado Pago já vence em
+     * expiresInMinutes. Só o PSP com cobrança de vida longa (Asaas) precisa sobrescrever.
+     * @param {string} providerChargeId
+     * @returns {Promise<{ cancelled: boolean }>} cancelled: true SÓ quando o PSP confirmou
+     * @throws {import('./errors.js').PixProviderUnavailableError} se o PSP recusar ou estiver fora
+     */
+    async cancelCharge() {
+        return { cancelled: false };
+    }
+
+    /**
      * Extrai e valida a notificação de webhook do provedor (assinatura, quando aplicável).
      * @param {import('express').Request} request
      * @returns {{ providerChargeId: string }}

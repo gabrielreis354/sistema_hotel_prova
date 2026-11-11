@@ -1,6 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
+import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
 
 // Allowlist explícita: apenas esses status podem ser cancelados.
 // Qualquer outro status (incluindo futuros) é bloqueado por padrão — fail-safe.
@@ -45,6 +46,10 @@ export default async function CancelReservationController(request, response) {
         // Estadia cancelada não recebe consumo: as contas dela fecham junto (SPEC-04, T-04.3, D-36).
         await closeReservationAccounts(reservation, transaction);
         await transaction.commit();
+
+        // Depois do commit, fora da transação: a chamada ao PSP é de rede, e falha dela não
+        // desfaz o cancelamento (cancelPendingCharges nunca lança).
+        await cancelPendingCharges(reservation);
 
         return response.json(reservation);
     } catch (error) {
