@@ -121,7 +121,7 @@ frente → condição de aprovação → produto demonstrável → polimento.
 **Pendências pós-merge registradas** (pegue quando a sua trilha folgar):
 - **T-05.2, LGPD:** o seletor de hóspede mostra CPF, telefone e e-mail completos. Mascarar o CPF. A busca deve ter `minLength: 3` no backend (🟢-1 e 🟢-3 de `docs/qa/redteam_t052-reservas_delta2_02nov2026.md`).
 - **T-05.2:** trocar o `ReservationStatusBadge` local pelo `StatusBadge` do `@hotel/ui`.
-- **Frontend:** `roomsApi.test.ts` falha às vezes quando o turbo roda tudo em paralelo (3 s sozinho).
+- ✅ **Frontend:** `roomsApi.test.ts` instável em execução paralela. Resolvido em 11/11 (`fix/rooms-api-teste-instavel`): o fetch simulado vai para o `vi.hoisted` e o import deixa de contar no limite do `beforeAll`.
 - **Sirlande:** `GET /rooms/:id` e `GET /room-categories/:id` com id não-UUID respondem 500. Registrar o D-xx do #104 na SPEC-04.
 - **Staging:** rodar a consulta que procura categoria de outro hotel gravada antes do #104.
 
