@@ -118,6 +118,13 @@ describe('POST /public/:subdomain/bookings — provider Asaas', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it('CPF malformado devolve 400 e não chama o Asaas (antes virava 503)', async () => {
+        const res = await book(hotelA, '2027-08-01', '2027-08-02', { cpf: '529.982.247-24' });
+        expect(res.status).toBe(400);
+        expect(res.body.errors).toContain('guest.cpf inválido');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('cria a reserva PENDING e a cobrança PIX no Asaas, devolvendo só o necessário', async () => {
         const res = await book(hotelA, '2027-08-03', '2027-08-05');
         expect(res.status).toBe(201);

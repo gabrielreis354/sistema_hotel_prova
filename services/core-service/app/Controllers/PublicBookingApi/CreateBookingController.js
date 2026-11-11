@@ -5,6 +5,7 @@ import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.j
 import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import { calculateStayTotal, countNights, toCents, fromCents } from '../../utils/calculateStayTotal.js';
 import { onlyDigits } from '../../utils/onlyDigits.js';
+import { isValidCpf } from '../../utils/isValidCpf.js';
 import getPixProvider from '../../services/pix/index.js';
 import { PixProviderUnavailableError } from '../../services/pix/errors.js';
 import RoomModel from '../../Models/RoomModel.js';
@@ -97,6 +98,11 @@ export default async function CreateBookingController(request, response) {
         // PSP que exige CPF para cobrar (Asaas): 400 claro aqui, em vez de 503 vindo do PSP.
         if (pix.requiresPayerCpf && !(guest.cpf && onlyDigits(guest.cpf))) {
             return response.status(400).json({ errors: ['guest.cpf obrigatório para pagamento PIX'] });
+        }
+        // CPF malformado o Asaas recusa, e a recusa virava 503. Só vale para quem exige CPF:
+        // no fake e no Mercado Pago o CPF é opcional e não vai ao PSP.
+        if (pix.requiresPayerCpf && !isValidCpf(guest.cpf)) {
+            return response.status(400).json({ errors: ['guest.cpf inválido'] });
         }
         let charge;
         try {
