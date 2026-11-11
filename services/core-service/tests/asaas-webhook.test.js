@@ -468,6 +468,23 @@ describe('PUT /reservations/:id/cancel — cobrança PIX no Asaas', () => {
         expect(JSON.stringify(errorSpy.mock.calls)).toContain(chargeId);
     });
 
+    it('Asaas voltou: cancelar de novo responde 422 e cancela a cobrança que ficou PENDING', async () => {
+        const booking = await book(hotelA, '2027-10-13', '2027-10-14');
+        const chargeId = booking.body.pix.provider_charge_id;
+        asaasDown = true;
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        await cancel(hotelA, booking.body.reservation.id);
+        asaasDown = false;
+
+        const res = await cancel(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(422);
+        expect(res.body.error).toBe('Reserva já cancelada');
+        expect(asaasCharges.get(chargeId).deleted).toBe(true);
+        const { payment } = await stateOf(booking);
+        expect(payment.status).toBe('FAILED');
+    });
+
     it('cobrança já paga no Asaas (webhook ainda não chegou): o Asaas recusa e o sinal fica PENDING', async () => {
         const booking = await book(hotelA, '2027-10-05', '2027-10-06');
         const chargeId = booking.body.pix.provider_charge_id;

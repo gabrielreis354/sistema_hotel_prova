@@ -170,6 +170,8 @@ export default class AsaasPixProvider extends PixProvider {
         // O QR do Asaas vale muito mais que o prazo do contrato (no teste real, 1 ano). O hóspede
         // recebe o prazo do contrato, como no Mercado Pago; se o Asaas vencer antes, vale o dele.
         // Quem impede o pagamento tardio de reserva cancelada é o cancelCharge (🟡-1 de 16/10).
+        // ATENÇÃO: o QR segue pagável depois desta data. Um futuro job de expiração precisa
+        // chamar cancelCharge antes de marcar EXPIRED, senão o webhook ignora o pagamento.
         const contractExpiration = new Date(Date.now() + expiresInMinutes * 60 * 1000);
         const asaasExpiration = parseAsaasDate(qr.expirationDate);
         const expiration = asaasExpiration && asaasExpiration < contractExpiration ? asaasExpiration : contractExpiration;

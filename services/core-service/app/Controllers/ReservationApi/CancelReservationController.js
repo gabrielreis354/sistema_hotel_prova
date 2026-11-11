@@ -38,6 +38,13 @@ export default async function CancelReservationController(request, response) {
         if (!CANCELLABLE_STATUSES.includes(reservation.status)) {
             const message = CANCEL_BLOCKED_MESSAGES[reservation.status]
                 ?? `Cancelamento não permitido no status '${reservation.status}'`;
+            if (reservation.status === 'CANCELLED') {
+                // Segunda chance: se o PSP estava fora do ar no cancelamento, a cobrança ficou
+                // PENDING e pagável. Cancelar de novo tenta outra vez; a resposta continua 422.
+                await transaction.rollback();
+                await cancelPendingCharges(reservation);
+                return response.status(422).json({ error: message });
+            }
             return await fail(422, { error: message });
         }
 
