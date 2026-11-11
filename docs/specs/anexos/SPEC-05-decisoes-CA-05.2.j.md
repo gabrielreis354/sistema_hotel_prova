@@ -63,7 +63,7 @@ Formato de cada entrada: `id`, `description`, `amount` (número, como o resto do
 
 | # | Pendência | Dono | Quando |
 |---|---|---|---|
-| 1 | Tela: estorno na linha do tempo, com quem autorizou (CA-05.2.j, parte do frontend) | Gabriel | M5-c, tela |
+| 1 | ✅ Tela: estorno na linha do tempo, com quem autorizou. Feita em 11/11 como sugerido no §1 | Gabriel | `feature/m5c-estorno-tela` |
 | 2 | Estorno antigo não migrado aparece no histórico (🟡, opção B) | Sirlande | depois do congelamento |
 | 3 | Investigar se `migrateConsumptions.js:44-56` deixa a reserva para trás quando há linha inválida já excluída | Sirlande | depois do congelamento |
 | 4 | Dado de demonstração: o seed do roteiro (M8) inclui um estorno, para o passo 5 mostrar quem autorizou | Sirlande | M8, 17/11 |

@@ -142,6 +142,14 @@ export interface BillLike {
   room_total?: number;
   balance_due?: number;
   consumptions?: { id?: string; description?: string; amount?: number; consumed_at?: string }[];
+  /** Consumos estornados (CA-05.2.j). `deleted_by` nulo = sem registro confiável de quem autorizou. */
+  voided_consumptions?: {
+    id?: string;
+    description?: string;
+    amount?: number;
+    consumed_at?: string;
+    deleted_by?: { name?: string } | null;
+  }[];
   payments?: {
     id?: string;
     amount?: number;
@@ -166,7 +174,10 @@ export interface TimelineEntry {
   label: string;
   /** Débito positivo (diária, consumo); crédito negativo (pagamento). */
   amountCents: Cents;
-  /** Pagamento que ainda não conta no saldo (PIX pendente, falho, expirado). */
+  /**
+   * Linha que não conta no saldo nem em cobranças: pagamento não confirmado (PIX pendente, falho,
+   * expirado), pagamento estornado e consumo estornado.
+   */
   notCounted: boolean;
   /**
    * Pagamento PENDING: ainda pode entrar e soma em "aguardando". EXPIRED e FAILED não abatem
@@ -174,13 +185,14 @@ export interface TimelineEntry {
    */
   awaiting: boolean;
   /**
-   * Pagamento estornado (VOIDED, T-06.13): lançamento feito por engano e anulado pela gerência.
-   * Não abate nem soma; a tela mostra riscado, com o motivo, para não parecer pagamento.
+   * Lançamento estornado pela gerência: pagamento VOIDED (T-06.13), com o motivo, ou consumo
+   * excluído (CA-05.2.j), com quem autorizou. Não abate nem soma; a tela mostra riscado.
    */
   voided: boolean;
   /**
    * Linha que compõe o saldo apresentado ao hóspede: diárias, consumos, pagamentos PAID e PIX
-   * ainda PENDING. EXPIRED, FAILED e VOIDED ficam de fora do comprovante (ver receiptEntries).
+   * ainda PENDING. EXPIRED, FAILED, VOIDED e consumo estornado ficam de fora do comprovante (ver
+   * receiptEntries).
    */
   onReceipt: boolean;
   /** Saldo depois desta linha — só o que conta entra. */
@@ -236,6 +248,7 @@ export function splitLodging(totalCents: Cents, nights: number): Cents[] {
 /**
  * Conta da reserva como linha do tempo: diárias (uma por noite), consumos e pagamentos em
  * ordem cronológica, com o saldo correndo. Só pagamento PAID abate — igual ao GetBillController.
+ * Consumo estornado aparece para a equipe, mas não entra em cobranças nem no saldo (CA-05.2.j).
  */
 export function buildBillTimeline(bill: BillLike): BillTimeline {
   const raw: Omit<TimelineEntry, 'balanceCents'>[] = [];
@@ -272,6 +285,26 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       awaiting: false,
       voided: false,
       onReceipt: true,
+    });
+  }
+
+  // Fica na data em que foi lançado, onde a equipe procuraria o consumo. Fora do saldo e do
+  // comprovante, como o pagamento estornado.
+  for (const c of bill.voided_consumptions ?? []) {
+    // Nome em branco é tão sem registro quanto nome ausente, como o motivo do pagamento estornado.
+    const who = c.deleted_by?.name?.trim();
+    const note = who ? `estornado por ${who}` : 'estornado, sem registro de quem autorizou';
+    raw.push({
+      key: `voided-consumption-${c.id}`,
+      kind: 'consumption',
+      at: c.consumed_at ? new Date(c.consumed_at) : null,
+      dateOnly: false,
+      label: `${c.description || 'Consumo'} (${note})`,
+      amountCents: cents(c.amount),
+      notCounted: true,
+      awaiting: false,
+      voided: true,
+      onReceipt: false,
     });
   }
 
@@ -312,7 +345,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
     if (e.kind === 'payment') {
       if (e.awaiting) pending += -e.amountCents;
       else if (!e.notCounted) paid += -e.amountCents;
-    } else {
+    } else if (!e.notCounted) {
       charges += e.amountCents;
     }
     if (!e.notCounted) balance += e.amountCents;

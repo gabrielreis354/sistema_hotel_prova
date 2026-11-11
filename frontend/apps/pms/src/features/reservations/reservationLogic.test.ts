@@ -182,6 +182,87 @@ describe('buildBillTimeline — conta em linha do tempo', () => {
     ]);
   });
 
+  // CA-05.2.j: consumo estornado aparece para a equipe com quem autorizou, mas nunca pesa na conta.
+  describe('consumo estornado (CA-05.2.j)', () => {
+    const voided = {
+      ...bill,
+      voided_consumptions: [
+        {
+          id: 'x1',
+          description: 'Jantar',
+          amount: 120,
+          consumed_at: '2026-10-22T20:00:00.000Z',
+          deleted_at: '2026-10-23T09:00:00.000Z',
+          deleted_by: { id: 'u-1', name: 'Ana' },
+        },
+        {
+          id: 'x2',
+          description: 'Frigobar',
+          amount: 15,
+          consumed_at: '2026-10-23T10:00:00.000Z',
+          deleted_at: '2026-10-23T11:00:00.000Z',
+          deleted_by: null,
+        },
+      ],
+    };
+
+    it('aparece na data do lançamento, riscado, com quem autorizou', () => {
+      const t = buildBillTimeline(voided);
+      const jantar = t.entries.find((e) => e.key === 'voided-consumption-x1');
+      expect(jantar).toMatchObject({
+        kind: 'consumption',
+        label: 'Jantar (estornado por Ana)',
+        amountCents: 12000,
+        voided: true,
+        notCounted: true,
+        awaiting: false,
+        onReceipt: false,
+      });
+      expect(jantar?.at?.toISOString()).toBe('2026-10-22T20:00:00.000Z');
+      expect(t.entries.map((e) => e.key)).toEqual([
+        'lodging-2026-10-22',
+        'payment-p1',
+        'consumption-c1',
+        'voided-consumption-x1',
+        'lodging-2026-10-23',
+        'voided-consumption-x2',
+        'payment-p2',
+      ]);
+    });
+
+    it('sem registro de quem autorizou, diz isso em vez de inventar um nome', () => {
+      const t = buildBillTimeline(voided);
+      expect(t.entries.find((e) => e.key === 'voided-consumption-x2')?.label).toBe(
+        'Frigobar (estornado, sem registro de quem autorizou)',
+      );
+    });
+
+    it('nome em branco vale como sem registro, e consumo sem descrição vira "Consumo"', () => {
+      const t = buildBillTimeline({
+        ...bill,
+        voided_consumptions: [
+          { id: 'x3', amount: 10, consumed_at: '2026-10-22T21:00:00.000Z', deleted_by: { name: '   ' } },
+        ],
+      });
+      expect(t.entries.find((e) => e.key === 'voided-consumption-x3')?.label).toBe(
+        'Consumo (estornado, sem registro de quem autorizou)',
+      );
+    });
+
+    it('lista vazia, como a API manda sem estorno, não muda nada', () => {
+      expect(buildBillTimeline({ ...bill, voided_consumptions: [] })).toEqual(buildBillTimeline(bill));
+    });
+
+    it('não entra em cobranças, no saldo nem no comprovante', () => {
+      const semEstorno = buildBillTimeline(bill);
+      const t = buildBillTimeline(voided);
+      expect(t.chargesCents).toBe(semEstorno.chargesCents);
+      expect(t.balanceCents).toBe(semEstorno.balanceCents);
+      expect(t.entries.find((e) => e.key === 'voided-consumption-x1')?.balanceCents).toBe(8550);
+      expect(receiptEntries(t).map((e) => e.key)).toEqual(receiptEntries(semEstorno).map((e) => e.key));
+    });
+  });
+
   it('métodos da T-06.13 e status desconhecido nunca saem como enum cru', () => {
     const t = buildBillTimeline({
       ...bill,
