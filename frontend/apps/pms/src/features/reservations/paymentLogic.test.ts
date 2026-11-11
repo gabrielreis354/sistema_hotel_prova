@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { formatBRL } from '@hotel/domain';
 import {
   PAYMENT_METHOD_OPTIONS,
   canReceivePayment,
+  freshBalanceStep,
   paymentBody,
   readPaymentAmount,
   submitStep,
@@ -126,5 +128,48 @@ describe('submitStep — o que o envio do formulário faz (D3, 🟡-1 do qa-redt
   it('com a confirmação aberta, um novo Enter no campo NÃO grava: só "Sim, registrar" grava', () => {
     expect(submitStep({ reading: ok(500, 100), method: 'PIX', confirming: true })).toEqual({ kind: 'wait' });
     expect(submitStep({ reading: ok(100), method: 'PIX', confirming: true })).toEqual({ kind: 'wait' });
+  });
+});
+
+describe('freshBalanceStep — o saldo conferido no servidor antes de gravar (🔴 do qa-explorador de 11/11)', () => {
+  it('saldo igual ao da tela: grava', () => {
+    expect(freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: 26197 } })).toEqual({ kind: 'send' });
+  });
+
+  it('outro balcão registrou um pagamento: não grava e mostra o saldo novo (o cenário do relatório)', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: 16197 } });
+    expect(step.kind).toBe('stop');
+    if (step.kind !== 'stop') return;
+    expect(step.text).toContain(formatBRL(16197));
+    expect(step.text).toContain('Nada foi registrado');
+  });
+
+  it('um consumo entrou no meio (saldo maior): também não grava', () => {
+    const step = freshBalanceStep({ shownCents: 10000, fresh: { ok: true, balanceCents: 10001 } });
+    expect(step.kind).toBe('stop');
+    if (step.kind === 'stop') expect(step.text).toContain(formatBRL(10001));
+  });
+
+  it('a conta já foi quitada em outro registro: não grava e diz que está quitada', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: 0 } });
+    expect(step).toEqual({ kind: 'stop', text: 'A conta já foi quitada em outro registro. Nada foi registrado.' });
+  });
+
+  it('a conta já tem valor a devolver: não grava e mostra quanto', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: -10000 } });
+    expect(step.kind).toBe('stop');
+    if (step.kind === 'stop') {
+      expect(step.text).toContain(formatBRL(10000));
+      expect(step.text).toContain('a devolver');
+    }
+  });
+
+  it('não deu para conferir (rede, 5xx): não grava — fail-safe', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: false } });
+    expect(step.kind).toBe('stop');
+    if (step.kind === 'stop') {
+      expect(step.text).toContain('Não foi possível conferir o saldo');
+      expect(step.text).toContain('Nada foi registrado');
+    }
   });
 });
