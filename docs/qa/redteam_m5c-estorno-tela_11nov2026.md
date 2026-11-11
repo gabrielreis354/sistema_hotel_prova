@@ -73,3 +73,14 @@ Nenhum.
 ## Não foi possível verificar
 - **Renderização:** não subi o backend nem o navegador, como combinado. A tela real (1280 px e 375 px, risco, rótulo, totais e comprovante) foi conferida pelo orquestrador, conforme `docs/historico_sessao/gabriel/estorno_tela_ca052j_11nov2026.md`. Não confirmei de forma independente a leitura do "(fora do saldo)" num leitor de tela real.
 - **Legado:** o estorno antigo ainda não migrado de `consumptions` não aparece. É limitação conhecida do backend (anexo §2 e §4 item 2, Sirlande) e fica fora do escopo desta branch.
+
+## Desfecho (11/11/2026, depois da auditoria)
+Os três 🟢 foram tratados na mesma branch.
+
+| Achado | Tratamento | Commits |
+|---|---|---|
+| 🟢 Comentários desatualizados | `notCounted`, `onReceipt`, `buildBillTimeline` e o comentário do risco em `BillTimeline.tsx` citam o consumo estornado | `39530af` |
+| 🟢 Nome em branco | `trim()` no nome. Em branco vale como "sem registro de quem autorizou" | `243e4f7` (RED) · `39530af` |
+| 🟢 Lacunas de teste | Testes de consumo sem descrição e de lista vazia. O risco e o "(fora do saldo)" seguem sem teste automático, por falta de DOM no Vitest, e foram conferidos na tela real | `243e4f7` |
+
+PMS: 285 testes verdes, typecheck e build limpos.

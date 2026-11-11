@@ -29,12 +29,16 @@ Decisões:
 |------|----------|
 | `6764a8f` | `test(pms): RED do consumo estornado na conta da reserva (CA-05.2.j)` |
 | `d5f0d8f` | `feat(pms): consumo estornado na conta da reserva, com quem autorizou` |
-| (este) | `docs(estorno): CA-05.2.j concluido na SPEC-05, painel, anexo e relatorio` |
+| `6b0fa6e` | `docs(estorno): CA-05.2.j concluido na SPEC-05, painel, anexo e relatorio` |
+| `30a564e` | `docs(qa): red team da tela de estorno (CA-05.2.j)` |
+| `243e4f7` | `test(pms): RED do nome em branco no estorno de consumo` |
+| `39530af` | `fix(pms): ressalvas do qa-redteam na tela de estorno` |
+| (este) | `docs(qa): desfecho do red team da tela de estorno` |
 
 #### Pendências
 
 | # | Pendência | Prioridade | Observação |
 |---|-----------|-----------|------------|
-| 1 | qa-redteam desta branch antes do merge | 🟡 Média | Roda em seguida, nesta sessão |
+| 1 | ✅ qa-redteam: aprovado com ressalvas (3 🟢), todas tratadas | — | `docs/qa/redteam_m5c-estorno-tela_11nov2026.md` |
 | 2 | Seed do roteiro (M8) com um estorno, para o passo 5 mostrar quem autorizou | 🟡 Média | Sirlande, M8 (17/11), já no anexo §4 |
 | 3 | O app não declara favicon, e o navegador registra um 404 no console | 🟢 Baixa | Um `<link rel="icon">` no `index.html` resolve. Cabe no acabamento (SPEC-08) |
