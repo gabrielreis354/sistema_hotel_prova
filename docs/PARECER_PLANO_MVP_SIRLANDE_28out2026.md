@@ -1,5 +1,7 @@
 # Parecer sobre o Plano até 10/12 — estado em 28/10/2026
 
+> **Registro histórico (nota de 11/11/2026).** Este é o estado de 28/10 e não o plano em vigor. O Gabriel respondeu em `docs/delegacoes/resposta_gabriel_parecer_sirlande_28out2026.md`, e as 7 decisões da §7 foram fechadas no ponto de controle de 03/11 (`docs/delegacoes/pauta_ponto_controle_03nov2026.md`). O andamento atual das metas M1 a M10 está em `docs/PAINEL_DE_ANDAMENTO_MVP.md`.
+
 **Autor:** Sirlande Martins · **Data:** 28/10/2026 (quarta, início da semana 2)
 **Sobre:** `docs/PLANO_MVP_ATE_10DEZ2026.md` (Gabriel, 21/10, PR #99) e o boletim do time publicado a partir dele.
 **Natureza:** proposta de ajuste, para decidir no ponto de controle da semana 2. Não altera o plano sozinho: o que for aceito entra no `PLANO_MVP` e no painel.
