@@ -114,6 +114,7 @@ aceita a autenticação do provider ativo. Para trocar:
   `GetAvailabilityController` só conferem se `check_out` vem depois de `check_in`. Um hóspede
   consegue reservar uma estadia que já passou. É um defeito de produto, fora do escopo deste roteiro
   porque muda o contrato da API. As datas de exemplo do Swagger evitam o problema na demonstração.
-- **Asaas, 🟡-1 do qa-redteam de 16/10, ainda aberta:** a cobrança fica pagável por 1 ano e não
-  é cancelada quando a reserva é cancelada. Não aparece no roteiro se ele for seguido como está
-  escrito. A 🟡-3 (CPF malformado virava 503) foi fechada em 11/11: agora responde 400.
+- **Asaas, 🟡-1 e 🟡-3 do qa-redteam de 16/10, fechadas em 11/11:** cancelar a reserva cancela a
+  cobrança no Asaas (o sinal vira `FAILED`), o prazo devolvido ao hóspede é de 30 min, e CPF
+  malformado responde 400. Ainda não há job que expire sozinho a cobrança `PENDING` de reserva
+  que ninguém cancelou: no Asaas, o QR dela continua pagável e, se pago, confirma a reserva.
