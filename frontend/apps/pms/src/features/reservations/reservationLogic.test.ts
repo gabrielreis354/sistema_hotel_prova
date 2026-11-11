@@ -237,6 +237,22 @@ describe('buildBillTimeline — conta em linha do tempo', () => {
       );
     });
 
+    it('nome em branco vale como sem registro, e consumo sem descrição vira "Consumo"', () => {
+      const t = buildBillTimeline({
+        ...bill,
+        voided_consumptions: [
+          { id: 'x3', amount: 10, consumed_at: '2026-10-22T21:00:00.000Z', deleted_by: { name: '   ' } },
+        ],
+      });
+      expect(t.entries.find((e) => e.key === 'voided-consumption-x3')?.label).toBe(
+        'Consumo (estornado, sem registro de quem autorizou)',
+      );
+    });
+
+    it('lista vazia, como a API manda sem estorno, não muda nada', () => {
+      expect(buildBillTimeline({ ...bill, voided_consumptions: [] })).toEqual(buildBillTimeline(bill));
+    });
+
     it('não entra em cobranças, no saldo nem no comprovante', () => {
       const semEstorno = buildBillTimeline(bill);
       const t = buildBillTimeline(voided);
