@@ -19,11 +19,26 @@ const PROVIDERS = {
 
 let instance = null;
 
+/**
+ * Nome canônico do provider ativo. Vazio ou ausente → 'fake'. Valor fora da lista
+ * lança erro (allowlist, fail-safe): antes, um erro de digitação como "assas" caía
+ * calado no fake, e o hotel achava que cobrava de verdade sem cobrar nada.
+ * O _web.js chama getPixProvider() na subida, então o erro aparece no deploy.
+ */
+export function resolvePixProviderKey() {
+    const key = (process.env.PIX_PROVIDER || '').trim().toLowerCase() || 'fake';
+    if (!Object.hasOwn(PROVIDERS, key)) {
+        throw new Error(
+            `PIX_PROVIDER desconhecido: "${process.env.PIX_PROVIDER}". Use um destes: ${Object.keys(PROVIDERS).join(', ')}`
+        );
+    }
+    return key;
+}
+
 export default function getPixProvider() {
     if (instance) return instance;
 
-    const key = (process.env.PIX_PROVIDER || 'fake').toLowerCase();
-    const Provider = PROVIDERS[key] || FakePixProvider;
+    const Provider = PROVIDERS[resolvePixProviderKey()];
     instance = new Provider();
     return instance;
 }

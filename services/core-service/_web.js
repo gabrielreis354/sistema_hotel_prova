@@ -27,6 +27,16 @@ try {
     process.exit(1);
 }
 
+// Fail-fast do PIX: PIX_PROVIDER com valor fora da lista (ex.: "assas") não sobe. Sem
+// isto o erro só apareceria na primeira reserva direta, com o hóspede esperando o QR.
+const { default: getPixProvider } = await import('./app/services/pix/index.js');
+try {
+    getPixProvider();
+} catch (error) {
+    console.error(`❌ ${error.message} — servidor não vai subir.`);
+    process.exit(1);
+}
+
 // Inicializa os relacionamentos do Sequelize
 app();
 
