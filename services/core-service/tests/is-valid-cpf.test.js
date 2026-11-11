@@ -25,6 +25,12 @@ describe('isValidCpf', () => {
         expect(isValidCpf('111.111.111-11')).toBe(false);
     });
 
+    it('recusa texto em volta dos dígitos e separadores fora do padrão', () => {
+        expect(isValidCpf('CPF: 529.982.247-25')).toBe(false);
+        expect(isValidCpf('529-982-247/25')).toBe(false);
+        expect(isValidCpf('529.982.24725')).toBe(false);
+    });
+
     it('recusa vazio, nulo e não-string', () => {
         expect(isValidCpf('')).toBe(false);
         expect(isValidCpf(null)).toBe(false);

@@ -6,7 +6,7 @@ import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } 
 import { calculateStayTotal, countNights, toCents, fromCents } from '../../utils/calculateStayTotal.js';
 import { onlyDigits } from '../../utils/onlyDigits.js';
 import { isValidCpf } from '../../utils/isValidCpf.js';
-import getPixProvider, { resolvePixProviderKey } from '../../services/pix/index.js';
+import getPixProvider, { getPixProviderKey } from '../../services/pix/index.js';
 import { PixProviderUnavailableError } from '../../services/pix/errors.js';
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
@@ -195,7 +195,7 @@ export default async function CreateBookingController(request, response) {
                 method: 'PIX',
                 status: 'PENDING',
                 kind: 'DEPOSIT',
-                provider: resolvePixProviderKey(),
+                provider: getPixProviderKey(),
                 provider_charge_id: charge.providerChargeId,
                 pix_qr_code: charge.qrCode,
                 pix_expiration: charge.expiration,

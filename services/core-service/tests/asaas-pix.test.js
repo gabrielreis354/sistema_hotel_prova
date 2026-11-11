@@ -77,7 +77,15 @@ describe('Seleção do provider por PIX_PROVIDER', () => {
     it('PIX_PROVIDER desconhecido lança erro em vez de cair no fake (fail-safe)', () => {
         vi.stubEnv('PIX_PROVIDER', 'assas');
         resetPixProviderForTests();
-        expect(() => getPixProvider()).toThrow(/PIX_PROVIDER desconhecido: "assas"/);
+        expect(() => getPixProvider()).toThrow(/PIX_PROVIDER desconhecido/);
+    });
+
+    it('a mensagem de erro não repete o valor do env (pode ser uma chave colada no lugar errado)', () => {
+        vi.stubEnv('PIX_PROVIDER', '$aact_hmlg_SEGREDO');
+        resetPixProviderForTests();
+        expect(() => getPixProvider()).toThrow(expect.objectContaining({
+            message: expect.not.stringContaining('SEGREDO')
+        }));
     });
 
     it('só o Asaas exige CPF do pagador', () => {
