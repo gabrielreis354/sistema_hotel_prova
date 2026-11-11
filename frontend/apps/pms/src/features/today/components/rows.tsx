@@ -29,13 +29,68 @@ export function RowList({ children }: { children: ReactNode }) {
   return <ul className="divide-y divide-gray-100">{children}</ul>;
 }
 
-/** Casca da linha: quem/onde à esquerda, ação à direita (embaixo, na largura toda, no celular). */
-function Row({ children, action }: { children: ReactNode; action?: ReactNode }) {
+/**
+ * Casca da linha: quem/onde à esquerda, ação à direita (embaixo, na largura toda, no celular).
+ * `panel` aparece embaixo da linha: é onde fica a confirmação das ações sem volta.
+ */
+function Row({ children, action, panel }: { children: ReactNode; action?: ReactNode; panel?: ReactNode }) {
   return (
-    <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <div className="min-w-0 space-y-1">{children}</div>
-      {action && <div className="shrink-0 sm:w-auto">{action}</div>}
+    <li className="py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0 space-y-1">{children}</div>
+        {action && <div className="shrink-0 sm:w-auto">{action}</div>}
+      </div>
+      {panel}
     </li>
+  );
+}
+
+/**
+ * Confirmação na própria linha para ação que a recepção não consegue desfazer (DESIGN_PMS §5):
+ * o primeiro toque abre este painel e só o botão daqui executa. Numa lista densa, um toque na
+ * linha vizinha não pode virar check-in, check-out ou quarto sujo à venda.
+ */
+function ConfirmPanel({
+  id,
+  title,
+  children,
+  confirmLabel,
+  busyLabel,
+  busy,
+  canConfirm = true,
+  onConfirm,
+  onCancel,
+  extra,
+}: {
+  id: string;
+  title: string;
+  children?: ReactNode;
+  confirmLabel: string;
+  busyLabel: string;
+  busy: boolean;
+  canConfirm?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  extra?: ReactNode;
+}) {
+  return (
+    <div id={id} className="mt-3 space-y-3 rounded-md border border-brand/40 bg-brand/5 p-3">
+      <p className="text-sm font-semibold text-gray-900">{title}</p>
+      {children && (
+        <div aria-live="polite" className="text-sm text-gray-800">
+          {children}
+        </div>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button className={ROW_ACTION} disabled={busy || !canConfirm} onClick={onConfirm}>
+          {busy ? busyLabel : confirmLabel}
+        </Button>
+        {extra}
+        <Button variant="ghost" className={ROW_ACTION} disabled={busy} onClick={onCancel}>
+          Voltar
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -99,11 +154,13 @@ function useRowTransition(reservation: ReservationListItem, onResult: OnResult) 
 
 export function ArrivalItem({ row, onResult }: { row: ArrivalRow<ReservationListItem>; onResult: OnResult }) {
   const r = row.reservation;
+  const [confirming, setConfirming] = useState(false);
   const { run, busy } = useRowTransition(r, onResult);
   const allowed = reservationActions(r.status).checkIn;
   const blocked = allowed.enabled ? checkInBlockedReason(r.room) : null;
   const checkIn = blocked ? { enabled: false, reason: blocked } : allowed;
   const slot = `chegada-${r.id}`;
+  const panelId = `${slot}-confirmacao`;
 
   return (
     <Row
@@ -113,13 +170,30 @@ export function ArrivalItem({ row, onResult }: { row: ArrivalRow<ReservationList
             <Button
               className={ROW_ACTION}
               aria-describedby={describedBy}
-              disabled={!checkIn.enabled || busy}
-              onClick={() => run('check-in')}
+              aria-expanded={confirming}
+              aria-controls={panelId}
+              disabled={!checkIn.enabled || busy || confirming}
+              onClick={() => setConfirming(true)}
             >
-              {busy ? 'Fazendo check-in…' : 'Fazer check-in'}
+              Fazer check-in
             </Button>
           )}
         </ActionSlot>
+      }
+      panel={
+        confirming && (
+          <ConfirmPanel
+            id={panelId}
+            title={`Confirmar check-in de ${r.guest?.full_name ?? 'hóspede'} no quarto ${r.room?.number ?? '—'}`}
+            confirmLabel="Confirmar check-in"
+            busyLabel="Fazendo check-in…"
+            busy={busy}
+            onConfirm={() => run('check-in', () => setConfirming(false))}
+            onCancel={() => setConfirming(false)}
+          >
+            O quarto passa a ocupado e a conta da estadia abre.
+          </ConfirmPanel>
+        )
       }
     >
       <HeadLine>
@@ -160,19 +234,9 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
   const panelId = `${slot}-confirmacao`;
 
   return (
-    <li className="py-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="min-w-0 space-y-1">
-          <HeadLine>
-            <GuestLink reservation={r} />
-            <ReservationStatusBadge status={r.status} />
-          </HeadLine>
-          <StayLine reservation={r} />
-          {row.late && r.check_out_date && (
-            <StatusBadge tone="cleaning" label={`Saída atrasada · era ${formatDateBR(r.check_out_date)}`} className="font-medium" />
-          )}
-        </div>
-        <ActionSlot id={slot} state={checkOut} className="shrink-0">
+    <Row
+      action={
+        <ActionSlot id={slot} state={checkOut}>
           {(describedBy) => (
             <Button
               className={ROW_ACTION}
@@ -186,12 +250,24 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
             </Button>
           )}
         </ActionSlot>
-      </div>
-
-      {confirming && (
-        <div id={panelId} className="mt-3 space-y-3 rounded-md border border-brand/40 bg-brand/5 p-3">
-          <p className="text-sm font-semibold text-gray-900">Confirmar check-out do quarto {r.room?.number ?? '—'}</p>
-          <div aria-live="polite" className="text-sm text-gray-800">
+      }
+      panel={
+        confirming && (
+          <ConfirmPanel
+            id={panelId}
+            title={`Confirmar check-out do quarto ${r.room?.number ?? '—'}`}
+            confirmLabel="Confirmar check-out"
+            busyLabel="Fazendo check-out…"
+            busy={busy}
+            canConfirm={fresh}
+            onConfirm={() => run('check-out', () => setConfirming(false))}
+            onCancel={() => setConfirming(false)}
+            extra={
+              <ButtonLink to={`/reservas/${r.id}?aba=conta`} variant="secondary" className={cn(ROW_ACTION, 'xl:px-3')}>
+                Abrir conta
+              </ButtonLink>
+            }
+          >
             {bill.isFetching && <Spinner label="Conferindo a conta…" />}
             {bill.isError && !bill.isFetching && <p>A conta não carregou. Abra a conta para conferir antes de liberar o hóspede.</p>}
             {balance !== null && balance > 0 && (
@@ -206,21 +282,19 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
                 {balance === 0 ? 'Conta quitada.' : <>Conta quitada, com <Money cents={-balance} /> a devolver.</>}
               </p>
             )}
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button className={ROW_ACTION} disabled={busy || !fresh} onClick={() => run('check-out', () => setConfirming(false))}>
-              {busy ? 'Fazendo check-out…' : 'Confirmar check-out'}
-            </Button>
-            <ButtonLink to={`/reservas/${r.id}?aba=conta`} variant="secondary" className={cn(ROW_ACTION, 'xl:px-3')}>
-              Abrir conta
-            </ButtonLink>
-            <Button variant="ghost" className={ROW_ACTION} disabled={busy} onClick={() => setConfirming(false)}>
-              Voltar
-            </Button>
-          </div>
-        </div>
+          </ConfirmPanel>
+        )
+      }
+    >
+      <HeadLine>
+        <GuestLink reservation={r} />
+        <ReservationStatusBadge status={r.status} />
+      </HeadLine>
+      <StayLine reservation={r} />
+      {row.late && r.check_out_date && (
+        <StatusBadge tone="cleaning" label={`Saída atrasada · era ${formatDateBR(r.check_out_date)}`} className="font-medium" />
       )}
-    </li>
+    </Row>
   );
 }
 
@@ -243,6 +317,20 @@ export function InHouseItem({ reservation }: { reservation: ReservationListItem 
 export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult: OnResult }) {
   const release = useReleaseRoom();
   const busy = release.isPending;
+  const [confirming, setConfirming] = useState(false);
+  const panelId = `limpeza-${room.id}-confirmacao`;
+
+  // mutateAsync, não callbacks do mutate: a linha some ao recarregar a lista, e o React Query não
+  // chama callback de mutate de componente já desmontado.
+  function confirmRelease() {
+    void release.mutateAsync({ id: room.id, number: room.number }).then(
+      () => onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` }),
+      (err: unknown) => {
+        setConfirming(false);
+        onResult({ kind: 'error', text: err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.' });
+      },
+    );
+  }
 
   return (
     <Row
@@ -250,18 +338,28 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
         <Button
           variant="secondary"
           className={ROW_ACTION}
-          disabled={busy}
-          // mutateAsync, não callbacks do mutate: a linha some ao recarregar a lista, e o React
-          // Query não chama callback de mutate de componente já desmontado.
-          onClick={() =>
-            void release.mutateAsync({ id: room.id, number: room.number }).then(
-              () => onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` }),
-              (err: unknown) => onResult({ kind: 'error', text: err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.' }),
-            )
-          }
+          aria-expanded={confirming}
+          aria-controls={panelId}
+          disabled={busy || confirming}
+          onClick={() => setConfirming(true)}
         >
-          {busy ? 'Liberando…' : 'Liberar quarto'}
+          Liberar quarto
         </Button>
+      }
+      panel={
+        confirming && (
+          <ConfirmPanel
+            id={panelId}
+            title={`Confirmar que o quarto ${room.number} está limpo`}
+            confirmLabel="Liberar para a venda"
+            busyLabel="Liberando…"
+            busy={busy}
+            onConfirm={confirmRelease}
+            onCancel={() => setConfirming(false)}
+          >
+            O quarto volta para a venda. Depois disso, só o administrador consegue tirá-lo de novo.
+          </ConfirmPanel>
+        )
       }
     >
       <HeadLine>
