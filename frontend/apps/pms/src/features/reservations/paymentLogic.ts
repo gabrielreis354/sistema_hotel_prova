@@ -110,13 +110,14 @@ export type FreshBalanceStep = { kind: 'send' } | { kind: 'stop'; text: string }
  * da tela, e o cache não recarrega quando a aba volta ao foco: se outro balcão registrou um
  * pagamento no meio, a tela gravaria a maior sem a confirmação da P-3 (🔴 do qa-explorador de
  * 11/11). Qualquer diferença para: a tela se refaz com o saldo novo e a recepção decide de novo.
- * Sem conseguir conferir, também para (fail-safe): nada foi enviado ao POST /payments.
+ * Sem conseguir conferir, também para (fail-safe): nada foi enviado ao POST /payments, e o
+ * formulário continua na tela para tentar de novo.
  */
 export function freshBalanceStep({ shownCents, fresh }: { shownCents: Cents; fresh: FreshBalance }): FreshBalanceStep {
   if (!fresh.ok) {
     return {
       kind: 'stop',
-      text: 'Não foi possível conferir o saldo da conta. Nada foi registrado. Confira a conexão e registre de novo.',
+      text: 'Não foi possível conferir o saldo da conta. Nada foi registrado. Tente de novo.',
     };
   }
   const now = fresh.balanceCents;
@@ -132,4 +133,36 @@ export function freshBalanceStep({ shownCents, fresh }: { shownCents: Cents; fre
     kind: 'stop',
     text: `O saldo mudou para ${formatBRL(now)}: outro pagamento ou consumo entrou nesta conta. Nada foi registrado. Confira o valor e registre de novo.`,
   };
+}
+
+/**
+ * A sequência do envio: conferir o saldo e só então gravar (P-8). Fora do componente para o
+ * teste prender a ordem: o `send` nunca sai antes da resposta da conferência.
+ * - `readFresh` lançou (rede, 5xx): para, como saldo não conferido.
+ * - O formulário saiu da tela durante a conferência: não grava, mesmo com o saldo igual. Uma
+ *   instância nova do formulário pode estar enviando o mesmo pagamento (🟡-1 do qa-redteam de
+ *   11/11). O aviso de parada ainda sobe: ele vai para a página, não para o formulário.
+ */
+export async function confirmBalanceThenSend({
+  shownCents,
+  readFresh,
+  isMounted,
+  send,
+  stop,
+}: {
+  shownCents: Cents;
+  readFresh: () => Promise<Cents>;
+  isMounted: () => boolean;
+  send: () => void;
+  stop: (text: string) => void;
+}): Promise<void> {
+  let fresh: FreshBalance;
+  try {
+    fresh = { ok: true, balanceCents: await readFresh() };
+  } catch {
+    fresh = { ok: false };
+  }
+  const step = freshBalanceStep({ shownCents, fresh });
+  if (step.kind === 'stop') return stop(step.text);
+  if (isMounted()) send();
 }
