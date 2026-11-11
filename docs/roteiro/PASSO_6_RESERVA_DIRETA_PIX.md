@@ -97,6 +97,8 @@ aceita a autenticação do provider ativo. Para trocar:
 | `POST /bookings` responde 404 | o `category_id` do exemplo não foi trocado | copie o id do `GET /availability` |
 | `POST /bookings` responde 409 | sem quarto livre, inclusive por reservas `PENDING` de ensaios anteriores nas mesmas datas | escolha outra categoria ou mude as datas |
 | `POST /bookings` responde 400 `guest.cpf obrigatório` | plano A sem CPF no corpo | use o CPF do exemplo |
+| `POST /bookings` responde 400 `guest.cpf inválido` | plano A com CPF digitado errado (dígito verificador não bate) | use o CPF do exemplo |
+| O backend fica em `Restarting` no `docker compose ps` | `PIX_PROVIDER` com valor fora de `fake`, `mercadopago`, `asaas` (ex.: `assas`) | `docker compose logs backend` mostra `PIX_PROVIDER desconhecido`; corrija o `.env` e suba de novo |
 | `POST /bookings` responde 503 | Asaas fora do ar, ou chave vencida ou errada | troque para o plano B |
 | O script responde 401 | `PIX_PROVIDER=asaas` ainda ativo | siga "Trocar do A para o B na hora" |
 | O status continua `PENDING` depois de pagar no sandbox | o túnel caiu ou o webhook está pausado no painel | confira os logs do webhook no painel. Se não resolver, plano B |
@@ -112,8 +114,6 @@ aceita a autenticação do provider ativo. Para trocar:
   `GetAvailabilityController` só conferem se `check_out` vem depois de `check_in`. Um hóspede
   consegue reservar uma estadia que já passou. É um defeito de produto, fora do escopo deste roteiro
   porque muda o contrato da API. As datas de exemplo do Swagger evitam o problema na demonstração.
-- **Asaas, 🟡-1 e 🟡-3 do qa-redteam de 16/10, ainda abertas:**
-  - a cobrança fica pagável por 1 ano e não é cancelada quando a reserva é cancelada;
-  - CPF malformado vira 503 em vez de 400.
-
-  Nenhuma das duas aparece no roteiro se ele for seguido como está escrito.
+- **Asaas, 🟡-1 do qa-redteam de 16/10, ainda aberta:** a cobrança fica pagável por 1 ano e não
+  é cancelada quando a reserva é cancelada. Não aparece no roteiro se ele for seguido como está
+  escrito. A 🟡-3 (CPF malformado virava 503) foi fechada em 11/11: agora responde 400.

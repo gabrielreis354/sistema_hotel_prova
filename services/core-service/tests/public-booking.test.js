@@ -407,3 +407,18 @@ describe('Webhook PIX x check-in simultâneo (qa-redteam de 12/10, 🟡-2)', () 
         expect((await PaymentModel.findOne({ where: { reservation_id: reservationId } })).status).toBe('PAID');
     });
 });
+
+describe('POST /public/:subdomain/bookings — CPF com o provider fake', () => {
+    it('não valida o CPF: o fake não exige CPF e não o envia a nenhum PSP', async () => {
+        const res = await request(app)
+            .post(`/public/${subdomain}/bookings`)
+            .send({
+                category_id: categoryId,
+                check_in: '2027-11-01',
+                check_out: '2027-11-02',
+                guests: 1,
+                guest: { full_name: 'CPF Qualquer', email: 'cpf.qualquer@example.com', cpf: '123.456.789-00' }
+            });
+        expect(res.status).toBe(201);
+    });
+});
