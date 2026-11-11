@@ -3,6 +3,8 @@
 **Para:** quem mexe no `frontend/` — Gabriel, Sirlande, Weslley
 **Criado:** 27/09/2026
 
+> **Para criar ou alterar tela no `apps/pms`, leia também o [`GUIA_UI_CORPORATIVA.md`](GUIA_UI_CORPORATIVA.md):** padrões de tela, texto e ações para o público de hotéis pequenos e médios.
+
 ---
 
 ## Por que este arquivo existe
