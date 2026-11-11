@@ -344,7 +344,7 @@ describe('POST /public/:subdomain/bookings — validações', () => {
     // mesmo CPF com e sem máscara virava dois cadastros, e a ficha do hóspede ficava dividida.
     const guestsWithCpfDigits = async (digits) => {
         const [rows] = await sequelize.query(
-            `SELECT id, cpf FROM guests WHERE regexp_replace(cpf, '\D', '', 'g') = :digits`,
+            `SELECT id, cpf FROM guests WHERE regexp_replace(cpf, '\\D', '', 'g') = :digits`,
             { replacements: { digits } }
         );
         return rows;

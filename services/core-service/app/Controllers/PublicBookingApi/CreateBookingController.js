@@ -149,10 +149,19 @@ export default async function CreateBookingController(request, response) {
             // cadastros diferentes, situação normal numa base de hotel — o resultado
             // dependia do plano de execução do Postgres, não determinístico. CPF vem
             // primeiro porque é identidade mais forte (não muda; e-mail muda).
+            //
+            // O CPF é comparado só pelos dígitos (🟡 do qa-redteam de 11/11): a recepção grava
+            // com ou sem máscara, e a string crua dividia o mesmo hóspede em dois cadastros.
+            // O mais antigo vence, para o resultado não depender do plano do Postgres.
+            const cpfDigits = onlyDigits(guest.cpf);
             let guestRecord = null;
-            if (guest.cpf) {
+            if (cpfDigits) {
                 guestRecord = await GuestModel.findOne({
-                    where: { tenant_id: tenant.id, cpf: guest.cpf },
+                    where: {
+                        tenant_id: tenant.id,
+                        [Op.and]: [sequelize.where(sequelize.fn('regexp_replace', sequelize.col('cpf'), '\\D', '', 'g'), cpfDigits)]
+                    },
+                    order: [['created_at', 'ASC']],
                     transaction
                 });
             }
@@ -168,7 +177,7 @@ export default async function CreateBookingController(request, response) {
                     full_name: guest.full_name,
                     email: guest.email ?? null,
                     phone: guest.phone ?? null,
-                    cpf: guest.cpf ?? null
+                    cpf: cpfDigits
                 }, { transaction });
             }
 
