@@ -105,6 +105,11 @@ ASAAS_WEBHOOK_TOKEN=<string forte que VOCÊ inventa>
 > `docker compose config | grep ASAAS_API_KEY`: a chave deve aparecer como `$$aact_hmlg_...`
 > (o `$$` é o `$` escapado, e o backend recebe um `$` só).
 
+> **`PIX_PROVIDER` só aceita `fake`, `mercadopago` ou `asaas`** (espaço e maiúscula são
+> ignorados). Desde 11/11, outro valor impede o backend de subir: o container fica em
+> `Restarting` e `docker compose logs backend` mostra `PIX_PROVIDER desconhecido`. Antes, um
+> erro de digitação caía calado no simulado.
+
 Depois, `docker compose up -d --build backend` aplica a troca. O backend publica a porta
 `BACKEND_HOST_PORT` (padrão 3000) em `127.0.0.1`, então o túnel da seção 5 funciona igual:
 `ngrok http 3000`, ou a porta que estiver no `BACKEND_HOST_PORT`.
