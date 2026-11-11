@@ -1,4 +1,4 @@
-import { centsToDecimalString, parseBRLInput, type Cents } from '@hotel/domain';
+import { centsToDecimalString, formatBRL, parseBRLInput, type Cents } from '@hotel/domain';
 import type { PaymentInput } from './reservationsApi.js';
 
 /**
@@ -99,4 +99,37 @@ export function submitStep({
   if (!method) return { kind: 'error', error: 'Escolha como o hóspede pagou.' };
   if (reading.overpaidCents > 0) return { kind: 'confirm', overpaidCents: reading.overpaidCents };
   return { kind: 'send', cents: reading.cents };
+}
+
+export type FreshBalance = { ok: true; balanceCents: Cents } | { ok: false };
+
+export type FreshBalanceStep = { kind: 'send' } | { kind: 'stop'; text: string };
+
+/**
+ * O saldo conferido no servidor logo antes de gravar (P-8). O "a maior" é decidido com o saldo
+ * da tela, e o cache não recarrega quando a aba volta ao foco: se outro balcão registrou um
+ * pagamento no meio, a tela gravaria a maior sem a confirmação da P-3 (🔴 do qa-explorador de
+ * 11/11). Qualquer diferença para: a tela se refaz com o saldo novo e a recepção decide de novo.
+ * Sem conseguir conferir, também para (fail-safe): nada foi enviado ao POST /payments.
+ */
+export function freshBalanceStep({ shownCents, fresh }: { shownCents: Cents; fresh: FreshBalance }): FreshBalanceStep {
+  if (!fresh.ok) {
+    return {
+      kind: 'stop',
+      text: 'Não foi possível conferir o saldo da conta. Nada foi registrado. Confira a conexão e registre de novo.',
+    };
+  }
+  const now = fresh.balanceCents;
+  if (now === shownCents) return { kind: 'send' };
+  if (now === 0) return { kind: 'stop', text: 'A conta já foi quitada em outro registro. Nada foi registrado.' };
+  if (now < 0) {
+    return {
+      kind: 'stop',
+      text: `A conta já tem ${formatBRL(-now)} a devolver por outro registro. Nada foi registrado.`,
+    };
+  }
+  return {
+    kind: 'stop',
+    text: `O saldo mudou para ${formatBRL(now)}: outro pagamento ou consumo entrou nesta conta. Nada foi registrado. Confira o valor e registre de novo.`,
+  };
 }
