@@ -60,3 +60,16 @@ nenhum
 - O 🟡-1 foi reproduzido no `query-core` isolado. Ele não foi executado no navegador com o componente React. O que falta é um Playwright com: abrir a reserva, esperar mais de 30 s, ficar offline, sair e voltar, Registrar, trocar de aba e voltar, Registrar de novo, voltar a rede e contar os POSTs.
 - A janela entre a conferência e o POST, e a busca em andamento iniciada antes do POST de outro balcão, que devolve um retrato de alguns ms antes. São o limite já aceito (Em aberto, item 7).
 - A interação com o PR #132 (`networkMode: 'always'` no `useCreatePayment`) não foi avaliada, porque está em outra branch.
+
+## Desfecho (11/11, mesma sessão)
+
+Os 4 achados foram corrigidos na própria `fix/m5b-saldo-velho`, com RED antes do GREEN.
+
+| Achado | Correção | Prova |
+|---|---|---|
+| 🟡-1 Carona numa busca pausada; duas instâncias gravam duas vezes | A conferência chama `getBill` direto e grava a conta no cache com `setQueryData`. Não usa mais o `fetchQuery`, então não aproveita busca pausada nem põe a query em erro. Ref `mounted` no `PaymentForm`: uma instância que saiu da tela durante a conferência não grava | Teste "o formulário saiu da tela durante a conferência: não envia, mesmo com o saldo igual"; mutante "sem checar montado" morto. O roteiro completo no navegador (busca pausada + trocar de aba) **não** foi executado: a causa (`fetchQuery`) saiu do código |
+| 🟡-2 Ligação sem teste no CI | A sequência conferir → gravar virou `confirmBalanceThenSend` (`paymentLogic.ts`), testada: o envio só sai depois da resposta; parou → não envia; lançou → para | 5 testes novos; mutantes "envia antes de conferir", "engole o aviso" e "falha vira saldo igual" mortos |
+| 🟢-1 Mensagem manda registrar de novo, mas o form some | Com o `getBill` direto, a falha não põe a conta em erro e o formulário fica na tela. Texto: "…Nada foi registrado. Tente de novo." | Navegador, 1280 e 375: sem rede, uma só mensagem, formulário visível e conta sem "Não foi possível carregar a conta" |
+| 🟢-2 Trava presa se algo lançar | `try/catch` em volta da conferência e do envio: solta a trava, desliga o "Conferindo saldo…" e mostra a mensagem genérica | Leitura do código (sem teste de componente: o app não tem jsdom, item 6 do Em aberto do anexo) |
+
+Verificação final: vitest do PMS 296 passed, typecheck limpo, script `docs/qa/evidencias/saldo-velho_11112026/verifica_saldo_velho.mjs` com 11/11 OK em 1280 e em 375.
