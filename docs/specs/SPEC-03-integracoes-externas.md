@@ -113,8 +113,11 @@ consulta real à API. **Falta** o Asaas chamar o *webhook* por conta própria, c
 `docs/historico_sessao/weslley/integracao_asaas_pix_sandbox_15out2026.md`; guia:
 `docs/pagamentos/ASAAS_SANDBOX.md`.
 
-**Ressalvas 🟡 do qa-redteam do Asaas, abertas** (resolver antes de produção): validade de 1 ano
-da cobrança, `404` no *webhook* que pode pausar a fila do Asaas, e CPF malformado que vira `503`.
+**Ressalvas 🟡 do qa-redteam do Asaas, fechadas:** o `404` no *webhook* virou `200 ignored` (PR #128);
+CPF malformado responde `400` e `PIX_PROVIDER` desconhecido impede a subida (PR #135); cancelar a
+reserva cancela a cobrança no Asaas (`DELETE /payments/{id}`), e o prazo dado ao hóspede é o
+`expiresInMinutes` do contrato (11/11). Fica pendente um job que expire sozinho a cobrança `PENDING`
+de reserva que ninguém cancelou.
 
 **Critérios de aceitação**
 - [x] **CA-03.2.a** — `MercadoPagoPixProvider` e `AsaasPixProvider` implementam o contrato `PixProvider` existente

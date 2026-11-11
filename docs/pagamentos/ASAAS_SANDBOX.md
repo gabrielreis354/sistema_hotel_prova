@@ -200,6 +200,13 @@ Eles provam que o sistema chama as rotas/campos da documentação e reage certo 
 - **Webhook de cobrança desconhecida responde 200 `ignored`**, com o id no log para
   conciliação. Um 4xx faria o Asaas reenviar e, após 15 falhas seguidas, pausar a fila da conta.
   Mesmo assim, não use a mesma conta sandbox para cobranças de outros sistemas.
-- **Validade do QR**: o sistema grava a `expirationDate` do Asaas. Não existe job que expire a
-  reserva `PENDING` por falta de pagamento.
-- **PIX pago para reserva cancelada** só gera log de aviso (herdado do controller atual).
+- **Validade do QR**: o prazo gravado e mostrado ao hóspede é o `expiresInMinutes` do contrato
+  (30 min), ou a `expirationDate` do Asaas se ela vier antes. O QR em si continua pagável no Asaas
+  até ser removido. Não existe job que expire a reserva `PENDING` por falta de pagamento. Se um
+  job assim for criado, ele precisa chamar `cancelCharge` antes de marcar `EXPIRED`: o webhook
+  trata `EXPIRED` como final e ignoraria, sem log, um pagamento feito depois.
+- **Cancelar a reserva cancela a cobrança no Asaas** (`DELETE /payments/{id}`, desde 11/11), e o
+  sinal vira `FAILED`. Se o Asaas estiver fora do ar, o sinal fica `PENDING` com o id no log;
+  cancelar de novo (resposta 422 "Reserva já cancelada") tenta outra vez.
+- **PIX pago para reserva cancelada** (pago antes do cancelamento chegar ao Asaas) só gera log de
+  aviso: o hotel devolve o valor.

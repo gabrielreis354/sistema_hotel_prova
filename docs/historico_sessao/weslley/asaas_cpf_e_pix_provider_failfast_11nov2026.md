@@ -1,4 +1,4 @@
-# Asaas: CPF inválido vira 400 e PIX_PROVIDER desconhecido não sobe — 11/11/2026
+# Asaas: CPF inválido vira 400, PIX_PROVIDER desconhecido não sobe e cobrança cancelada — 11/11/2026
 
 Sessão do Weslley com o Claude Code. Fecha a 🟡-3 do qa-redteam de 16/10
 (`docs/qa/redteam_asaas-pix_16out2026.md`) e o repasse "PIX_PROVIDER desconhecido cai no fake"
@@ -45,10 +45,32 @@ Branch `fix/asaas-ressalvas-2`, a partir da develop `0ff0021`.
   pública compara o CPF cru (formatado × só dígitos cria hóspede duplicado), e o CRUD de hóspede
   aceita CPF com verificador inválido. Os dois já existiam antes desta branch.
 
+## Segunda parte: 🟡-1 do Asaas (cobrança cancelada)
+
+Branch `fix/asaas-cobranca-cancelada`, empilhada sobre a `fix/asaas-ressalvas-2` (usa o
+`getPixProviderKey()` do PR #135). Plano aprovado pelo Weslley nesta sessão.
+
+| Commit | O que muda |
+|---|---|
+| `98d3eae` | `PixProvider.cancelCharge` (no-op por padrão; fake e Mercado Pago). `AsaasPixProvider.cancelCharge` com `DELETE /payments/{id}`; só `deleted: true` conta. `createCharge` do Asaas devolve o menor prazo entre `expiresInMinutes` e o QR. `pix/cancelPendingCharges.js`: depois do commit do cancelamento, cancela no PSP as cobranças PIX `PENDING` da reserva e marca `FAILED` com update condicional (`status = 'PENDING'`); nunca lança |
+| `097febc` | Roteiro do passo 6 e SPEC-03: ressalvas do Asaas fechadas |
+| `afc1e01` | Ressalvas do qa-redteam: cancelar de novo (422 "já cancelada") tenta outra vez no PSP; `ASAAS_SANDBOX.md` atualizado; aviso para o futuro job de expiração |
+
+Verificação: os testes novos falharam antes da implementação; o teste da corrida com o webhook
+PAID foi conferido contra o `where` sem `status` (falha com `Received: "FAILED"`).
+Suíte completa depois do `afc1e01`: 59 arquivos, 1191 verdes, 21 pulados (já existiam), 0 falhas.
+
+qa-redteam: `docs/qa/redteam_asaas-cobranca-cancelada_11nov2026.md`, APROVADO COM RESSALVAS, sem
+🔴. Não corrigidos: latência do `DELETE` (até 10 s por cobrança, 1 sinal por reserva hoje) e texto
+do swagger do cancelamento (contrato da resposta não mudou). Repasse ao Gabriel em
+`docs/qa/repasses/para_gabriel_11112026.md`: `DELETE /reservations/:id` e o walk-in deixam o QR
+do sinal pagável (dinheiro sem reserva ou cobrança em dobro).
+
 ## Pendências
 
-- Merge da `fix/asaas-ressalvas-2` na develop (PR, como os anteriores).
-- Asaas 🟡-1 continua aberta: expiração da cobrança + `cancelCharge` no cancelamento da reserva.
+- Merge do PR #135 na develop; depois, o da `fix/asaas-cobranca-cancelada`, que depende dele.
+- Job que expire a cobrança `PENDING` de reserva que ninguém cancelou: tem que chamar
+  `cancelCharge` antes de marcar `EXPIRED`.
 - PIX ao vivo no roteiro (M6, 17/11): a chave do sandbox vence em 15/11; pedir a nova ao Weslley.
 - Compose do roteiro inteiro (M8).
 

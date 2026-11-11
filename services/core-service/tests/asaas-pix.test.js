@@ -159,12 +159,17 @@ describe('AsaasPixProvider.createCharge', () => {
         stubSandboxEnv();
         const fetchMock = mockCreateChargeFlow();
 
+        // Relógio fixo antes da validade do QR do mock, para a conta da expiração ser exata.
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-16T12:00:00.000Z'));
         const charge = await new AsaasPixProvider().createCharge(chargeParams);
+        vi.useRealTimers();
 
         expect(charge.providerChargeId).toBe('pay_000001');
         expect(charge.qrCode).toBe('00020126580014br.gov.bcb.pix-copia-e-cola');
-        // "2026-10-16 23:59:59" é horário de Brasília (-03:00) → 02:59:59Z do dia seguinte.
-        expect(charge.expiration.toISOString()).toBe('2026-10-17T02:59:59.000Z');
+        // 🟡-1 de 16/10: o QR do Asaas vale até o fim do dia (ou 1 ano); o prazo dado ao
+        // hóspede é o do contrato, expiresInMinutes (padrão 30), como no Mercado Pago.
+        expect(charge.expiration.toISOString()).toBe('2026-10-16T12:30:00.000Z');
 
         expect(fetchMock).toHaveBeenCalledTimes(3);
         const [customerCall, paymentCall] = fetchMock.mock.calls;
@@ -184,6 +189,27 @@ describe('AsaasPixProvider.createCharge', () => {
             externalReference: 'res-uuid-1'
         });
         expect(paymentBody.dueDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('respeita expiresInMinutes do contrato', async () => {
+        stubSandboxEnv();
+        mockCreateChargeFlow({ qr: { payload: 'copia-e-cola', expirationDate: '2027-10-17 23:59:59' } });
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-11-11T15:00:00.000Z'));
+        const charge = await new AsaasPixProvider().createCharge({ ...chargeParams, expiresInMinutes: 10 });
+        vi.useRealTimers();
+        expect(charge.expiration.toISOString()).toBe('2026-11-11T15:10:00.000Z');
+    });
+
+    it('se o QR do Asaas vence antes do prazo do contrato, vale a data do Asaas', async () => {
+        stubSandboxEnv();
+        // "2026-11-11 12:05:00" em Brasília = 15:05Z, antes de agora + 30 min (15:30Z).
+        mockCreateChargeFlow({ qr: { payload: 'copia-e-cola', expirationDate: '2026-11-11 12:05:00' } });
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-11-11T15:00:00.000Z'));
+        const charge = await new AsaasPixProvider().createCharge(chargeParams);
+        vi.useRealTimers();
+        expect(charge.expiration.toISOString()).toBe('2026-11-11T15:05:00.000Z');
     });
 
     it('sem CPF do pagador recusa sem chamar a rede', async () => {
@@ -219,6 +245,42 @@ describe('AsaasPixProvider.createCharge', () => {
 
         await expect(new AsaasPixProvider().createCharge(chargeParams)).rejects.toBeInstanceOf(PixProviderUnavailableError);
         expect(JSON.stringify(errorSpy.mock.calls)).toContain('pay_000001');
+    });
+});
+
+describe('cancelCharge — cancelar a cobrança quando a reserva é cancelada (🟡-1 de 16/10)', () => {
+    it('Asaas: DELETE /payments/:id; deleted: true vira cancelled: true', async () => {
+        stubSandboxEnv();
+        const fetchMock = vi.fn(async () => jsonResponse({ deleted: true, id: 'pay_000001' }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(new AsaasPixProvider().cancelCharge('pay_000001')).resolves.toEqual({ cancelled: true });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, options] = fetchMock.mock.calls[0];
+        expect(url).toBe(`${BASE}/payments/pay_000001`);
+        expect(options.method).toBe('DELETE');
+        expect(options.headers.access_token).toBe(SANDBOX_KEY);
+    });
+
+    it('Asaas: resposta 2xx sem deleted: true não conta como cancelada', async () => {
+        stubSandboxEnv();
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ id: 'pay_000001' })));
+        await expect(new AsaasPixProvider().cancelCharge('pay_000001')).resolves.toEqual({ cancelled: false });
+    });
+
+    it('Asaas: recusa (ex.: cobrança já paga) vira PixProviderUnavailableError', async () => {
+        stubSandboxEnv();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ errors: [{ code: 'invalid_action' }] }, 400)));
+        await expect(new AsaasPixProvider().cancelCharge('pay_000001')).rejects.toBeInstanceOf(PixProviderUnavailableError);
+    });
+
+    it('fake e Mercado Pago não cancelam nada (no-op) e não chamam a rede', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(new FakePixProvider().cancelCharge('fake_1')).resolves.toEqual({ cancelled: false });
+        await expect(new MercadoPagoPixProvider().cancelCharge('123')).resolves.toEqual({ cancelled: false });
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 

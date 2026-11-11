@@ -1,6 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
+import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
 
 // Allowlist explícita: apenas esses status podem ser cancelados.
 // Qualquer outro status (incluindo futuros) é bloqueado por padrão — fail-safe.
@@ -37,6 +38,13 @@ export default async function CancelReservationController(request, response) {
         if (!CANCELLABLE_STATUSES.includes(reservation.status)) {
             const message = CANCEL_BLOCKED_MESSAGES[reservation.status]
                 ?? `Cancelamento não permitido no status '${reservation.status}'`;
+            if (reservation.status === 'CANCELLED') {
+                // Segunda chance: se o PSP estava fora do ar no cancelamento, a cobrança ficou
+                // PENDING e pagável. Cancelar de novo tenta outra vez; a resposta continua 422.
+                await transaction.rollback();
+                await cancelPendingCharges(reservation);
+                return response.status(422).json({ error: message });
+            }
             return await fail(422, { error: message });
         }
 
@@ -45,6 +53,10 @@ export default async function CancelReservationController(request, response) {
         // Estadia cancelada não recebe consumo: as contas dela fecham junto (SPEC-04, T-04.3, D-36).
         await closeReservationAccounts(reservation, transaction);
         await transaction.commit();
+
+        // Depois do commit, fora da transação: a chamada ao PSP é de rede, e falha dela não
+        // desfaz o cancelamento (cancelPendingCharges nunca lança).
+        await cancelPendingCharges(reservation);
 
         return response.json(reservation);
     } catch (error) {

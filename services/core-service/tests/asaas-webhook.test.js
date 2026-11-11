@@ -26,6 +26,7 @@ let chargeSeq = 1;
 const asaasCharges = new Map();
 let asaasDown = false;
 let statusGate = null; // (chargeId) => Promise<corpo da cobrança> | undefined
+let deleteGate = null; // (chargeId) => Promise<void> — roda antes de o Asaas responder ao DELETE
 
 const fetchMock = vi.fn(async (url, options = {}) => {
     const json = (body, status = 200) => ({ ok: status < 300, status, json: async () => body });
@@ -41,6 +42,15 @@ const fetchMock = vi.fn(async (url, options = {}) => {
     const qrMatch = url.match(/\/payments\/(pay_\d+)\/pixQrCode$/);
     if (qrMatch) return json({ payload: `00020126-copia-e-cola-${qrMatch[1]}`, encodedImage: 'iVBOR', expirationDate: '2027-12-31 23:59:59' });
     const getMatch = url.match(/\/payments\/(pay_\d+)$/);
+    // Exclusão de cobrança: o Asaas só remove a que ainda não foi paga.
+    if (getMatch && options.method === 'DELETE') {
+        const charge = asaasCharges.get(getMatch[1]);
+        if (!charge) return json({ errors: [{ code: 'not_found' }] }, 404);
+        if (deleteGate) await deleteGate(getMatch[1]);
+        if (charge.status !== 'PENDING') return json({ errors: [{ code: 'invalid_action' }] }, 400);
+        asaasCharges.set(getMatch[1], { ...charge, deleted: true });
+        return json({ deleted: true, id: getMatch[1] });
+    }
     // Consulta controlada pelo teste (corrida entre notificações): devolve a resposta no tempo dele.
     const gated = getMatch && statusGate?.(getMatch[1]);
     if (gated) return json(await gated);
@@ -53,7 +63,7 @@ async function setupHotel(target, name) {
     const cat = await createCategory(app, auth.jwt, { name: 'Standard', capacity: 2, price_per_night: 150 });
     await createRoom(app, auth.jwt, cat.id, { number: '101' });
     await createRoom(app, auth.jwt, cat.id, { number: '102' });
-    Object.assign(target, { subdomain: auth.subdomain, categoryId: cat.id });
+    Object.assign(target, { subdomain: auth.subdomain, categoryId: cat.id, jwt: auth.jwt });
 }
 
 beforeAll(async () => {
@@ -74,6 +84,7 @@ function useAsaas() {
 afterEach(() => {
     asaasDown = false;
     statusGate = null;
+    deleteGate = null;
     fetchMock.mockClear();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
@@ -416,5 +427,119 @@ describe('POST /webhooks/pix — PAID e FAILED simultâneos (repasse 17/10)', ()
         const { payment, reservation } = await stateOf(booking);
         expect(payment.status).toBe('FAILED');
         expect(reservation.status).toBe('PENDING');
+    });
+});
+
+// 🟡-1 do qa-redteam de 16/10: a cobrança do Asaas fica pagável por muito tempo. Sem cancelar
+// no Asaas, o hóspede pagava uma reserva já cancelada e o dinheiro entrava sem quarto.
+describe('PUT /reservations/:id/cancel — cobrança PIX no Asaas', () => {
+    const cancel = (hotel, reservationId) => request(app)
+        .put(`/reservations/${reservationId}/cancel`)
+        .set('Authorization', `Bearer ${hotel.jwt}`);
+    const deleteCalls = () => fetchMock.mock.calls.filter(([, options = {}]) => options.method === 'DELETE');
+
+    it('cancela a cobrança no Asaas e marca o sinal como FAILED', async () => {
+        const booking = await book(hotelA, '2027-10-01', '2027-10-02');
+        const chargeId = booking.body.pix.provider_charge_id;
+
+        const res = await cancel(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('CANCELLED');
+        expect(deleteCalls().map(([url]) => url)).toEqual([`${BASE}/payments/${chargeId}`]);
+        expect(asaasCharges.get(chargeId).deleted).toBe(true);
+        const { payment, reservation } = await stateOf(booking);
+        expect(reservation.status).toBe('CANCELLED');
+        expect(payment.status).toBe('FAILED');
+    });
+
+    it('Asaas fora do ar: a reserva cancela mesmo assim e o sinal fica PENDING, com o id no log', async () => {
+        const booking = await book(hotelA, '2027-10-03', '2027-10-04');
+        const chargeId = booking.body.pix.provider_charge_id;
+        asaasDown = true;
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const res = await cancel(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('CANCELLED');
+        const { payment } = await stateOf(booking);
+        expect(payment.status).toBe('PENDING');
+        expect(JSON.stringify(errorSpy.mock.calls)).toContain(chargeId);
+    });
+
+    it('Asaas voltou: cancelar de novo responde 422 e cancela a cobrança que ficou PENDING', async () => {
+        const booking = await book(hotelA, '2027-10-13', '2027-10-14');
+        const chargeId = booking.body.pix.provider_charge_id;
+        asaasDown = true;
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        await cancel(hotelA, booking.body.reservation.id);
+        asaasDown = false;
+
+        const res = await cancel(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(422);
+        expect(res.body.error).toBe('Reserva já cancelada');
+        expect(asaasCharges.get(chargeId).deleted).toBe(true);
+        const { payment } = await stateOf(booking);
+        expect(payment.status).toBe('FAILED');
+    });
+
+    it('cobrança já paga no Asaas (webhook ainda não chegou): o Asaas recusa e o sinal fica PENDING', async () => {
+        const booking = await book(hotelA, '2027-10-05', '2027-10-06');
+        const chargeId = booking.body.pix.provider_charge_id;
+        asaasCharges.set(chargeId, { ...asaasCharges.get(chargeId), status: 'RECEIVED' });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const res = await cancel(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(200);
+        const { payment, reservation } = await stateOf(booking);
+        expect(reservation.status).toBe('CANCELLED');
+        // O webhook que chegar depois decide (PAID + aviso de dinheiro a devolver).
+        expect(payment.status).toBe('PENDING');
+    });
+
+    it('webhook PAID gravado durante o DELETE não é sobrescrito por FAILED', async () => {
+        const booking = await book(hotelA, '2027-10-07', '2027-10-08');
+        deleteGate = async (chargeId) => {
+            await PaymentModel.unscoped().update({ status: 'PAID', paid_at: new Date() }, { where: { provider_charge_id: chargeId } });
+        };
+
+        const res = await cancel(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(200);
+        const { payment } = await stateOf(booking);
+        expect(payment.status).toBe('PAID');
+    });
+
+    it('sinal criado por outro provider (fake, antes da troca para o Asaas): não chama o Asaas', async () => {
+        vi.stubEnv('PIX_PROVIDER', 'fake');
+        resetPixProviderForTests();
+        const booking = await request(app).post(`/public/${hotelA.subdomain}/bookings`).send({
+            category_id: hotelA.categoryId, check_in: '2027-10-09', check_out: '2027-10-10', guests: 1,
+            guest: { full_name: 'Hospede Fake', email: `fake_${Date.now()}@example.com` }
+        });
+        expect(booking.status).toBe(201);
+        useAsaas();
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const res = await cancel(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(200);
+        expect(deleteCalls()).toHaveLength(0);
+        const { payment } = await stateOf(booking);
+        expect(payment.status).toBe('PENDING');
+    });
+
+    it('isolamento: o hotel B não cancela reserva nem cobrança do hotel A', async () => {
+        const booking = await book(hotelA, '2027-10-11', '2027-10-12');
+
+        const res = await cancel(hotelB, booking.body.reservation.id);
+
+        expect(res.status).toBe(404);
+        expect(deleteCalls()).toHaveLength(0);
+        const { payment } = await stateOf(booking);
+        expect(payment.status).toBe('PENDING');
     });
 });
