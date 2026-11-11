@@ -41,6 +41,7 @@ branch e imprime o que se aplica. Ele **sugere**; o que é obrigatório mora no 
 |---|---|---|
 | **`/security-review`** | Revisão de segurança do diff pendente. **Obrigatório** quando o diff toca autenticação, webhook, segredo, rota pública ou controller novo | Mudança só de documento ou de infraestrutura sem segredo. Para manifesto k8s, use o `qa-redteam` com foco em infra |
 | **`qa-redteam`** (subagente do projeto, `.claude/agents/`) | Auditoria adversarial **escopada no dev** antes do merge em `develop`. Caça brecha entre o entregue e as regras do projeto: multi-tenancy, máquina de estados, LGPD, DRY | Depois do merge — o portão é antes. E ele só reprova por achado 🔴 **dentro** do escopo; o resto vira repasse em `docs/qa/repasses/` |
+| **`qa-explorador`** (subagente do projeto, `.claude/agents/`) | QA exploratório **no navegador**, pelo Playwright MCP: usa a tela como recepcionista, garçom e gerente e estressa entrada, tempo, rede, papéis, teclado e celular. Ambiente em `scripts/qa_explorador_ambiente.sh` (banco `gestao_hotel_qa`). Só reporta | Antes de o comportamento estar correto e testado — ele acha defeito de uso, não substitui teste. Não substitui o `qa-redteam`, que lê o código |
 | **`/code-review`** | Revisão de correção sobre diff, branch ou PR. Complementa o `qa-redteam`: ele olha bug, o redteam olha regra do projeto | Como substituto do `qa-redteam` no portão. São coisas diferentes |
 | **`/simplify`** | Reúso, simplificação e eficiência no código já escrito. Só qualidade — não caça bug | Antes de o comportamento estar correto e testado. Simplificar código errado é retrabalho |
 
@@ -82,6 +83,35 @@ Contexto de domínio obrigatório antes de qualquer uma: **`frontend/DESIGN_PMS.
 > vai para `docs/sugestoes-documentos-oficiais/` com `MOTIVOS.md`, nunca direto no arquivo.
 
 ---
+
+## Como ligar o Playwright MCP (uma vez por pasta de projeto)
+
+O `qa-explorador` controla o navegador pelo servidor `@playwright/mcp`, registrado no escopo
+**local** de cada dev, porque os caminhos são da máquina. O escopo `local` vale **por pasta de
+projeto**: cada worktree precisa do seu registro (rode o comando de dentro dele), senão o agente
+sobe ali sem nenhuma ferramenta `mcp__playwright__*`. O `--output-dir` também é por pasta: aponte
+para o `docs/qa/evidencias` do próprio checkout. No WSL sem sudo, as bibliotecas do
+navegador que faltam (`libnspr4`, `libnss3`, `libasound2t64`) vêm por `apt-get download` +
+`dpkg-deb -x` numa pasta, passada em `LD_LIBRARY_PATH`.
+
+```bash
+claude mcp add --scope local playwright -e LD_LIBRARY_PATH=<pasta das libs> -- \
+  npx -y @playwright/mcp@0.0.83 --headless --isolated \
+  --executable-path <chromium do ~/.cache/ms-playwright> \
+  --allowed-origins "http://localhost:5173;http://localhost:3000" \
+  --output-dir <repo>/docs/qa/evidencias
+```
+
+`--allowed-origins` é um **filtro** do "só localhost" (§5 das regras), não uma barreira de
+segurança — a documentação do próprio MCP avisa isso. O limite de verdade está nas regras do
+agente e nas permissões da sessão.
+
+**Risco aceito (09/11, decisão do Sirlande):** como o `qa-redteam`, o `qa-explorador` tem `Bash` e
+`Write`, então só o texto das regras o impede de editar código, commitar ou abrir outro banco.
+Bloquear por permissão valeria para a sessão inteira, não só para ele. Em troca, o relatório
+lista todos os comandos que ele rodou pelo Bash, para conferência. Versão fixada: atualize de
+propósito, nunca com `@latest`. Depois de registrar, reinicie a sessão do Claude Code para as
+ferramentas aparecerem.
 
 ## O que falta habilitar
 
