@@ -92,6 +92,7 @@ Cada tarefa cabe numa branch própria e pode ser mergeada sozinha, nesta ordem.
 ### T-08.2 — Marca e casca
 
 - Nome **Gesway** no menu, no login e no `<title>` (`Gesway — Gestão hoteleira`).
+- Ícone da aba: declarar um `<link rel="icon">` no `index.html`. Hoje o app não declara nenhum, e o navegador registra um 404 de `/favicon.ico` no console (relatório da tela de estorno, 11/11).
 - Instalar `lucide-react` e pôr um ícone de traço fino antes de cada rótulo em `routes/nav.ts`. Rótulo sempre visível, ícone nunca sozinho.
 - Item ativo: fundo `brand/10`, texto `brand`, fio de 2 px à esquerda.
 - Login com `Input` e `Field` de `@hotel/ui`, eliminando o `Field` local.
@@ -119,6 +120,7 @@ Cada tarefa cabe numa branch própria e pode ser mergeada sozinha, nesta ordem.
 ### T-08.6 — Faxina
 
 - `PaymentForm`: trocar `md:min-h-0` pelo corte correto, mantendo 48 px no tablet. Só usar o tamanho compacto a partir de `xl` (1280 px), o mesmo corte da T-05.3.
+- Barra de navegação inferior no celular (`AppShell.tsx`, `md:hidden`): em 375 px os rótulos ficam colados (observado no passeio da H.3, 31/10). Manter rótulo visível e alvo de 48 px; se não couber, mover itens para a folha "Mais".
 - Resolver o 🟡4 da T-05.3: as cópias locais de `Money` (`rooms/components/Money.tsx`) e `Notice` (`accounts/components/Notice.tsx`) têm contrato diferente da versão de `@hotel/ui`. Unificar ou renomear.
 
 ---
