@@ -183,6 +183,9 @@ export default async function applyDbConstraints(sequelize, { log = () => {} } =
     await sequelize.query('CREATE INDEX IF NOT EXISTS idx_rooms_tenant_status         ON rooms (tenant_id, status);');
     await sequelize.query('CREATE INDEX IF NOT EXISTS idx_users_tenant_email          ON users (tenant_id, email);');
     await sequelize.query('CREATE INDEX IF NOT EXISTS idx_reservation_rooms_res_id    ON reservation_rooms (reservation_id);');
+    // CPF pelos dígitos na reserva pública (endpoint sem login): sem este índice, cada reserva
+    // varria a tabela de hóspedes de todos os hotéis. Mesma expressão de app/utils/digitsOf.js.
+    await sequelize.query("CREATE INDEX IF NOT EXISTS idx_guests_tenant_cpf_digits ON guests (tenant_id, regexp_replace(cpf, '\\D', '', 'g')) WHERE deleted_at IS NULL;");
 
     // Só agora, com todo o resto do banco já curado, reportamos o que não pôde ser
     // resolvido sozinho — mensagem com tabela + colunas + índice, para o operador

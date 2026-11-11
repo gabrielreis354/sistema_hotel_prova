@@ -129,6 +129,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS guests_email_tenant_unique
   ON guests (email, tenant_id)
   WHERE deleted_at IS NULL;
 
+-- CPF pelos dígitos (reserva pública): o hóspede pode estar gravado com ou sem máscara.
+-- Espelha database/applyDbConstraints.js e app/utils/digitsOf.js.
+CREATE INDEX IF NOT EXISTS idx_guests_tenant_cpf_digits
+  ON guests (tenant_id, regexp_replace(cpf, '\D', '', 'g'))
+  WHERE deleted_at IS NULL;
+
 -- =============================================================================
 -- 7) Reservas
 -- Model: app/Models/ReservationModel.js  |  tableName: 'reservations'

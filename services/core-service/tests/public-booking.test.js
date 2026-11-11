@@ -8,6 +8,9 @@ import ReservationModel from '../app/Models/ReservationModel.js';
 import PaymentModel from '../app/Models/PaymentModel.js';
 import getPixProvider from '../app/services/pix/index.js';
 import sequelize from '../database/connections/sequelize.js';
+import { Op } from 'sequelize';
+import GuestModel from '../app/Models/GuestModel.js';
+import { digitsOf } from '../app/utils/digitsOf.js';
 
 // Testes do MOTOR DE RESERVA DIRETA + PIX (diferencial nº1).
 // Rotas públicas (sem auth) resolvidas por subdomínio + webhook de confirmação PIX.
@@ -373,6 +376,34 @@ describe('POST /public/:subdomain/bookings — validações', () => {
         const reserva = await ReservationModel.findByPk(res.body.reservation.id);
         expect(reserva.guest_id).toBe(recepcao.id);
         expect(await guestsWithCpfDigits('39053344705')).toHaveLength(1);
+    });
+
+    it('o mesmo CPF em outro hotel não é reaproveitado', async () => {
+        const outro = await registerAndLogin(app, { tenantName: 'Hotel Vizinho CPF' });
+        const deOutroHotel = await createGuest(app, outro.jwt, { full_name: 'Dora Vizinha', cpf: '529.982.247-25', email: 'dora@example.com' });
+
+        const res = await bookWithCpf('52998224725', 'dora.site@example.com', '2027-09-07', '2027-09-08');
+
+        expect(res.status).toBe(201);
+        const reserva = await ReservationModel.findByPk(res.body.reservation.id);
+        expect(reserva.guest_id).not.toBe(deOutroHotel.id);
+    });
+
+    // 🟡-1 do qa-redteam da correção: o EXPLAIN é do SQL que o Sequelize gera de fato, para
+    // provar que a expressão de digitsOf casa com a do índice. Tabela pequena no teste, então
+    // a varredura sequencial é desligada só nesta transação.
+    it('a busca do CPF usa o índice pelos dígitos, não varre a tabela', async () => {
+        let sql;
+        await GuestModel.findOne({
+            where: { tenant_id: '00000000-0000-0000-0000-000000000000', [Op.and]: [sequelize.where(digitsOf('cpf'), '52998224725')] },
+            logging: (msg) => { sql = msg.replace(/^Executing \([^)]*\):\s*/, ''); }
+        });
+        const plan = await sequelize.transaction(async (transaction) => {
+            await sequelize.query('SET LOCAL enable_seqscan = off', { transaction });
+            const [rows] = await sequelize.query(`EXPLAIN ${sql}`, { transaction });
+            return rows;
+        });
+        expect(JSON.stringify(plan)).toContain('idx_guests_tenant_cpf_digits');
     });
 
     it('hóspede novo nasce com o CPF só com dígitos', async () => {
