@@ -1,6 +1,12 @@
 import createClient, { type Client } from 'openapi-fetch';
 import type { paths } from './schema.js';
 
+/** A requisição que levou 401: rota do contrato e token que ela enviou, se enviou. */
+export interface UnauthorizedRequest {
+  path: string;
+  token: string | null;
+}
+
 export interface ApiClientOptions {
   /**
    * Base das requisições. Default `/api` — o proxy de dev do Vite reescreve para o backend
@@ -13,7 +19,7 @@ export interface ApiClientOptions {
    * Chamado quando o backend responde 401 (token ausente/expirado). O app usa isto para
    * derrubar a sessão e mandar para o login — em vez de deixar requests falhando em silêncio.
    */
-  onUnauthorized?: () => void;
+  onUnauthorized?: (failed: UnauthorizedRequest) => void;
 }
 
 /**
@@ -30,8 +36,11 @@ export function createApiClient(options: ApiClientOptions = {}): Client<paths> {
       if (token) request.headers.set('Authorization', `Bearer ${token}`);
       return request;
     },
-    onResponse({ response }) {
-      if (response.status === 401) onUnauthorized?.();
+    onResponse({ request, response, schemaPath }) {
+      if (response.status === 401) {
+        const token = request.headers.get('Authorization')?.replace(/^Bearer /, '') ?? null;
+        onUnauthorized?.({ path: schemaPath, token });
+      }
       return response;
     },
   });
