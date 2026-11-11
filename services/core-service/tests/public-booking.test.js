@@ -339,6 +339,49 @@ describe('POST /public/:subdomain/bookings — validações', () => {
         );
         expect(Number(contagem[0].count)).toBe(2); // nenhum terceiro cadastro criado
     });
+
+    // 🟡 do qa-redteam de 11/11 (repasse sem dono): o find-or-create comparava o CPF cru. O
+    // mesmo CPF com e sem máscara virava dois cadastros, e a ficha do hóspede ficava dividida.
+    const guestsWithCpfDigits = async (digits) => {
+        const [rows] = await sequelize.query(
+            `SELECT id, cpf FROM guests WHERE regexp_replace(cpf, '\D', '', 'g') = :digits`,
+            { replacements: { digits } }
+        );
+        return rows;
+    };
+    const bookWithCpf = (cpf, email, checkIn, checkOut) => request(app)
+        .post(`/public/${subdomain}/bookings`)
+        .send({ category_id: categoryId, check_in: checkIn, check_out: checkOut, guest: { full_name: 'Hospede CPF', email, cpf } });
+
+    it('CPF com máscara reaproveita o hóspede cadastrado só com dígitos', async () => {
+        const recepcao = await createGuest(app, jwt, { full_name: 'Ana Digitos', cpf: '11144477735', email: 'ana.digitos@example.com' });
+
+        const res = await bookWithCpf('111.444.777-35', 'ana.nova@example.com', '2027-09-01', '2027-09-02');
+
+        expect(res.status).toBe(201);
+        const reserva = await ReservationModel.findByPk(res.body.reservation.id);
+        expect(reserva.guest_id).toBe(recepcao.id);
+        expect(await guestsWithCpfDigits('11144477735')).toHaveLength(1);
+    });
+
+    it('CPF só com dígitos reaproveita o hóspede antigo cadastrado com máscara', async () => {
+        const recepcao = await createGuest(app, jwt, { full_name: 'Beto Mascara', cpf: '390.533.447-05', email: 'beto.mascara@example.com' });
+
+        const res = await bookWithCpf('39053344705', 'beto.novo@example.com', '2027-09-03', '2027-09-04');
+
+        expect(res.status).toBe(201);
+        const reserva = await ReservationModel.findByPk(res.body.reservation.id);
+        expect(reserva.guest_id).toBe(recepcao.id);
+        expect(await guestsWithCpfDigits('39053344705')).toHaveLength(1);
+    });
+
+    it('hóspede novo nasce com o CPF só com dígitos', async () => {
+        const res = await bookWithCpf('935.411.347-80', 'carla.nova@example.com', '2027-09-05', '2027-09-06');
+
+        expect(res.status).toBe(201);
+        const [guest] = await guestsWithCpfDigits('93541134780');
+        expect(guest.cpf).toBe('93541134780');
+    });
 });
 
 describe('POST /webhooks/pix — validações', () => {
