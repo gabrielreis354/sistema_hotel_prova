@@ -24,7 +24,10 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 CORE="services/core-service"
-SRC_DIRS="$CORE/app $CORE/routes $CORE/middlewares $CORE/database $CORE/config $CORE/bootstrap"
+ANALYTICS="services/analytics-service"
+# As regras de ESM, findByPk, tenant_id do cliente e log de requisição valem para todo serviço (T-01.4).
+SRC_DIRS="$CORE/app $CORE/routes $CORE/middlewares $CORE/database $CORE/config $CORE/bootstrap \
+$ANALYTICS/app $ANALYTICS/routes $ANALYTICS/middlewares $ANALYTICS/database $ANALYTICS/bootstrap"
 ERRORS=0
 WARNS=0
 
@@ -98,7 +101,7 @@ report_error "tenant_id lido do body/query/params" \
 # 4. Ordem de rotas — /:param declarado antes de rota literal captura a literal
 # ─────────────────────────────────────────────────────────────────────────────
 route_issues=""
-for f in $CORE/routes/apis/*.js; do
+for f in $CORE/routes/apis/*.js $ANALYTICS/routes/*.js; do
     [ -f "$f" ] || continue
     unset seen_param 2>/dev/null || true
     declare -A seen_param=()
@@ -168,6 +171,24 @@ done
 report_warn "Router sem entrada no Swagger" \
     "O cliente tipado do frontend é gerado do OpenAPI — endpoint fora do Swagger não existe para o frontend" \
     "$(printf '%s' "$missing_swagger")"
+
+# 7b. Rota do analytics-service sem OpenAPI (T-01.4/H.3). O dump do api-client junta
+# services/analytics-service/config/openapi.js ao swagger do core: rota de /analytics fora
+# dele não existe para o frontend. /health é a saúde autenticada da H.2, fora do cliente.
+missing_openapi=""
+if [ -f "$ANALYTICS/routes/router.js" ]; then
+    rotas=$(grep -oE "analyticsRouter\.(get|post|put|patch|delete)\([[:space:]]*'[^']+'" "$ANALYTICS/routes/router.js" \
+            | sed -E "s/.*'([^']+)'$/\1/")
+    while IFS= read -r rota; do
+        [ -z "$rota" ] || [ "$rota" = "/health" ] && continue
+        if ! grep -qF -- "'/analytics$rota'" "$ANALYTICS/config/openapi.js" 2>/dev/null; then
+            missing_openapi+="$ANALYTICS/routes/router.js: /analytics$rota não aparece em $ANALYTICS/config/openapi.js"$'\n'
+        fi
+    done <<< "$rotas"
+fi
+report_warn "Rota do analytics sem entrada no OpenAPI" \
+    "O cliente tipado do frontend junta o OpenAPI do analytics ao do core — rota fora dele não existe para o frontend" \
+    "$(printf '%s' "$missing_openapi")"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. Model paranoid com unique TOTAL — queima o valor do campo para sempre
@@ -322,8 +343,14 @@ fi
 # barreira entre a internet e o MinIO (RNF-023: só GET de PDF por URL pré-assinada pelo
 # usuário de leitura). Uma cópia afrouxada sem a outra reabriria o acesso em um dos ambientes.
 # Compara as diretivas, ignorando comentários, linhas vazias e indentação.
+# [revisão do Weslley] Única diferença aceita (🟡-3 da H.3): o DNS de cada ambiente — `resolver` e
+# `set $analytics_upstream` (Docker: 127.0.0.11 e nome curto; k8s: kube-dns e FQDN do Service), e só
+# com o marcador `# qa-allow: nginx-ambiente` no fim da linha. Qualquer outra diretiva continua igual.
 # ─────────────────────────────────────────────────────────────────────────────
-nginx_diretivas() { sed -E 's/^[[:space:]]+//; /^#/d; /^$/d'; }
+nginx_diretivas() {
+    sed -E 's/^[[:space:]]+//; /^#/d; /^$/d' \
+        | grep -vE '^(resolver|set \$analytics_upstream) [^;]+; +# qa-allow: nginx-ambiente$' || true
+}
 if [ -f docker/nginx/default.conf ] && [ -f infra/k8s/nginx.yaml ]; then
     k8s_conf=$(awk '/^  default\.conf: \|/{on=1; next} on && /^---/{exit} on' infra/k8s/nginx.yaml | nginx_diretivas)
     compose_conf=$(nginx_diretivas < docker/nginx/default.conf)

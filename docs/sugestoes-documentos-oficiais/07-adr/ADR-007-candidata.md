@@ -1,7 +1,8 @@
 # ADR-007 (candidata): Uma reserva por quarto, dentro de um agrupador
 
-**Status:** **candidata** — não é decisão tomada. O Gabriel decide *se* e *quando*; se aceita, o
-Weslley a formaliza no Documento 07, como as demais.
+**Status:** **candidata — adiada para o 5º semestre** por decisão do Gabriel em 21/10/2026. O
+analytics-service (T-01.4) e o frontend de reservas seguem o modelo atual e o catálogo de eventos v1.0;
+a adoção futura entra como versão nova dos eventos de reserva. Registrada no Documento 07 (ADR-007).
 **Data:** 12/10/2026 · **Origem:** decisão D-4 do catálogo de eventos
 (`docs/specs/anexos/SPEC-01-catalogo-eventos.md` §9.1) e etapa G da rodada 3
 (`docs/delegacoes/rodada3_gabriel_04out2026.md`)

@@ -5,8 +5,12 @@ import RoomModel from '../../Models/RoomModel.js';
 import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import { recalculateReservationTotal } from '../../utils/recalculateReservationTotal.js';
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
+import findInTenant from '../../utils/findInTenant.js';
+import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
 
-export default async function AddRoomToReservationController(request, response) {
+export default withDeadlockRetry('AddRoomToReservationController', AddRoomToReservationController);
+
+async function AddRoomToReservationController(request, response) {
     const { id } = request.params;
     const tenantId = request.user.tenantId;
     const { room_id } = request.body;
@@ -30,7 +34,8 @@ export default async function AddRoomToReservationController(request, response) 
         const blocked = reservationChangeBlocked(reservation);
         if (blocked) return await fail(blocked.status, { error: blocked.message });
 
-        const room = await RoomModel.findOne({ where: { id: room_id, tenant_id: tenantId }, transaction });
+        // FOR KEY SHARE: um quarto excluído no meio não entra no pivô (🟡-1 do qa-redteam de 30/10).
+        const room = await findInTenant(RoomModel, room_id, tenantId, { transaction, lock: transaction.LOCK.KEY_SHARE });
         if (!room) return await fail(404, { error: 'Quarto não encontrado' });
 
         const existing = await ReservationRoomModel.findOne({ where: { reservation_id: id, room_id: room.id }, transaction });
@@ -48,6 +53,7 @@ export default async function AddRoomToReservationController(request, response) 
         return response.status(201).json(pivot);
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
+        if (isDeadlockError(error)) throw error; // withDeadlockRetry repete
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
         console.error(error);
         return response.status(500).json({ error: 'Erro interno do servidor' });

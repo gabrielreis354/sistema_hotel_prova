@@ -118,3 +118,75 @@ até 5 minutos.
 | Renomear `MINIO_PRESIGN_USER` | Mude também o nome em `X-Amz-Credential=gesway-pdf-leitor%2F` no `nginx.yaml` **e** no `docker/nginx/default.conf` (o `qa_checks.sh` confere que as duas cópias batem) |
 
 Para provar o comportamento contra um ambiente local: `scripts/verificar_download_pdf.sh`.
+
+## Atualizar o backend — migrate antes e depois do rollout
+
+Desde a T-04.2 o `migrate` também migra **dados** (consumo de `consumptions` para `account_items`).
+Por isso a troca de versão do backend passa sempre pelo `./start.sh deploy`, nunca por um
+`rollout restart` solto:
+
+```bash
+./start.sh deploy                                   # reinicia com a imagem que está no Deployment
+./start.sh deploy sistema-gestao-hotel-backend:v2   # troca para a imagem informada
+```
+
+| Etapa | Por quê |
+|---|---|
+| 1. `migrate` num Job com a imagem **nova** | O código novo procura o consumo em `account_items`; sem o migrate antes, o bill dessas reservas responde `503` até alguém rodar o migrate |
+| 2. Rollout, e espera os pods antigos **saírem** | O `rollout status` volta com os pods antigos ainda em Terminating (até 60 s), atendendo pelas conexões keepalive do nginx |
+| 3. `migrate` de novo | Durante o rolling update os pods **antigos** ainda gravam em `consumptions`. O migrate é idempotente e só pega esse intervalo |
+
+- O Job é `infra/k8s/jobs/backend-migrate.yaml`, fora do `kustomization` (Job é imutável; cada
+  execução ganha nome novo). Label `app: backend-migrate`, liberado no `postgres-ingress` da
+  `networkpolicy.yaml`.
+- `./start.sh migrate` sozinho roda o mesmo Job com a imagem que está no ar.
+- Trocar só configuração (ConfigMap, Secret) com a mesma imagem não exige migrate: os `rollout
+  restart` da seção acima continuam valendo.
+
+### Quando algo falha
+
+| Onde falhou | Estado do cluster | O que fazer |
+|---|---|---|
+| 1º migrate (inclusive código 1 = reservas com dado inválido; imagem que não baixa) | Pods antigos intactos, nada trocado | O script mostra condição, eventos e log do Job. Corrija a causa e rode o `deploy` de novo. O pod do Job fica 1 h para o `kubectl logs` |
+| Rollout passou de 300 s | Deployment **misto** (pods novos e antigos) e sem o 2º migrate | `kubectl -n hotel-system rollout undo deploy/backend` para voltar, ou corrija e rode o `deploy` de novo. Nos dois casos termine com `./start.sh migrate` |
+| Pods antigos não saíram em 120 s | Pods novos no ar; o 2º migrate roda mesmo assim, com aviso | Quando os antigos saírem, `./start.sh migrate` |
+| 2º migrate | Pods **novos já no ar**; o bill das reservas afetadas responde `503` (fail-safe, sem valor errado) | Corrija os dados listados no log e rode `./start.sh migrate` |
+
+### Cuidados
+
+- **`kubectl apply -k infra/k8s/` volta a imagem para a do manifest** (`:latest`). Se o backend
+  estava numa tag posta por `./start.sh deploy <imagem>`, o apply dispara um rollout de outro código
+  sem migrate. Depois de um apply, rode `./start.sh deploy <imagem>` de novo.
+- **Remover ou renomear coluna exige duas releases (expand/contract).** O 1º migrate roda com o
+  model novo enquanto os pods antigos ainda atendem, e o `sync({ alter: true })` apaga a coluna que
+  saiu do model: os pods antigos passam a dar `500`. Release 1: o código para de usar a coluna.
+  Release 2: o model deixa de declarar a coluna.
+- Fora do kind, use tag imutável no `deploy`: com `:latest` e `imagePullPolicy: IfNotPresent`, o Job e
+  os pods podem rodar builds diferentes.
+
+## analytics-service — `/health` é readiness, não liveness (T-01.4)
+
+[revisão do Weslley] Desde a H.3 o analytics tem manifesto próprio, `infra/k8s/analytics.yaml` (CA-01.4.n):
+StatefulSet `analytics-postgres` com PVC e Service (banco próprio, ADR-003), Deployment
+`analytics-service` com 1 réplica e Service na porta 3001. A credencial do banco vem do secret
+`analytics-db`, **não versionado**, criado com senha aleatória por `scripts/k8s_garantir_secret_analytics.sh`
+(chamado por `infra_up.sh` e `./start.sh up`). O pod monta só o item `jwt-public.pem` do `jwt-rsa-keys`.
+NetworkPolicy: só o analytics fala com o `analytics-postgres`; só o nginx chega à porta 3001; o analytics
+entra na lista de quem alcança o AMQP do RabbitMQ.
+
+O nginx manda `/analytics/` para o `analytics-service` e `/analytics/internal-consumption` para o
+backend (o consumo interno lê `accounts`/`account_items`, sem evento no catálogo — decisão L-1).
+
+As probes seguem a regra da reauditoria delta da H.2 (🟢-D):
+
+| Probe | Caminho | Por quê |
+|---|---|---|
+| `readinessProbe` | `GET /health` (porta 3001) | [revisão do Weslley] Responde **503 `DOWN`** só com o banco do analytics fora: aí o pod não consegue responder, e sai do Service. Consumidor sem consumir (broker fora, topologia ausente) responde **200 `DEGRADED`**, com o campo `consumer`: o pod segue no Service e a tela /indicadores lê a projeção defasada, em vez de dar 502 nos 7 blocos enquanto o broker reinicia (🟡-4 do qa-redteam da H.3) |
+| `livenessProbe` | **não usar `/health`** — só TCP na porta 3001, ou nenhuma | Com o banco fora, `/health` dá 503 **de propósito**. Como liveness, o kubelet reiniciaria o pod em laço (`CrashLoopBackOff`) sem resolver nada: o consumidor e o pool do banco já reconectam sozinhos |
+
+Para saber se a projeção está andando, olhe o `status`/`consumer` do `/health` (ou o `/analytics/health`
+autenticado). A métrica de atraso de consumo (CA-01.4.f) segue pendente.
+
+O `HEALTHCHECK` do `Dockerfile` do analytics usa o mesmo `/health`. No Docker Compose isso só marca o
+contêiner como `unhealthy` (não reinicia); em Swarm, um `unhealthy` **reinicia** a tarefa — no Swarm,
+desligue o healthcheck do analytics ou troque por um teste de porta.

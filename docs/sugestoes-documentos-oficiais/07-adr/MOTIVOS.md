@@ -1,7 +1,15 @@
-# Documento 07 (ADR) — motivos da proposta ADR-006
+# Documento 07 (ADR) — motivos
+
+> **Atualização de 29/10/2026 — v1.1 transcrita no fork.** O arquivo `versao-sugerida_v1.0.md` contém
+> hoje a **versão 1.1** (o nome foi mantido para não quebrar referências). Ela foi transcrita na branch
+> `entrega-7-adr` do fork, e a seção "Versão v1.1" ao final deste arquivo diz o que mudou e de onde vem.
+>
+> **Atualização de 14/10/2026 — o Documento 07 passou ao Gabriel.** A versão completa para entrega
+> está em `versao-sugerida_v1.0.md` e tem seção própria ao final deste arquivo. As seções abaixo,
+> até ela, registram a proposta da ADR-006 (22/09), quando o dono era o Weslley; ficam como histórico.
 
 **Documento oficial:** `Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md`
-**Dono:** **Weslley Lucas** (a ADR-003 foi redigida pelo Gabriel, mas o documento é dele)
+**Dono:** ~~Weslley Lucas~~ → **Gabriel Reis Cunha**, desde 14/10/2026
 **Proposta:** `ADR-006-proposta.md`
 **Data:** 22/09/2026 · **Autor:** agente executor, trilha do Gabriel (Etapa 5, fase 5a da delegação `docs/delegacoes/pendencias_liberadas_gabriel_16set2026.md`)
 
@@ -66,3 +74,91 @@ tarefas chegarem.
   serviço RS256, mTLS), a tabela "Alternativas Consideradas" da proposta já registra o trade-off
   de cada uma — a mudança de decisão não exige nova pesquisa, só escolher outra linha da tabela e
   ajustar a seção "Decisão" correspondente.
+
+---
+
+## Versão v1.0 para entrega (14/10/2026)
+
+**Arquivo:** `versao-sugerida_v1.0.md` — o Documento 07 inteiro, pronto para transcrever no fork
+(`Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md`). **Dono:** Gabriel.
+**Base:** a v0.1 da `main` do fork (só a ADR-003). A ADR-003 foi mantida **sem nenhuma alteração**.
+
+Para ver o que muda:
+
+```bash
+diff --strip-trailing-cr <fork>/Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md \
+     docs/sugestoes-documentos-oficiais/07-adr/versao-sugerida_v1.0.md
+```
+
+### De onde vem cada ADR
+
+| ADR | Status | Fonte no repositório |
+|---|---|---|
+| 001 — Backend Node.js + Express | Aceita (13/05) | Primeiro commit; `docs/CODING_STANDARDS.md`; `services/core-service/package.json` |
+| 002 — PostgreSQL 17 | Aceita (21/05) | Doc 04 §2 (justificativa já entregue); `db/schema.sql`; regra 8 do `scripts/qa_checks.sh` |
+| 003 — Recorte de serviços | Aceita (14/09) | Já no fork — **inalterada** |
+| 004 — AWS, k3s em dois nós de 1 GiB | Aceita (16/09, revista em 10/10) | `docs/historico_sessao/weslley/viacep_e_decisao_k8s_16set2026.md` (insumo da ADR-004); Doc 05 v1.0 do PR #6 do fork. O faseamento `t3.micro → t3.small` de 16/09 vira alternativa rejeitada |
+| 005 — Docker + Kubernetes, Compose de contingência | Aceita (10/06) | Manifests de `infra/k8s/` (10/06); `docker-compose.yml` de contingência (T-06.4, 16/09) |
+| 006 — Identidade entre serviços | Aceita (24/09) | `ADR-006-proposta.md`, sem as notas internas e a seção de implementação |
+| 007 — Uma reserva por quarto | **Proposta** | `ADR-007-candidata.md`, resumida, com o gatilho de decisão |
+| 008 — Integrações externas atrás de interface | Aceita (27/06) | `app/services/pix/` e `app/services/address/`; **atende a T-03.3** da SPEC-03 (CA-03.3.a–c) |
+| 009 — Consumo por contas | Aceita, em implementação (07/08) | SPEC-04 §4 e `docs/specs/anexos/SPEC-04-decisoes-T-04.1.md` (D-1 a D-13) |
+| 010 — Estorno no lugar de exclusão | Aceita, implementação planejada (04/10) | D-2 do catálogo de eventos; T-06.13 da SPEC-06 |
+| 011 — Frontend em SPA e monorepo | Aceita (07/08) | SPEC-05 §3 e `frontend/package.json`. A SPEC-05 diz React 19; o código usa **18.3.1**, que é o registrado |
+
+As afirmações de cada ADR foram conferidas contra a `develop` em 14/10/2026.
+
+### Pontos em aberto
+
+- **RNF-003 × nuvem.** O Doc 02 exige no mínimo 3 réplicas do backend; a ADR-004 e o Doc 05 rodam 1
+  réplica por serviço nos nós de 1 GiB. Está registrado como consequência negativa da ADR-004. A
+  correção é no Doc 02 (dono: Gabriel) — por exemplo, limitar o RNF-003 ao cluster local na v1.4.
+- **ADR-007 como "Proposta".** Mostra ao professor uma decisão em aberto, com gatilho. Se a equipe
+  preferir só decisões fechadas, sai da v1.0 e entra quando for decidida.
+- **Coerência com o Doc 06.** As alternativas da §5 do Doc 06 v1.1 sugerido batem com as ADR-001, 002,
+  004 e 005; a linha 8 da §5 do Doc 06 deve citar a ADR-008.
+- **Ordem de entrega.** O 07 é entregue depois do 05 e do 06. Até lá, o documento é atualizado a cada
+  decisão nova; quando for transcrito no fork, esta pasta registra a data.
+
+---
+
+## Versão v1.1 (29/10/2026)
+
+**Arquivo:** `versao-sugerida_v1.0.md`, agora na versão 1.1 (commit `98e8213` desta branch).
+**Transcrita no fork em 29/10/2026:** branch `entrega-7-adr`, criada de `upstream/main`, arquivo
+`Projetos/gesway/07-registro-decisoes-arquitetonicas-adr.md`. A `upstream/main` ainda tinha o modelo em
+branco, e não a v0.1 com a ADR-003; a transcrição substitui o modelo inteiro. A única diferença em
+relação a esta pasta é o `<br>` no fim das linhas do cabeçalho, como nos Documentos 05 e 06.
+**Desde 29/10**, os 8 documentos são do grupo e podem ser editados direto no fork.
+
+### O que mudou e de onde vem
+
+| ADR | Mudança na v1.1 | Fonte |
+|---|---|---|
+| 004 — Nuvem | Um único EC2 `t3.small` com k3s em servidor único, numa conta no plano gratuito de créditos criada perto do 5º semestre. Dois `t3.micro` (10/10) e o nó faseado (16/09) viram alternativas, com motivo. RNF-003 como exceção consciente na nuvem | Decisão do Gabriel de 24/10/2026; Doc 05 v1.2 do fork (`ff69a36`), §2 e §6; preços da AWS Price List de `sa-east-1` consultados em 24/10/2026 |
+| 001 e 005 | Sem os "nós de 1 GiB" e sem "fora do free-tier"; título da ADR-005 igual ao do índice | Consequência da ADR-004; auditoria de coerência de 28/10 |
+| 003 | Nota: `ACCOUNTS` e `ACCOUNT_ITEMS` implementadas a partir de 14/10 | `git log` dos *models* `Account`/`AccountItem` (14/10) |
+| 008 | Autenticidade do *webhook* por assinatura **ou token**, conforme o provedor | `AsaasPixProvider.js` (`asaas-access-token`, sem HMAC) |
+| 009 | Implementada; conta aberta no check-in e ordem de trava reserva → contas | SPEC-04 (T-04.1 a T-04.7); anexos da T-04.6 (D-58, D-62) e D-48 |
+| 010 | Implementada em 24/10/2026 | PR #100 (T-06.13): `POST /payments/:id/void` e `DELETE` com `405` |
+
+### Conferência da ADR-004 contra o Doc 05 v1.2
+
+Os mesmos números aparecem nos dois documentos: US$ 0,0336/h do `t3.small` = 2 × US$ 0,0168/h do
+`t3.micro`; 944 Mi de `requests` do Gesway e 1.014 Mi com o CoreDNS; cerca de US$ 0,35 por sessão de 4 h;
+cerca de US$ 28 no uso previsto dos 6 meses; US$ 100 de crédito na criação e até mais US$ 100 por
+atividades; um IPv4 público; AWS Budgets sobre o custo antes dos créditos; `app-pms` servido pelo nginx;
+D-003 do `analytics-service` no RDS.
+
+### Avaliados e não incorporados
+
+- **Walk-in (`PENDING → CHECKED_IN`, 24/10):** regra de negócio, não decisão de arquitetura. A correção
+  é nos Docs 01, 02 (RF-011) e 06.
+- **D-51 a D-62:** regras de cálculo e de concorrência do módulo de contas. Só a D-58 e a D-62 (com a
+  D-48) entraram, na ADR-009; as demais ficam nos anexos da SPEC-04.
+
+### Pontos em aberto
+
+- **RNF-003 × nuvem:** a exceção já está na ADR-004 e no Doc 05 v1.2; o Doc 02 v1.4 precisa declará-la.
+- **Entrega ao professor:** o PR do fork só sai com autorização do Gabriel. O Doc 05 v1.2 e o 07 v1.1
+  devem ir juntos, porque a ADR-004 e o Doc 05 descrevem a mesma decisão.

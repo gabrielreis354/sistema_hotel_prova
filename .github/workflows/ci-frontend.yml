@@ -1,0 +1,123 @@
+name: CI — frontend
+
+# Workflow próprio do frontend (T-01.5, CA-01.5.a): só roda quando muda o monorepo do
+# frontend ou a fonte do contrato da API (o Swagger do core, os enums que ele importa e o
+# lock do core, que fixa a versão do swagger-jsdoc).
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'docs/**'
+      - 'refactor/**'
+      - 'test/**'
+    paths:
+      - 'frontend/**'
+      - 'services/core-service/config/swagger.js'
+      - 'services/core-service/app/utils/**'
+      - 'services/core-service/package-lock.json'
+      - '.github/workflows/ci-frontend.yml'
+  # Manual: o filtro de paths do GitHub ignora diffs com mais de 300 arquivos (merge ou
+  # release grande); assim dá para rodar na mão quando isso acontecer.
+  workflow_dispatch:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'frontend/**'
+      - 'services/core-service/config/swagger.js'
+      - 'services/core-service/app/utils/**'
+      - 'services/core-service/package-lock.json'
+      - '.github/workflows/ci-frontend.yml'
+
+# Só leitura: o CI não escreve no repositório.
+permissions:
+  contents: read
+
+# Um push novo na mesma branch cancela a execução anterior, que já ficou velha.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck + Testes + Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # A versão do pnpm vem do "packageManager" do frontend/package.json.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (apps e pacotes)
+        run: pnpm typecheck
+
+      - name: Testes (vitest)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  # O cliente da API (packages/api-client) é gerado do Swagger do core e nunca editado à
+  # mão. Se alguém muda o swagger.js e esquece o `pnpm gen:api`, o frontend compila contra
+  # um contrato velho; este job regenera e falha se o resultado diferir do versionado.
+  contract:
+    name: Contrato da API em dia
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # O dump importa o swagger.js, que precisa do swagger-jsdoc do core-service.
+      - name: Instalar dependências do core-service
+        working-directory: services/core-service
+        run: npm ci --omit=dev
+
+      - name: Instalar dependências do frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerar o cliente da API
+        working-directory: frontend
+        run: pnpm gen:api
+
+      - name: Conferir que nada mudou
+        run: |
+          if ! git diff --exit-code -- frontend/packages/api-client; then
+            echo "::error::O cliente da API está desatualizado. Rode 'pnpm gen:api' em frontend/ e commite o resultado."
+            exit 1
+          fi

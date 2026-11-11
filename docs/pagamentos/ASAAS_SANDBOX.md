@@ -83,6 +83,32 @@ ALLOW_SEED=1 node command.js seed      # cria o Hotel Aurora (subdomínio "auror
 npm start                               # porta NODE_WEB_PORT (padrão 3000)
 ```
 
+### 4.1 No Docker Compose (roteiro de demonstração)
+
+O compose repassa as mesmas variáveis ao backend, lendo do `.env` da **raiz** do repositório
+(não do `services/core-service/.env`). Sem `PIX_PROVIDER` no `.env`, o backend usa o provedor
+simulado (`fake`), que é o plano B da demonstração.
+
+```bash
+# .env da raiz
+PIX_PROVIDER=asaas
+ASAAS_API_KEY='$aact_hmlg_...'          # ASPAS SIMPLES obrigatórias aqui
+ASAAS_WEBHOOK_TOKEN=<string forte que VOCÊ inventa>
+```
+
+> **As aspas simples são obrigatórias no `.env` do compose.** Sem elas, ou com aspas duplas, o
+> compose lê `$aact_hmlg_...` como uma variável que não existe e entrega ao backend a chave
+> **vazia** ou **truncada** (sobra só o que vem depois do nome da variável, como um `==` final).
+> Toda reserva responde `503`: `ASAAS_API_KEY não configurado` com a chave vazia, ou
+> `ASAAS_API_KEY precisa ser uma chave de sandbox` com a truncada. O compose avisa com
+> `The "aact_hmlg_..." variable is not set`. Confira com
+> `docker compose config | grep ASAAS_API_KEY`: a chave deve aparecer como `$$aact_hmlg_...`
+> (o `$$` é o `$` escapado, e o backend recebe um `$` só).
+
+Depois, `docker compose up -d --build backend` aplica a troca. O backend publica a porta
+`BACKEND_HOST_PORT` (padrão 3000) em `127.0.0.1`, então o túnel da seção 5 funciona igual:
+`ngrok http 3000`, ou a porta que estiver no `BACKEND_HOST_PORT`.
+
 ## 5. Expor o webhook para o Asaas
 
 O Asaas precisa alcançar `POST /webhooks/pix` por HTTPS público. Localmente, use um túnel
@@ -166,8 +192,9 @@ Eles provam que o sistema chama as rotas/campos da documentação e reage certo 
   o `cus_...` do hóspede entre reservas.
 - **Cobrança órfã**: se o Asaas criar a cobrança e a gravação da reserva falhar, o id `pay_...`
   vai para o log para conciliação manual.
-- **Webhook de cobrança desconhecida responde 404**: o Asaas reenvia e, após 15 falhas
-  seguidas, pausa a fila. Não use a mesma conta sandbox para cobranças de outros sistemas.
+- **Webhook de cobrança desconhecida responde 200 `ignored`**, com o id no log para
+  conciliação. Um 4xx faria o Asaas reenviar e, após 15 falhas seguidas, pausar a fila da conta.
+  Mesmo assim, não use a mesma conta sandbox para cobranças de outros sistemas.
 - **Validade do QR**: o sistema grava a `expirationDate` do Asaas. Não existe job que expire a
   reserva `PENDING` por falta de pagamento.
 - **PIX pago para reserva cancelada** só gera log de aviso (herdado do controller atual).

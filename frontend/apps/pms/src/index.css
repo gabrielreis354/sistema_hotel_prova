@@ -10,3 +10,33 @@
     @apply bg-gray-50 text-gray-900 antialiased;
   }
 }
+
+/*
+ * Folha "Mais" da barra inferior (T-05.3). Movimento com função (DESIGN_PMS §4): mostra de onde
+ * o menu veio — sobe da barra. Curva de gaveta, 220 ms, só transform/opacity; @starting-style
+ * anima a entrada sem JS. Com movimento reduzido, só o esmaecer.
+ */
+@layer components {
+  .sheet-up {
+    transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1), opacity 220ms ease-out;
+    @starting-style {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+  .sheet-backdrop {
+    transition: opacity 200ms ease-out;
+    @starting-style {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sheet-up {
+      transition: opacity 150ms ease-out;
+      @starting-style {
+        transform: none;
+        opacity: 0;
+      }
+    }
+  }
+}

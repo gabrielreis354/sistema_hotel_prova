@@ -5,7 +5,7 @@ import { decimalToCents, formatBRL } from '@hotel/domain';
 import type { AccountDetail } from '../accountsApi.js';
 import { useAccountBill, useCloseAccount } from '../queries.js';
 import { confirmArmed } from '../closeGuard.js';
-import { balanceLine, closedNotice } from '../accountTotals.js';
+import { balanceLine, closedNotice, receiveAt } from '../accountTotals.js';
 
 /**
  * Por que a conta não pode ser fechada agora. Mesma regra do backend, para o botão nascer
@@ -155,7 +155,11 @@ export function StaffActions({
                   onSuccess: (closedBill) =>
                     navigate('/comanda', {
                       replace: true,
-                      state: { notice: closedNotice(account.label ?? 'Conta', closedBill), closedId: id },
+                      state: {
+                        notice: closedNotice(account.label ?? 'Conta', closedBill),
+                        closedId: id,
+                        receiveAt: receiveAt(account, closedBill),
+                      },
                     }),
                   onSettled: () => setConfirming(false),
                 });

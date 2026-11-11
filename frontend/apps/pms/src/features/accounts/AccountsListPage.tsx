@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Button, EmptyState, Input, Spinner } from '@hotel/ui';
+import { Button, EmptyState, ErrorState, Input, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { filterAccounts, openedAtLabel, sortAccounts } from './accountFilter.js';
-import { ErrorState } from './components/ErrorState.js';
 import { Notice } from './components/Notice.js';
 import { OpenAccountForm } from './components/OpenAccountForm.js';
 
@@ -24,7 +23,7 @@ export function AccountsListPage() {
   const location = useLocation();
   // Aviso de "conta fechada" que o fechamento deixa ao voltar, com o saldo e o caminho para a
   // conta fechada (🟡-1). Lido uma vez e tirado do histórico, para não reaparecer num recarregar.
-  const [closed] = useState(() => location.state as { notice?: string; closedId?: string } | null);
+  const [closed] = useState(() => location.state as { notice?: string; closedId?: string; receiveAt?: string | null } | null);
   const notice = closed?.notice;
   useEffect(() => {
     if (notice) navigate(location.pathname, { replace: true, state: null });
@@ -67,6 +66,12 @@ export function AccountsListPage() {
           {closed?.closedId && (
             <Link to={`/comanda/${closed.closedId}`} className="inline-flex min-h-touch items-center font-medium text-brand underline">
               Ver conta fechada
+            </Link>
+          )}
+          {/* Saldo da conta da suíte: o caminho para receber (C-19). */}
+          {closed?.receiveAt && (
+            <Link to={closed.receiveAt} className="ml-3 inline-flex min-h-touch items-center font-medium text-brand underline">
+              Receber na reserva
             </Link>
           )}
         </Notice>

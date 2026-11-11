@@ -675,6 +675,44 @@
           }
         }
       },
+      "RoomError": {
+        "type": "object",
+        "description": "Erro de quartos e categorias com code estável — a tela decide pelo code, nunca pelo texto de error. No 400 vêm também errors (lista de sempre) e field (primeiro campo que falhou).",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "INVALID_INPUT",
+              "CATEGORY_NOT_FOUND",
+              "CATEGORY_IN_USE",
+              "CATEGORY_NAME_TAKEN",
+              "ROOM_NUMBER_TAKEN",
+              "ROOM_IN_USE",
+              "ROOM_STATUS_TRANSITION_NOT_ALLOWED",
+              "ROOM_NOT_AVAILABLE"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "description": "Só no 400 INVALID_INPUT",
+            "example": "price_per_night"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Só no 400 INVALID_INPUT"
+          }
+        }
+      },
       "RoomOccupied": {
         "type": "object",
         "description": "Quarto ocupado no período. room_ids vem quando a checagem da aplicação acha o conflito; numa corrida barrada pelo banco (EXCLUDE), só error.",
@@ -733,6 +771,15 @@
                   "floor": {
                     "type": "integer",
                     "nullable": true
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "AVAILABLE",
+                      "OCCUPIED",
+                      "CLEANING",
+                      "MAINTENANCE"
+                    ]
                   }
                 }
               },
@@ -911,6 +958,9 @@
       "Bill": {
         "type": "object",
         "description": "Fechamento de conta — GET /reservations/{id}/bill",
+        "required": [
+          "voided_consumptions"
+        ],
         "properties": {
           "reservation_id": {
             "type": "string",
@@ -985,6 +1035,62 @@
                 "consumed_at": {
                   "type": "string",
                   "format": "date-time"
+                }
+              }
+            }
+          },
+          "voided_consumptions": {
+            "type": "array",
+            "description": "Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "description",
+                "amount",
+                "consumed_at",
+                "deleted_at",
+                "deleted_by"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number",
+                  "example": 120
+                },
+                "consumed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "deleted_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Quando foi estornado"
+                },
+                "deleted_by": {
+                  "type": "object",
+                  "nullable": true,
+                  "description": "Quem autorizou o estorno (ADMIN), mesmo que já removido do sistema. Só id e nome. Nulo quando não há registro de quem autorizou: estorno antigo do consumo migrado sem deleted_by, ou usuário gravado que não é deste hotel (dado inconsistente — o nome de outro hotel nunca sai)",
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "Marta Gerente"
+                    }
+                  }
                 }
               }
             }
@@ -1454,13 +1560,16 @@
       },
       "WebhookConfirmResponse": {
         "type": "object",
-        "description": "POST /webhooks/pix — \"confirmed\" na primeira confirmação, \"already_processed\" em reenvio (idempotência)",
+        "description": "POST /webhooks/pix — \"confirmed\" na primeira confirmação, \"already_processed\" em reenvio (idempotência), \"not_approved\" quando o provider recusou a cobrança (o pagamento vira FAILED), \"pending\" quando ela ainda não tem status terminal (sem efeito, aguarda a próxima notificação) e \"ignored\" para notificação autêntica sem id de cobrança ou com cobrança desconhecida",
         "properties": {
           "status": {
             "type": "string",
             "enum": [
               "confirmed",
-              "already_processed"
+              "already_processed",
+              "not_approved",
+              "pending",
+              "ignored"
             ]
           },
           "payment_id": {
@@ -1471,12 +1580,12 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Ausente quando status é already_processed"
+            "description": "Só vem quando status é confirmed"
           },
           "reservation_status": {
             "type": "string",
             "nullable": true,
-            "description": "Ausente quando status é already_processed"
+            "description": "Só vem quando status é confirmed"
           }
         }
       }
@@ -1546,6 +1655,7 @@
           "Reserva Direta (Público)"
         ],
         "summary": "Categorias disponíveis no período, com preço da estadia",
+        "description": "Passo 6 do roteiro, 2ª chamada: copie o `category_id` de uma das categorias da resposta para o POST /public/{subdomain}/bookings. O id muda a cada seed, por isso não há exemplo fixo. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.",
         "security": [],
         "parameters": [
           {
@@ -1565,7 +1675,7 @@
               "type": "string",
               "format": "date"
             },
-            "example": "2026-10-10"
+            "example": "2026-12-15"
           },
           {
             "in": "query",
@@ -1575,7 +1685,7 @@
               "type": "string",
               "format": "date"
             },
-            "example": "2026-10-13"
+            "example": "2026-12-18"
           },
           {
             "in": "query",
@@ -1627,6 +1737,7 @@
           "Reserva Direta (Público)"
         ],
         "summary": "Cria reserva online e gera cobrança PIX do sinal",
+        "description": "Passo 6 do roteiro, 3ª chamada: a reserva nasce PENDING e a resposta traz o QR do sinal (`pix.qr_code`) e o `pix.provider_charge_id`. Com PIX_PROVIDER=fake (plano B), passe esse id ao scripts/simular_pagamento_pix.js para o webhook confirmar a reserva. Com o Asaas (plano A), o CPF do hóspede é obrigatório. Roteiro: docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md.",
         "security": [],
         "parameters": [
           {
@@ -1654,17 +1765,18 @@
                 "properties": {
                   "category_id": {
                     "type": "string",
-                    "format": "uuid"
+                    "format": "uuid",
+                    "description": "Copie de categories[].category_id no GET /public/{subdomain}/availability"
                   },
                   "check_in": {
                     "type": "string",
                     "format": "date",
-                    "example": "2026-10-10"
+                    "example": "2026-12-15"
                   },
                   "check_out": {
                     "type": "string",
                     "format": "date",
-                    "example": "2026-10-13"
+                    "example": "2026-12-18"
                   },
                   "guests": {
                     "type": "integer",
@@ -1690,7 +1802,8 @@
                       },
                       "cpf": {
                         "type": "string",
-                        "example": "123.456.789-00"
+                        "example": "529.982.247-25",
+                        "description": "Obrigatório com PIX_PROVIDER=asaas"
                       }
                     }
                   }
@@ -1756,6 +1869,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Provider PIX indisponível ao gerar a cobrança (ex.: Asaas fora do ar ou chave inválida) — nenhuma reserva é criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1766,6 +1889,7 @@
           "Reserva Direta (Público)"
         ],
         "summary": "Status da reserva (polling pós-pagamento PIX)",
+        "description": "Passo 6 do roteiro, última chamada: use o `reservation.id` do POST. Antes do pagamento, status PENDING e deposit.status PENDING. Depois do webhook, CONFIRMED e PAID.",
         "security": [],
         "parameters": [
           {
@@ -1817,18 +1941,55 @@
           "Webhooks"
         ],
         "summary": "Confirmação de pagamento PIX (callback do PSP)",
-        "description": "Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente. Exige assinatura HMAC-SHA256 válida (T-06.9) — sem ela, ou sem PIX_WEBHOOK_SECRET configurado no servidor, a requisição é recusada com 401 e nenhum estado é alterado. Para demonstração, use scripts/simular_pagamento_pix.js (assina com o mesmo HMAC de FakePixProvider.signNotification) em vez de chamar a rota manualmente.",
+        "description": "Marca o pagamento como PAID e promove a reserva PENDING→CONFIRMED. O pagamento vira crédito da reserva, rateado entre as contas dela; conta fechada que ele quita vira PAID (T-04.4, D-45). Idempotente.\n\n**Autenticação depende do provider ativo (`PIX_PROVIDER`)**, e é conferida antes de qualquer consulta ao banco. Sem o segredo do provider configurado no servidor, toda requisição recebe 401 (fail-closed):\n- `asaas`: cabeçalho `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (o Asaas não assina o corpo; o token não pode ser a API Key). Corpo: `{ event, payment: { id } }`. Cadastro em Integrações → Webhooks — ver docs/pagamentos/ASAAS_SANDBOX.md.\n- `mercadopago`: cabeçalhos `x-signature` (`ts=…,v1=…`) e `x-request-id`, HMAC com `MERCADOPAGO_WEBHOOK_SECRET`. Id em `?data.id=` ou `data.id` no corpo.\n- `fake` (padrão, demonstração): cabeçalho `x-pix-signature: sha256=<hex>`, HMAC-SHA256 do corpo cru com `PIX_WEBHOOK_SECRET`. Corpo: `{ provider_charge_id }`. Use scripts/simular_pagamento_pix.js em vez de montar a chamada à mão.\n\nA notificação só prova quem enviou: o status e o valor vêm sempre da consulta ao provider, nunca do corpo.\n\nNotificação **autêntica** que não dá para processar (sem id de cobrança, cobrança desconhecida) responde 200 `{ status: \"ignored\" }`, com log: um 4xx faria o PSP reenviar para sempre, e o Asaas pausa a fila da conta inteira após 15 falhas seguidas.",
         "security": [],
         "parameters": [
           {
             "in": "header",
             "name": "x-pix-signature",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
               "example": "sha256=7496b2807d9b978272aa592c9678448463621fcd06caafad2d11cec27e7cc6f2"
             },
-            "description": "HMAC-SHA256 do corpo cru (bytes exatos enviados) com PIX_WEBHOOK_SECRET, formato sha256=<hex>"
+            "description": "Provider fake: HMAC-SHA256 do corpo cru com PIX_WEBHOOK_SECRET, formato sha256=<hex>"
+          },
+          {
+            "in": "header",
+            "name": "asaas-access-token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Provider asaas: token cadastrado no webhook (ASAAS_WEBHOOK_TOKEN)"
+          },
+          {
+            "in": "header",
+            "name": "x-signature",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "ts=1704908010,v1=618c8534…"
+            },
+            "description": "Provider mercadopago: assinatura HMAC (MERCADOPAGO_WEBHOOK_SECRET)"
+          },
+          {
+            "in": "header",
+            "name": "x-request-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Provider mercadopago: entra no manifesto assinado"
+          },
+          {
+            "in": "query",
+            "name": "data.id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Provider mercadopago: id do pagamento no PSP"
           }
         ],
         "requestBody": {
@@ -1836,23 +1997,72 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "provider_charge_id"
-                ],
-                "properties": {
-                  "provider_charge_id": {
-                    "type": "string",
-                    "example": "fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3"
+                "oneOf": [
+                  {
+                    "title": "fake",
+                    "type": "object",
+                    "required": [
+                      "provider_charge_id"
+                    ],
+                    "properties": {
+                      "provider_charge_id": {
+                        "type": "string",
+                        "example": "fake_a6ada2c2-eaea-4ff6-ba41-1919b87688f3"
+                      }
+                    }
+                  },
+                  {
+                    "title": "asaas",
+                    "type": "object",
+                    "required": [
+                      "payment"
+                    ],
+                    "properties": {
+                      "event": {
+                        "type": "string",
+                        "example": "PAYMENT_RECEIVED"
+                      },
+                      "payment": {
+                        "type": "object",
+                        "required": [
+                          "id"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "pay_080225913252"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "title": "mercadopago",
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "example": "payment"
+                      },
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "123456789"
+                          }
+                        }
+                      }
+                    }
                   }
-                }
+                ]
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Pagamento confirmado (ou já processado)",
+            "description": "Notificação aceita: confirmada, já processada, recusada pelo provider, ainda pendente ou ignorada por não ter cobrança conhecida (ver status)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1861,18 +2071,8 @@
               }
             }
           },
-          "400": {
-            "description": "provider_charge_id ausente ou de tipo inválido",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "401": {
-            "description": "Assinatura ausente, inválida, ou PIX_WEBHOOK_SECRET não configurado no servidor (fail-closed)",
+            "description": "Autenticação do provider ausente ou inválida, ou segredo não configurado no servidor (fail-closed)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1881,8 +2081,8 @@
               }
             }
           },
-          "404": {
-            "description": "Cobrança não encontrada",
+          "503": {
+            "description": "Status da cobrança indisponível no provider — o PSP deve reenviar",
             "content": {
               "application/json": {
                 "schema": {
@@ -2483,21 +2683,21 @@
             }
           },
           "400": {
-            "description": "name ou price_per_night ausentes",
+            "description": "code INVALID_INPUT — name ausente ou vazio (máx. 100); price_per_night ausente, não numérico, ≤ 0, com mais de 2 casas ou acima de 99999999.99; capacity não inteiro ou < 1 (ausente vale 1)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationErrors"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
           },
           "409": {
-            "description": "Já existe uma categoria com esse nome",
+            "description": "code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
@@ -2550,6 +2750,32 @@
           "Categorias de Quarto"
         ],
         "summary": "Atualiza",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Atualização parcial: só os campos enviados mudam",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Standard"
+                  },
+                  "capacity": {
+                    "type": "integer",
+                    "example": 2
+                  },
+                  "price_per_night": {
+                    "type": "string",
+                    "example": "150.00",
+                    "description": "DECIMAL(10,2) como string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2557,6 +2783,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RoomCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "code INVALID_INPUT — Campo enviado fora das regras do cadastro (name, price_per_night, capacity)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
@@ -2572,11 +2808,11 @@
             }
           },
           "409": {
-            "description": "Já existe uma categoria com esse nome",
+            "description": "code CATEGORY_NAME_TAKEN — Já existe uma categoria com esse nome",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
@@ -2591,6 +2827,26 @@
         "responses": {
           "204": {
             "description": "OK"
+          },
+          "404": {
+            "description": "Não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "code CATEGORY_IN_USE — Categoria em uso por quarto não excluído",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomError"
+                }
+              }
+            }
           }
         }
       }
@@ -2643,17 +2899,16 @@
                   },
                   "floor": {
                     "type": "integer",
-                    "nullable": true
+                    "nullable": true,
+                    "description": "0 é o térreo"
                   },
                   "status": {
                     "type": "string",
                     "enum": [
                       "AVAILABLE",
-                      "OCCUPIED",
-                      "MAINTENANCE",
-                      "CLEANING"
+                      "MAINTENANCE"
                     ],
-                    "description": "Default: AVAILABLE"
+                    "description": "Default: AVAILABLE. OCCUPIED e CLEANING só pelo check-in e check-out"
                   }
                 }
               }
@@ -2672,31 +2927,31 @@
             }
           },
           "400": {
-            "description": "category_id ou number ausentes",
+            "description": "code INVALID_INPUT — category_id ou number ausentes, number que não é texto não vazio, floor não inteiro ou status fora de AVAILABLE | MAINTENANCE",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationErrors"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
           },
           "404": {
-            "description": "Categoria não encontrada",
+            "description": "code CATEGORY_NOT_FOUND — Categoria não encontrada — inexistente, excluída, de outro hotel ou id inválido",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
           },
           "409": {
-            "description": "Já existe um quarto com esse número",
+            "description": "code ROOM_NUMBER_TAKEN — Já existe um quarto com esse número",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
@@ -2806,6 +3061,44 @@
           "Quartos"
         ],
         "summary": "Atualiza",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Todos os campos são opcionais: só o que vier é alterado. O PMS envia status só quando ele mudou",
+                "properties": {
+                  "category_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Categoria do próprio hotel, não excluída"
+                  },
+                  "number": {
+                    "type": "string",
+                    "example": "101",
+                    "description": "Texto não vazio; gravado aparado"
+                  },
+                  "floor": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "0 é o térreo; null tira o andar"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "AVAILABLE",
+                      "OCCUPIED",
+                      "CLEANING",
+                      "MAINTENANCE"
+                    ],
+                    "description": "Transição, não só valor: pela edição só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE (limpeza concluída) e CLEANING → MAINTENANCE (defeito achado na limpeza). OCCUPIED e CLEANING entram e saem pelo check-in e check-out. Reenviar o status atual é aceito"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2818,31 +3111,38 @@
             }
           },
           "400": {
-            "description": "status inválido",
+            "description": "code INVALID_INPUT — status fora da lista, floor não inteiro ou number que não é texto não vazio (field indica qual)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
           },
           "404": {
-            "description": "Não encontrado",
+            "description": "code CATEGORY_NOT_FOUND (só para a categoria; quarto não encontrado vem sem code) — Quarto não encontrado, ou category_id inexistente, excluída, de outro hotel ou inválida",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RoomError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
                 }
               }
             }
           },
           "409": {
-            "description": "Já existe um quarto com esse número",
+            "description": "code ROOM_NUMBER_TAKEN | ROOM_STATUS_TRANSITION_NOT_ALLOWED — Já existe um quarto com esse número, ou transição de status não permitida pela edição (só AVAILABLE ↔ MAINTENANCE, CLEANING → AVAILABLE e CLEANING → MAINTENANCE; reenviar o status atual é aceito)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
@@ -2857,6 +3157,98 @@
         "responses": {
           "204": {
             "description": "OK"
+          },
+          "404": {
+            "description": "Não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "code ROOM_IN_USE — Quarto OCCUPIED ou com reserva PENDING, CONFIRMED ou CHECKED_IN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/{id}/release": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "Quartos"
+        ],
+        "summary": "Conclui a limpeza (CLEANING → AVAILABLE) — ADMIN e RECEPTIONIST",
+        "description": "Endpoint dedicado da máquina de estados do quarto: só leva CLEANING para AVAILABLE. A recepção usa pelo painel \"Hoje\" sem ter acesso ao PUT /rooms/{id} genérico (D-1 da T-05.3).",
+        "responses": {
+          "200": {
+            "description": "Quarto liberado (status AVAILABLE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Room"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente ou inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Papel sem permissão (WAITER)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Quarto não encontrado neste hotel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "code ROOM_STATUS_TRANSITION_NOT_ALLOWED — o quarto não está em CLEANING, ou ainda tem reserva CHECKED_IN (como quarto principal ou extra)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomError"
+                }
+              }
+            }
           }
         }
       }
@@ -2866,7 +3258,33 @@
         "tags": [
           "Hóspedes"
         ],
-        "summary": "Lista hóspedes",
+        "summary": "Lista hóspedes ou busca por termo",
+        "description": "Sem `q`: todos os hóspedes do hotel (contrato antigo). Com `q`: busca no servidor por nome, CPF, e-mail ou telefone (ILIKE com `%`, `_` e `\\` literais; termo numérico casa CPF/telefone só pelos dígitos), sempre no hotel do token, ordenada por nome, até `limit`. `q` vazio devolve lista vazia.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Termo de busca: parte do nome, CPF, e-mail ou telefone",
+            "example": "ana"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            },
+            "description": "Só com `q`. Inválido cai no padrão; acima de 20 vira 20"
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -2877,6 +3295,16 @@
                   "items": {
                     "$ref": "#/components/schemas/Guest"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`q` com mais de 100 caracteres",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -2998,6 +3426,35 @@
           "Hóspedes"
         ],
         "summary": "Atualiza",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Atualização parcial: só os campos enviados mudam",
+                "properties": {
+                  "full_name": {
+                    "type": "string",
+                    "example": "Maria Oliveira"
+                  },
+                  "cpf": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "phone": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "email": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -3132,6 +3589,16 @@
               "default": 50
             },
             "description": "Itens por página (máx. 100)."
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "PENDING,CONFIRMED"
+            },
+            "description": "Uma ou mais situações separadas por vírgula, entre PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT e CANCELLED (maiúsculas). Combina com from/to e paginação. Qualquer item fora da lista → 400."
           }
         ],
         "responses": {
@@ -3156,7 +3623,7 @@
             }
           },
           "400": {
-            "description": "from/to fora do formato YYYY-MM-DD",
+            "description": "from/to fora do formato YYYY-MM-DD, ou status fora da lista",
             "content": {
               "application/json": {
                 "schema": {
@@ -3484,6 +3951,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomError"
                 }
               }
             }
@@ -4022,8 +4499,10 @@
                     "description": "Conta a pagar (T-04.4)"
                   },
                   "amount": {
-                    "type": "number",
-                    "example": 300
+                    "type": "string",
+                    "pattern": "^\\d+(\\.\\d{1,2})?$",
+                    "example": "300.00",
+                    "description": "Valor positivo com até 2 casas, em texto (DECIMAL(12,2))"
                   },
                   "method": {
                     "type": "string",
@@ -4366,8 +4845,13 @@
         "tags": [
           "Analytics"
         ],
-        "summary": "Caixa realizado vs esperado vs inadimplência",
-        "description": "Retorna receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13) agrupada por mês, receita esperada (reservas ativas sem pagamento completo) e lista de inadimplentes (reservas ativas sem nenhum pagamento PAID). Filtro por período opcional.",
+        "summary": "Caixa realizado vs esperado vs valores em aberto",
+        "description": "Receita realizada (só pagamentos PAID: estornados VOIDED e excluídos não contam — T-06.13, D-2) por mês, receita esperada (reservas CONFIRMED e CHECKED_IN) e valores em aberto: reservas ativas com saldo > 0, isto é, total_amount − soma dos PAID (D-3). O período filtra a receita realizada pelo dia do pagamento. ADMIN e RECEPTIONIST.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -4378,7 +4862,7 @@
               "format": "date",
               "example": "2026-01-01"
             },
-            "description": "Data inicial do filtro (YYYY-MM-DD)"
+            "description": "Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com end."
           },
           {
             "in": "query",
@@ -4389,12 +4873,24 @@
               "format": "date",
               "example": "2026-06-30"
             },
-            "description": "Data final do filtro (YYYY-MM-DD)"
+            "description": "Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at), no fuso do hotel. Só filtra junto com start."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "example": 50
+            },
+            "description": "Máximo de linhas em unpaid (1–100). Padrão: 50. O total vem à parte."
           }
         ],
         "responses": {
           "200": {
-            "description": "Resumo financeiro do tenant",
+            "description": "Resumo financeiro do hotel",
             "content": {
               "application/json": {
                 "schema": {
@@ -4404,8 +4900,9 @@
                       "type": "object",
                       "properties": {
                         "total": {
-                          "type": "number",
-                          "example": 18500
+                          "type": "string",
+                          "pattern": "^-?\\d+\\.\\d{2}$",
+                          "example": "18500.00"
                         },
                         "by_month": {
                           "type": "array",
@@ -4417,8 +4914,9 @@
                                 "example": "2026-01"
                               },
                               "total": {
-                                "type": "number",
-                                "example": 4200
+                                "type": "string",
+                                "pattern": "^-?\\d+\\.\\d{2}$",
+                                "example": "4200.00"
                               }
                             }
                           }
@@ -4429,8 +4927,9 @@
                       "type": "object",
                       "properties": {
                         "total": {
-                          "type": "number",
-                          "example": 6200
+                          "type": "string",
+                          "pattern": "^-?\\d+\\.\\d{2}$",
+                          "example": "6200.00"
                         }
                       }
                     },
@@ -4443,13 +4942,33 @@
                             "type": "string",
                             "format": "uuid"
                           },
+                          "guest_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
                           "guest": {
                             "type": "string",
-                            "example": "Maria Oliveira"
+                            "nullable": true,
+                            "example": "Maria Oliveira",
+                            "description": "null enquanto o evento do hóspede não chegou"
                           },
                           "amount": {
-                            "type": "number",
-                            "example": 600
+                            "type": "string",
+                            "pattern": "^-?\\d+\\.\\d{2}$",
+                            "example": "1000.00",
+                            "description": "total_amount da reserva"
+                          },
+                          "paid": {
+                            "type": "string",
+                            "pattern": "^-?\\d+\\.\\d{2}$",
+                            "example": "300.00",
+                            "description": "Soma dos pagamentos PAID"
+                          },
+                          "balance": {
+                            "type": "string",
+                            "pattern": "^-?\\d+\\.\\d{2}$",
+                            "example": "700.00",
+                            "description": "amount − paid, sempre > 0"
                           },
                           "check_in_date": {
                             "type": "string",
@@ -4461,14 +4980,25 @@
                           }
                         }
                       }
+                    },
+                    "unpaid_total": {
+                      "type": "integer",
+                      "example": 37,
+                      "description": "Quantas reservas estão em aberto; unpaid traz no máximo limit delas"
                     }
                   }
                 }
               }
             }
           },
+          "400": {
+            "description": "Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)"
+          },
           "401": {
-            "description": "Token não fornecido ou inválido"
+            "description": "Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics"
+          },
+          "403": {
+            "description": "Papel sem permissão (WAITER) ou hotel suspenso"
           },
           "500": {
             "description": "Erro interno"
@@ -4482,7 +5012,12 @@
           "Analytics"
         ],
         "summary": "Taxa de ocupação + ADR + RevPAR",
-        "description": "Retorna contagem de quartos por status, taxa de ocupação percentual, ADR (diária média) e RevPAR (receita por quarto disponível) para a data informada.",
+        "description": "Quartos por status, taxa de ocupação, ADR (diária média das estadias CHECKED_IN/CHECKED_OUT que passam pela data) e RevPAR (ADR × ocupados / total de quartos). ADMIN e RECEPTIONIST.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -4493,7 +5028,7 @@
               "format": "date",
               "example": "2026-06-27"
             },
-            "description": "Data de referência (YYYY-MM-DD). Default: hoje."
+            "description": "Data de referência (YYYY-MM-DD). Padrão: hoje no fuso do hotel (America/Sao_Paulo, D-68)."
           }
         ],
         "responses": {
@@ -4506,8 +5041,7 @@
                   "properties": {
                     "date": {
                       "type": "string",
-                      "format": "date",
-                      "example": "2026-06-27"
+                      "format": "date"
                     },
                     "total_rooms": {
                       "type": "integer",
@@ -4531,22 +5065,30 @@
                       "description": "Percentual de ocupação (0–100)"
                     },
                     "adr": {
-                      "type": "number",
-                      "example": 312.5,
-                      "description": "Average Daily Rate — diária média dos quartos vendidos"
+                      "type": "string",
+                      "pattern": "^-?\\d+\\.\\d{2}$",
+                      "example": "312.50",
+                      "description": "Average Daily Rate — diária média"
                     },
                     "revpar": {
-                      "type": "number",
-                      "example": 187.5,
-                      "description": "Revenue Per Available Room — ADR × occupancy_rate / 100"
+                      "type": "string",
+                      "pattern": "^-?\\d+\\.\\d{2}$",
+                      "example": "187.50",
+                      "description": "Revenue Per Available Room — ADR × ocupados / total"
                     }
                   }
                 }
               }
             }
           },
+          "400": {
+            "description": "Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)"
+          },
           "401": {
-            "description": "Token não fornecido ou inválido"
+            "description": "Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics"
+          },
+          "403": {
+            "description": "Papel sem permissão (WAITER) ou hotel suspenso"
           },
           "500": {
             "description": "Erro interno"
@@ -4560,10 +5102,29 @@
           "Analytics"
         ],
         "summary": "Alertas operacionais do dia",
-        "description": "Retorna três listas de atenção imediata: risco de no-show (CONFIRMED sem pagamento com check-in hoje), quartos em limpeza há tempo e reservas PENDING há mais de 48h.",
+        "description": "Risco de no-show (CONFIRMED com check-in hoje sem nenhum pagamento PAID — D-3), quartos em limpeza e reservas PENDING há mais de 48 h. Sem telefone do hóspede (D-1): a tela abre a ficha no core pelo guest_id. ADMIN e RECEPTIONIST.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "example": 50
+            },
+            "description": "Máximo de linhas em cada lista (1–100). Padrão: 50. O total vem à parte."
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Alertas agrupados por categoria",
+            "description": "Alertas agrupados",
             "content": {
               "application/json": {
                 "schema": {
@@ -4571,7 +5132,6 @@
                   "properties": {
                     "no_show_risk": {
                       "type": "array",
-                      "description": "Reservas confirmadas para hoje sem pagamento",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -4579,28 +5139,29 @@
                             "type": "string",
                             "format": "uuid"
                           },
+                          "guest_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
                           "guest": {
                             "type": "string",
+                            "nullable": true,
                             "example": "João Silva"
-                          },
-                          "guest_phone": {
-                            "type": "string",
-                            "example": "(11) 99999-9999"
                           },
                           "check_in_date": {
                             "type": "string",
                             "format": "date"
                           },
                           "amount": {
-                            "type": "number",
-                            "example": 450
+                            "type": "string",
+                            "pattern": "^-?\\d+\\.\\d{2}$",
+                            "example": "450.00"
                           }
                         }
                       }
                     },
                     "cleaning_pending": {
                       "type": "array",
-                      "description": "Quartos com status CLEANING",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -4614,6 +5175,7 @@
                           },
                           "category": {
                             "type": "string",
+                            "nullable": true,
                             "example": "Standard"
                           },
                           "cleaning_since": {
@@ -4625,7 +5187,6 @@
                     },
                     "pending_too_long": {
                       "type": "array",
-                      "description": "Reservas PENDING criadas há mais de 48h",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -4633,8 +5194,13 @@
                             "type": "string",
                             "format": "uuid"
                           },
+                          "guest_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
                           "guest": {
                             "type": "string",
+                            "nullable": true,
                             "example": "Ana Costa"
                           },
                           "check_in_date": {
@@ -4642,13 +5208,36 @@
                             "format": "date"
                           },
                           "amount": {
-                            "type": "number",
-                            "example": 300
+                            "type": "string",
+                            "pattern": "^-?\\d+\\.\\d{2}$",
+                            "example": "300.00"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
                           },
                           "hours_pending": {
                             "type": "number",
                             "example": 72.5
                           }
+                        }
+                      }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "description": "Total de cada lista; cada uma traz no máximo limit linhas",
+                      "properties": {
+                        "no_show_risk": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "cleaning_pending": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "pending_too_long": {
+                          "type": "integer",
+                          "example": 1
                         }
                       }
                     }
@@ -4657,8 +5246,14 @@
               }
             }
           },
+          "400": {
+            "description": "Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)"
+          },
           "401": {
-            "description": "Token não fornecido ou inválido"
+            "description": "Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics"
+          },
+          "403": {
+            "description": "Papel sem permissão (WAITER) ou hotel suspenso"
           },
           "500": {
             "description": "Erro interno"
@@ -4672,7 +5267,12 @@
           "Analytics"
         ],
         "summary": "Histórico mensal de reservas e receita",
-        "description": "Retorna dados agrupados por mês para identificar sazonalidade: número de reservas, receita total e média de noites por reserva.",
+        "description": "Por mês de check-in: reservas não canceladas, receita e noites médias. ADMIN e RECEPTIONIST.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -4684,12 +5284,12 @@
               "maximum": 60,
               "example": 12
             },
-            "description": "Quantos meses de histórico retornar (1–60). Default: 12."
+            "description": "Meses de histórico (1–60). Padrão: 12."
           }
         ],
         "responses": {
           "200": {
-            "description": "Array de meses com indicadores",
+            "description": "Meses com indicadores",
             "content": {
               "application/json": {
                 "schema": {
@@ -4706,8 +5306,9 @@
                         "example": 8
                       },
                       "revenue": {
-                        "type": "number",
-                        "example": 5200
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "example": "5200.00"
                       },
                       "avg_nights": {
                         "type": "number",
@@ -4720,10 +5321,13 @@
             }
           },
           "400": {
-            "description": "months fora do intervalo permitido (1–60)"
+            "description": "Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)"
           },
           "401": {
-            "description": "Token não fornecido ou inválido"
+            "description": "Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics"
+          },
+          "403": {
+            "description": "Papel sem permissão (WAITER) ou hotel suspenso"
           },
           "500": {
             "description": "Erro interno"
@@ -4736,8 +5340,13 @@
         "tags": [
           "Analytics"
         ],
-        "summary": "Receita e rentabilidade por categoria de quarto",
-        "description": "Ranqueia as categorias de quarto por receita gerada, mostrando número de reservas e ticket médio por categoria.",
+        "summary": "Receita e ticket médio por categoria de quarto",
+        "description": "Categorias do quarto principal ordenadas pela receita das reservas não canceladas. Reserva cujo quarto ou categoria ainda não chegou à projeção entra na linha \"Sem categoria\" (category_id e category null). ADMIN e RECEPTIONIST.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -4748,7 +5357,7 @@
               "format": "date",
               "example": "2026-01-01"
             },
-            "description": "Data inicial (YYYY-MM-DD)"
+            "description": "Data inicial (YYYY-MM-DD), inclusiva, sobre a data de check-in. Só filtra junto com end."
           },
           {
             "in": "query",
@@ -4759,12 +5368,12 @@
               "format": "date",
               "example": "2026-06-30"
             },
-            "description": "Data final (YYYY-MM-DD)"
+            "description": "Data final (YYYY-MM-DD), inclusiva, sobre a data de check-in. Só filtra junto com start."
           }
         ],
         "responses": {
           "200": {
-            "description": "Ranking de categorias por receita",
+            "description": "Ranking de categorias",
             "content": {
               "application/json": {
                 "schema": {
@@ -4772,21 +5381,31 @@
                   "items": {
                     "type": "object",
                     "properties": {
+                      "category_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true,
+                        "description": "null = sem categoria"
+                      },
                       "category": {
                         "type": "string",
-                        "example": "Suite Presidencial"
+                        "nullable": true,
+                        "example": "Suíte",
+                        "description": "null = sem categoria"
                       },
                       "reservations": {
                         "type": "integer",
                         "example": 2
                       },
                       "revenue": {
-                        "type": "number",
-                        "example": 5600
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "example": "5600.00"
                       },
                       "avg_ticket": {
-                        "type": "number",
-                        "example": 2800
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "example": "2800.00"
                       }
                     }
                   }
@@ -4794,8 +5413,14 @@
               }
             }
           },
+          "400": {
+            "description": "Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)"
+          },
           "401": {
-            "description": "Token não fornecido ou inválido"
+            "description": "Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics"
+          },
+          "403": {
+            "description": "Papel sem permissão (WAITER) ou hotel suspenso"
           },
           "500": {
             "description": "Erro interno"
@@ -4809,7 +5434,12 @@
           "Analytics"
         ],
         "summary": "Mix de meios de pagamento com percentual",
-        "description": "Agrupa pagamentos por método (PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO) com total em reais e percentual sobre o total do período. Só pagamentos PAID (estornados VOIDED e excluídos não contam — T-06.13).",
+        "description": "Pagamentos PAID por meio (estornados VOIDED e excluídos não contam), com total e percentual sobre o período. ADMIN e RECEPTIONIST.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -4820,7 +5450,7 @@
               "format": "date",
               "example": "2026-01-01"
             },
-            "description": "Data inicial (YYYY-MM-DD)"
+            "description": "Data inicial (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com end."
           },
           {
             "in": "query",
@@ -4831,12 +5461,12 @@
               "format": "date",
               "example": "2026-06-30"
             },
-            "description": "Data final (YYYY-MM-DD)"
+            "description": "Data final (YYYY-MM-DD), inclusiva, sobre o dia do pagamento (paid_at). Só filtra junto com start."
           }
         ],
         "responses": {
           "200": {
-            "description": "Mix de pagamentos ordenado por total",
+            "description": "Mix ordenado por total",
             "content": {
               "application/json": {
                 "schema": {
@@ -4853,8 +5483,9 @@
                         "example": 9
                       },
                       "total": {
-                        "type": "number",
-                        "example": 11200
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "example": "11200.00"
                       },
                       "pct": {
                         "type": "number",
@@ -4867,8 +5498,14 @@
               }
             }
           },
+          "400": {
+            "description": "Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)"
+          },
           "401": {
-            "description": "Token não fornecido ou inválido"
+            "description": "Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics"
+          },
+          "403": {
+            "description": "Papel sem permissão (WAITER) ou hotel suspenso"
           },
           "500": {
             "description": "Erro interno"
@@ -4881,8 +5518,13 @@
         "tags": [
           "Analytics"
         ],
-        "summary": "Hóspedes mais valiosos por lifetime value",
-        "description": "Ranqueia hóspedes pela soma histórica de reservas não canceladas, mostrando número de estadias, valor acumulado e data da última visita.",
+        "summary": "Hóspedes mais valiosos por valor acumulado",
+        "description": "Soma das reservas não canceladas por hóspede, com estadias e última saída. Só ADMIN: é dado pessoal (RT-51). Sem e-mail (D-1).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -4894,12 +5536,12 @@
               "maximum": 100,
               "example": 10
             },
-            "description": "Quantidade de hóspedes a retornar (1–100). Default: 10."
+            "description": "Quantos hóspedes (1–100). Padrão: 10."
           }
         ],
         "responses": {
           "200": {
-            "description": "Ranking de hóspedes por lifetime value",
+            "description": "Ranking de hóspedes",
             "content": {
               "application/json": {
                 "schema": {
@@ -4915,22 +5557,18 @@
                         "type": "string",
                         "example": "Carlos Eduardo"
                       },
-                      "email": {
-                        "type": "string",
-                        "format": "email"
-                      },
                       "total_reservations": {
                         "type": "integer",
                         "example": 3
                       },
                       "lifetime_value": {
-                        "type": "number",
-                        "example": 4200
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "example": "4200.00"
                       },
                       "last_stay": {
                         "type": "string",
-                        "format": "date",
-                        "example": "2026-06-20"
+                        "format": "date"
                       }
                     }
                   }
@@ -4939,10 +5577,13 @@
             }
           },
           "400": {
-            "description": "limit fora do intervalo permitido (1–100)"
+            "description": "Parâmetro inválido (data inexistente ou fora do formato, start depois de end, número fora do intervalo)"
           },
           "401": {
-            "description": "Token não fornecido ou inválido"
+            "description": "Token ausente ou inválido, ou hotel ainda não conhecido pelo analytics"
+          },
+          "403": {
+            "description": "Requer papel ADMIN"
           },
           "500": {
             "description": "Erro interno"

@@ -16,8 +16,10 @@ export const RESERVATION_STATUSES = [
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 
 // PENDING → CONFIRMED → CHECKED_IN → CHECKED_OUT ; PENDING/CONFIRMED → CANCELLED.
+// PENDING → CHECKED_IN: hóspede que chega ao balcão sem sinal pago (walk-in). Decisão do
+// Gabriel em 24/10/2026, alinhada ao backend (CheckInController aceita PENDING e CONFIRMED).
 const RESERVATION_TRANSITIONS: Record<ReservationStatus, ReservationStatus[]> = {
-  PENDING: ['CONFIRMED', 'CANCELLED'],
+  PENDING: ['CONFIRMED', 'CHECKED_IN', 'CANCELLED'],
   CONFIRMED: ['CHECKED_IN', 'CANCELLED'],
   CHECKED_IN: ['CHECKED_OUT'],
   CHECKED_OUT: [],
@@ -45,11 +47,12 @@ export const ROOM_STATUSES = ['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'
 export type RoomStatus = (typeof ROOM_STATUSES)[number];
 
 // AVAILABLE → OCCUPIED (check-in) → CLEANING (check-out) → AVAILABLE (limpeza concluída).
-// MAINTENANCE é bloqueio manual; entra/sai de AVAILABLE.
+// MAINTENANCE é bloqueio manual; entra/sai de AVAILABLE, e entra também de CLEANING (defeito
+// achado na limpeza — decisão do Gabriel de 04/11/2026).
 const ROOM_TRANSITIONS: Record<RoomStatus, RoomStatus[]> = {
   AVAILABLE: ['OCCUPIED', 'MAINTENANCE'],
   OCCUPIED: ['CLEANING'],
-  CLEANING: ['AVAILABLE'],
+  CLEANING: ['AVAILABLE', 'MAINTENANCE'],
   MAINTENANCE: ['AVAILABLE'],
 };
 
@@ -58,11 +61,19 @@ export function canTransitionRoom(from: RoomStatus, to: RoomStatus): boolean {
 }
 
 /**
+ * Chaves dos tokens de cor de status do design system (`status.<key>` em
+ * `packages/config/tailwind-preset.js`). Tipadas para que um token inexistente seja erro de
+ * compilação, e não um ponto sem cor no build.
+ */
+export const STATUS_TONES = ['free', 'booked', 'occupied', 'cleaning', 'maintenance'] as const;
+export type StatusTone = (typeof STATUS_TONES)[number];
+
+/**
  * Metadados de exibição de cada status de quarto: rótulo PT-BR e a chave do token de cor
  * do design system (`status.<key>` no preset do Tailwind). A cor NUNCA vai sozinha — o
  * componente sempre acompanha o `label`.
  */
-export const ROOM_STATUS_META: Record<RoomStatus, { label: string; token: string }> = {
+export const ROOM_STATUS_META: Record<RoomStatus, { label: string; token: StatusTone }> = {
   AVAILABLE: { label: 'Livre', token: 'free' },
   OCCUPIED: { label: 'Ocupado', token: 'occupied' },
   CLEANING: { label: 'Limpeza', token: 'cleaning' },
