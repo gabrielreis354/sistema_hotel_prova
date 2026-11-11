@@ -1,27 +1,27 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../lib/http.js';
+import * as roomsApi from './roomsApi.js';
 
 /**
  * A trava de "categoria em uso" e "quarto em uso" é do servidor (409 com code), não do
  * cliente: a exclusão faz UMA chamada (DELETE) e a mensagem sai do code. Nada de baixar a
  * lista de quartos para decidir antes (🟡-3 do qa-redteam).
  *
- * O fetch é trocado antes de importar o cliente — o openapi-fetch guarda o fetch global na
- * criação.
+ * O fetch é trocado antes de importar o cliente, porque o openapi-fetch guarda o fetch global
+ * na criação. Fica no vi.hoisted, que roda antes dos imports. Com import() num beforeAll, a
+ * carga do cliente contava no limite de 10 s do hook e estourava com a máquina ocupada.
  */
-const fetchMock = vi.fn<(req: Request) => Promise<Response>>();
-let roomsApi: typeof import('./roomsApi.js');
+const fetchMock = vi.hoisted(() => {
+  const mock = vi.fn<(req: Request) => Promise<Response>>();
+  vi.stubGlobal('fetch', mock);
+  // Em teste não há proxy do Vite: URL absoluta para o Request do openapi-fetch.
+  vi.stubEnv('VITE_API_URL', 'http://pms.test/api');
+  return mock;
+});
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
-
-beforeAll(async () => {
-  vi.stubGlobal('fetch', fetchMock);
-  // Em teste não há proxy do Vite: URL absoluta para o Request do openapi-fetch.
-  vi.stubEnv('VITE_API_URL', 'http://pms.test/api');
-  roomsApi = await import('./roomsApi.js');
-});
 
 afterEach(() => fetchMock.mockReset());
 
