@@ -64,3 +64,12 @@ Observação de contexto, sem repasse: `useReleaseRoom` invalida `['analytics']`
 ## Não foi possível verificar
 - **Execução no navegador e no leitor de tela.** O componente não tem teste e o backend não foi subido, como combinado. A 🟡-1 foi confirmada por leitura de código (outbox com polling de 1 s, refetch de 60 s, ramo de sucesso sem fechar o painel), sem reprodução em tela.
 - O tempo real entre o commit no core e a atualização da `proj_rooms` em staging e produção. Ele define o tamanho da janela da 🟡-1, mas não muda o fato de que ela existe.
+
+## Desfecho (11/11/2026, depois da auditoria)
+
+| Achado | Tratamento |
+|---|---|
+| 🟡-1 Painel aberto e segundo envio depois de liberar | Corrigido em `efec5ca`: o painel fecha no sucesso e a linha mostra "Liberado", desabilitada, até sair da lista. A marca é a limpeza liberada (`since`), então um quarto que volte à limpeza reabre a ação. Reproduzido na tela antes da correção (2 checagens falharam) e conferido depois, com o analytics simulado mantendo o quarto na lista (17 de 17) |
+| 🟢 Check-in sem reconferir o bloqueio | Corrigido em `efec5ca`: o confirmar acompanha `checkIn.enabled` |
+| 🟢 Foco perdido ao abrir e fechar | Pendente. Já acontecia no check-out; fica para a SPEC-08 ou depois do congelamento |
+| 🟢 Sem teste de componente | Pendente. Depende de jsdom no Vitest |
