@@ -3,14 +3,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { centsToBRLInput, formatBRL, type Cents } from '@hotel/domain';
 import { Button, Field, Input, cn } from '@hotel/ui';
 import { ApiError } from '../../../lib/http.js';
-import { freshBillOptions, useCreatePayment } from '../queries.js';
+import { reservationKeys, useCreatePayment } from '../queries.js';
+import { getBill } from '../reservationsApi.js';
 import {
   PAYMENT_METHOD_OPTIONS,
-  freshBalanceStep,
+  confirmBalanceThenSend,
   paymentBody,
   readPaymentAmount,
   submitStep,
-  type FreshBalance,
   type PaymentMethod,
 } from '../paymentLogic.js';
 import { officialBalanceCents } from '../reservationLogic.js';
@@ -51,6 +51,15 @@ export function PaymentForm({
   const sending = useRef(false);
   const fixButton = useRef<HTMLButtonElement>(null);
   const amountInput = useRef<HTMLInputElement>(null);
+  // O formulário remonta quando o saldo muda (key={balance}) e sai quando a conta falha. A
+  // conferência de uma instância que já saiu não pode gravar (🟡-1 do qa-redteam de 11/11).
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // Ao abrir a confirmação do "a maior", o foco vai para "Corrigir o valor": um Enter a mais
   // corrige em vez de gravar (🟡-1 do qa-redteam).
@@ -74,17 +83,22 @@ export function PaymentForm({
   }
 
   /**
-   * A conta de agora, direto do servidor. `networkMode: 'always'`: sem rede, a busca falha na hora
-   * em vez de ficar pausada até a rede voltar. Sem nova tentativa: a recepção está esperando.
-   * Atualiza o cache: se o saldo mudou, a página refaz este formulário com o saldo novo.
+   * A conta de agora, direto do servidor (P-8). Chamada direta, não `fetchQuery`: uma busca da
+   * conta já pausada sem rede seria aproveitada, e a conferência esperaria a rede voltar sem
+   * limite (🟡-1 do qa-redteam de 11/11). Sem rede, o fetch falha na hora. O cache recebe a conta
+   * nova: se o saldo mudou, a página refaz este formulário com ele.
    */
-  async function readFreshBalance(): Promise<FreshBalance> {
-    try {
-      const bill = await qc.fetchQuery({ ...freshBillOptions(reservationId), networkMode: 'always', retry: false });
-      return { ok: true, balanceCents: officialBalanceCents(bill) };
-    } catch {
-      return { ok: false };
-    }
+  async function readFreshBalance(): Promise<Cents> {
+    const bill = await getBill(reservationId);
+    qc.setQueryData(reservationKeys.bill(reservationId), bill);
+    return officialBalanceCents(bill);
+  }
+
+  function stop(text: string) {
+    sending.current = false;
+    setChecking(false);
+    setOverpaid(null);
+    onResult({ kind: 'error', text });
   }
 
   async function send(cents: Cents, chosen: PaymentMethod) {
@@ -93,15 +107,24 @@ export function PaymentForm({
     sending.current = true;
     setError(null);
     setChecking(true);
-    const fresh = await readFreshBalance();
-    setChecking(false);
-    const check = freshBalanceStep({ shownCents: balanceCents, fresh });
-    if (check.kind === 'stop') {
-      sending.current = false;
-      setOverpaid(null);
-      onResult({ kind: 'error', text: check.text });
-      return;
+    try {
+      await confirmBalanceThenSend({
+        shownCents: balanceCents,
+        readFresh: readFreshBalance,
+        isMounted: () => mounted.current,
+        stop,
+        send: () => {
+          setChecking(false);
+          mutatePayment(cents, chosen);
+        },
+      });
+    } catch {
+      // Nada pode deixar a trava ligada com o botão parecendo ativo (🟢-2 do qa-redteam de 11/11).
+      stop('Erro inesperado. Confira a conta antes de tentar de novo.');
     }
+  }
+
+  function mutatePayment(cents: Cents, chosen: PaymentMethod) {
     const label = PAYMENT_METHOD_OPTIONS.find((m) => m.id === chosen)?.label ?? chosen;
     create.mutate(paymentBody(reservationId, cents, chosen), {
       onSettled: () => {
