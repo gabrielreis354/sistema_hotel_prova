@@ -188,6 +188,9 @@ export function ArrivalItem({ row, onResult }: { row: ArrivalRow<ReservationList
             confirmLabel="Confirmar check-in"
             busyLabel="Fazendo check-in…"
             busy={busy}
+            // O quarto pode ficar bloqueado com o painel aberto: o motivo aparece acima, e o
+            // confirmar acompanha, em vez de mandar um check-in que o servidor recusaria.
+            canConfirm={checkIn.enabled}
             onConfirm={() => run('check-in', () => setConfirming(false))}
             onCancel={() => setConfirming(false)}
           >
@@ -318,13 +321,23 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
   const release = useReleaseRoom();
   const busy = release.isPending;
   const [confirming, setConfirming] = useState(false);
+  // A lista vem do analytics-service, que só tira o quarto quando o evento chega: por alguns
+  // segundos, a linha continua aqui depois do sucesso. Guardar a limpeza que foi liberada impede
+  // um segundo envio (409) nesse intervalo. Se o quarto voltar para a limpeza, `since` muda e a
+  // ação reabre.
+  const [releasedFor, setReleasedFor] = useState<string | null>(null);
+  const released = releasedFor === (room.since ?? '');
   const panelId = `limpeza-${room.id}-confirmacao`;
 
   // mutateAsync, não callbacks do mutate: a linha some ao recarregar a lista, e o React Query não
   // chama callback de mutate de componente já desmontado.
   function confirmRelease() {
     void release.mutateAsync({ id: room.id, number: room.number }).then(
-      () => onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` }),
+      () => {
+        setConfirming(false);
+        setReleasedFor(room.since ?? '');
+        onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` });
+      },
       (err: unknown) => {
         setConfirming(false);
         onResult({ kind: 'error', text: err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.' });
@@ -340,10 +353,10 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
           className={ROW_ACTION}
           aria-expanded={confirming}
           aria-controls={panelId}
-          disabled={busy || confirming}
+          disabled={busy || confirming || released}
           onClick={() => setConfirming(true)}
         >
-          Liberar quarto
+          {released ? 'Liberado' : 'Liberar quarto'}
         </Button>
       }
       panel={
