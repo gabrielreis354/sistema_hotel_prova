@@ -121,13 +121,20 @@ export function useTransitionReservation(id: string) {
  * pode ter gravado, e a conta recarregada é o que a recepção confere antes de repetir (D7).
  * Recarrega a reserva inteira (bill e detalhe) e as contas, que mudam de CLOSED para PAID.
  */
-export function useCreatePayment() {
-  const qc = useQueryClient();
-  return useMutation({
+export function createPaymentOptions(qc: Pick<QueryClient, 'invalidateQueries'>) {
+  return {
     mutationFn: (body: PaymentInput) => createPayment(body),
+    // 'always': sem rede o React Query PAUSAVA a gravação — botão em "Registrando…" sem aviso, e o
+    // pagamento saía sozinho quando a rede voltava, ou sumia se a página recarregasse. Agora o
+    // createPayment decide na hora: sem rede, "não foi registrado" (achado do qa-explorador, 09/11).
+    networkMode: 'always' as const,
     onSettled: () => {
       qc.invalidateQueries({ queryKey: reservationKeys.all });
       qc.invalidateQueries({ queryKey: ['accounts'] });
     },
-  });
+  };
+}
+
+export function useCreatePayment() {
+  return useMutation(createPaymentOptions(useQueryClient()));
 }

@@ -46,6 +46,12 @@ Passo 5 do roteiro da banca: *"No check-out, a conta aparece em linha do tempo, 
 | 🟡-3 Com a recarga da conta falhando, o formulário seguia com o saldo antigo | `canReceivePayment` recebe `billFailed`: o formulário sai até a conta voltar |
 | 🟢-4 Janela entre o toque e o `isPending`; confirmação não anunciada | Trava síncrona (`useRef`) no envio; `role="alert"` na confirmação |
 
+### Correção depois do merge (09/11, noite)
+
+| Achado | Correção |
+|---|---|
+| 🟡 Sem rede, o React Query **pausava** a gravação: botão em "Registrando…" sem aviso, o pagamento saía sozinho quando a rede voltava, ou sumia se a página recarregasse. A mensagem do P-7 nunca aparecia, porque o `fetch` nem era chamado. Os testes unitários simulavam a falha do `fetch`, não o navegador sem rede. Achado pela receita do eixo Rede do `qa-explorador` | `networkMode: 'always'` no `useCreatePayment`, e o `createPayment` recusa na hora com "Sem conexão: o pagamento não foi registrado. Reconecte e registre de novo." — aqui dá para afirmar que nada foi gravado. A falha sem resposta segue com a mensagem do P-7. Verificado no navegador: aviso, botão liberado e nenhum pagamento saindo depois que a rede volta (`fix/m5b-pagamento-sem-rede`) |
+
 ### Repasses ao dono do backend (decididos em 09/11)
 
 | Repasse | Decisão | Por quê |

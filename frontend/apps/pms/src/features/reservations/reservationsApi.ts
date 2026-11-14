@@ -158,8 +158,18 @@ export type PaymentInput = paths['/payments']['post']['requestBody']['content'][
 export const PAYMENT_UNKNOWN_MESSAGE =
   'Sem resposta do servidor. O pagamento pode ter sido registrado: confira a conta abaixo antes de registrar de novo.';
 
+/**
+ * Navegador sem rede: o pedido nem sai, então aqui dá para afirmar que NADA foi gravado — o
+ * oposto da falha sem resposta, em que o pagamento pode ter entrado.
+ */
+export const PAYMENT_OFFLINE_MESSAGE =
+  'Sem conexão: o pagamento não foi registrado. Reconecte e registre de novo.';
+
 /** Registra um pagamento (POST /payments). Pela reserva no check-out — ver paymentLogic.paymentBody. */
 export async function createPayment(body: PaymentInput): Promise<Payment> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new ApiError(PAYMENT_OFFLINE_MESSAGE, 0);
+  }
   let result;
   try {
     result = await api.POST('/payments', { body });

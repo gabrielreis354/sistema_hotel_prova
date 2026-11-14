@@ -1,11 +1,12 @@
-import { QueryClient, QueryObserver } from '@tanstack/react-query';
+import { MutationObserver, QueryClient, QueryObserver, onlineManager } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn() }));
 vi.mock('../../lib/api.js', () => ({ api }));
 
 import { ApiError } from '../../lib/http.js';
-import { freshBillOptions, invalidateAfterCreate, reservationKeys, reservationListOptions } from './queries.js';
+import { createPaymentOptions, freshBillOptions, invalidateAfterCreate, reservationKeys, reservationListOptions } from './queries.js';
+import { PAYMENT_OFFLINE_MESSAGE } from './reservationsApi.js';
 
 // 🟡-1 do qa-redteam da T-05.3: a confirmação do check-out mostrava o saldo do cache.
 describe('freshBillOptions — o saldo da confirmação nunca sai do cache', () => {
@@ -62,5 +63,33 @@ describe('invalidateAfterCreate — o que a criação deixa desatualizado', () =
 
   it('404 (hóspede ou quarto excluído): também a busca de hóspedes', () => {
     expect(keysAfter(new ApiError('x', 404))).toEqual([['reservations'], ['rooms'], ['guests']]);
+  });
+});
+
+// Achado da receita de rede do qa-explorador (09/11): sem rede, a gravação ficava PAUSADA —
+// botão em "Registrando…" sem aviso, e o pagamento saía sozinho quando a rede voltava.
+describe('createPaymentOptions — sem rede, o pagamento nunca fica pausado', () => {
+  it('navegador sem rede: falha na hora, com a mensagem de que nada foi registrado', async () => {
+    const qc = new QueryClient();
+    onlineManager.setOnline(false);
+    vi.stubGlobal('navigator', { onLine: false });
+    api.POST.mockClear();
+    try {
+      const observer = new MutationObserver(qc, createPaymentOptions(qc));
+      await observer.mutate({ reservation_id: 'r1', amount: '10.00', method: 'PIX' }).catch(() => undefined);
+      const result = observer.getCurrentResult();
+      expect(result.isPaused).toBe(false);
+      expect(result.status).toBe('error');
+      expect(result.error).toMatchObject({ status: 0, message: PAYMENT_OFFLINE_MESSAGE });
+      expect(api.POST).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+      vi.unstubAllGlobals();
+      qc.clear();
+    }
+  });
+
+  it('nunca pausa por falta de rede (networkMode always)', () => {
+    expect(createPaymentOptions(new QueryClient()).networkMode).toBe('always');
   });
 });

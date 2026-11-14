@@ -8,6 +8,7 @@ vi.mock('../../lib/api.js', () => ({ api }));
 import { ApiError } from '../../lib/http.js';
 import {
   RoomConflictError,
+  PAYMENT_OFFLINE_MESSAGE,
   PAYMENT_UNKNOWN_MESSAGE,
   createPayment,
   createReservation,
@@ -188,6 +189,18 @@ describe('createPayment — registro do pagamento no check-out (M5-b)', () => {
   it('5xx sem corpo cai na mensagem padrão', async () => {
     api.POST.mockResolvedValue(reply(500, undefined));
     await expect(createPayment(body)).rejects.toMatchObject({ status: 500 });
+  });
+
+  it('navegador sem rede: nem tenta, e diz que o pagamento NÃO foi registrado', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    try {
+      const err = await createPayment(body).catch((e: unknown) => e);
+      expect(err).toMatchObject({ status: 0, message: PAYMENT_OFFLINE_MESSAGE });
+      expect(PAYMENT_OFFLINE_MESSAGE).toMatch(/não foi registrado/);
+      expect(api.POST).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('sem resposta (rede caiu) não diz que falhou: pede para conferir a conta antes de repetir', async () => {
