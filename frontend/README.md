@@ -55,4 +55,8 @@ As regras ficam em `apps/pms/src/devProxy.ts`, com teste:
 As portas vêm do `.env` da raiz, o mesmo do `docker-compose.yml`. O prefixo `/api` é retirado nos
 dois casos.
 
-Suba o backend (`node services/core-service/_web.js` na raiz, com Postgres no ar) para integrar de verdade.
+Para integrar de verdade, suba o compose da raiz (`docker compose up -d`, ver README da raiz). Ele
+traz o core, o nginx e o `analytics-service`. Com só o core no ar (`node services/core-service/_web.js`,
+com Postgres), o resto do PMS funciona, mas os indicadores e os alertas do painel Hoje falham,
+porque não há nginx nem analytics. A porta pode ser trocada sem editar o config:
+`NGINX_PORT=8088 pnpm --filter app-pms dev`.

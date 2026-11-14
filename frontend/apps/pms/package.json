@@ -6,16 +6,16 @@
   "description": "PMS — recepção, gerência e comanda do garçom. React + TS + Vite.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
     "@hotel/api-client": "workspace:*",
     "@hotel/domain": "workspace:*",
     "@hotel/ui": "workspace:*",
-    "@hookform/resolvers": "^3.9.1",
     "@tanstack/react-query": "^5.62.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@hotel/config": "workspace:*",
+    "@types/node": "^24.19.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { devProxy } from './devProxy.js';
+import { devProxy, readComposePorts } from './devProxy.js';
+
+describe('readComposePorts — só as portas do .env do compose', () => {
+  it('lê NGINX_PORT e BACKEND_HOST_PORT e ignora todo o resto (NODE_ENV, segredos)', () => {
+    const env = readComposePorts(
+      ['NODE_ENV=production', 'PIX_WEBHOOK_SECRET=nao-pode-vazar', 'NGINX_PORT=8088', 'BACKEND_HOST_PORT=3100'].join('\n'),
+    );
+    expect(env).toEqual({ NGINX_PORT: '8088', BACKEND_HOST_PORT: '3100' });
+  });
+
+  it('aceita aspas, comentário no fim da linha, export, CRLF e linhas comentadas', () => {
+    const env = readComposePorts('# NGINX_PORT=1\r\nexport NGINX_PORT="8089"  # porta do nginx\r\nBACKEND_HOST_PORT=\'3200\'\r\n');
+    expect(env).toEqual({ NGINX_PORT: '8089', BACKEND_HOST_PORT: '3200' });
+  });
+
+  it('.env sem as portas devolve vazio, e o devProxy cai nos padrões', () => {
+    expect(devProxy(readComposePorts('POSTGRES_DB=gestao_hotel'))['/api/analytics'].target).toBe('http://localhost:80');
+  });
+});
 
 // 🔴-1 do ensaio de 14/11 (docs/qa/ensaio_roteiro_14112026.md): o proxy mandava /api/analytics ao
 // core, que desde a H.3 não serve os indicadores — o painel do gerente e os alertas do painel Hoje
