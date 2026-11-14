@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { centsToBRLInput, formatBRL, type Cents } from '@hotel/domain';
 import { Button, Field, Input, cn } from '@hotel/ui';
 import { ApiError } from '../../../lib/http.js';
-import { useCreatePayment } from '../queries.js';
+import { reservationKeys, useCreatePayment } from '../queries.js';
+import { getBill } from '../reservationsApi.js';
 import {
   PAYMENT_METHOD_OPTIONS,
+  confirmBalanceThenSend,
   paymentBody,
   readPaymentAmount,
   submitStep,
   type PaymentMethod,
 } from '../paymentLogic.js';
+import { officialBalanceCents } from '../reservationLogic.js';
 import { Money } from './primitives.js';
 
 // Alvo de 48px no celular, altura natural no desktop — o mesmo ajuste local de rooms/components/touch.ts.
@@ -19,7 +23,8 @@ export type PaymentResult = { kind: 'ok' | 'error'; text: string };
 
 /**
  * Registrar o pagamento na conta da estadia (M5-b, CA-05.6.a). Valor já preenchido com o saldo:
- * no check-out o comum é quitar tudo. Parcial é livre; a maior pede confirmação (D3).
+ * no check-out o comum é quitar tudo. Parcial é livre; a maior pede confirmação (D3). Antes de
+ * gravar, o saldo é conferido no servidor (P-8): outro balcão pode ter registrado no meio.
  *
  * O resultado sobe para a página: quando o saldo zera, este formulário some, e o aviso de
  * "registrado" precisa continuar na tela.
@@ -34,15 +39,27 @@ export function PaymentForm({
   onResult: (result: PaymentResult) => void;
 }) {
   const create = useCreatePayment();
+  const qc = useQueryClient();
   const [amountText, setAmountText] = useState(() => centsToBRLInput(balanceCents));
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [overpaid, setOverpaid] = useState<Cents | null>(null);
-  const busy = create.isPending;
+  const [checking, setChecking] = useState(false);
+  const busy = create.isPending || checking;
   // Trava síncrona: o isPending só chega à tela no próximo ciclo, e um segundo toque nesse
   // intervalo chamaria mutate de novo (🟢-4 do qa-redteam). O disabled continua para o visual.
   const sending = useRef(false);
   const fixButton = useRef<HTMLButtonElement>(null);
+  const amountInput = useRef<HTMLInputElement>(null);
+  // O formulário remonta quando o saldo muda (key={balance}) e sai quando a conta falha. A
+  // conferência de uma instância que já saiu não pode gravar (🟡-1 do qa-redteam de 11/11).
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // Ao abrir a confirmação do "a maior", o foco vai para "Corrigir o valor": um Enter a mais
   // corrige em vez de gravar (🟡-1 do qa-redteam).
@@ -62,13 +79,52 @@ export function PaymentForm({
     setError(null);
     // A maior: um passo a mais, com o quanto sobra, antes de gravar (D3).
     if (step.kind === 'confirm') return setOverpaid(step.overpaidCents);
-    if (method) send(step.cents, method);
+    if (method) void send(step.cents, method);
   }
 
-  function send(cents: Cents, chosen: PaymentMethod) {
+  /**
+   * A conta de agora, direto do servidor (P-8). Chamada direta, não `fetchQuery`: uma busca da
+   * conta já pausada sem rede seria aproveitada, e a conferência esperaria a rede voltar sem
+   * limite (🟡-1 do qa-redteam de 11/11). Sem rede, o fetch falha na hora. O cache recebe a conta
+   * nova: se o saldo mudou, a página refaz este formulário com ele.
+   */
+  async function readFreshBalance(): Promise<Cents> {
+    const bill = await getBill(reservationId);
+    qc.setQueryData(reservationKeys.bill(reservationId), bill);
+    return officialBalanceCents(bill);
+  }
+
+  function stop(text: string) {
+    sending.current = false;
+    setChecking(false);
+    setOverpaid(null);
+    onResult({ kind: 'error', text });
+  }
+
+  async function send(cents: Cents, chosen: PaymentMethod) {
+    // A trava vale desde a conferência: um segundo toque enquanto ela corre não grava duas vezes.
     if (sending.current) return;
     sending.current = true;
     setError(null);
+    setChecking(true);
+    try {
+      await confirmBalanceThenSend({
+        shownCents: balanceCents,
+        readFresh: readFreshBalance,
+        isMounted: () => mounted.current,
+        stop,
+        send: () => {
+          setChecking(false);
+          mutatePayment(cents, chosen);
+        },
+      });
+    } catch {
+      // Nada pode deixar a trava ligada com o botão parecendo ativo (🟢-2 do qa-redteam de 11/11).
+      stop('Erro inesperado. Confira a conta antes de tentar de novo.');
+    }
+  }
+
+  function mutatePayment(cents: Cents, chosen: PaymentMethod) {
     const label = PAYMENT_METHOD_OPTIONS.find((m) => m.id === chosen)?.label ?? chosen;
     create.mutate(paymentBody(reservationId, cents, chosen), {
       onSettled: () => {
@@ -91,13 +147,14 @@ export function PaymentForm({
 
   function confirmOverpaid() {
     const reading = readPaymentAmount(amountText, balanceCents);
-    if (reading.ok && method) send(reading.cents, method);
+    if (reading.ok && method) void send(reading.cents, method);
   }
 
   return (
     <form onSubmit={submit} className="space-y-4" noValidate aria-busy={busy}>
       <Field label="Valor recebido (R$)" error={error ?? undefined}>
         <Input
+          ref={amountInput}
           inputMode="decimal"
           autoComplete="off"
           aria-invalid={!!error}
@@ -151,9 +208,18 @@ export function PaymentForm({
           </p>
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy} onClick={confirmOverpaid}>
-              {busy ? 'Registrando…' : 'Sim, registrar'}
+              {checking ? 'Conferindo saldo…' : busy ? 'Registrando…' : 'Sim, registrar'}
             </Button>
-            <Button ref={fixButton} variant="ghost" disabled={busy} onClick={() => setOverpaid(null)}>
+            {/* O foco volta ao valor: quem usa o teclado corrige sem recomeçar do topo (🟡 do qa-explorador). */}
+            <Button
+              ref={fixButton}
+              variant="ghost"
+              disabled={busy}
+              onClick={() => {
+                setOverpaid(null);
+                amountInput.current?.focus();
+              }}
+            >
               Corrigir o valor
             </Button>
           </div>
@@ -161,7 +227,7 @@ export function PaymentForm({
       ) : (
         // Desabilitado enquanto envia: um segundo toque não grava um segundo pagamento (D7).
         <Button type="submit" disabled={busy} className="w-full sm:w-auto">
-          {busy ? 'Registrando…' : 'Registrar pagamento'}
+          {checking ? 'Conferindo saldo…' : busy ? 'Registrando…' : 'Registrar pagamento'}
         </Button>
       )}
     </form>

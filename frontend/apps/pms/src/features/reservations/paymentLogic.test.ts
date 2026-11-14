@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { formatBRL } from '@hotel/domain';
 import {
   PAYMENT_METHOD_OPTIONS,
   canReceivePayment,
+  confirmBalanceThenSend,
+  freshBalanceStep,
   paymentBody,
   readPaymentAmount,
   submitStep,
@@ -126,5 +129,98 @@ describe('submitStep — o que o envio do formulário faz (D3, 🟡-1 do qa-redt
   it('com a confirmação aberta, um novo Enter no campo NÃO grava: só "Sim, registrar" grava', () => {
     expect(submitStep({ reading: ok(500, 100), method: 'PIX', confirming: true })).toEqual({ kind: 'wait' });
     expect(submitStep({ reading: ok(100), method: 'PIX', confirming: true })).toEqual({ kind: 'wait' });
+  });
+});
+
+describe('freshBalanceStep — o saldo conferido no servidor antes de gravar (🔴 do qa-explorador de 11/11)', () => {
+  it('saldo igual ao da tela: grava', () => {
+    expect(freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: 26197 } })).toEqual({ kind: 'send' });
+  });
+
+  it('outro balcão registrou um pagamento: não grava e mostra o saldo novo (o cenário do relatório)', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: 16197 } });
+    expect(step.kind).toBe('stop');
+    if (step.kind !== 'stop') return;
+    expect(step.text).toContain(formatBRL(16197));
+    expect(step.text).toContain('Nada foi registrado');
+  });
+
+  it('um consumo entrou no meio (saldo maior): também não grava', () => {
+    const step = freshBalanceStep({ shownCents: 10000, fresh: { ok: true, balanceCents: 10001 } });
+    expect(step.kind).toBe('stop');
+    if (step.kind === 'stop') expect(step.text).toContain(formatBRL(10001));
+  });
+
+  it('a conta já foi quitada em outro registro: não grava e diz que está quitada', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: 0 } });
+    expect(step).toEqual({ kind: 'stop', text: 'A conta já foi quitada em outro registro. Nada foi registrado.' });
+  });
+
+  it('a conta já tem valor a devolver: não grava e mostra quanto', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: true, balanceCents: -10000 } });
+    // Valor positivo: "R$ 100,00 a devolver", nunca "-R$ 100,00" (achado da mutação).
+    expect(step).toEqual({
+      kind: 'stop',
+      text: `A conta já tem ${formatBRL(10000)} a devolver por outro registro. Nada foi registrado.`,
+    });
+  });
+
+  it('não deu para conferir (rede, 5xx): não grava — fail-safe', () => {
+    const step = freshBalanceStep({ shownCents: 26197, fresh: { ok: false } });
+    expect(step.kind).toBe('stop');
+    if (step.kind === 'stop') {
+      // O formulário continua na tela: a saída é tentar de novo ali (🟢-1 do qa-redteam de 11/11).
+      expect(step.text).toBe('Não foi possível conferir o saldo da conta. Nada foi registrado. Tente de novo.');
+    }
+  });
+});
+
+describe('confirmBalanceThenSend — conferir o saldo e só então gravar (🟡-2 do qa-redteam de 11/11)', () => {
+  function spies(mounted = true) {
+    const calls: string[] = [];
+    return {
+      calls,
+      isMounted: () => mounted,
+      send: () => calls.push('send'),
+      stop: (text: string) => calls.push(`stop:${text}`),
+    };
+  }
+
+  it('o envio só sai depois que a conferência responde', async () => {
+    const s = spies();
+    let answer!: (cents: number) => void;
+    const done = confirmBalanceThenSend({ shownCents: 500, readFresh: () => new Promise((r) => (answer = r)), ...s });
+    await Promise.resolve();
+    expect(s.calls).toEqual([]);
+    answer(500);
+    await done;
+    expect(s.calls).toEqual(['send']);
+  });
+
+  it('saldo mudou: para com a mensagem e não envia', async () => {
+    const s = spies();
+    await confirmBalanceThenSend({ shownCents: 26197, readFresh: async () => 16197, ...s });
+    expect(s.calls).toHaveLength(1);
+    expect(s.calls[0]).toContain(`stop:O saldo mudou para ${formatBRL(16197)}`);
+  });
+
+  it('a conferência falhou (lançou): para e não envia', async () => {
+    const s = spies();
+    await confirmBalanceThenSend({ shownCents: 500, readFresh: async () => { throw new TypeError('Failed to fetch'); }, ...s });
+    expect(s.calls).toHaveLength(1);
+    expect(s.calls[0]).toContain('stop:Não foi possível conferir o saldo');
+  });
+
+  it('o formulário saiu da tela durante a conferência: não envia, mesmo com o saldo igual (🟡-1)', async () => {
+    const s = spies(false);
+    await confirmBalanceThenSend({ shownCents: 500, readFresh: async () => 500, ...s });
+    expect(s.calls).toEqual([]);
+  });
+
+  it('o formulário saiu da tela e o saldo mudou: o aviso ainda sobe para a página', async () => {
+    const s = spies(false);
+    await confirmBalanceThenSend({ shownCents: 500, readFresh: async () => 400, ...s });
+    expect(s.calls).toHaveLength(1);
+    expect(s.calls[0]).toContain('stop:');
   });
 });
