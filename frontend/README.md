@@ -38,7 +38,7 @@ cd frontend
 pnpm install            # instala todo o workspace
 pnpm gen:api            # regenera os tipos a partir de services/core-service/config/swagger.js do backend
 pnpm --filter @hotel/domain test
-pnpm --filter app-pms dev    # sobe o Vite em :5173 com proxy /api -> :3000
+pnpm --filter app-pms dev    # sobe o Vite em :5173; proxy /api -> core :3000 e /api/analytics -> nginx
 pnpm build              # build de todos os pacotes/apps (turbo)
 ```
 
@@ -47,9 +47,12 @@ pnpm build              # build de todos os pacotes/apps (turbo)
 O `app-pms` fala com o backend real via **proxy de dev do Vite** — o browser enxerga
 mesma origem (`localhost:5173/api/...`), então não há CORS em desenvolvimento:
 
-```ts
-// apps/pms/vite.config.ts
-server: { proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true, rewrite: p => p.replace(/^\/api/, '') } } }
-```
+As regras ficam em `apps/pms/src/devProxy.ts`, com teste:
+- `/api/analytics` → nginx do compose (`NGINX_PORT`, padrão 80). Desde a H.3, os indicadores
+  são do `analytics-service`, que só o nginx alcança.
+- `/api` → core (`BACKEND_HOST_PORT`, padrão 3000).
+
+As portas vêm do `.env` da raiz, o mesmo do `docker-compose.yml`. O prefixo `/api` é retirado nos
+dois casos.
 
 Suba o backend (`node services/core-service/_web.js` na raiz, com Postgres no ar) para integrar de verdade.

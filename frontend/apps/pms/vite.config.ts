@@ -1,18 +1,16 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { devProxy } from './src/devProxy';
 
-// Proxy de dev: o browser chama /api/... (mesma origem, sem CORS) e o Vite encaminha para o
-// backend em :3000, removendo o prefixo /api (as rotas do backend são montadas na raiz).
-export default defineConfig({
+// .env da raiz do repositório, o mesmo do docker-compose: NGINX_PORT e BACKEND_HOST_PORT dizem
+// onde o nginx e o core estão publicados. Caminho relativo a esta pasta, de onde o Vite roda
+// (`pnpm --filter app-pms dev`). Regras do proxy em src/devProxy.ts.
+const REPO_ROOT = '../../..';
+
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-    },
+    proxy: devProxy(loadEnv(mode, REPO_ROOT, ['NGINX_PORT', 'BACKEND_HOST_PORT'])),
   },
-});
+}));
