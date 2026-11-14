@@ -38,7 +38,7 @@ cd frontend
 pnpm install            # instala todo o workspace
 pnpm gen:api            # regenera os tipos a partir de services/core-service/config/swagger.js do backend
 pnpm --filter @hotel/domain test
-pnpm --filter app-pms dev    # sobe o Vite em :5173 com proxy /api -> :3000
+pnpm --filter app-pms dev    # sobe o Vite em :5173; proxy /api -> core :3000 e /api/analytics -> nginx
 pnpm build              # build de todos os pacotes/apps (turbo)
 ```
 
@@ -47,9 +47,16 @@ pnpm build              # build de todos os pacotes/apps (turbo)
 O `app-pms` fala com o backend real via **proxy de dev do Vite** — o browser enxerga
 mesma origem (`localhost:5173/api/...`), então não há CORS em desenvolvimento:
 
-```ts
-// apps/pms/vite.config.ts
-server: { proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true, rewrite: p => p.replace(/^\/api/, '') } } }
-```
+As regras ficam em `apps/pms/src/devProxy.ts`, com teste:
+- `/api/analytics` → nginx do compose (`NGINX_PORT`, padrão 80). Desde a H.3, os indicadores
+  são do `analytics-service`, que só o nginx alcança.
+- `/api` → core (`BACKEND_HOST_PORT`, padrão 3000).
 
-Suba o backend (`node services/core-service/_web.js` na raiz, com Postgres no ar) para integrar de verdade.
+As portas vêm do `.env` da raiz, o mesmo do `docker-compose.yml`. O prefixo `/api` é retirado nos
+dois casos.
+
+Para integrar de verdade, suba o compose da raiz (`docker compose up -d`, ver README da raiz). Ele
+traz o core, o nginx e o `analytics-service`. Com só o core no ar (`node services/core-service/_web.js`,
+com Postgres), o resto do PMS funciona, mas os indicadores e os alertas do painel Hoje falham,
+porque não há nginx nem analytics. A porta pode ser trocada sem editar o config:
+`NGINX_PORT=8088 pnpm --filter app-pms dev`.

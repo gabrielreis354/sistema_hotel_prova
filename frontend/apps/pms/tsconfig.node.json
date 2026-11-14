@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Arquivos de ferramenta do app-pms que rodam no Node (Vite e Vitest), fora do navegador",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["vite.config.ts", "vite.config.test.ts", "vitest.config.ts"]
+}
