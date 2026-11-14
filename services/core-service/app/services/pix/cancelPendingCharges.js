@@ -4,14 +4,17 @@ import getPixProvider, { getPixProviderKey } from './index.js';
 
 /**
  * Cancela no PSP as cobranças PIX ainda PENDING de uma reserva que acabou de ser cancelada
- * (🟡-1 do qa-redteam de 16/10). Sem isto, o QR do Asaas continuava pagável e o hóspede
- * pagava uma reserva cancelada: dinheiro entrando sem quarto.
+ * (🟡-1 do qa-redteam de 16/10) ou excluída (🟡 de 11/11). Sem isto, o QR do Asaas continuava
+ * pagável e o hóspede pagava uma reserva cancelada: dinheiro entrando sem quarto.
+ *
+ * `kinds` limita os tipos de pagamento cancelados. O check-in direto de PENDING cancela só o
+ * sinal (DEPOSIT): um QR de outro tipo, gerado pela recepção, continua valendo.
  *
  * Roda DEPOIS do commit do cancelamento e nunca lança: PSP fora do ar não pode impedir a
  * recepção de cancelar. O que não deu para cancelar fica PENDING, com o id no log para o hotel
  * conciliar; se o hóspede pagar mesmo assim, o webhook já avisa o dinheiro a devolver.
  */
-export default async function cancelPendingCharges(reservation) {
+export default async function cancelPendingCharges(reservation, { kinds } = {}) {
     try {
         const payments = await PaymentModel.unscoped().findAll({
             where: {
@@ -19,7 +22,8 @@ export default async function cancelPendingCharges(reservation) {
                 reservation_id: reservation.id,
                 method: 'PIX',
                 status: 'PENDING',
-                provider_charge_id: { [Op.ne]: null }
+                provider_charge_id: { [Op.ne]: null },
+                ...(kinds ? { kind: kinds } : {})
             }
         });
         if (payments.length === 0) return;

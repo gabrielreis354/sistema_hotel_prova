@@ -543,3 +543,85 @@ describe('PUT /reservations/:id/cancel — cobrança PIX no Asaas', () => {
         expect(payment.status).toBe('PENDING');
     });
 });
+
+// 🟡 do qa-redteam de 11/11 (repasse para Gabriel): excluir a reserva tem de cancelar o sinal
+// no PSP, como o cancelamento já faz. Sem isto, o QR seguia pagável e o dinheiro entrava sem
+// reserva nem quarto.
+describe('DELETE /reservations/:id — cobrança PIX no Asaas', () => {
+    const destroy = (hotel, reservationId) => request(app)
+        .delete(`/reservations/${reservationId}`)
+        .set('Authorization', `Bearer ${hotel.jwt}`);
+    const deleteCalls = () => fetchMock.mock.calls.filter(([, options = {}]) => options.method === 'DELETE');
+    const depositOf = (booking) => PaymentModel.unscoped().findOne({ where: { reservation_id: booking.body.reservation.id } });
+
+    it('exclui a reserva, cancela a cobrança no Asaas e marca o sinal como FAILED', async () => {
+        const booking = await book(hotelA, '2027-11-01', '2027-11-02');
+        const chargeId = booking.body.pix.provider_charge_id;
+
+        const res = await destroy(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(204);
+        expect(deleteCalls().map(([url]) => url)).toEqual([`${BASE}/payments/${chargeId}`]);
+        expect(asaasCharges.get(chargeId).deleted).toBe(true);
+        expect((await depositOf(booking)).status).toBe('FAILED');
+        expect(await ReservationModel.findByPk(booking.body.reservation.id)).toBeNull();
+    });
+
+    it('Asaas fora do ar: a reserva é excluída mesmo assim e o sinal fica PENDING, com o id no log', async () => {
+        const booking = await book(hotelA, '2027-11-03', '2027-11-04');
+        const chargeId = booking.body.pix.provider_charge_id;
+        asaasDown = true;
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const res = await destroy(hotelA, booking.body.reservation.id);
+
+        expect(res.status).toBe(204);
+        expect((await depositOf(booking)).status).toBe('PENDING');
+        expect(JSON.stringify(errorSpy.mock.calls)).toContain(chargeId);
+    });
+
+    it('isolamento: o hotel B não exclui reserva nem cancela cobrança do hotel A', async () => {
+        const booking = await book(hotelA, '2027-11-05', '2027-11-06');
+
+        const res = await destroy(hotelB, booking.body.reservation.id);
+
+        expect(res.status).toBe(404);
+        expect(deleteCalls()).toHaveLength(0);
+        expect((await depositOf(booking)).status).toBe('PENDING');
+    });
+});
+
+// 🟢 do qa-redteam de 11/11: check-in direto de uma reserva online PENDING (walk-in, regra de
+// 24/10). A recepção cobra no balcão; o QR do sinal antigo, se pago depois, cobraria duas vezes.
+// Só o SINAL é cancelado: um QR de outro tipo, gerado pela recepção, continua valendo.
+// Fica por último no arquivo: o check-in ocupa um quarto do hotel A.
+describe('PUT /reservations/:id/check-in — sinal PIX de reserva PENDING', () => {
+    it('cancela o sinal no Asaas depois do check-in e mantém as outras cobranças PIX', async () => {
+        const booking = await book(hotelA, '2027-12-01', '2027-12-02');
+        const depositChargeId = booking.body.pix.provider_charge_id;
+        const deposit = await PaymentModel.unscoped().findOne({ where: { reservation_id: booking.body.reservation.id } });
+        const otherChargeId = 'pay_999001';
+        asaasCharges.set(otherChargeId, { id: otherChargeId, status: 'PENDING', value: 10 });
+        const other = await PaymentModel.create({
+            tenant_id: deposit.tenant_id,
+            reservation_id: deposit.reservation_id,
+            amount: 10,
+            method: 'PIX',
+            status: 'PENDING',
+            kind: 'FULL',
+            provider: 'asaas',
+            provider_charge_id: otherChargeId
+        });
+
+        const res = await request(app)
+            .put(`/reservations/${booking.body.reservation.id}/check-in`)
+            .set('Authorization', `Bearer ${hotelA.jwt}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('CHECKED_IN');
+        const deleted = fetchMock.mock.calls.filter(([, options = {}]) => options.method === 'DELETE').map(([url]) => url);
+        expect(deleted).toEqual([`${BASE}/payments/${depositChargeId}`]);
+        expect((await PaymentModel.unscoped().findByPk(deposit.id)).status).toBe('FAILED');
+        expect((await PaymentModel.unscoped().findByPk(other.id)).status).toBe('PENDING');
+    });
+});

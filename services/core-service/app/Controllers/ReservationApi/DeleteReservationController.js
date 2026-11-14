@@ -1,6 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
+import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
 
 export default async function DeleteReservationController(request, response) {
     const { id } = request.params;
@@ -19,6 +20,9 @@ export default async function DeleteReservationController(request, response) {
         await reservation.destroy({ transaction });
         await closeReservationAccounts(reservation, transaction);
         await transaction.commit();
+        // O sinal PIX pendente morre com a reserva (🟡 do qa-redteam de 11/11), como no
+        // cancelamento: depois do commit e sem lançar, para o PSP fora do ar não travar a exclusão.
+        await cancelPendingCharges(reservation);
         return response.status(204).send();
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});

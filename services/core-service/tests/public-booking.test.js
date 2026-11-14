@@ -8,6 +8,9 @@ import ReservationModel from '../app/Models/ReservationModel.js';
 import PaymentModel from '../app/Models/PaymentModel.js';
 import getPixProvider from '../app/services/pix/index.js';
 import sequelize from '../database/connections/sequelize.js';
+import { Op } from 'sequelize';
+import GuestModel from '../app/Models/GuestModel.js';
+import { digitsOf } from '../app/utils/digitsOf.js';
 
 // Testes do MOTOR DE RESERVA DIRETA + PIX (diferencial nº1).
 // Rotas públicas (sem auth) resolvidas por subdomínio + webhook de confirmação PIX.
@@ -338,6 +341,77 @@ describe('POST /public/:subdomain/bookings — validações', () => {
             `SELECT count(*) FROM guests WHERE email IN ('compartilhado@example.com', 'outro@example.com')`
         );
         expect(Number(contagem[0].count)).toBe(2); // nenhum terceiro cadastro criado
+    });
+
+    // 🟡 do qa-redteam de 11/11 (repasse sem dono): o find-or-create comparava o CPF cru. O
+    // mesmo CPF com e sem máscara virava dois cadastros, e a ficha do hóspede ficava dividida.
+    const guestsWithCpfDigits = async (digits) => {
+        const [rows] = await sequelize.query(
+            `SELECT id, cpf FROM guests WHERE regexp_replace(cpf, '\\D', '', 'g') = :digits`,
+            { replacements: { digits } }
+        );
+        return rows;
+    };
+    const bookWithCpf = (cpf, email, checkIn, checkOut) => request(app)
+        .post(`/public/${subdomain}/bookings`)
+        .send({ category_id: categoryId, check_in: checkIn, check_out: checkOut, guest: { full_name: 'Hospede CPF', email, cpf } });
+
+    it('CPF com máscara reaproveita o hóspede cadastrado só com dígitos', async () => {
+        const recepcao = await createGuest(app, jwt, { full_name: 'Ana Digitos', cpf: '11144477735', email: 'ana.digitos@example.com' });
+
+        const res = await bookWithCpf('111.444.777-35', 'ana.nova@example.com', '2027-09-01', '2027-09-02');
+
+        expect(res.status).toBe(201);
+        const reserva = await ReservationModel.findByPk(res.body.reservation.id);
+        expect(reserva.guest_id).toBe(recepcao.id);
+        expect(await guestsWithCpfDigits('11144477735')).toHaveLength(1);
+    });
+
+    it('CPF só com dígitos reaproveita o hóspede antigo cadastrado com máscara', async () => {
+        const recepcao = await createGuest(app, jwt, { full_name: 'Beto Mascara', cpf: '390.533.447-05', email: 'beto.mascara@example.com' });
+
+        const res = await bookWithCpf('39053344705', 'beto.novo@example.com', '2027-09-03', '2027-09-04');
+
+        expect(res.status).toBe(201);
+        const reserva = await ReservationModel.findByPk(res.body.reservation.id);
+        expect(reserva.guest_id).toBe(recepcao.id);
+        expect(await guestsWithCpfDigits('39053344705')).toHaveLength(1);
+    });
+
+    it('o mesmo CPF em outro hotel não é reaproveitado', async () => {
+        const outro = await registerAndLogin(app, { tenantName: 'Hotel Vizinho CPF' });
+        const deOutroHotel = await createGuest(app, outro.jwt, { full_name: 'Dora Vizinha', cpf: '529.982.247-25', email: 'dora@example.com' });
+
+        const res = await bookWithCpf('52998224725', 'dora.site@example.com', '2027-09-07', '2027-09-08');
+
+        expect(res.status).toBe(201);
+        const reserva = await ReservationModel.findByPk(res.body.reservation.id);
+        expect(reserva.guest_id).not.toBe(deOutroHotel.id);
+    });
+
+    // 🟡-1 do qa-redteam da correção: o EXPLAIN é do SQL que o Sequelize gera de fato, para
+    // provar que a expressão de digitsOf casa com a do índice. Tabela pequena no teste, então
+    // a varredura sequencial é desligada só nesta transação.
+    it('a busca do CPF usa o índice pelos dígitos, não varre a tabela', async () => {
+        let sql;
+        await GuestModel.findOne({
+            where: { tenant_id: '00000000-0000-0000-0000-000000000000', [Op.and]: [sequelize.where(digitsOf('cpf'), '52998224725')] },
+            logging: (msg) => { sql = msg.replace(/^Executing \([^)]*\):\s*/, ''); }
+        });
+        const plan = await sequelize.transaction(async (transaction) => {
+            await sequelize.query('SET LOCAL enable_seqscan = off', { transaction });
+            const [rows] = await sequelize.query(`EXPLAIN ${sql}`, { transaction });
+            return rows;
+        });
+        expect(JSON.stringify(plan)).toContain('idx_guests_tenant_cpf_digits');
+    });
+
+    it('hóspede novo nasce com o CPF só com dígitos', async () => {
+        const res = await bookWithCpf('935.411.347-80', 'carla.nova@example.com', '2027-09-05', '2027-09-06');
+
+        expect(res.status).toBe(201);
+        const [guest] = await guestsWithCpfDigits('93541134780');
+        expect(guest.cpf).toBe('93541134780');
     });
 });
 

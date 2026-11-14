@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import GuestModel from '../../Models/GuestModel.js';
+import { digitsOf } from '../../utils/digitsOf.js';
 
 // Busca da nova reserva (T-05.2, adianta a T-05.12): poucos resultados, nunca o cadastro.
 const DEFAULT_LIMIT = 10;
@@ -19,11 +20,6 @@ function parseLimit(raw) {
     const n = Number.parseInt(raw, 10);
     if (!Number.isInteger(n) || n < 1) return DEFAULT_LIMIT;
     return Math.min(n, MAX_LIMIT);
-}
-
-/** Coluna só com os dígitos — CPF e telefone guardados com ou sem máscara. */
-function digitsOf(column) {
-    return sequelize.fn('regexp_replace', sequelize.col(column), '\\D', '', 'g');
 }
 
 /**

@@ -15,3 +15,13 @@ Origem: `docs/qa/redteam_asaas-ressalvas-2_11nov2026.md` (branch `fix/asaas-ress
 **Cenário:** a recepção grava `cpf: '12345678901'`, que tem verificador inválido, e o cadastro é aceito. Mais tarde esse hóspede reserva pelo site com Asaas e recebe 400 `guest.cpf inválido`, sem entender por quê. Pode ser intencional (passaporte ou digitação provisória no balcão). Então é decisão de produto, não defeito confirmado.
 **Regra violada:** nenhuma regra escrita. Inconsistência entre o balcão e a reserva pública.
 **Correção sugerida:** decidir se o balcão valida. Se validar, reusar `app/utils/isValidCpf.js` (criado nesta branch) e ajustar os testes do CRUD, que hoje usam CPFs inválidos (`12345678901`, `123.456.789-00`).
+
+---
+
+Origem: `docs/qa/redteam_pix-exclusao-checkin-cpf_11nov2026.md` (branch `fix/pix-exclusao-checkin-cpf`). Fora do diff auditado; não reprova a branch. Backend de hóspedes (`GuestApi`) segue sem dono no §3/§7.
+
+### 🟡 [Dados / duplicidade] O balcão ainda grava e compara o CPF cru: a duplicidade agora nasce do lado da recepção
+**Onde:** `services/core-service/app/Controllers/GuestApi/CreateGuestController.js:12-14` (busca `where: { cpf, tenant_id }`) e `:20` (grava `cpf || null`); `services/core-service/app/Controllers/GuestApi/UpdateGuestController.js:20` (grava `guest.cpf = cpf` cru, sem conferir duplicidade por dígitos)
+**Cenário:** com a `fix/pix-exclusao-checkin-cpf`, o hóspede que reserva pelo site nasce com `cpf: '11144477735'` (só dígitos). Dias depois ele chega ao balcão sem reconhecer a reserva, e a recepção cadastra `POST /guests` com `cpf: '111.444.777-35'`. A busca crua da linha 13 não acha o cadastro do site; o índice parcial `guests_cpf_tenant_unique` compara a string crua e também não barra. Resultado: dois hóspedes com o mesmo CPF, a ficha dividida, e a próxima reserva pública casa com o mais antigo (o do site), não com o que a recepção mantém atualizado. O mesmo vale para `PUT /guests/:id` trocando o CPF para a forma mascarada de outro hóspede.
+**Regra violada:** o mesmo objetivo do 🟡 acima ("um CPF, um cadastro"). A correção da reserva pública só fecha metade do problema.
+**Correção sugerida:** normalizar com `onlyDigits(cpf)` no create e no update e conferir duplicidade pelos dígitos (o mesmo `regexp_replace` do `ListGuestController.js:25-27`). Depois, uma migração única que normalize os CPFs existentes — o que também permite trocar o `regexp_replace` da reserva pública por igualdade simples, que usa o índice `guests_cpf_tenant_unique` (ver 🟡-1 do relatório de origem). A migração precisa listar antes os pares que colidiriam (mesmos dígitos, strings diferentes) para o hotel mesclar à mão.

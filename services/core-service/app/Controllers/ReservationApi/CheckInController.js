@@ -4,6 +4,7 @@ import RoomModel from '../../Models/RoomModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { openStayAccount } from '../../utils/reservationRoomAccount.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
+import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
 
 const CHECK_IN_FROM = 'AVAILABLE';
 
@@ -61,6 +62,7 @@ export default async function CheckInController(request, response) {
             return await fail(409, roomError(ROOM_ERROR_CODES.ROOM_NOT_AVAILABLE, unavailableMessage(blocked)));
         }
 
+        const wasPending = reservation.status === 'PENDING';
         reservation.status = 'CHECKED_IN';
         room.status = 'OCCUPIED';
         await reservation.save({ transaction });
@@ -78,6 +80,9 @@ export default async function CheckInController(request, response) {
         await openStayAccount(reservation, room, transaction);
 
         await transaction.commit();
+        // Walk-in de reserva online (regra de 24/10): a recepção cobra no balcão, e o QR do sinal
+        // ainda pagável cobraria o hóspede duas vezes (🟢 do qa-redteam de 11/11). Só o sinal sai.
+        if (wasPending) await cancelPendingCharges(reservation, { kinds: ['DEPOSIT'] });
         return response.json(reservation);
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});

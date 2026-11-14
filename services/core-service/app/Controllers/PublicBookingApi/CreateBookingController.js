@@ -5,6 +5,7 @@ import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.j
 import { checkReservationConflict, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import { calculateStayTotal, countNights, toCents, fromCents } from '../../utils/calculateStayTotal.js';
 import { onlyDigits } from '../../utils/onlyDigits.js';
+import { digitsOf } from '../../utils/digitsOf.js';
 import { isValidCpf } from '../../utils/isValidCpf.js';
 import getPixProvider, { getPixProviderKey } from '../../services/pix/index.js';
 import { PixProviderUnavailableError } from '../../services/pix/errors.js';
@@ -149,10 +150,20 @@ export default async function CreateBookingController(request, response) {
             // cadastros diferentes, situação normal numa base de hotel — o resultado
             // dependia do plano de execução do Postgres, não determinístico. CPF vem
             // primeiro porque é identidade mais forte (não muda; e-mail muda).
+            //
+            // O CPF é comparado só pelos dígitos (🟡 do qa-redteam de 11/11): a recepção grava
+            // com ou sem máscara, e a string crua dividia o mesmo hóspede em dois cadastros.
+            // O mais antigo vence, para o resultado não depender do plano do Postgres. O índice
+            // idx_guests_tenant_cpf_digits atende a busca: o endpoint é público e sem login.
+            const cpfDigits = onlyDigits(guest.cpf);
             let guestRecord = null;
-            if (guest.cpf) {
+            if (cpfDigits) {
                 guestRecord = await GuestModel.findOne({
-                    where: { tenant_id: tenant.id, cpf: guest.cpf },
+                    where: {
+                        tenant_id: tenant.id,
+                        [Op.and]: [sequelize.where(digitsOf('cpf'), cpfDigits)]
+                    },
+                    order: [['created_at', 'ASC']],
                     transaction
                 });
             }
@@ -168,7 +179,7 @@ export default async function CreateBookingController(request, response) {
                     full_name: guest.full_name,
                     email: guest.email ?? null,
                     phone: guest.phone ?? null,
-                    cpf: guest.cpf ?? null
+                    cpf: cpfDigits
                 }, { transaction });
             }
 
