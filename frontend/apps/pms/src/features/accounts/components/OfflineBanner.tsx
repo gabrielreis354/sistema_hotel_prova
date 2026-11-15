@@ -9,8 +9,8 @@ import { offlineBannerText } from '../connection.js';
  * acima de 4,5:1), no tom âmbar da fila. A cor não é o sinal: o texto começa com "Sem conexão".
  * Compacta (text-sm, py-1.5) para não empurrar o cardápio para fora da tela no celular.
  */
-export function OfflineNotice({ waiting }: { waiting: number }) {
-  const text = offlineBannerText(waiting);
+export function OfflineNotice({ waiting, elsewhere = 0 }: { waiting: number; elsewhere?: number }) {
+  const text = offlineBannerText(waiting, elsewhere);
   return (
     <p className="rounded-md border-l-4 border-status-cleaning bg-status-cleaning/10 px-3 py-1.5 text-sm leading-snug text-gray-900">
       <span className="font-semibold">{text.lead}</span> {text.message}
@@ -33,12 +33,20 @@ export function OfflineNotice({ waiting }: { waiting: number }) {
  * `status` do rodapé, e a região viva basta. O custo é a faixa aparecer um quadro depois da
  * conta, só na abertura.
  */
-export function OfflineBanner({ offline, waiting }: { offline: boolean; waiting: number }) {
+export function OfflineBanner({
+  offline,
+  waiting,
+  elsewhere = 0,
+}: {
+  offline: boolean;
+  waiting: number;
+  elsewhere?: number;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   return (
     <div role="status" aria-live="polite">
-      {mounted && offline && <OfflineNotice waiting={waiting} />}
+      {mounted && offline && <OfflineNotice waiting={waiting} elsewhere={elsewhere} />}
     </div>
   );
 }

@@ -48,6 +48,8 @@ export function AccountPage() {
   // A faixa conta tudo o que este usuário tem esperando a rede, em qualquer conta: a queda é do
   // aparelho, não da conta aberta.
   const waiting = mine.filter(awaitsServer).length;
+  // Quantos deles são de outras contas: a faixa diz, para o número bater com a lista desta conta.
+  const elsewhere = waiting - pendingCount;
 
   if (!account) {
     if (fetchStatus === 'paused') {
@@ -92,7 +94,7 @@ export function AccountPage() {
         <span className="text-xs text-gray-500">{account.type ? ACCOUNT_TYPE_LABEL[account.type] : ''}</span>
       </div>
       <h1 className="text-xl font-semibold">{account.label}</h1>
-      <OfflineBanner offline={offline} waiting={waiting} />
+      <OfflineBanner offline={offline} waiting={waiting} elsewhere={elsewhere} />
       {/* Sem rede, a faixa acima já avisa: esta linha fica para o erro do servidor com rede. */}
       {stale && !offline && (
         <p role="status" className="text-xs text-gray-600">

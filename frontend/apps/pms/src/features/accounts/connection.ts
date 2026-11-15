@@ -35,13 +35,25 @@ export function looksOffline(online: boolean, mine: QueueEntry[]): boolean {
 
 /**
  * Texto da faixa de "sem conexão". `waiting` é quantos lançamentos deste usuário ainda não
- * chegaram ao servidor; com zero, a faixa só diz o que acontece com o próximo toque.
+ * chegaram ao servidor, em qualquer conta; com zero, a faixa só diz o que acontece com o próximo
+ * toque. `elsewhere` é quantos deles são de outras contas: sem dizer isso, a faixa dizia "3" e a
+ * lista da conta aberta mostrava 1 na fila (🟢 do red team de 15/11).
  */
-export function offlineBannerText(waiting: number): { lead: string; message: string; waiting: string | null } {
+export function offlineBannerText(
+  waiting: number,
+  elsewhere = 0,
+): { lead: string; message: string; waiting: string | null } {
+  if (waiting <= 0) return { lead: 'Sem conexão:', message: 'os lançamentos serão enviados quando a rede voltar.', waiting: null };
+  const count = waiting === 1 ? '1 lançamento aguardando a rede' : `${waiting} lançamentos aguardando a rede`;
+  const where =
+    elsewhere <= 0
+      ? ''
+      : elsewhere >= waiting
+        ? waiting === 1 ? ' (em outra conta)' : ' (em outras contas)'
+        : elsewhere === 1 ? ' (1 em outra conta)' : ` (${elsewhere} em outras contas)`;
   return {
     lead: 'Sem conexão:',
     message: 'os lançamentos serão enviados quando a rede voltar.',
-    waiting:
-      waiting <= 0 ? null : waiting === 1 ? '1 lançamento aguardando a rede.' : `${waiting} lançamentos aguardando a rede.`,
+    waiting: `${count}${where}.`,
   };
 }

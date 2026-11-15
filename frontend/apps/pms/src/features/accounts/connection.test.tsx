@@ -20,6 +20,18 @@ describe('offlineBannerText — faixa de "sem conexão" (achado 7)', () => {
     expect(offlineBannerText(1).waiting).toBe('1 lançamento aguardando a rede.');
     expect(offlineBannerText(2).waiting).toBe('2 lançamentos aguardando a rede.');
   });
+
+  it('com pendências em outras contas, diz quantas, para não confundir com a lista da conta aberta', () => {
+    expect(offlineBannerText(3, 2).waiting).toBe('3 lançamentos aguardando a rede (2 em outras contas).');
+    expect(offlineBannerText(3, 1).waiting).toBe('3 lançamentos aguardando a rede (1 em outra conta).');
+    expect(offlineBannerText(2, 2).waiting).toBe('2 lançamentos aguardando a rede (em outras contas).');
+    expect(offlineBannerText(1, 1).waiting).toBe('1 lançamento aguardando a rede (em outra conta).');
+    expect(offlineBannerText(2, 0).waiting).toBe('2 lançamentos aguardando a rede.');
+  });
+
+  it('o aviso renderizado traz o alcance da contagem', () => {
+    expect(renderToString(<OfflineNotice waiting={3} elsewhere={2} />)).toContain('(2 em outras contas).');
+  });
 });
 
 describe('awaitsServer — o que a faixa conta como aguardando', () => {
