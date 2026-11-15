@@ -22,12 +22,14 @@ export function AppShell() {
   const logout = useAuthStore((s) => s.logout);
   const items = user ? navItemsForRole(user.role) : [];
   const mobile = user ? mobileNavForRole(user.role) : { primary: [], more: [] };
-  // Nome do hotel no cabeçalho (T-08.2): a mesma consulta do emissor do comprovante (T-09.1),
-  // em cache por uma hora. Sem resposta, o cabeçalho fica só com quem está logado.
+  // Nome do hotel no cabeçalho (T-08.2): a mesma consulta do emissor do comprovante (T-09.1), em
+  // cache por uma hora. Sem resposta, o lugar dele fica com "Gesway".
   const { data: tenant } = useMyTenant();
 
+  // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
+  // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[220px_1fr]">
+    <div className="min-h-screen md:grid md:grid-cols-[220px_minmax(0,1fr)]">
       {/* Sidebar — desktop */}
       <aside className="hidden border-r border-gray-200 bg-white md:flex md:flex-col">
         {/* Marca do produto em neutro: brand é "faça isto", não enfeite (GUIA_UI_CORPORATIVA, regra 2). */}
@@ -41,15 +43,23 @@ export function AppShell() {
         </nav>
       </aside>
 
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-screen min-w-0 flex-col">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
-          <div className="min-w-0 truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="min-w-0 truncate text-right text-sm">
+          {/* No celular, quem está logado fica embaixo do hotel: num aparelho compartilhado o garçom
+              precisa ver de quem é a sessão antes de lançar (🟡-3 do qa-redteam de 15/11). */}
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
+            <div className="truncate text-support text-gray-600 sm:hidden">
+              {user?.name} · {user ? ROLE_LABEL[user.role] : ''}
+            </div>
+          </div>
+          <div className="flex min-w-0 shrink-0 items-center gap-3">
+            <div className="hidden min-w-0 truncate text-right text-sm sm:block">
               <span className="font-medium">{user?.name}</span>
               <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
             </div>
-            <Button variant="ghost" size="compact" onClick={logout}>
+            {/* 48 px até o xl (CA-08.g); compacto só no desktop. */}
+            <Button variant="ghost" className="xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm" onClick={logout}>
               Sair
             </Button>
           </div>
@@ -73,10 +83,17 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const moreRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
   const inMore = more.some((i) => matchPath({ path: i.to, end: false }, pathname));
 
   // Navegou (por um item do "Mais" ou pela barra): a folha fecha.
   useEffect(() => setOpen(false), [pathname]);
+
+  // A folha abriu: o foco entra nela, no primeiro item (🟢-3 do qa-redteam da T-05.3; decisão de
+  // 15/11, SPEC-08 §9). Sem isso, quem usa teclado ou leitor de tela fica atrás do fundo escuro.
+  useEffect(() => {
+    if (open) sheetRef.current?.querySelector<HTMLElement>('a, button')?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -95,8 +112,16 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
       {open && (
         <>
           {/* Fundo: toque fora fecha. Não é foco de teclado — o Esc faz o mesmo. */}
-          <div className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div
+            className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30"
+            aria-hidden="true"
+            onClick={() => {
+              setOpen(false);
+              moreRef.current?.focus(); // como o Esc: o foco não cai no body
+            }}
+          />
           <nav
+            ref={sheetRef}
             id="menu-mais"
             aria-label="Mais opções"
             className="sheet-up fixed inset-x-0 bottom-12 z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"

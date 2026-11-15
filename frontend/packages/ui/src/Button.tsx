@@ -6,7 +6,9 @@ const button = cva(
   // Base: alvo de toque >= 48px no mobile (comfortable). Foco visível (acessibilidade).
   'inline-flex items-center justify-center rounded-md font-medium transition-colors ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ' +
-    'disabled:pointer-events-none disabled:opacity-50 tabular-nums',
+    // Sem tabular-nums: com a Inter carregada (T-08.1) ele alarga a pontuação ("check‑in"). Número em
+    // coluna usa Money, que já é tabular.
+    'disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
