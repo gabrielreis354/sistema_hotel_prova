@@ -25,7 +25,8 @@ adm() {
 tentativas=0
 until adm show overview 2>/dev/null; do
     tentativas=$((tentativas + 1))
-    if [ "$tentativas" -ge 60 ]; then
+    # 90 × 2 s = 3 min: o 1º boot a frio no WSL passa de 1 min (ensaio de 14/11).
+    if [ "$tentativas" -ge 90 ]; then
         echo "rabbitmq-setup: API do RabbitMQ não respondeu em $RABBITMQ_API_HOST:15672 (ou a credencial de administrador está errada)." >&2
         exit 1
     fi
