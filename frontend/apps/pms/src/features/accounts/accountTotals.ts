@@ -56,9 +56,12 @@ export function undoLabel(quantity: number): string {
 /**
  * Segundos inteiros que restam da janela de desfazer, arredondados para cima: logo depois do
  * toque mostra 5, e o 0 não chega à tela, porque o botão some quando a janela fecha (canUndo).
+ *
+ * Limitado à janela: um `now` anterior ao toque (relógio da tela atrasado) mostrava "65 s" ou
+ * "6 s" (🟡-1 do red team de 15/11). A janela nunca passa de UNDO_MS, a contagem também não.
  */
 export function undoSecondsLeft(undoUntil: number, now: number): number {
-  return Math.max(0, Math.ceil((undoUntil - now) / 1_000));
+  return Math.min(UNDO_MS / 1_000, Math.max(0, Math.ceil((undoUntil - now) / 1_000)));
 }
 
 /**

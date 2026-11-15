@@ -16,6 +16,11 @@ describe('undoSecondsLeft — contagem regressiva do desfazer', () => {
     expect(undoSecondsLeft(T0 + UNDO_MS, T0 + 4_001)).toBe(1);
   });
 
+  it('com relógio atrasado (now anterior ao toque), não passa de 5 (🟡-1 do red team)', () => {
+    expect(undoSecondsLeft(T0 + UNDO_MS, T0 - 60_000)).toBe(5); // "65 s" na conta aberta há 60 s
+    expect(undoSecondsLeft(T0 + UNDO_MS, T0 - 200)).toBe(5); // "6 s" no toque em rajada
+  });
+
   it('nunca fica negativo depois do prazo', () => {
     expect(undoSecondsLeft(T0 + UNDO_MS, T0 + UNDO_MS)).toBe(0);
     expect(undoSecondsLeft(T0 + UNDO_MS, T0 + 60_000)).toBe(0);
