@@ -8,7 +8,15 @@ import { useAuthStore } from '../../stores/auth.js';
 import { myTenantOptions } from '../tenant/index.js';
 import { useBill, useReservation, useTransitionReservation } from './queries.js';
 import type { ReservationTransition } from './reservationsApi.js';
-import { buildBillTimeline, nextTab, officialBalanceCents, reservationActions, safeNights, type ReservationTab } from './reservationLogic.js';
+import {
+  buildBillTimeline,
+  nextTab,
+  officialBalanceCents,
+  primaryAction,
+  reservationActions,
+  safeNights,
+  type ReservationTab,
+} from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
 import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
@@ -38,6 +46,9 @@ export function ReservationDetailPage() {
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
+  // A confirmação do check-out nasce longe do botão do cabeçalho (aba Conta): o foco vai para ela e a
+  // tela rola até lá. Sem isso o foco caía no body com o botão desabilitado (🟡-1 do qa-redteam de 15/11).
+  const checkOutRef = useRef<HTMLHeadingElement>(null);
   const role = useAuthStore((s) => s.user?.role);
   // Adianta o hotel emissor do comprovante (T-09.1): quem abre o comprovante vem desta tela, e
   // assim o nome já está no cache quando a recepção clica em Imprimir.
@@ -103,13 +114,14 @@ export function ReservationDetailPage() {
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
-  // Uma ação principal por tela (T-08.3, GUIA_UI_CORPORATIVA regra 1): a que é possível agora vai
-  // para o cabeçalho, ao lado do saldo, em primary. As outras ficam embaixo, secundárias e com o motivo.
-  const primary: 'check-in' | 'check-out' | null = actions.checkIn.enabled
-    ? 'check-in'
-    : actions.checkOut.enabled
-      ? 'check-out'
-      : null;
+  // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary.
+  const primary = primaryAction(actions);
+
+  useEffect(() => {
+    if (confirming !== 'check-out') return;
+    checkOutRef.current?.focus();
+    checkOutRef.current?.scrollIntoView({ block: 'center' });
+  }, [confirming]);
 
   function openCheckOut() {
     setFeedback(null);
@@ -255,6 +267,7 @@ export function ReservationDetailPage() {
         aria-label="Seções da reserva"
         className="flex gap-1 border-b border-gray-200"
         onKeyDown={(e) => {
+          if (e.altKey || e.ctrlKey || e.metaKey) return; // Alt+← continua voltando no navegador
           const next = nextTab(tab, e.key);
           if (!next) return;
           e.preventDefault();
@@ -335,7 +348,9 @@ export function ReservationDetailPage() {
         <section id="painel-conta" role="tabpanel" aria-labelledby="aba-conta" className="space-y-4">
           {confirming === 'check-out' && (
             <Card className="space-y-3 border-brand/50 p-4">
-              <h2 className="text-section text-gray-800">Confirmar check-out</h2>
+              <h2 ref={checkOutRef} tabIndex={-1} className="text-section text-gray-800 focus:outline-none">
+                Confirmar check-out
+              </h2>
               <p className="text-sm text-gray-700">
                 Confira a conta abaixo com o hóspede. O check-out fecha as contas da estadia e manda o quarto para limpeza.
               </p>
