@@ -383,8 +383,8 @@ conjunto está em `infra/k8s/observability.yaml`; acesso com
 ### Frontend
 
 O compose sobe só o backend e a infraestrutura de apoio — não há `Dockerfile` em `frontend/`.
-Para demonstrar as telas, rode o frontend localmente, fora do compose, apontando para o backend
-que o compose expõe em `localhost:3000`:
+Para demonstrar as telas, rode o frontend localmente, fora do compose. Ele fala com o backend que o
+compose expõe em `localhost:3000` e, para os indicadores, com o nginx:
 
 ```bash
 cd frontend
@@ -392,10 +392,15 @@ pnpm install
 pnpm --filter app-pms dev   # abre em http://localhost:5173
 ```
 
-O `vite.config.ts` do `app-pms` já usa `http://localhost:3000` como alvo do proxy — o mesmo
-`:3000` que o serviço `backend` do compose publica no host por padrão, então nenhuma configuração
-extra é necessária **se você não mudou `BACKEND_HOST_PORT`**. Se mudou (porta 3000 ocupada na
-máquina), edite o `target` em `frontend/apps/pms/vite.config.ts` para a mesma porta.
+O proxy do `app-pms` (`frontend/apps/pms/src/devProxy.ts`) tem duas regras:
+- `/api/analytics` vai para o **nginx**, porque desde a H.3 os indicadores são servidos pelo
+  `analytics-service`, que só o nginx alcança. Sem isso, o painel do gerente e os alertas do
+  painel Hoje dão 404 (ensaio de 14/11).
+- O resto de `/api` vai direto ao core.
+
+As portas são lidas do mesmo `.env` da raiz que o compose usa: `NGINX_PORT` (padrão 80) e
+`BACKEND_HOST_PORT` (padrão 3000). Se você mudou alguma delas no `.env`, o Vite acompanha sem
+editar nada. Reinicie o `dev` depois de mudar o `.env`.
 
 ### Derrubar
 
