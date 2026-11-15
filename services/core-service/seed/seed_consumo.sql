@@ -122,8 +122,11 @@ WITH alvo AS (
   JOIN tenants t      ON t.id = a.tenant_id AND t.subdomain = 'aurora'
   JOIN reservations r ON r.id = a.reservation_id
   JOIN rooms rm       ON rm.id = r.room_id AND rm.number = '106'
+  -- A estadia do seed pelo hóspede (a data muda todo dia no seed_hoje.sql): um walk-in que
+  -- entrou no 106 depois da demonstração nunca recebe estes consumos.
+  JOIN guests g       ON g.id = r.guest_id AND g.cpf = '30000000006'
   WHERE a.type = 'ROOM' AND a.charges_lodging = true AND a.status = 'OPEN'
-    AND a.deleted_at IS NULL AND r.check_in_date = '2026-06-15'
+    AND a.deleted_at IS NULL AND r.status = 'CHECKED_IN'
   UNION ALL
   SELECT a.id, a.tenant_id, a.label
   FROM accounts a
