@@ -161,20 +161,23 @@ Cortar de baixo para cima: T-08.6, T-08.5, T-08.4. **T-08.1, T-08.2 e T-08.3 sã
 
 ---
 
-## 9. Bibliotecas de componentes — sugestão
+## 9. Bibliotecas de componentes — decidido em 15/11
 
-> **Esta seção é uma sugestão de Gabriel, registrada em 09/11. A decisão é do Sirlande,** que cuida do frontend. Se ele escolher outro caminho, basta registrar o motivo aqui.
+> A sugestão de Gabriel (09/11) e o estudo do Sirlande (09/11) foram fechados pelo Sirlande em 15/11. O Sirlande cuida do frontend e a decisão é dele. O estudo completo, com a resposta do Gabriel de 11/11, está em `docs/frontend/ESTUDO_BIBLIOTECA_COMPONENTES_09nov2026.md`.
 
-**Estudo do Sirlande (09/11), ainda para o grupo decidir:** manter o `@hotel/ui` e adotar o Radix por baixo dele, no modelo do shadcn/ui, um componente por vez e **só no 5º semestre**, com ADR. A direção é a mesma desta sugestão. Ordem proposta: Tabs (as abas da reserva não tratam as setas do teclado), Combobox (o `GuestPicker` não tem semântica para leitor de tela), Dialog, DropdownMenu e Toast (Sonner).
+**Direção:** manter o `@hotel/ui` e adotar o Radix por baixo dele, no modelo do shadcn/ui, um componente por vez e **só no 5º semestre**, com ADR. MUI, Mantine, Chakra e Ant Design ficam descartadas. Ordem: Tabs (as abas da reserva), Combobox (`GuestPicker`) e, quando houver caso real, Dialog/Sheet, DropdownMenu e Toast.
 
-Pontos que o grupo precisa fechar:
+| Ponto | Decisão | Condições |
+|---|---|---|
+| Dependência nova antes de 10/12 | Só `@fontsource-variable/inter` e `lucide-react` (T-08.1 e T-08.2) | Fonte hospedada com o app, sem CDN. Ícone só onde carrega significado, sempre com texto ao lado e `aria-hidden`, importado um por vez. Reconferir as telas de 375px já auditadas |
+| Setas nas abas da reserva | Corrigir à mão até 24/11 | Sem dependência. O Radix Tabs substitui no 5º semestre |
+| Foco da folha "Mais" | Corrigir à mão até 24/11 | Levar o foco para dentro quando a folha abre (🟢-3 de `docs/qa/redteam_t053-painel-hoje_04nov2026.md`). O Sheet do Radix estreia nela no 5º semestre |
+| Dialog nas confirmações | Manter a confirmação inline | Rever no 5º semestre |
+| Toast | Adiar. O `Notice` atende | Rever no 5º semestre |
+| Quem aplica | Sirlande, depois do M8 e antes de 24/11 | Inter, lucide-react, setas e foco |
+| Autor do ADR (5º semestre) | Em aberto | Sugestão: Gabriel, dono do shell do `apps/pms` |
 
-| Ponto | Estudo do Sirlande | Sugestão abaixo | Impacto |
-|---|---|---|---|
-| Dependência nova antes de 10/12 | Nenhuma | `lucide-react` e fonte Inter | Se valer "nenhuma", T-08.1 e T-08.2 perdem esses dois itens: o menu segue só com texto, ou com ícones em SVG próprio, e a fonte fica a do sistema |
-| Dialog nas confirmações | Substituir as confirmações inline | Confirmar no próprio lugar (seção 3) | Decidir no 5º semestre. Até lá vale a confirmação inline |
-| Toast | Sonner | `Notice` já atende | Decidir no 5º semestre |
-| Setas nas abas | À mão antes da entrega, se a revisão de acessibilidade apontar | Não tratado | Correção pequena, sem dependência |
+O texto abaixo é a sugestão original do Gabriel, mantida como registro.
 
 **Sugestão:** não adotar uma biblioteca completa. Seguir o que o `docs/frontend/PLANEJAMENTO_FRONTEND.md` já previa, Tailwind com shadcn/ui sobre Radix, trazendo componente só quando uma tela precisar. O `@hotel/ui` já usa `class-variance-authority`, `clsx` e `tailwind-merge`, a mesma base do shadcn, e o código copiado continua obedecendo aos tokens e às regras do projeto.
 
