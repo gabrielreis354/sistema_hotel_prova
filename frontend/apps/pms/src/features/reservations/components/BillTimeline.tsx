@@ -61,7 +61,7 @@ export function BillTimeline({ timeline, balanceCents }: { timeline: Timeline; b
                   {e.notCounted && <span className="sr-only"> (fora do saldo)</span>}
                 </td>
                 <td className="py-2 text-right">
-                  <Money cents={e.balanceCents} className="text-gray-700" />
+                  <LineBalance cents={e.balanceCents} />
                 </td>
               </tr>
             ))}
@@ -76,6 +76,20 @@ export function BillTimeline({ timeline, balanceCents }: { timeline: Timeline; b
         <Total label={balanceCents < 0 ? 'A devolver' : 'Saldo'} cents={Math.abs(balanceCents)} strong />
       </dl>
     </div>
+  );
+}
+
+/**
+ * Saldo depois da linha (CA-09.d). Negativo é crédito do hóspede: valor sem sinal e a palavra
+ * "crédito" visível — o sinal de menos sozinho não diz se o hotel deve ou recebe (RNF-025). Mesmo
+ * vocabulário do balcão na conta da suíte (`StaffActions`). Zero e positivo ficam como estão.
+ */
+function LineBalance({ cents }: { cents: Cents }) {
+  if (cents >= 0) return <Money cents={cents} className="text-gray-700" />;
+  return (
+    <span className="whitespace-nowrap text-gray-700">
+      <Money cents={Math.abs(cents)} /> crédito
+    </span>
   );
 }
 

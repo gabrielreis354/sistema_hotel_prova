@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Spinner } from '@hotel/ui';
-import { formatDateBR, RESERVATION_STATUS_LABEL, type ReservationStatus } from '@hotel/domain';
+import { formatCpf, formatDateBR, RESERVATION_STATUS_LABEL, type ReservationStatus } from '@hotel/domain';
 import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
@@ -84,7 +84,7 @@ export function GuestDetailPage() {
       {delError && <p className="text-sm text-status-maintenance">{delError}</p>}
 
       <Card className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-        <Info label="CPF" value={guest.cpf} />
+        <Info label="CPF" value={formatCpf(guest.cpf)} />
         <Info label="Telefone" value={guest.phone} />
         <Info label="E-mail" value={guest.email} />
       </Card>

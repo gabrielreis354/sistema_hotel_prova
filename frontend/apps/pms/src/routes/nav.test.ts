@@ -5,10 +5,16 @@ import type { Role } from '../types.js';
 const labels = (items: { label: string }[]) => items.map((i) => i.label);
 
 describe('mobileNavForRole (D-3)', () => {
-  it('ADMIN: Hoje, Reservas, Hóspedes, Comanda + Mais com Quartos, Indicadores e Usuários', () => {
+  it('ADMIN: Hoje, Reservas, Hóspedes, Comanda + Mais com Quartos e Indicadores (sem Usuários, CA-09.e)', () => {
     const { primary, more } = mobileNavForRole('ADMIN');
     expect(labels(primary)).toEqual(['Hoje', 'Reservas', 'Hóspedes', 'Comanda']);
-    expect(labels(more)).toEqual(['Quartos', 'Indicadores', 'Usuários']);
+    expect(labels(more)).toEqual(['Quartos', 'Indicadores']);
+  });
+
+  it('ADMIN: "Usuários" fora do menu do computador e do celular (CA-09.e)', () => {
+    expect(labels(navItemsForRole('ADMIN'))).not.toContain('Usuários');
+    const { primary, more } = mobileNavForRole('ADMIN');
+    expect(labels([...primary, ...more])).not.toContain('Usuários');
   });
 
   it('RECEPTIONIST: os 5 cabem direto, sem "Mais"', () => {
