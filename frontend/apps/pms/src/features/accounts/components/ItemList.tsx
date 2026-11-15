@@ -4,7 +4,7 @@ import { decimalToCents, formatBRL, multiplyCents } from '@hotel/domain';
 import type { AccountItem } from '../accountsApi.js';
 import { canUndo, type QueueEntry } from '../queueCore.js';
 import { useNow } from '../queueStore.js';
-import { itemLine, undoLabel } from '../accountTotals.js';
+import { itemLine, undoAccessibleName, undoLabel, undoSecondsLeft } from '../accountTotals.js';
 
 
 const ENTRY_STATE: Record<QueueEntry['status'], { label: string; dot: string }> = {
@@ -148,10 +148,15 @@ export function ItemList({
               {canUndo(entry, now) && (
                 <Button
                   variant="ghost"
-                  aria-label={`${undoLabel(entry.quantity)}: ${entry.description}`}
+                  aria-label={undoAccessibleName(entry.quantity, entry.description)}
                   onClick={() => onUndo(entry.clientItemId)}
                 >
                   {undoLabel(entry.quantity)}
+                  {/* Segundos que restam, só para quem vê: o nome acessível acima é fixo. Sem
+                      animação — o número muda a cada segundo pelo relógio que já esconde o botão. */}
+                  <span aria-hidden className="ml-1 text-sm text-gray-600">
+                    ({undoSecondsLeft(entry.undoUntil, now)} s)
+                  </span>
                 </Button>
               )}
               {settled && (
