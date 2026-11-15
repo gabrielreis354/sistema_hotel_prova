@@ -39,7 +39,15 @@ Gabriel vai colocá-lo no repositório até 20/11, em `frontend/e2e/`, com o com
 **Critérios de aceite:**
 - [ ] o job é **não bloqueante**: avisa, mas não impede o merge. Essa foi a proposta 7 do encontro de 03/11;
 - [ ] não usa segredo real nenhum (PIX no modo simulado, `PIX_PROVIDER=fake`);
-- [ ] também entra o job do frontend (lint, tipos e testes do `app-pms`), que estava pendente desde 31/10.
+- [ ] também entra o job do frontend (lint, tipos e testes do `app-pms`), que estava pendente desde 31/10;
+- [ ] **aquecer o Vite antes do roteiro**: abrir uma página e esperar. Em 15/11, a primeira rodada logo após subir o ambiente falhou nos 7 passos porque o Vite recarregou a página no meio, otimizando dependências. A segunda passou 7 de 7.
+
+## 3b. Indicadores — gráfico de sazonalidade — antes de 24/11
+
+O gráfico pula os meses sem reserva: o eixo vai de mar/26 direto para jun/26, enquanto o gráfico
+de receita logo acima mostra todos os meses. Quem lê compara barras vizinhas como se fossem meses
+seguidos. Preencher os meses vazios com zero, como o de receita já faz (achado 3 de
+`docs/qa/revisao_telas_prontas_15112026.md`).
 
 ## 4. Documentos acadêmicos
 

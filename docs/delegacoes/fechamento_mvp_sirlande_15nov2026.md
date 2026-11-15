@@ -25,6 +25,7 @@ para que os dados façam sentido em qualquer dia em que o seed rodar.
 - [ ] 1 reserva `CONFIRMED` com entrada hoje e 1 estadia com saída hoje;
 - [ ] 1 pagamento `PAID` com `paid_at` de hoje no horário de Brasília. Atenção: os indicadores cortam o dia em UTC, então um horário depois das 21h cai no dia seguinte;
 - [ ] 1 quarto em `CLEANING`, para mostrar o botão "liberar quarto" do painel Hoje;
+- [ ] **o status do quarto bate com a estadia:** toda estadia `CHECKED_IN` deixa o quarto `OCCUPIED`, e todo quarto `OCCUPIED` tem uma estadia `CHECKED_IN`. Hoje as 6 estadias `CHECKED_IN` do seed estão em quartos `AVAILABLE`. Por isso o painel mostra "Livres 15 · Ocupação 0%" com 4 hóspedes na casa, e a Nova reserva oferece quartos ocupados como livres. O detalhe está em `docs/qa/revisao_telas_prontas_15112026.md`, achado 1;
 - [ ] rodar o seed duas vezes não duplica nada, e a trava `ALLOW_SEED=1` continua valendo;
 - [ ] tudo com `tenant_id`, nos dois hotéis do seed;
 - [ ] conferência: depois de `ALLOW_SEED=1 node command.js seed`, o painel Hoje e os 4 cartões mostram números diferentes de zero.

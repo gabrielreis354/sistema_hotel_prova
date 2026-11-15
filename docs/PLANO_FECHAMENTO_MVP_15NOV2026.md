@@ -55,6 +55,17 @@ O frontend é o app `app-pms`: React + TypeScript, um app só para recepção, g
    **Recomendação: (a).** Ver a pergunta ao Gabriel no §7.
 6. **Risco conhecido, sem tarefa:** o app ainda não é um PWA, ou seja, não tem um *service worker* que guarde as telas no aparelho. Se o garçom **recarregar a página sem rede**, o app não abre. Na demonstração, o passo 3 deve **desligar a rede com a comanda já aberta e não recarregar**. Fica registrado para o 5º semestre.
 
+### Revisão das telas "prontas" (15/11)
+
+As telas marcadas como ✅ foram revisadas uma a uma, por papel, no computador e no celular
+(`docs/qa/revisao_telas_prontas_15112026.md`). Funcionam todas, sem erro de JavaScript e sem
+requisição com falha, mas a revisão achou pontos a corrigir antes do congelamento:
+- **O seed põe hóspedes "na casa" em quartos marcados como livres.** O painel Hoje mostra "Livres 15 · Ocupação 0%" com 4 hóspedes na casa. Vai junto da tarefa do seed (Sirlande).
+- **O check-in não confere as datas.** Uma reserva vencida em setembro ainda pode receber check-in e lançar diárias de noites que não aconteceram. A regra é decisão do Gabriel.
+- **O gráfico de sazonalidade pula meses**, e o **comprovante não diz qual hotel o emitiu**.
+- **O CPF aparece de três jeitos:** completo, mascarado e formatado, conforme a tela.
+- Seis acabamentos menores, como o nome "Hotel PMS" no lugar de Gesway e alvos de toque pequenos no celular.
+
 Fora do MVP, por decisão de 21/10 (não fazer agora):
 - a tela de Usuários, que hoje mostra só "em breve";
 - o rack (mapa visual de reservas);
