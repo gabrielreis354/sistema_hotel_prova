@@ -23,7 +23,7 @@ para que os dados façam sentido em qualquer dia em que o seed rodar.
 **Critérios de aceite:**
 - [ ] pelo menos 1 estadia `CHECKED_IN` cujo período inclui hoje;
 - [ ] 1 reserva `CONFIRMED` com entrada hoje e 1 estadia com saída hoje;
-- [ ] 1 pagamento `PAID` com `paid_at` de hoje no horário de Brasília. Atenção: os indicadores cortam o dia em UTC, então um horário depois das 21h cai no dia seguinte;
+- [ ] 1 pagamento `PAID` com `paid_at` de hoje no horário de Brasília. O analytics já conta o dia no fuso do hotel (D-68); o cuidado é o seed não usar o `CURRENT_DATE` em UTC (corrigido no PR #157, item 3.2 da resposta no #156);
 - [ ] 1 quarto em `CLEANING`, para mostrar o botão "liberar quarto" do painel Hoje;
 - [ ] **o status do quarto bate com a estadia:** toda estadia `CHECKED_IN` deixa o quarto `OCCUPIED`, e todo quarto `OCCUPIED` tem uma estadia `CHECKED_IN`. Hoje as 6 estadias `CHECKED_IN` do seed estão em quartos `AVAILABLE`. Por isso o painel mostra "Livres 15 · Ocupação 0%" com 4 hóspedes na casa, e a Nova reserva oferece quartos ocupados como livres. O detalhe está em `docs/qa/revisao_telas_prontas_15112026.md`, achado 1;
 - [ ] rodar o seed duas vezes não duplica nada, e a trava `ALLOW_SEED=1` continua valendo;
@@ -74,10 +74,11 @@ O que entrou na `develop` hoje e mexe na sua área:
   - o CPF aparece formatado, por `formatCpf` do `@hotel/domain`, na lista e no detalhe de hóspedes, na reserva e no `GuestPicker`;
   - a linha da lista de Hóspedes ficou inteira clicável (`GuestRow.tsx`).
 
-  A sua **SPEC-08** mexe nesses mesmos arquivos (ícones no `nav.ts` e hierarquia de ações na reserva). Ao começar, parta da `develop` atual: nada da SPEC-08 foi feito, só não pode haver conflito.
+  Os seus PRs da **SPEC-08** (#159 a #162) mexem nesses mesmos arquivos (ícones no `nav.ts` e hierarquia de ações na reserva). Antes do merge, confira se eles estão em dia com a `develop`.
 - **Check-in só dentro do período da reserva** (#147). Isso afeta o seu seed: reserva `PENDING` ou `CONFIRMED` que você quiser mostrar como "chegada de hoje" precisa ter `check_in_date <= hoje < check_out_date`.
 - **`./start.sh compose-up --build`** (#154) é o jeito novo de subir o compose. Ele avisa se o `rabbitmq-setup` falhar.
 
-**O que mais pesa agora é o seu item 1, o seed com as datas do dia (17/11).** Sem ele, o painel Hoje e
-os Indicadores aparecem zerados na banca. Se não der até 17/11, avise o Gabriel: um agente pode
-fazer numa branch, e você revisa.
+**Recebido no fim do dia:** a sua resposta (#156, comanda pela opção (b)), o seed com as datas do
+dia (#157) e a SPEC-08 mínima (#159 a #162). A sua tabela entrou no §5 do plano, e a linha da
+SPEC-08 no §6. Os três repasses 🟡 do painel Hoje (`para_gabriel_15112026.md`) ficam com o
+Gabriel, depois dos merges da SPEC-08, para não dar conflito.
