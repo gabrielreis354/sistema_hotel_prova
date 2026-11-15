@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authMiddleware from '../../middlewares/auth.middleware.js';
 import tenantMiddleware from '../../middlewares/tenant.middleware.js';
 import { requireRole } from '../../middlewares/role.middleware.js';
+import isUuid from '../../app/utils/isUuid.js';
 
 import ListReservationController from '../../app/Controllers/ReservationApi/ListReservationController.js';
 import GetReservationController from '../../app/Controllers/ReservationApi/GetReservationController.js';
@@ -23,6 +24,15 @@ export default (() => {
     const router = Router();
 
     router.use(authMiddleware, tenantMiddleware);
+
+    // :id que não é UUID chegava ao Postgres como cast inválido e virava 500 nas transições
+    // (check-in, check-out, cancelamento) e nas demais rotas de uma reserva. Para o cliente, um id
+    // que não existe é 404 — o mesmo corpo que os controllers já devolvem. Vale para todas as
+    // rotas com :id deste router; :roomId e :consumptionId seguem validados nos controllers.
+    router.param('id', (request, response, next, id) => {
+        if (!isUuid(id)) return response.status(404).json({ error: 'Reserva não encontrada' });
+        return next();
+    });
 
     router.get('/', ListReservationController);
     router.get('/:id', GetReservationController);
