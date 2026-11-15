@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { onlineManager } from '@tanstack/react-query';
-import { offlineBannerText, useOnline } from './connection.js';
+import { looksOffline, offlineBannerText, useOnline } from './connection.js';
 import { OfflineBanner, OfflineNotice } from './components/OfflineBanner.js';
 import { addTap, applyOutcome, awaitsServer, markSending } from './queueCore.js';
 
@@ -33,16 +33,45 @@ describe('awaitsServer — o que a faixa conta como aguardando', () => {
   });
 });
 
+describe('looksOffline — os dois sinais que ligam a faixa (🟡-3 do red team)', () => {
+  const failedOnce = applyOutcome(addTap([], tap('cerveja'), 0, 'c1'), 'c1', { kind: 'retry' }, 6_000);
+
+  it('sinal 1: o onlineManager diz offline, mesmo com a fila vazia', () => {
+    expect(looksOffline(false, [])).toBe(true);
+  });
+
+  it('sinal 2: com rede no aparelho, a fila já falhou um envio (Wi-Fi sem internet, servidor fora)', () => {
+    expect(failedOnce[0]).toMatchObject({ status: 'queued', attempts: 1 });
+    expect(looksOffline(true, failedOnce)).toBe(true);
+  });
+
+  it('a nova tentativa em andamento não apaga a faixa', () => {
+    expect(looksOffline(true, markSending(failedOnce, 'c1', 7_000))).toBe(true);
+  });
+
+  it('com rede e sem falha de envio, não liga: toque no prazo, primeira tentativa, recusa do servidor', () => {
+    const fresh = addTap([], tap('agua'), 0, 'c2');
+    expect(looksOffline(true, fresh)).toBe(false);
+    expect(looksOffline(true, markSending(fresh, 'c2', 6_000))).toBe(false);
+    const refused = applyOutcome(failedOnce, 'c1', { kind: 'rejected', reason: 'x' }, 8_000);
+    expect(looksOffline(true, refused)).toBe(false);
+  });
+
+  it('o envio gravou: a entrada sai da fila e a faixa apaga', () => {
+    expect(looksOffline(true, applyOutcome(failedOnce, 'c1', { kind: 'saved' }, 8_000))).toBe(false);
+  });
+});
+
 describe('OfflineBanner — renderização', () => {
   it('com rede, a região viva existe mas fica vazia (para anunciar a queda quando vier)', () => {
-    const html = renderToString(<OfflineBanner online waiting={3} />);
+    const html = renderToString(<OfflineBanner offline={false} waiting={3} />);
     expect(html).toBe('<div role="status" aria-live="polite"></div>');
   });
 
   it('abrindo a conta já sem rede, a região nasce vazia e o texto só entra depois (🟡-2 do red team)', () => {
     // renderToString é o primeiro render, antes de qualquer efeito: é o que o leitor de tela
     // registra primeiro. Se o texto viesse junto com a região, não seria anunciado.
-    const html = renderToString(<OfflineBanner online={false} waiting={2} />);
+    const html = renderToString(<OfflineBanner offline waiting={2} />);
     expect(html).toBe('<div role="status" aria-live="polite"></div>');
   });
 

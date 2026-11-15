@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { useAccount } from './queries.js';
 import { queue, useQueueEntries, useQueueRunner } from './queueStore.js';
 import { awaitsServer, pendingFor } from './queueCore.js';
-import { useOnline } from './connection.js';
+import { looksOffline, useOnline } from './connection.js';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { footerTotals } from './accountTotals.js';
 import { ACCOUNT_TYPE_LABEL } from './accountFilter.js';
@@ -44,7 +44,7 @@ export function AccountPage() {
   // Lançamentos de outro usuário nesta conta, parados neste aparelho: não aparecem nem somam,
   // mas fechar a conta agora faria o servidor recusá-los — consumo sem cobrança (D-1).
   const othersHere = pendingFor(entries.filter((e) => e.ownerId !== user?.id), id).length;
-  const online = useOnline();
+  const offline = looksOffline(useOnline(), mine);
   // A faixa conta tudo o que este usuário tem esperando a rede, em qualquer conta: a queda é do
   // aparelho, não da conta aberta.
   const waiting = mine.filter(awaitsServer).length;
@@ -92,9 +92,9 @@ export function AccountPage() {
         <span className="text-xs text-gray-500">{account.type ? ACCOUNT_TYPE_LABEL[account.type] : ''}</span>
       </div>
       <h1 className="text-xl font-semibold">{account.label}</h1>
-      <OfflineBanner online={online} waiting={waiting} />
+      <OfflineBanner offline={offline} waiting={waiting} />
       {/* Sem rede, a faixa acima já avisa: esta linha fica para o erro do servidor com rede. */}
-      {stale && online && (
+      {stale && !offline && (
         <p role="status" className="text-xs text-gray-600">
           Sem conexão com o sistema: mostrando a última versão da conta. Os lançamentos ficam na fila.
         </p>

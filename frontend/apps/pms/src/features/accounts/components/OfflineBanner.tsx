@@ -33,12 +33,12 @@ export function OfflineNotice({ waiting }: { waiting: number }) {
  * `status` do rodapé, e a região viva basta. O custo é a faixa aparecer um quadro depois da
  * conta, só na abertura.
  */
-export function OfflineBanner({ online, waiting }: { online: boolean; waiting: number }) {
+export function OfflineBanner({ offline, waiting }: { offline: boolean; waiting: number }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   return (
     <div role="status" aria-live="polite">
-      {mounted && !online && <OfflineNotice waiting={waiting} />}
+      {mounted && offline && <OfflineNotice waiting={waiting} />}
     </div>
   );
 }
