@@ -8,7 +8,9 @@
 > **Regra zero:** o estado do git manda. Se este painel disser uma coisa e o `git log` disser
 > outra, o git vence — e você corrige o painel.
 
-**Última atualização:** 14/11/2026, pelo orquestrador (sessão do Gabriel), depois do primeiro ensaio de ponta a ponta (`docs/qa/ensaio_roteiro_14112026.md`). Organizado **por meta (M1 a M10)**, como foi aceito na resposta ao parecer do Sirlande de 28/10.
+**Plano de fechamento (15/11):** [`docs/PLANO_FECHAMENTO_MVP_15NOV2026.md`](PLANO_FECHAMENTO_MVP_15NOV2026.md) — o que falta até 10/12, quem faz e como conferir, sem depender de outros documentos.
+
+**Última atualização:** 15/11/2026 (divisão do fechamento). Antes: 14/11/2026, pelo orquestrador (sessão do Gabriel), depois do primeiro ensaio de ponta a ponta (`docs/qa/ensaio_roteiro_14112026.md`). Organizado **por meta (M1 a M10)**, como foi aceito na resposta ao parecer do Sirlande de 28/10.
 
 ---
 
@@ -71,15 +73,15 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 |---|---|---|---|---|---|
 | M1 | Quartos e categorias | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #106 (`e4c9ae3`) |
 | M2 | Reservas, check-in e check-out, walk-in | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #108 (`cb04f85`) |
-| M3 | Comanda P2 | Sirlande | 17/11 | Sirlande informa | — |
+| M3 | Comanda P2 | Sirlande | 20/11 | 🟡 Sem commit desde 27/10. Abertos: aviso de sem conexão e tempo restante do desfazer; 3 itens a conferir (ver `docs/delegacoes/fechamento_mvp_sirlande_15nov2026.md`) | — |
 | M4 | Painel Hoje (T-05.3) | Gabriel | 10/11 | ✅ Na `develop` em 09/11. Confirmação antes de check-in e de liberar quarto em 11/11 (#140) | #125 · #140 |
 | M5-a | Conta em linha do tempo | Gabriel | 30/10 | ✅ Na `develop`, junto com a M2 | #108 |
-| M5-b | Pagamento no check-out | Sirlande | 07/11 | ✅ Na `develop` em 09/11 (#124). Correções de 09 e 11/11 revisadas pelo Gabriel em 14/11 e aprovadas pelo qa-redteam juntas (`redteam_m5b-pagamento-sem-rede_14nov2026.md`); aguardam merge | #124 · #132 · #141 |
+| M5-b | Pagamento no check-out | Sirlande | 07/11 | ✅ Na `develop` em 09/11 (#124). Correções de 09 e 11/11 revisadas pelo Gabriel e aprovadas pelo qa-redteam (`redteam_m5b-pagamento-sem-rede_14nov2026.md`); na `develop` em 14/11 | #124 · #132 · #141 |
 | M5-c | Estorno (backend e tela) | Sirlande (backend), Gabriel (tela) | 10/11 | ✅ Backend em 09/11 (#123); tela em 11/11 (#138) | #123 · #138 |
-| M6 | PIX | Weslley | 17/11 | ✅ Ressalvas do Asaas na `develop` (#128, #135, #139). Ensaiado no sandbox real em 12/11: cancelamento e webhook confirmando a reserva (#143). Exclusão e walk-in cancelam o sinal no #142 (aguarda merge). **Trocar a chave de sandbox**, que foi exposta num chat | #128 · #135 · #139 · #143 · #142 |
+| M6 | PIX | Weslley | 17/11 | ✅ Ressalvas do Asaas na `develop` (#128, #135, #139). Ensaiado no sandbox real em 12/11: cancelamento e webhook confirmando a reserva (#143). Exclusão e walk-in cancelam o sinal (#142, na `develop` em 14/11). **Trocar a chave de sandbox**, que foi exposta num chat | #128 · #135 · #139 · #143 · #142 |
 | M7-a | analytics-service (H.2) | Gabriel | 29/10 | ✅ Na `develop` em 31/10 | #105 (`fbe086d`) |
-| M7-b | H.3: indicadores servidos pelo analytics | Gabriel | 14/11 | ✅ Na `develop` em 09/11. **🔴 do ensaio de 14/11:** com o `vite.config.ts` do repositório, o PMS chama o core em vez do nginx e os indicadores dão 404 | #109 |
-| M8 | Seed e compose | Sirlande e Weslley | 17/11 | 🟡 Ensaio de 14/11: o compose sobe o roteiro inteiro com o analytics, mas o 1º `up` a frio falha por healthcheck do RabbitMQ (🟡-1 do ensaio) | — |
+| M7-b | H.3: indicadores servidos pelo analytics | Gabriel | 14/11 | ✅ Na `develop` em 09/11. **🔴 do ensaio de 14/11:** com o `vite.config.ts` do repositório, o PMS chama o core em vez do nginx e os indicadores dão 404. Corrigido no #145 (aberto) | #109 · #145 |
+| M8 | Seed e compose | Sirlande e Weslley | 17/11 | 🔲 Seed com as datas do dia (Sirlande). 🟡 Ensaio de 14/11: o compose sobe o roteiro inteiro com o analytics, mas o 1º `up` a frio falha por healthcheck do RabbitMQ (🟡-1 do ensaio) | — |
 | M9 | Congelamento e ensaio, zero 🔴 aberto | todos | 24/11 | 🟡 1º ensaio de ponta a ponta em 14/11: 7 de 7 passos, com 1 🔴 aberto (proxy do Vite) | `docs/qa/ensaio_roteiro_14112026.md` |
 | M10 | Release `develop → main` | Gabriel, com aprovação do Sirlande | 01/12 | Release intermediária aberta em 03/11 | #110 |
 
@@ -89,10 +91,11 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 - T-01.5, CI por serviço (Weslley);
 - painel e alertas do RabbitMQ (CA-01.4.f, parcial).
 
-**PRs abertos (14/11):**
+**PRs abertos (15/11):**
 - **Repositório do hotel:**
-  - #141 e #132 (Sirlande, M5-b): revisados, qa-redteam aprovou os dois juntos; mergear o #141 e depois o #132;
-  - #142 (Gabriel): sinal PIX na exclusão e no walk-in, CPF pelos dígitos;
+  - #145 (Gabriel): proxy do Vite leva `/api/analytics` ao nginx (🔴 do ensaio);
+  - #144 (Gabriel): relatório do ensaio de 14/11, este painel e o plano de fechamento;
+  - #146 (Weslley): estimativa de custo AWS no Pricing Calculator;
   - #133 e #134 (Sirlande): documentação de status e parecer;
   - #129 (Weslley, de 21/09): rascunho do Doc 08, provavelmente superado pela v1.1.
 - **Repositório UniFAAT:** #32 a #39, os 8 documentos oficiais. O `main` do fork tem as versões vigentes desde 11/11 (PR #8 do fork).
@@ -110,7 +113,7 @@ frente → condição de aprovação → produto demonstrável → polimento.
 | 0b | 1º `up` a frio: healthcheck do RabbitMQ ou segundo `up` no roteiro do dia | M8 | Weslley | — | 🟡-1 do ensaio |
 | 1 | ✅ H.3 (#109, 09/11) | M7-b | Gabriel | — | — |
 | 2 | ✅ T-05.3, painel Hoje (#125, 09/11) | M4 | Gabriel | — | — |
-| 3 | ✅ Tela de pagamento do Sirlande revisada em 14/11; falta o merge de #141 e #132 | M5-b | Gabriel | — | — |
+| 3 | ✅ Tela de pagamento do Sirlande revisada e na `develop` (#141 e #132, 14/11) | M5-b | Gabriel | — | — |
 | 4 | Pagamento no check-out e estorno | M5-b, M5-c | Sirlande | T-05.2 ✅ | — |
 | 5 | Comanda P2 | M3 | Sirlande | — | — |
 | 6 | Mergear `feature/ci-analytics-service` e pôr o RabbitMQ no `ci-core-service.yml` | M7-b | Weslley | — | 🟡 PRs #114 e #115 abertos em 04/11, qa-redteam APROVADO COM RESSALVAS e ressalvas corrigidas; com a H.3, os 28 casos do pipeline rodaram no CI (run 41928725922) |
