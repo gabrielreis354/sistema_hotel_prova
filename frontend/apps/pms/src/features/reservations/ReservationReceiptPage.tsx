@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { RESERVATION_STATUS_LABEL, formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { Button, ErrorState, Spinner } from '@hotel/ui';
+import { receiptIssuer, useMyTenant } from '../tenant/index.js';
 import { useBill, useReservation } from './queries.js';
 import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, receiptEntries, safeNights } from './reservationLogic.js';
 import { BackLink, Money } from './components/primitives.js';
@@ -16,6 +17,9 @@ export function ReservationReceiptPage() {
   const { id } = useParams<{ id: string }>();
   const reservation = useReservation(id);
   const bill = useBill(id);
+  // Quem emitiu (T-09.1). Fica fora das guardas de carregamento e de erro de propósito: o
+  // cabeçalho é opcional, e o comprovante não espera por ele nem cai se /tenants/me falhar.
+  const issuer = receiptIssuer(useMyTenant().data);
 
   if (reservation.isPending || bill.isPending) {
     return (
@@ -48,6 +52,13 @@ export function ReservationReceiptPage() {
       </div>
 
       <article className="mx-auto max-w-2xl space-y-6 p-6 text-gray-900 print:max-w-none print:p-0">
+        {issuer && (
+          <div className="border-b border-gray-300 pb-3">
+            <p className="text-2xl font-semibold">{issuer.name}</p>
+            {issuer.legalId && <p className="text-sm text-gray-700 tabular-nums">{`CNPJ ${issuer.legalId}`}</p>}
+          </div>
+        )}
+
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-wide text-gray-500">Comprovante de conta</p>
           <h1 className="text-xl font-semibold">{r.guest?.full_name ?? 'Hóspede'}</h1>

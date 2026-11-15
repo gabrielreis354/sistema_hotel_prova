@@ -1,0 +1,110 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderToString } from 'react-dom/server';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+
+// Teste do componente sem DOM: o cliente HTTP é trocado por dublê, as queries são resolvidas
+// antes (prefetch pelo mesmo queryFn da tela) e a página é renderizada em HTML. Basta para
+// provar o que entra no comprovante — sem trazer jsdom só para isso.
+const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn() }));
+vi.mock('../../lib/api.js', () => ({ api }));
+
+import { myTenantOptions } from '../tenant/index.js';
+import { ReservationReceiptPage } from './ReservationReceiptPage.js';
+import { reservationKeys } from './queries.js';
+import { getBill, getReservation } from './reservationsApi.js';
+
+const reservation = {
+  id: 'res1',
+  status: 'CHECKED_IN',
+  check_in_date: '2026-11-20',
+  check_out_date: '2026-11-22',
+  guest: { full_name: 'Maria Oliveira', cpf: '12345678901' },
+  rooms: [{ id: 'r1', number: '101' }],
+};
+
+const bill = {
+  status: 'CHECKED_IN',
+  check_in_date: '2026-11-20',
+  check_out_date: '2026-11-22',
+  room_total: 300,
+  balance_due: 300,
+  consumptions: [],
+  payments: [],
+};
+
+function reply(status: number, body: unknown) {
+  const ok = status >= 200 && status < 300;
+  return { data: ok ? body : undefined, error: ok ? undefined : body, response: { status, ok } };
+}
+
+function backend(tenant: { status: number; body: unknown }) {
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/tenants/me') return reply(tenant.status, tenant.body);
+    if (path === '/reservations/{id}') return reply(200, reservation);
+    if (path === '/reservations/{id}/bill') return reply(200, bill);
+    return reply(404, { error: 'rota fora do teste' });
+  });
+}
+
+async function renderReceipt() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  await Promise.all([
+    client.prefetchQuery({ queryKey: reservationKeys.detail('res1'), queryFn: () => getReservation('res1') }),
+    client.prefetchQuery({ queryKey: reservationKeys.bill('res1'), queryFn: () => getBill('res1') }),
+    client.prefetchQuery(myTenantOptions()),
+  ]);
+  return renderToString(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/reservas/res1/comprovante']}>
+        <Routes>
+          <Route path="/reservas/:id/comprovante" element={<ReservationReceiptPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+// O Link do react-router usa useLayoutEffect, que o React avisa não rodar no servidor. Esperado
+// neste tipo de teste; só esse aviso é calado, qualquer outro erro continua aparecendo.
+const consoleError = console.error.bind(console);
+beforeEach(() => {
+  api.GET.mockReset();
+  vi.spyOn(console, 'error').mockImplementation((msg: unknown, ...rest: unknown[]) => {
+    if (typeof msg === 'string' && msg.includes('useLayoutEffect does nothing on the server')) return;
+    consoleError(msg, ...rest);
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('ReservationReceiptPage — emissor no topo (T-09.1)', () => {
+  it('mostra o nome do hotel e o CNPJ acima do comprovante (CA-09.a)', async () => {
+    backend({ status: 200, body: { id: 't1', name: 'Pousada Aurora', legal_id: '12.345.678/0001-90' } });
+    const html = await renderReceipt();
+    expect(html).toContain('Pousada Aurora');
+    expect(html).toContain('CNPJ 12.345.678/0001-90');
+    expect(html.indexOf('Pousada Aurora')).toBeLessThan(html.indexOf('Comprovante de conta'));
+    expect(html).toContain('Maria Oliveira');
+  });
+
+  it('sem CNPJ cadastrado, mostra só o nome', async () => {
+    backend({ status: 200, body: { id: 't2', name: 'Hotel Sol', legal_id: null } });
+    const html = await renderReceipt();
+    expect(html).toContain('Hotel Sol');
+    expect(html).not.toContain('CNPJ');
+  });
+
+  it('com /tenants/me em 500, o comprovante aparece sem cabeçalho e sem erro (CA-09.b)', async () => {
+    backend({ status: 500, body: { error: 'Erro interno do servidor' } });
+    const html = await renderReceipt();
+    expect(api.GET).toHaveBeenCalledWith('/tenants/me');
+    expect(html).toContain('Comprovante de conta');
+    expect(html).toContain('Maria Oliveira');
+    expect(html).toContain('Imprimir');
+    expect(html).not.toContain('CNPJ');
+    expect(html).not.toContain('Não foi possível');
+  });
+});
