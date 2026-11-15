@@ -8,3 +8,8 @@
 // `tenants` — fora do MVP. Relatório que agrupa por dia deve usar esta constante:
 //   (coluna AT TIME ZONE :timezone)::date   com replacements: { timezone: HOTEL_TIMEZONE }
 export const HOTEL_TIMEZONE = 'America/Sao_Paulo';
+
+/** A data de hoje no fuso do hotel, como 'YYYY-MM-DD' — o mesmo formato das colunas DATEONLY. */
+export function todayInHotel(now = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: HOTEL_TIMEZONE }).format(now);
+}

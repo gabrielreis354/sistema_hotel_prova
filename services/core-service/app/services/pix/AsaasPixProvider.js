@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import PixProvider from './PixProvider.js';
 import { PixProviderUnavailableError, InvalidWebhookSignatureError } from './errors.js';
 import { CHARGE_STATUS } from './chargeStatus.js';
+import { todayInHotel } from '../../utils/hotelTimezone.js';
 
 const SANDBOX_BASE_URL = 'https://api-sandbox.asaas.com/v3';
 const SANDBOX_HOST = 'api-sandbox.asaas.com';
@@ -57,11 +58,6 @@ export function getAsaasConfig() {
     }
 
     return { apiKey, baseUrl };
-}
-
-// Data de hoje no fuso do Brasil (YYYY-MM-DD) — o dueDate do Asaas é uma data, não um instante.
-function todayInBrazil() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 }
 
 // expirationDate do QR vem como "YYYY-MM-DD HH:mm:ss" (horário de Brasília, sem fuso).
@@ -151,7 +147,7 @@ export default class AsaasPixProvider extends PixProvider {
                 customer: customer.id,
                 billingType: 'PIX',
                 value: Number(amount),
-                dueDate: todayInBrazil(),
+                dueDate: todayInHotel(), // o dueDate do Asaas é uma data, não um instante
                 description,
                 externalReference: String(externalId)
             }
