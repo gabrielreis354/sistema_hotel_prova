@@ -96,7 +96,7 @@ async function seed() {
         // BEGIN/COMMIT — uma única chamada via o client pg por trás do Sequelize
         // (protocolo simples, sem bind de parâmetros) roda o arquivo inteiro.
         // A ordem importa: a comanda (T-04.7) usa hotéis, quartos e reservas do primeiro.
-        for (const file of ['seed_hotels.sql', 'seed_consumo.sql']) {
+        for (const file of ['seed_hotels.sql', 'seed_consumo.sql', 'seed_hoje.sql']) {
             const sql = await readFile(path.join(__dirname, 'seed', file), 'utf-8');
             await sequelize.query(sql);
             console.log(`   ${file} aplicado.`);

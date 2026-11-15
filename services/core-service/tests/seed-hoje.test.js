@@ -175,6 +175,56 @@ describe('seed do dia — rodar de novo', () => {
             JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000023'`);
         expect(r).toEqual({ status: 'CANCELLED', ci: '2026-12-10' });
     });
+
+    it('não desfaz o check-in feito na demonstração nem mexe no sinal dela', async () => {
+        await truncateAll();
+        await runSeed('2026-12-10 15:00-03');
+        // A recepção fez o check-in da chegada com sinal (quarto 201), como no passo 2 do roteiro.
+        await sequelize.query(`
+            UPDATE reservations SET status = 'CHECKED_IN'
+             WHERE guest_id = (SELECT id FROM guests WHERE cpf = '30000000022');
+            UPDATE rooms SET status = 'OCCUPIED'
+             WHERE number = '201' AND tenant_id = (SELECT id FROM tenants WHERE subdomain = 'aurora');
+            -- o check-in abre a conta da suíte (D-58), como o CheckInController
+            INSERT INTO accounts (id, tenant_id, type, status, reservation_id, room_id, guest_id, label,
+                                  charges_lodging, opened_at, created_at, updated_at)
+            SELECT gen_random_uuid(), r.tenant_id, 'ROOM', 'OPEN', r.id, r.room_id, r.guest_id, 'Suíte 201',
+                   true, '2026-12-10 15:30-03', now(), now()
+              FROM reservations r WHERE r.guest_id = (SELECT id FROM guests WHERE cpf = '30000000022');`);
+        const antes = await counts();
+        const sinal = await q(`SELECT p.reservation_id, p.amount, p.paid_at FROM payments p
+            JOIN reservations r ON r.id = p.reservation_id
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`);
+        await runSeed('2026-12-11 15:00-03');
+        expect(await counts()).toEqual(antes);
+        expect(await q(`SELECT p.reservation_id, p.amount, p.paid_at FROM payments p
+            JOIN reservations r ON r.id = p.reservation_id
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`)).toEqual(sinal);
+        const r = await one(`SELECT r.status, r.check_in_date::text AS ci FROM reservations r
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`);
+        expect(r).toEqual({ status: 'CHECKED_IN', ci: '2026-12-10' });
+    });
+
+    it('quarto extra de estadia com vários quartos continua ocupado; ocupado sem estadia volta a livre', async () => {
+        await truncateAll();
+        await runSeed('2026-12-10 15:00-03');
+        // Quarto 108 entra como extra da estadia do 106 (reserva de vários quartos, F.4) e o 104
+        // ficou ocupado sem estadia nenhuma (estado que a API não produz).
+        await sequelize.query(`
+            INSERT INTO reservation_rooms (id, reservation_id, room_id, created_at, updated_at)
+            SELECT gen_random_uuid(), r.id, extra.id, now(), now()
+              FROM reservations r
+              JOIN rooms principal ON principal.id = r.room_id AND principal.number = '106'
+              JOIN rooms extra ON extra.tenant_id = r.tenant_id AND extra.number = '108'
+             WHERE r.status = 'CHECKED_IN';
+            UPDATE rooms SET status = 'OCCUPIED'
+             WHERE number IN ('104', '108') AND tenant_id = (SELECT id FROM tenants WHERE subdomain = 'aurora');`);
+        await runSeed('2026-12-10 16:00-03');
+        const status = Object.fromEntries((await q(`SELECT rm.number, rm.status FROM rooms rm
+            JOIN tenants t ON t.id = rm.tenant_id AND t.subdomain = 'aurora'
+            WHERE rm.number IN ('104', '108')`)).map((r) => [r.number, r.status]));
+        expect(status).toEqual({ 104: 'AVAILABLE', 108: 'OCCUPIED' });
+    });
 });
 
 describe('seed do dia — fuso do hotel', () => {
@@ -206,17 +256,17 @@ describe('seed do dia — relógio real, lido pela API como o painel Hoje', () =
     });
 
     it('chegadas do dia e hóspedes na casa saem pelo GET /reservations', async () => {
-        const arrivals = await request(app).get(`/reservations?from=${hoje}&to=${hoje}&status=PENDING,CONFIRMED`).set(auth);
+        const arrivals = await request(app).get(`/reservations?from=${hoje}&to=${hoje}&status=PENDING,CONFIRMED&page=1&limit=100`).set(auth);
         expect(arrivals.status).toBe(200);
         expect(arrivals.body.data.filter((r) => r.check_in_date === hoje)).toHaveLength(2);
 
-        const inHouse = await request(app).get('/reservations?status=CHECKED_IN').set(auth);
+        const inHouse = await request(app).get('/reservations?status=CHECKED_IN&page=1&limit=100').set(auth);
         expect(inHouse.body.data).toHaveLength(4);
         expect(inHouse.body.data.every((r) => r.room.status === 'OCCUPIED')).toBe(true);
     });
 
     it('a recepção faz o check-in da chegada com sinal e libera o quarto em limpeza', async () => {
-        const arrivals = (await request(app).get(`/reservations?from=${hoje}&to=${hoje}&status=CONFIRMED`).set(auth)).body.data;
+        const arrivals = (await request(app).get(`/reservations?from=${hoje}&to=${hoje}&status=CONFIRMED&page=1&limit=100`).set(auth)).body.data;
         const comSinal = arrivals.find((r) => r.room.number === '201');
         const checkIn = await request(app).put(`/reservations/${comSinal.id}/check-in`).set(auth);
         expect(checkIn.status).toBe(200);

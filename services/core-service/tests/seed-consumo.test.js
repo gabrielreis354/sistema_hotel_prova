@@ -16,7 +16,7 @@ const seedDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 's
 
 // Mesma ordem do `node command.js seed`.
 async function runSeed() {
-    for (const file of ['seed_hotels.sql', 'seed_consumo.sql']) {
+    for (const file of ['seed_hotels.sql', 'seed_consumo.sql', 'seed_hoje.sql']) {
         await sequelize.query(await readFile(path.join(seedDir, file), 'utf-8'));
     }
 }
@@ -54,13 +54,16 @@ describe('seed da comanda — idempotência', () => {
     });
 
     it('a conta da suíte abre às 14h de Brasília do dia da entrada', async () => {
-        const [{ opened }] = await sequelize.query(`
-            SELECT to_char(a.opened_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI') AS opened
+        // A entrada é relativa ao dia em que o seed roda (seed_hoje.sql, M8).
+        const [{ opened, entrada }] = await sequelize.query(`
+            SELECT to_char(a.opened_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI') AS opened,
+                   to_char(r.check_in_date, 'YYYY-MM-DD') AS entrada
             FROM accounts a
+            JOIN reservations r ON r.id = a.reservation_id
             JOIN rooms rm  ON rm.id = a.room_id
             JOIN tenants t ON t.id = a.tenant_id AND t.subdomain = 'aurora'
             WHERE a.type = 'ROOM' AND rm.number = '106'`, { type: QueryTypes.SELECT });
-        expect(opened).toBe('2026-06-15 14:00');
+        expect(opened).toBe(`${entrada} 14:00`);
     });
 
     it('cria cardápio, contas e lançamentos', () => {
