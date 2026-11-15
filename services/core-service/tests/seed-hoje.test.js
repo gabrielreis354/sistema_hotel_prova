@@ -279,3 +279,96 @@ describe('seed do dia — relógio real, lido pela API como o painel Hoje', () =
         expect(release.status).toBe(200);
     });
 });
+
+// Achados do qa-redteam de 15/11 (docs/qa/redteam_m8-seed-datas-do-dia_15nov2026.md): o seed
+// rodado por cima de um banco que já passou por demonstração ou ensaio.
+describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11)', () => {
+    const aurora = `(SELECT id FROM tenants WHERE subdomain = 'aurora')`;
+    const quarto = (n) => `(SELECT id FROM rooms WHERE tenant_id = ${aurora} AND number = '${n}')`;
+
+    it('🟡-1 quarto do cenário vendido na demo: pula a linha com aviso, sem abortar o seed', async () => {
+        await truncateAll();
+        await runSeed('2026-12-10 15:00-03');
+        // A demo vendeu o 201 de 12 a 13/12; no dia 11 o cenário quer o 201 de 11 a 13.
+        await sequelize.query(`
+            INSERT INTO reservations (id, tenant_id, guest_id, room_id, user_id, check_in_date, check_out_date,
+                                      status, total_amount, created_at, updated_at)
+            SELECT gen_random_uuid(), ${aurora}, g.id, ${quarto('201')}, u.id, '2026-12-12', '2026-12-13',
+                   'CONFIRMED', 350, now(), now()
+              FROM guests g, users u
+             WHERE g.cpf = '30000000030' AND u.email = 'admin@aurora.example'`);
+        const antes = await counts();
+        await expect(runSeed('2026-12-11 15:00-03')).resolves.not.toThrow();
+        expect(await counts()).toEqual(antes);
+        // O resto do cenário foi para o novo dia; o 201 do cenário ficou onde estava.
+        const sc = await scenario('aurora', '2026-12-11', '2026-12-11 15:00-03');
+        expect({ inHouse: sc.inHouse, departures: sc.departures, noShow: sc.noShow }).toEqual({ inHouse: 4, departures: 1, noShow: 1 });
+        const r201 = await one(`SELECT r.check_in_date::text AS ci FROM reservations r
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`);
+        expect(r201).toEqual({ ci: '2026-12-10' });
+    });
+
+    it('🟡-2 walk-in no 106 depois da saída antecipada não recebe os consumos do seed', async () => {
+        await truncateAll();
+        await runSeed('2026-12-10 15:00-03');
+        // O hóspede do cenário saiu antes; um walk-in entrou no 106 com a conta da suíte aberta.
+        await sequelize.query(`
+            UPDATE accounts SET status = 'CLOSED', closed_at = now()
+             WHERE reservation_id = (SELECT r.id FROM reservations r JOIN guests g ON g.id = r.guest_id
+                                      WHERE g.cpf = '30000000006');
+            UPDATE reservations SET status = 'CHECKED_OUT', check_out_date = '2026-12-10'
+             WHERE guest_id = (SELECT id FROM guests WHERE cpf = '30000000006');
+            INSERT INTO reservations (id, tenant_id, guest_id, room_id, user_id, check_in_date, check_out_date,
+                                      status, total_amount, created_at, updated_at)
+            SELECT gen_random_uuid(), ${aurora}, g.id, ${quarto('106')}, u.id, '2026-12-10', '2026-12-12',
+                   'CHECKED_IN', 300, now(), now()
+              FROM guests g, users u WHERE g.cpf = '30000000031' AND u.email = 'admin@aurora.example';
+            INSERT INTO accounts (id, tenant_id, type, status, reservation_id, room_id, guest_id, label,
+                                  charges_lodging, opened_at, created_at, updated_at)
+            SELECT gen_random_uuid(), r.tenant_id, 'ROOM', 'OPEN', r.id, r.room_id, r.guest_id, 'Suíte 106',
+                   true, '2026-12-10 16:00-03', now(), now()
+              FROM reservations r JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000031';`);
+        await runSeed('2026-12-10 18:00-03');
+        const { n } = await one(`SELECT COUNT(*)::int AS n FROM account_items ai
+            JOIN accounts a ON a.id = ai.account_id
+            JOIN reservations r ON r.id = a.reservation_id
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000031'`);
+        expect(n).toBe(0);
+    });
+
+    it('🟡-5 o sinal da chegada é DEPOSIT; o pagamento do check-out é FULL', async () => {
+        await truncateAll();
+        await runSeed('2026-12-10 15:00-03');
+        const rows = await q(`SELECT r.status, p.kind FROM payments p JOIN reservations r ON r.id = p.reservation_id
+            JOIN guests g ON g.id = r.guest_id
+            WHERE g.cpf IN ('30000000022', '30000000024', '40000000014', '40000000015') ORDER BY g.cpf`);
+        expect(rows).toEqual([
+            { status: 'CONFIRMED', kind: 'DEPOSIT' }, { status: 'CHECKED_OUT', kind: 'FULL' },
+            { status: 'CONFIRMED', kind: 'DEPOSIT' }, { status: 'CHECKED_OUT', kind: 'FULL' }
+        ]);
+    });
+
+    it('🟢 quarto em manutenção não vira limpeza, e mesa aberta na demo não muda de horário', async () => {
+        await truncateAll();
+        await runSeed('2026-12-10 15:00-03');
+        await sequelize.query(`
+            UPDATE rooms SET status = 'MAINTENANCE' WHERE id = ${quarto('105')};
+            INSERT INTO accounts (id, tenant_id, type, status, label, charges_lodging, opened_at, created_at, updated_at)
+            VALUES (gen_random_uuid(), ${aurora}, 'TABLE', 'OPEN', 'Mesa 7', false, '2026-12-07 20:00-03', now(), now());`);
+        await runSeed('2026-12-12 15:00-03');
+        expect((await one(`SELECT status FROM rooms WHERE id = ${quarto('105')}`)).status).toBe('MAINTENANCE');
+        const mesa = await one(`SELECT to_char(opened_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD HH24:MI') AS o FROM accounts WHERE label = 'Mesa 7'`);
+        expect(mesa.o).toBe('2026-12-07 20:00');
+    });
+
+    it('as reservas novas do cenário nascem antes do próprio sinal e da própria entrada', async () => {
+        await truncateAll();
+        // Dia no passado: com o now() real, uma reserva criada "agora" nasceria depois da entrada.
+        await runSeed('2026-11-01 15:00-03');
+        const { n } = await one(`SELECT COUNT(*)::int AS n FROM reservations r
+            JOIN guests g ON g.id = r.guest_id AND g.cpf IN ('30000000022','30000000023','30000000024','40000000014','40000000015')
+            WHERE r.created_at > (r.check_in_date + time '00:00') AT TIME ZONE '${TZ}'
+               OR EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.paid_at < r.created_at)`);
+        expect(n).toBe(0);
+    });
+});

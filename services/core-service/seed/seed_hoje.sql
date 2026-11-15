@@ -29,8 +29,14 @@
 --   - em outro dia: leva o cenário para o novo dia, sem criar linhas;
 --   - nunca desfaz a demonstração: reserva do cenário que mudou de situação (check-in feito,
 --     cancelada) fica como está, e conta fechada não se mexe — a mesma regra do seed_consumo.
+--   - quarto do cenário tomado por outra reserva no novo período: a linha é pulada com aviso
+--     (NOTICE), em vez de a EXCLUDE de double-booking derrubar o arquivo inteiro.
 --   A identidade de cada reserva do cenário é (hotel, CPF do hóspede, quarto): os hóspedes
 --   novos (30000000022 a 24, 40000000014 e 15) não têm outra reserva no seed.
+--
+-- DEPOIS DE UM ENSAIO, RECRIE O BANCO antes da banca (docker compose down -v; up; migrate; seed).
+-- Rodar por cima de um banco usado não desfaz o ensaio: o check-in feito ontem continua feito, e
+-- o painel de hoje sai incompleto. O resumo no fim do arquivo avisa (WARNING) quando isso acontece.
 --
 -- Os triggers do outbox (applyDbConstraints.js) publicam cada INSERT e UPDATE: o analytics
 -- recebe o cenário pelo mesmo caminho da API, sem carga inicial.
@@ -50,6 +56,8 @@ DECLARE
   v_ci date; v_co date; v_paid timestamptz; v_ultimo timestamptz;
   v_delta int;
   movida boolean;
+  v_existe boolean;
+  v_conflito record;
 BEGIN
   FOR s IN
     SELECT * FROM (VALUES
@@ -91,14 +99,35 @@ BEGIN
     SELECT * INTO r FROM reservations
      WHERE tenant_id = v_tenant AND guest_id = v_guest AND room_id = v_room AND deleted_at IS NULL
      ORDER BY created_at LIMIT 1;
+    v_existe := FOUND;
 
-    IF NOT FOUND THEN
+    IF v_existe AND r.status <> s.status THEN
+      CONTINUE;                                   -- a demonstração mexeu nela: fica como está
+    END IF;
+
+    -- Outra reserva bloqueando o quarto no novo período (a demo vendeu o quarto): pula a linha e
+    -- diz qual, em vez de deixar a EXCLUDE de double-booking abortar o arquivo inteiro.
+    IF NOT (v_existe AND r.check_in_date = v_ci AND r.check_out_date = v_co) THEN
+      SELECT re.check_in_date, re.check_out_date INTO v_conflito
+        FROM reservation_rooms rr JOIN reservations re ON re.id = rr.reservation_id
+       WHERE rr.room_id = v_room AND rr.blocks_room
+         AND rr.reservation_id IS DISTINCT FROM (CASE WHEN v_existe THEN r.id END)
+         AND daterange(rr.check_in_date, rr.check_out_date, '[)') && daterange(v_ci, v_co, '[)')
+       LIMIT 1;
+      IF FOUND THEN
+        RAISE NOTICE 'seed_hoje: % quarto % já reservado de % a % por outra reserva — linha do cenário pulada',
+          s.subdomain, s.room, v_conflito.check_in_date, v_conflito.check_out_date;
+        CONTINUE;
+      END IF;
+    END IF;
+
+    IF NOT v_existe THEN
       INSERT INTO reservations (tenant_id, guest_id, room_id, user_id, check_in_date, check_out_date, status, total_amount)
       VALUES (v_tenant, v_guest, v_room, v_user, v_ci, v_co, s.status, v_price * (s.co_off - s.ci_off))
       RETURNING id INTO v_res;
+      -- Criada uma semana antes da entrada, como uma reserva de verdade (não depois do próprio sinal).
+      UPDATE reservations SET created_at = ((v_ci - 7) + time '10:00') AT TIME ZONE tz WHERE id = v_res;
       movida := true;
-    ELSIF r.status <> s.status THEN
-      CONTINUE;                                   -- a demonstração mexeu nela: fica como está
     ELSIF r.check_in_date = v_ci AND r.check_out_date = v_co THEN
       v_res := r.id;
       movida := false;                            -- já está no dia: nada a fazer
@@ -125,14 +154,17 @@ BEGIN
       UPDATE payments SET paid_at = v_paid
        WHERE reservation_id = v_res AND amount = s.pay_amount AND status = 'PAID' AND deleted_at IS NULL;
       IF NOT FOUND THEN
-        INSERT INTO payments (tenant_id, reservation_id, amount, method, status, paid_at)
-        VALUES (v_tenant, v_res, s.pay_amount, s.pay_method, 'PAID', v_paid);
+        -- Sinal da chegada (CONFIRMED) é DEPOSIT: a linha do tempo mostra "Sinal · PIX".
+        INSERT INTO payments (tenant_id, reservation_id, amount, method, status, paid_at, kind)
+        VALUES (v_tenant, v_res, s.pay_amount, s.pay_method, 'PAID', v_paid,
+                CASE WHEN s.status = 'CONFIRMED' THEN 'DEPOSIT' ELSE 'FULL' END);
       END IF;
     END IF;
 
     -- Saída feita hoje deixa o quarto para a limpeza (OCCUPIED → CLEANING no check-out).
     IF movida AND s.status = 'CHECKED_OUT' THEN
-      UPDATE rooms SET status = 'CLEANING' WHERE id = v_room AND status <> 'OCCUPIED';
+      -- Allowlist da máquina de quartos: MAINTENANCE (bloqueio do admin) e OCCUPIED ficam.
+      UPDATE rooms SET status = 'CLEANING' WHERE id = v_room AND status IN ('AVAILABLE', 'CLEANING');
     END IF;
   END LOOP;
 
@@ -158,6 +190,7 @@ BEGIN
     SELECT ac.id, ac.opened_at
       FROM accounts ac JOIN tenants t ON t.id = ac.tenant_id AND t.subdomain IN ('aurora', 'sol')
      WHERE ac.status = 'OPEN' AND ac.type IN ('TABLE', 'DAY_USE') AND ac.deleted_at IS NULL
+       AND ac.label IN ('Mesa 3', 'Day-use — piscina')        -- só as do seed_consumo, nunca as da demo
        AND (ac.opened_at AT TIME ZONE tz)::date < hoje - 1
   LOOP
     SELECT GREATEST(a.opened_at, COALESCE(MAX(ai.consumed_at), a.opened_at)) INTO v_ultimo
@@ -168,6 +201,26 @@ BEGIN
     END IF;
     UPDATE account_items SET consumed_at = consumed_at + v_delta * interval '1 day' WHERE account_id = a.id;
     UPDATE accounts SET opened_at = opened_at + v_delta * interval '1 day' WHERE id = a.id;
+  END LOOP;
+
+  -- Resumo do dia por hotel. Se não bate com o cenário (banco usado em ensaio, quarto vendido na
+  -- demo), avisa em WARNING: o seed termina, mas o painel de hoje vai sair incompleto.
+  FOR a IN
+    SELECT t.subdomain,
+           COUNT(*) FILTER (WHERE re.status IN ('PENDING','CONFIRMED') AND re.check_in_date = hoje)  AS chegadas,
+           COUNT(*) FILTER (WHERE re.status = 'CHECKED_IN')                                           AS na_casa,
+           COUNT(*) FILTER (WHERE re.status = 'CHECKED_IN' AND re.check_out_date = hoje)              AS saidas,
+           COUNT(*) FILTER (WHERE re.status = 'CHECKED_IN' AND NOT (re.check_in_date <= hoje AND re.check_out_date >= hoje)) AS fora_da_janela
+      FROM tenants t LEFT JOIN reservations re ON re.tenant_id = t.id AND re.deleted_at IS NULL
+     WHERE t.subdomain IN ('aurora', 'sol')
+     GROUP BY t.subdomain ORDER BY t.subdomain
+  LOOP
+    RAISE NOTICE 'seed_hoje: % em %: % chegada(s), % na casa, % saída(s)', a.subdomain, hoje, a.chegadas, a.na_casa, a.saidas;
+    IF (a.subdomain = 'aurora' AND (a.chegadas, a.na_casa, a.saidas) <> (2::bigint, 4::bigint, 1::bigint))
+       OR (a.subdomain = 'sol' AND (a.chegadas, a.na_casa, a.saidas) <> (1::bigint, 2::bigint, 1::bigint))
+       OR a.fora_da_janela > 0 THEN
+      RAISE WARNING 'seed_hoje: o cenário de % não ficou completo (banco já usado em ensaio?). Para a banca, recrie o banco: docker compose down -v, up, migrate e seed.', a.subdomain;
+    END IF;
   END LOOP;
 END $$;
 
