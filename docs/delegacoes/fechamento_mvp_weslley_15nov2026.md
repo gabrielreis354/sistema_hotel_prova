@@ -49,10 +49,25 @@ de receita logo acima mostra todos os meses. Quem lê compara barras vizinhas co
 seguidos. Preencher os meses vazios com zero, como o de receita já faz (achado 3 de
 `docs/qa/revisao_telas_prontas_15112026.md`).
 
+## 3c. O que a banca precisa ver — até 24/11
+
+A reavaliação de 15/11 conferiu o MVP contra o Termo e o Doc 08. O código cumpre, mas o roteiro
+não mostra duas coisas que o Termo avalia:
+
+- **Monitoramento (Prometheus + Grafana):** um **passo 8**, de uns 30 s, abrindo o painel do
+  Grafana com as métricas do core e a fila do RabbitMQ. Conferir no ensaio de 24/11.
+- **CI/CD:** uma execução verde do GitHub Actions, aberta numa aba, para mostrar na apresentação.
+
+O **passo 6** fica no sandbox real do Asaas, como no seu ensaio de 12/11, com o provedor simulado
+só se a rede cair. Por isso a chave nova do item 1 precisa estar no `.env` da máquina da
+apresentação.
+
 ## 4. Documentos acadêmicos
 
-A estimativa de custo da AWS (#146) e o Doc 08 precisam ser conferidos contra os critérios de
-aceite do enunciado antes de cada reentrega ao professor.
+- **Doc 08 v1.3, antes de 10/12.** A versão entregue é a v1.1 (29/10): o roteiro ainda aparece "a
+  fazer" e o passo 6 como "proposta". Atualizar com o estado real, incluindo os passos 6 e 8 acima.
+- A estimativa de custo da AWS (#146) e o Doc 08 precisam ser conferidos contra os critérios de
+  aceite do enunciado antes de cada reentrega ao professor.
 
 ## Datas
 
@@ -61,6 +76,8 @@ aceite do enunciado antes de cada reentrega ao professor.
 | Já | Chave do Asaas trocada |
 | 17/11 | Compose sobe na primeira tentativa |
 | 22/11 | Roteiro no CI |
+| 24/11 | Passo 8 no Grafana e execução verde do Actions prontos |
 | 24/11 | Congelamento + segundo ensaio com todos |
 | 01/12 | Versão final + ensaio geral |
+| antes de 10/12 | Doc 08 v1.3 |
 | 10/12 | Apresentação |

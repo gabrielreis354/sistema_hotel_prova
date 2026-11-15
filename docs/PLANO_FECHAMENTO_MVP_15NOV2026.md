@@ -52,7 +52,7 @@ O frontend é o app `app-pms`: React + TypeScript, um app só para recepção, g
    - **(a)** Mostrar pela API pública, com uma chamada pronta, o QR do PIX e a reserva mudando para "confirmada" na tela de reservas do app. Custo: quase zero. Foi a proposta da pauta de 03/11 (decisão 5), ainda não registrada.
    - **(b)** Construir uma página pública mínima de reserva. Custo: uns 3 a 4 dias, perto do congelamento.
 
-   **Recomendação: (a).** Ver a pergunta ao Gabriel no §7.
+   **Decidido em 15/11: (a), com o sandbox real do Asaas** (como no ensaio de 12/11, webhook pelo ngrok). O provedor simulado fica só para queda de rede: é a única API externa visível no roteiro (ver a reavaliação abaixo). Ver a pergunta ao Gabriel no §7.
 6. **Risco conhecido, sem tarefa:** o app ainda não é um PWA, ou seja, não tem um *service worker* que guarde as telas no aparelho. Se o garçom **recarregar a página sem rede**, o app não abre. Na demonstração, o passo 3 deve **desligar a rede com a comanda já aberta e não recarregar**. Fica registrado para o 5º semestre.
 
 ### Revisão das telas "prontas" (15/11)
@@ -61,10 +61,38 @@ As telas marcadas como ✅ foram revisadas uma a uma, por papel, no computador e
 (`docs/qa/revisao_telas_prontas_15112026.md`). Funcionam todas, sem erro de JavaScript e sem
 requisição com falha, mas a revisão achou pontos a corrigir antes do congelamento:
 - **O seed põe hóspedes "na casa" em quartos marcados como livres.** O painel Hoje mostra "Livres 15 · Ocupação 0%" com 4 hóspedes na casa. Vai junto da tarefa do seed (Sirlande).
-- **O check-in não confere as datas.** Uma reserva vencida em setembro ainda pode receber check-in e lançar diárias de noites que não aconteceram. A regra é decisão do Gabriel.
+- ~~**O check-in não confere as datas.**~~ **Resolvido no PR #147:** o check-in só abre quando a entrada já chegou e a saída ainda não. O hóspede de madrugada no dia da saída fica como limitação aceita no MVP.
 - **O gráfico de sazonalidade pula meses**, e o **comprovante não diz qual hotel o emitiu**.
 - **O CPF aparece de três jeitos:** completo, mascarado e formatado, conforme a tela.
 - Seis acabamentos menores, como o nome "Hotel PMS" no lugar de Gesway e alvos de toque pequenos no celular.
+
+### Reavaliação do MVP contra o Termo e os documentos entregues (15/11)
+
+**Conclusão: o MVP faz sentido e cumpre o Termo do 4º semestre.** O Termo pede os 8 documentos e
+"um MVP funcional do sistema, demonstrando a viabilidade da proposta e a integração inicial dos
+microsserviços". O passo 7 mostra o `analytics-service` separado, recebendo eventos do core pelo
+RabbitMQ.
+
+Os documentos estão coerentes com esse recorte:
+- o Doc 08 define o MVP como o roteiro de 7 passos;
+- o Doc 06 (C4) se declara arquitetura-alvo;
+- o Doc 02 explica que as rotas B2B ficam no core até a extração do `b2b-service`, no 5º semestre.
+
+**O que a demonstração precisa mostrar e hoje não mostra.** O Doc 08 promete para o 4º semestre
+API externa real, Prometheus e Grafana locais e CI por serviço. O código tem tudo isso; o roteiro
+não mostra.
+
+| # | Ponto | Critério do Termo | O que fazer | Dono |
+|---|---|---|---|---|
+| R1 | A única API externa visível é o PIX. O ViaCEP existe só pela API: a tela que o usaria é a de clientes corporativos, fora do MVP | Integração externa (C2) | Passo 6 com o **sandbox real do Asaas**; o provedor simulado só se a rede cair. O ViaCEP fica como evidência de reserva, mostrado pelo Swagger | Gabriel e Weslley |
+| R2 | Prometheus e Grafana estão no compose, mas nenhum passo abre o Grafana | Monitoramento (C8) | **Passo 8, de 30 s:** o painel do Grafana com as métricas do core e a fila do RabbitMQ. Conferir no ensaio de 24/11 | Weslley |
+| R3 | Os três workflows existem, mas a banca não os vê | CI/CD (C6) | Uma execução verde do GitHub Actions aberta na apresentação | Weslley |
+| R4 | O Doc 08 entregue é a v1.1 (29/10): o roteiro ainda aparece "a fazer" e o passo 6 como "proposta" | Documentação (C9) | Doc 08 v1.3 com o estado real, antes de 10/12 | Weslley (dono do Doc 08) |
+| R5 | O menu "Usuários" mostra "em breve" na frente da banca | — | Esconder o item no MVP (fica para o 5º semestre) | Gabriel (SPEC-09) |
+| R6 | Perguntas prováveis de uma banca de mercado: como cadastrar funcionários (só pelo seed ou pela API)? Como um hotel novo entra (só pela API)? E a ficha de registro do hóspede, obrigatória no Brasil? E o fechamento de caixa? | — | **Folha de respostas** de 1 página: estão no Doc 02 (RF-004, RF-001, RF-055, RF-056) e planejados para o 5º semestre | Gabriel |
+
+As correções de tela da revisão e o R5 estão especificados na **SPEC-09**
+(`docs/specs/SPEC-09-acabamento-telas-mvp.md`).
 
 Fora do MVP, por decisão de 21/10 (não fazer agora):
 - a tela de Usuários, que hoje mostra só "em breve";
@@ -94,8 +122,10 @@ Fora do MVP, por decisão de 21/10 (não fazer agora):
   - decidir sobre os PRs de documentação #133, #134, #146 e #129.
 - Até 20/11: colocar o roteiro automatizado no repositório (`frontend/e2e/`, comando `pnpm e2e`), com revisão do agente qa-redteam antes do merge.
 - **Só se o Sirlande concordar** (a comanda é dele): implementar os itens 1 e 2 do §3, o aviso de sem conexão e o tempo restante para desfazer.
+- Até 22/11: as correções de tela da SPEC-09, com agentes e revisão do qa-redteam, e a folha de respostas para a banca (R6).
+- No roteiro: o passo 6 no sandbox real (R1) e o passo 8 no Grafana (R2).
 - Decisões que só ele pode tomar:
-  - como mostrar o passo 6 (§3, item 5);
+  - ~~como mostrar o passo 6~~ (decidido em 15/11: opção (a), §3, item 5);
   - se o balcão passa a validar o CPF;
   - registrar no CLAUDE.md a regra de que, no walk-in, o check-in cancela a cobrança de sinal pendente.
 - 01/12: publicar a versão final na `main`, com aprovação do Sirlande.
@@ -111,11 +141,14 @@ Fora do MVP, por decisão de 21/10 (não fazer agora):
 - Até 22/11:
   - colocar no CI o roteiro automatizado, sem bloquear o merge;
   - o job de CI do frontend (tipos, testes e build) já existe desde 31/10 (`ci-frontend.yml`); o roteiro entra como job separado.
+- Até 24/11: o passo 8 do roteiro, no Grafana (R2), e uma execução verde do Actions pronta para mostrar (R3).
+- Antes de 10/12: Doc 08 v1.3 com o estado real (R4).
 - Documentos acadêmicos: estimativa de custo AWS (#146) e Doc 08, conferidos contra os critérios de aceite antes de cada reentrega.
 
 ### Todos
 - **24/11, congelamento.** Segundo ensaio completo, num ambiente recém-criado, com os dados do dia. Critérios:
-  - os 7 passos funcionam;
+  - os 7 passos funcionam, mais o passo 8 no Grafana;
+  - o passo 6 no sandbox real do Asaas;
   - o painel Hoje e os indicadores mostram números diferentes de zero;
   - nenhum defeito 🔴 em aberto.
 - **25 a 30/11:** só correções. Cada uma passa pela revisão do qa-redteam.
@@ -134,10 +167,12 @@ Fora do MVP, por decisão de 21/10 (não fazer agora):
 | 01/12 | Versão final na `main` + ensaio geral | Gabriel, com aprovação do Sirlande |
 | 10/12 | Apresentação | todos |
 
-## 7. Pergunta aberta ao Gabriel
+## 7. Decisões e o que segue em aberto
 
-Como mostrar o passo 6 (reserva direta com PIX)? A recomendação é mostrar pela API, com o QR e a
-reserva confirmando no app, em vez de construir uma página pública às vésperas do congelamento.
+- **Decidido em 15/11:** o passo 6 é mostrado pela API, com o QR e a reserva confirmando no app,
+  no sandbox real do Asaas.
+- **Em aberto:** aprovar a SPEC-09 (correções das telas), incluindo se o CPF continua completo na
+  lista de hóspedes.
 
 ## 8. Documentos ligados a este plano
 

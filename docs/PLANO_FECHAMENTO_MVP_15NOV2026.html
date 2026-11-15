@@ -114,7 +114,7 @@
       <li>(a) mostrar pela API pública, com o QR do PIX e a reserva mudando para "confirmada" no app. Custo quase zero.</li>
       <li>(b) construir uma página pública mínima de reserva. Uns 3 a 4 dias, perto do congelamento.</li>
     </ul>
-    <strong>Recomendação: (a).</strong></li>
+    <strong>Decidido em 15/11: (a), com o sandbox real do Asaas.</strong> O provedor simulado fica só para queda de rede.</li>
   <li><strong>Risco conhecido.</strong> O app ainda não funciona instalado no celular (PWA). Se o garçom <em>recarregar</em> a página sem rede, o app não abre. Na demonstração, desligue a rede com a comanda já aberta e não recarregue.</li>
 </ol>
 
@@ -124,13 +124,28 @@
   <thead><tr><th>Gravidade</th><th>Achado</th><th>Quem</th></tr></thead>
   <tbody>
     <tr><td><span class="tag bad">Aparece na banca</span></td><td><strong>Os dados de demonstração põem hóspedes "na casa" em quartos marcados como livres.</strong> O painel Hoje mostra "Livres 15 · Ocupação 0%" com 4 hóspedes na casa, e a Nova reserva oferece quartos ocupados como livres.</td><td>Sirlande, junto dos dados do dia</td></tr>
-    <tr><td><span class="tag warn">Regra</span></td><td><strong>O check-in não confere as datas.</strong> Uma reserva vencida em setembro ainda pode receber check-in e lançar diárias de noites que não aconteceram. Nova regra: check-in só quando a entrada já chegou e a saída ainda não passou.</td><td>Gabriel</td></tr>
+    <tr><td><span class="tag ok">Resolvido</span></td><td><strong>O check-in não conferia as datas.</strong> Agora só abre quando a entrada já chegou e a saída ainda não (PR #147).</td><td>Gabriel</td></tr>
     <tr><td><span class="tag warn">Informação</span></td><td>O gráfico de sazonalidade pula os meses sem reserva: de março vai direto para junho.</td><td>Weslley</td></tr>
     <tr><td><span class="tag warn">Informação</span></td><td>O comprovante impresso não diz qual hotel o emitiu.</td><td>Gabriel</td></tr>
     <tr><td><span class="tag warn">Informação</span></td><td>O CPF aparece de três jeitos (completo, mascarado e formatado), conforme a tela.</td><td>Gabriel</td></tr>
     <tr><td><span class="tag ok">Acabamento</span></td><td>Seis ajustes menores, entre eles o nome "Hotel PMS" no lugar de <strong>Gesway</strong> e botões pequenos para o toque no celular.</td><td>Gabriel e Sirlande</td></tr>
   </tbody>
 </table></div>
+
+<h3>Reavaliação do MVP contra o Termo e os documentos (15/11)</h3>
+<div class="note"><strong>Conclusão: o MVP faz sentido e cumpre o Termo do 4º semestre.</strong> O Termo pede os 8 documentos e um MVP que demonstre a integração inicial dos microsserviços. O passo 7 mostra o serviço de analytics separado, recebendo eventos do core pela fila. Os documentos estão coerentes com esse recorte. O que falta é <em>mostrar</em> à banca o que o código já tem.</div>
+<div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Ponto</th><th>O que fazer</th><th>Quem</th></tr></thead>
+  <tbody>
+    <tr><td>R1</td><td>A única API externa visível no roteiro é o PIX</td><td>Passo 6 com o sandbox real do Asaas; ViaCEP como reserva, pelo Swagger</td><td>Gabriel e Weslley</td></tr>
+    <tr><td>R2</td><td>Prometheus e Grafana estão no compose, mas nenhum passo os abre</td><td>Passo 8, de 30 s, no painel do Grafana</td><td>Weslley</td></tr>
+    <tr><td>R3</td><td>A banca não vê o CI</td><td>Uma execução verde do GitHub Actions aberta na apresentação</td><td>Weslley</td></tr>
+    <tr><td>R4</td><td>O Doc 08 entregue (v1.1, 29/10) está desatualizado</td><td>Doc 08 v1.3 com o estado real, antes de 10/12</td><td>Weslley</td></tr>
+    <tr><td>R5</td><td>O menu "Usuários" mostra "em breve"</td><td>Esconder no MVP (SPEC-09)</td><td>Gabriel</td></tr>
+    <tr><td>R6</td><td>Perguntas prováveis: cadastro de funcionários, entrada de um hotel novo, ficha de registro do hóspede, fechamento de caixa</td><td>Folha de respostas de 1 página, apontando o Doc 02 e o 5º semestre</td><td>Gabriel</td></tr>
+  </tbody>
+</table></div>
+<p>As correções de tela da revisão e o R5 estão na <strong>SPEC-09</strong> (<code>docs/specs/SPEC-09-acabamento-telas-mvp.md</code>). Marca, barra de ações e alvos de toque já estão na SPEC-08, do Sirlande.</p>
 
 <p class="muted">Fora do MVP, por decisão de 21/10 (não fazer agora): tela de Usuários, rack (mapa visual de reservas), financeiro, grupos/B2B e site público completo.</p>
 
@@ -166,7 +181,8 @@
     <h3>Gabriel</h3>
     <ul>
       <li><span class="when">até 16/11</span> Merge do proxy (#145) e do relatório do ensaio (#144); decidir os PRs de documentação.</li>
-      <li><span class="when">antes de 24/11</span> Regra de datas do check-in; comprovante com o hotel; CPF sempre no mesmo formato; marca Gesway.</li>
+      <li><span class="when">feito</span> Regra de datas do check-in (PR #147).</li>
+      <li><span class="when">até 22/11</span> SPEC-09 com agentes: comprovante com o hotel, CPF no mesmo formato, saldo como crédito, "Usuários" fora do menu. Folha de respostas para a banca.</li>
       <li><span class="when">até 20/11</span> Roteiro automatizado no repositório.</li>
       <li><span class="when">se o Sirlande concordar</span> Aviso de sem conexão e tempo para desfazer, na comanda.</li>
       <li><span class="when">01/12</span> Publicar a versão final, com aprovação do Sirlande.</li>
@@ -187,12 +203,14 @@
       <li><span class="when">até 17/11</span> Sistema sobe na 1ª tentativa, conferido em 3 ciclos limpos.</li>
       <li><span class="when">até 22/11</span> Roteiro no CI, ao lado do job do frontend que já existe. O roteiro precisa esperar o servidor do frontend terminar de carregar antes de começar.</li>
       <li><span class="when">antes de 24/11</span> Sazonalidade sem pular meses.</li>
+      <li><span class="when">até 24/11</span> Passo 8 no Grafana e uma execução verde do Actions pronta para mostrar.</li>
+      <li><span class="when">antes de 10/12</span> Doc 08 v1.3 com o estado real.</li>
       <li><span class="when">contínuo</span> Documentos acadêmicos conferidos contra os critérios de aceite.</li>
     </ul>
   </div>
 </div>
 
-<div class="note"><strong>Todos, 24/11 (congelamento):</strong> segundo ensaio completo, num ambiente recém-criado, com os dados do dia. Critérios: os 7 passos funcionam, o painel Hoje e os indicadores mostram números diferentes de zero e não sobra nenhum defeito grave. De 25 a 30/11 entram só correções, cada uma revisada antes do merge.</div>
+<div class="note"><strong>Todos, 24/11 (congelamento):</strong> segundo ensaio completo, num ambiente recém-criado, com os dados do dia. Critérios: os 7 passos funcionam, mais o passo 8 no Grafana, com o passo 6 no sandbox real do Asaas; o painel Hoje e os indicadores mostram números diferentes de zero e não sobra nenhum defeito grave. De 25 a 30/11 entram só correções, cada uma revisada antes do merge.</div>
 
 <h2>6. Calendário</h2>
 <div class="table-wrap"><table>
@@ -209,7 +227,7 @@
 </table></div>
 
 <h2>7. Em aberto</h2>
-<p>Como mostrar o passo 6 (reserva direta com PIX)? A recomendação é mostrar pela API, com o QR e a reserva confirmando no app, em vez de construir uma página pública às vésperas do congelamento.</p>
+<p><strong>Decidido em 15/11:</strong> o passo 6 é mostrado pela API, com o QR e a reserva confirmando no app, no sandbox real do Asaas. Em aberto: aprovar a SPEC-09.</p>
 
 <footer>
   Versão de 15/11/2026. No repositório: <code>docs/PLANO_FECHAMENTO_MVP_15NOV2026.md</code>. Detalhes da revisão: <code>docs/qa/revisao_telas_prontas_15112026.md</code>. Mensagens individuais: <code>docs/delegacoes/fechamento_mvp_*_15nov2026.md</code>.
