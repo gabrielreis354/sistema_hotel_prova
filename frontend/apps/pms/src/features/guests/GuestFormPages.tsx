@@ -17,7 +17,7 @@ export function GuestNewPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-xl font-semibold">Novo hóspede</h1>
+      <h1 className="text-title">Novo hóspede</h1>
       <Card className="p-6">
         <GuestForm
           submitLabel="Cadastrar"
@@ -49,7 +49,7 @@ export function GuestEditPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-xl font-semibold">Editar hóspede</h1>
+      <h1 className="text-title">Editar hóspede</h1>
       <Card className="p-6">
         <GuestForm
           submitLabel="Salvar"

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, matchPath, useLocation } from 'react-router-dom';
+import { Ellipsis } from 'lucide-react';
 import { Button, cn } from '@hotel/ui';
 import { useAuthStore } from '../stores/auth.js';
 import { mobileNavForRole, navItemsForRole, type NavItem } from '../routes/nav.js';
+import { useMyTenant } from '../features/tenant/index.js';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
@@ -20,28 +22,47 @@ export function AppShell() {
   const logout = useAuthStore((s) => s.logout);
   const items = user ? navItemsForRole(user.role) : [];
   const mobile = user ? mobileNavForRole(user.role) : { primary: [], more: [] };
+  // Nome do hotel no cabeçalho (T-08.2): a mesma consulta do emissor do comprovante (T-09.1), em
+  // cache por uma hora. Sem resposta, o lugar dele fica com "Gesway".
+  const { data: tenant } = useMyTenant();
 
+  // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
+  // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[220px_1fr]">
+    <div className="min-h-screen md:grid md:grid-cols-[220px_minmax(0,1fr)]">
       {/* Sidebar — desktop */}
       <aside className="hidden border-r border-gray-200 bg-white md:flex md:flex-col">
-        <div className="px-4 py-4 text-lg font-semibold text-brand">Hotel PMS</div>
-        <nav className="flex-1 space-y-1 px-2">
+        {/* Marca do produto em neutro: brand é "faça isto", não enfeite (GUIA_UI_CORPORATIVA, regra 2). */}
+        <div className="px-4 py-4">
+          <span className="text-lg font-semibold tracking-tight text-gray-900">Gesway</span>
+        </div>
+        <nav aria-label="Menu" className="flex-1 space-y-1 px-2">
           {items.map((item) => (
-            <NavItemLink key={item.to} to={item.to} label={item.label} />
+            <NavItemLink key={item.to} item={item} />
           ))}
         </nav>
       </aside>
 
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-screen min-w-0 flex-col">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
-          <div className="text-sm">
-            <span className="font-medium">{user?.name}</span>
-            <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
+          {/* No celular, quem está logado fica embaixo do hotel: num aparelho compartilhado o garçom
+              precisa ver de quem é a sessão antes de lançar (🟡-3 do qa-redteam de 15/11). */}
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
+            <div className="truncate text-support text-gray-600 sm:hidden">
+              {user?.name} · {user ? ROLE_LABEL[user.role] : ''}
+            </div>
           </div>
-          <Button variant="ghost" size="compact" onClick={logout}>
-            Sair
-          </Button>
+          <div className="flex min-w-0 shrink-0 items-center gap-3">
+            <div className="hidden min-w-0 truncate text-right text-sm sm:block">
+              <span className="font-medium">{user?.name}</span>
+              <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
+            </div>
+            {/* 48 px até o xl (CA-08.g); compacto só no desktop. */}
+            <Button variant="ghost" className="xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm" onClick={logout}>
+              Sair
+            </Button>
+          </div>
         </header>
 
         <main className="flex-1 p-4 pb-20 md:pb-4">
@@ -54,17 +75,25 @@ export function AppShell() {
   );
 }
 
-const TAB = 'flex min-h-touch min-w-0 flex-1 items-center justify-center px-1 text-center text-sm leading-tight';
+// Aba do celular: ícone em cima, rótulo embaixo (12 px, o piso da escala) — o rótulo nunca some.
+const TAB = 'flex min-h-touch min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1 text-center text-support';
 
 /** Barra inferior do celular: abas diretas + "Mais" com o restante (só se houver restante). */
 function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const moreRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
   const inMore = more.some((i) => matchPath({ path: i.to, end: false }, pathname));
 
   // Navegou (por um item do "Mais" ou pela barra): a folha fecha.
   useEffect(() => setOpen(false), [pathname]);
+
+  // A folha abriu: o foco entra nela, no primeiro item (🟢-3 do qa-redteam da T-05.3; decisão de
+  // 15/11, SPEC-08 §9). Sem isso, quem usa teclado ou leitor de tela fica atrás do fundo escuro.
+  useEffect(() => {
+    if (open) sheetRef.current?.querySelector<HTMLElement>('a, button')?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,8 +112,16 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
       {open && (
         <>
           {/* Fundo: toque fora fecha. Não é foco de teclado — o Esc faz o mesmo. */}
-          <div className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div
+            className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30"
+            aria-hidden="true"
+            onClick={() => {
+              setOpen(false);
+              moreRef.current?.focus(); // como o Esc: o foco não cai no body
+            }}
+          />
           <nav
+            ref={sheetRef}
             id="menu-mais"
             aria-label="Mais opções"
             className="sheet-up fixed inset-x-0 bottom-12 z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
@@ -101,6 +138,7 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
                       )
                     }
                   >
+                    <item.icon aria-hidden="true" className="mr-3 size-5 shrink-0" strokeWidth={1.75} />
                     {item.label}
                   </NavLink>
                 </li>
@@ -118,7 +156,8 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
             end={item.to === '/'}
             className={({ isActive }) => cn(TAB, isActive ? 'font-medium text-brand' : 'text-gray-600')}
           >
-            {item.label}
+            <item.icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
+            <span className="max-w-full truncate">{item.label}</span>
           </NavLink>
         ))}
         {more.length > 0 && (
@@ -134,7 +173,8 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
               open || inMore ? 'font-medium text-brand' : 'text-gray-600',
             )}
           >
-            Mais
+            <Ellipsis aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
+            <span>Mais</span>
           </Button>
         )}
       </nav>
@@ -142,19 +182,26 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
   );
 }
 
-function NavItemLink({ to, label }: { to: string; label: string }) {
+/**
+ * Item do menu lateral (T-08.2): ícone de traço fino + rótulo. Ativo = fundo brand/10, texto
+ * brand e fio de 2 px à esquerda — o fio diz "você está aqui" mesmo para quem não distingue a cor.
+ */
+function NavItemLink({ item }: { item: NavItem }) {
   return (
     <NavLink
-      to={to}
-      end={to === '/'}
+      to={item.to}
+      end={item.to === '/'}
       className={({ isActive }) =>
         cn(
-          'block rounded-md px-3 py-2 text-sm',
-          isActive ? 'bg-brand/10 text-brand font-medium' : 'text-gray-700 hover:bg-gray-100',
+          'flex items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm',
+          isActive
+            ? 'border-brand bg-brand/10 font-medium text-brand'
+            : 'border-transparent text-gray-700 hover:bg-gray-100',
         )
       }
     >
-      {label}
+      <item.icon aria-hidden="true" className="size-[18px] shrink-0" strokeWidth={1.75} />
+      {item.label}
     </NavLink>
   );
 }

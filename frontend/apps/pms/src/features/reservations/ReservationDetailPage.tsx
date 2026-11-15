@@ -8,14 +8,22 @@ import { useAuthStore } from '../../stores/auth.js';
 import { myTenantOptions } from '../tenant/index.js';
 import { useBill, useReservation, useTransitionReservation } from './queries.js';
 import type { ReservationTransition } from './reservationsApi.js';
-import { buildBillTimeline, officialBalanceCents, reservationActions, safeNights } from './reservationLogic.js';
+import {
+  buildBillTimeline,
+  nextTab,
+  officialBalanceCents,
+  primaryAction,
+  reservationActions,
+  safeNights,
+  type ReservationTab,
+} from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
 import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
 import { canReceivePayment } from './paymentLogic.js';
 import { BackLink, ButtonLink, CardHeading, InfoItem, Money, Notice } from './components/primitives.js';
 
-type Tab = 'resumo' | 'conta';
+type Tab = ReservationTab;
 type Confirming = null | 'check-out' | 'cancel';
 
 const DONE_MESSAGE: Record<ReservationTransition, string> = {
@@ -38,6 +46,9 @@ export function ReservationDetailPage() {
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
+  // A confirmação do check-out nasce longe do botão do cabeçalho (aba Conta): o foco vai para ela e a
+  // tela rola até lá. Sem isso o foco caía no body com o botão desabilitado (🟡-1 do qa-redteam de 15/11).
+  const checkOutRef = useRef<HTMLHeadingElement>(null);
   const role = useAuthStore((s) => s.user?.role);
   // Adianta o hotel emissor do comprovante (T-09.1): quem abre o comprovante vem desta tela, e
   // assim o nome já está no cache quando a recepção clica em Imprimir.
@@ -78,6 +89,13 @@ export function ReservationDetailPage() {
     });
   }
 
+  // Antes de qualquer return: hook depois de return antecipado muda a ordem entre renders.
+  useEffect(() => {
+    if (confirming !== 'check-out') return;
+    checkOutRef.current?.focus();
+    checkOutRef.current?.scrollIntoView({ block: 'center' });
+  }, [confirming]);
+
   if (reservation.isPending) return <Spinner label="Carregando reserva…" />;
   if (reservation.isError || !reservation.data) {
     const notFound = reservation.error instanceof ApiError && reservation.error.status === 404;
@@ -103,6 +121,9 @@ export function ReservationDetailPage() {
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
+  // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary.
+  const primary = primaryAction(actions);
+
   function openCheckOut() {
     setFeedback(null);
     setConfirming('check-out');
@@ -117,7 +138,7 @@ export function ReservationDetailPage() {
       <Card className="flex flex-wrap items-start justify-between gap-4 p-4">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold">{r.guest?.full_name ?? 'Hóspede removido'}</h1>
+            <h1 className="text-title">{r.guest?.full_name ?? 'Hóspede removido'}</h1>
             <ReservationStatusBadge status={r.status} />
           </div>
           <p className="text-sm text-gray-600 tabular-nums">
@@ -128,6 +149,7 @@ export function ReservationDetailPage() {
             {nights !== null && ` · ${nights} ${nights === 1 ? 'diária' : 'diárias'}`}
           </p>
         </div>
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
         <div className="sm:text-right" aria-live="polite">
           <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
             {balance !== null && balance < 0 ? 'A devolver' : 'Saldo da estadia'}
@@ -145,43 +167,61 @@ export function ReservationDetailPage() {
             </p>
           )}
         </div>
+          {primary === 'check-in' && (
+            <Button block className="sm:w-auto" disabled={busy} onClick={() => run('check-in')}>
+              {busy && transition.variables === 'check-in' ? 'Fazendo check-in…' : 'Fazer check-in'}
+            </Button>
+          )}
+          {primary === 'check-out' && (
+            <Button block className="sm:w-auto" disabled={busy || confirming === 'check-out'} onClick={openCheckOut}>
+              Fazer check-out
+            </Button>
+          )}
+        </div>
       </Card>
 
-      {/* Ações: desabilitadas COM o motivo, nunca escondidas (CA-05.2.e). */}
+      {/* Demais ações: secundárias, desabilitadas COM o motivo e nunca escondidas (CA-05.2.e,
+          CA-08.f). Cancelar fica por último e nunca no lugar da ação principal (T-08.3). */}
       <Card className="p-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <ActionSlot id="acao-checkin" state={actions.checkIn}>
-            {(describedBy) => (
-              <Button
-                block
-                // Só a ação possível agora tem peso de primária; a indisponível não compete por atenção.
-                variant={actions.checkIn.enabled ? 'primary' : 'secondary'}
-                aria-describedby={describedBy}
-                disabled={!actions.checkIn.enabled || busy}
-                onClick={() => run('check-in')}
-              >
-                {busy && transition.variables === 'check-in' ? 'Fazendo check-in…' : 'Fazer check-in'}
-              </Button>
-            )}
-          </ActionSlot>
-          <ActionSlot id="acao-checkout" state={actions.checkOut}>
-            {(describedBy) => (
-              <Button
-                block
-                variant={actions.checkOut.enabled ? 'primary' : 'secondary'}
-                aria-describedby={describedBy}
-                disabled={!actions.checkOut.enabled || busy || confirming === 'check-out'}
-                onClick={openCheckOut}
-              >
-                Fazer check-out
-              </Button>
-            )}
-          </ActionSlot>
-          <ActionSlot id="acao-cancelar" state={actions.cancel}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+          {primary !== 'check-in' && (
+            <ActionSlot id="acao-checkin" state={actions.checkIn} className="sm:max-w-60">
+              {(describedBy) => (
+                <Button
+                  block
+                  variant="secondary"
+                  className={SECONDARY_ACTION}
+                  aria-describedby={describedBy}
+                  disabled={!actions.checkIn.enabled || busy}
+                  onClick={() => run('check-in')}
+                >
+                  Fazer check-in
+                </Button>
+              )}
+            </ActionSlot>
+          )}
+          {primary !== 'check-out' && (
+            <ActionSlot id="acao-checkout" state={actions.checkOut} className="sm:max-w-60">
+              {(describedBy) => (
+                <Button
+                  block
+                  variant="secondary"
+                  className={SECONDARY_ACTION}
+                  aria-describedby={describedBy}
+                  disabled={!actions.checkOut.enabled || busy || confirming === 'check-out'}
+                  onClick={openCheckOut}
+                >
+                  Fazer check-out
+                </Button>
+              )}
+            </ActionSlot>
+          )}
+          <ActionSlot id="acao-cancelar" state={actions.cancel} className="sm:max-w-60">
             {(describedBy) => (
               <Button
                 block
                 variant="secondary"
+                className={SECONDARY_ACTION}
                 aria-describedby={describedBy}
                 disabled={!actions.cancel.enabled || busy || confirming === 'cancel'}
                 onClick={() => {
@@ -221,17 +261,31 @@ export function ReservationDetailPage() {
         )}
       </Card>
 
-      <div role="tablist" aria-label="Seções da reserva" className="flex gap-1 border-b border-gray-200">
-        <TabButton active={tab === 'resumo'} onClick={() => setTab('resumo')} controls="painel-resumo">
+      {/* Abas no padrão da W3C (decisão de 15/11, SPEC-08 §9): setas, Home e End trocam de aba e
+          levam o foco; só a aba ativa entra no Tab do teclado. O Radix Tabs substitui no 5º semestre. */}
+      <div
+        role="tablist"
+        aria-label="Seções da reserva"
+        className="flex gap-1 border-b border-gray-200"
+        onKeyDown={(e) => {
+          if (e.altKey || e.ctrlKey || e.metaKey) return; // Alt+← continua voltando no navegador
+          const next = nextTab(tab, e.key);
+          if (!next) return;
+          e.preventDefault();
+          setTab(next);
+          document.getElementById(`aba-${next}`)?.focus();
+        }}
+      >
+        <TabButton id="aba-resumo" active={tab === 'resumo'} onClick={() => setTab('resumo')} controls="painel-resumo">
           Resumo
         </TabButton>
-        <TabButton active={tab === 'conta'} onClick={() => setTab('conta')} controls="painel-conta">
+        <TabButton id="aba-conta" active={tab === 'conta'} onClick={() => setTab('conta')} controls="painel-conta">
           Conta
         </TabButton>
       </div>
 
       {tab === 'resumo' && (
-        <section id="painel-resumo" role="tabpanel" className="space-y-4">
+        <section id="painel-resumo" role="tabpanel" aria-labelledby="aba-resumo" className="space-y-4">
           <Card className="p-4">
             <CardHeading>Hóspede</CardHeading>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -292,10 +346,12 @@ export function ReservationDetailPage() {
       )}
 
       {tab === 'conta' && (
-        <section id="painel-conta" role="tabpanel" className="space-y-4">
+        <section id="painel-conta" role="tabpanel" aria-labelledby="aba-conta" className="space-y-4">
           {confirming === 'check-out' && (
             <Card className="space-y-3 border-brand/50 p-4">
-              <h2 className="text-sm font-semibold text-gray-800">Confirmar check-out</h2>
+              <h2 ref={checkOutRef} tabIndex={-1} className="text-section text-gray-800 focus:outline-none">
+                Confirmar check-out
+              </h2>
               <p className="text-sm text-gray-700">
                 Confira a conta abaixo com o hóspede. O check-out fecha as contas da estadia e manda o quarto para limpeza.
               </p>
@@ -329,7 +385,7 @@ export function ReservationDetailPage() {
 
           {receiving && balance !== null && r.id && (
             <Card className="space-y-3 p-4">
-              <h2 className="text-sm font-semibold text-gray-800">Registrar pagamento</h2>
+              <h2 className="text-section text-gray-800">Registrar pagamento</h2>
               {/* key: o valor preenchido acompanha o saldo depois de cada pagamento. */}
               <PaymentForm key={balance} reservationId={r.id} balanceCents={balance} onResult={setPaymentResult} />
             </Card>
@@ -337,7 +393,7 @@ export function ReservationDetailPage() {
 
           <Card className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-800">Conta da estadia</h2>
+              <h2 className="text-section text-gray-800">Conta da estadia</h2>
               <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" className="min-h-touch md:min-h-0 md:py-1.5 md:text-sm">
                 Comprovante para imprimir
               </ButtonLink>
@@ -361,12 +417,17 @@ export function ReservationDetailPage() {
   );
 }
 
+/** Ação secundária: 48 px no celular e no tablet, compacta só a partir de xl (GUIA §3, regra 9). */
+const SECONDARY_ACTION = 'xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm';
+
 function TabButton({
+  id,
   active,
   onClick,
   controls,
   children,
 }: {
+  id: string;
   active: boolean;
   onClick: () => void;
   controls: string;
@@ -375,8 +436,10 @@ function TabButton({
   return (
     <Button
       variant="ghost"
+      id={id}
       role="tab"
       aria-selected={active}
+      tabIndex={active ? 0 : -1}
       aria-controls={controls}
       onClick={onClick}
       className={cn(

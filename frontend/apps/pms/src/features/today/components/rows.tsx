@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { LogIn, LogOut, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDateBR, formatDateTimeBR } from '@hotel/domain';
@@ -16,7 +17,7 @@ import {
   type ReservationTransition,
 } from '../../reservations/index.js';
 import { useReleaseRoom } from '../../rooms/index.js';
-import { checkInBlockedReason, type ArrivalRow, type CleaningRoom, type DepartureRow } from '../todayLogic.js';
+import { BLOCK_LIMIT, checkInBlockedReason, visibleRows, type ArrivalRow, type CleaningRoom, type DepartureRow } from '../todayLogic.js';
 
 export type Feedback = { kind: 'success' | 'error'; text: string };
 type OnResult = (f: Feedback) => void;
@@ -24,9 +25,34 @@ type OnResult = (f: Feedback) => void;
 /** Botão de ação da linha: 48 px no celular e no tablet (toque), mais baixo só no desktop (≥ 1280). */
 const ROW_ACTION = 'w-full sm:w-auto xl:min-h-0 xl:h-10 xl:text-sm';
 
-/** Lista de linhas com divisória — a mesma em todos os blocos. */
-export function RowList({ children }: { children: ReactNode }) {
-  return <ul className="divide-y divide-gray-100">{children}</ul>;
+/** Botão que abre a ação da linha (T-08.4): secundário, com ícone, embaixo do texto no celular. */
+const ROW_TRIGGER = 'w-full sm:w-auto sm:px-3 xl:min-h-0 xl:h-10 xl:text-sm';
+
+/** Ícone da ação de linha: traço fino, sempre com o rótulo ao lado (GUIA, regra 5). */
+const ICON = 'size-4 shrink-0';
+
+/**
+ * Lista de linhas com divisória, a mesma em todos os blocos. Mostra os 8 primeiros e um "Ver todas
+ * (N)" que expande no próprio lugar (T-08.4): com 30 chegadas, o celular passava de 18 mil px.
+ */
+export function RowList<T>({ items, children }: { items: readonly T[]; children: (item: T) => ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  const { shown } = visibleRows(items, expanded);
+  return (
+    <div className="space-y-2">
+      <ul className="divide-y divide-gray-100">{shown.map(children)}</ul>
+      {items.length > BLOCK_LIMIT && (
+        <Button
+          variant="ghost"
+          className="w-full text-brand xl:min-h-0 xl:h-9 xl:text-sm"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? 'Mostrar menos' : `Ver todas (${items.length})`}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -35,10 +61,11 @@ export function RowList({ children }: { children: ReactNode }) {
  */
 function Row({ children, action, panel }: { children: ReactNode; action?: ReactNode; panel?: ReactNode }) {
   return (
-    <li className="py-3">
+    <li className="py-2 sm:py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="min-w-0 space-y-1">{children}</div>
-        {action && <div className="shrink-0 sm:w-auto">{action}</div>}
+        {/* Uma linha por item a partir de xl (T-08.4): nome, selos e quarto lado a lado. */}
+        <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:flex-wrap xl:items-center xl:gap-x-3">{children}</div>
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {panel}
     </li>
@@ -177,13 +204,15 @@ export function ArrivalItem({
         <ActionSlot id={slot} state={checkIn}>
           {(describedBy) => (
             <Button
-              className={ROW_ACTION}
+              className={ROW_TRIGGER}
               aria-describedby={describedBy}
               aria-expanded={confirming}
               aria-controls={panelId}
+              variant="secondary"
               disabled={!checkIn.enabled || busy || confirming}
               onClick={() => setConfirming(true)}
             >
+              <LogIn aria-hidden="true" className={cn(ICON, 'mr-2')} strokeWidth={1.75} />
               Fazer check-in
             </Button>
           )}
@@ -251,13 +280,15 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
         <ActionSlot id={slot} state={checkOut}>
           {(describedBy) => (
             <Button
-              className={ROW_ACTION}
+              className={ROW_TRIGGER}
               aria-describedby={describedBy}
               aria-expanded={confirming}
               aria-controls={panelId}
+              variant="secondary"
               disabled={!checkOut.enabled || busy || confirming}
               onClick={() => setConfirming(true)}
             >
+              <LogOut aria-hidden="true" className={cn(ICON, 'mr-2')} strokeWidth={1.75} />
               Fazer check-out
             </Button>
           )}
@@ -359,12 +390,13 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
       action={
         <Button
           variant="secondary"
-          className={ROW_ACTION}
+          className={ROW_TRIGGER}
           aria-expanded={confirming}
           aria-controls={panelId}
           disabled={busy || confirming || released}
           onClick={() => setConfirming(true)}
         >
+          <Sparkles aria-hidden="true" className={cn(ICON, 'mr-2')} strokeWidth={1.75} />
           {released ? 'Liberado' : 'Liberar quarto'}
         </Button>
       }

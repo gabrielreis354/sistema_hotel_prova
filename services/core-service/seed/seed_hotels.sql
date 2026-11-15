@@ -247,6 +247,12 @@ WHERE t.subdomain = 'aurora'
 AND NOT EXISTS (
   SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
 )
+-- As estadias CHECKED_IN são levadas para o dia pelo seed_hoje.sql (M8): a data de entrada
+-- deixa de ser a do arquivo, e a guarda acima não as acharia mais. Para elas, a identidade é
+-- (hóspede, quarto) — nenhum desses hóspedes tem outra reserva no mesmo quarto.
+AND NOT (v.status = 'CHECKED_IN' AND EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.guest_id = g.id AND r.deleted_at IS NULL
+))
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -268,7 +274,9 @@ CROSS JOIN (VALUES
   ('104','2026-03-01', 450.00, 'DINHEIRO', '2026-03-04 11:00'),
   ('105','2026-03-10', 750.00, 'CARTAO',   '2026-03-15 11:00'),
   ('106','2026-06-15', 750.00, 'PIX',      '2026-06-15 15:00'),
-  ('107','2026-06-16', 450.00, 'CARTAO',   '2026-06-16 15:00'),
+  -- 107: só o sinal na entrada. É a saída do dia no seed_hoje.sql, e o check-out do roteiro
+  -- precisa ter saldo para registrar pagamento (qa-explorador de 15/11).
+  ('107','2026-06-16', 150.00, 'PIX',      '2026-06-16 15:00'),
   ('203','2026-06-14', 1400.00,'PIX',      '2026-06-14 15:00'),
   ('302','2026-06-17', 3200.00,'CARTAO',   '2026-06-17 15:00'),
   ('108','2026-07-01', 600.00, 'PIX',      '2026-06-20 10:00'),
@@ -422,6 +430,12 @@ WHERE t.subdomain = 'sol'
 AND NOT EXISTS (
   SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
 )
+-- As estadias CHECKED_IN são levadas para o dia pelo seed_hoje.sql (M8): a data de entrada
+-- deixa de ser a do arquivo, e a guarda acima não as acharia mais. Para elas, a identidade é
+-- (hóspede, quarto) — nenhum desses hóspedes tem outra reserva no mesmo quarto.
+AND NOT (v.status = 'CHECKED_IN' AND EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.guest_id = g.id AND r.deleted_at IS NULL
+))
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------

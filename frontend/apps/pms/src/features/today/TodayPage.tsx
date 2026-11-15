@@ -63,7 +63,7 @@ export function TodayPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold">Hoje</h1>
+        <h1 className="text-title">Hoje</h1>
         <p className="text-sm text-gray-600 tabular-nums">{formatDateBR(today)}</p>
       </header>
 
@@ -89,7 +89,7 @@ export function TodayPage() {
 
       {/* Atenção (CA-05.3.c): o que pede ação agora, com cor + rótulo. */}
       <section aria-labelledby="atencao-titulo" className="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 id="atencao-titulo" className="text-base font-semibold text-gray-900">
+        <h2 id="atencao-titulo" className="text-section text-gray-900">
           Atenção
         </h2>
         {alerts.isPending ? (
@@ -126,10 +126,8 @@ export function TodayPage() {
           }}
           truncated={arrivals.data && { shown: arrivals.data.data.length, total: arrivals.data.total }}
         >
-          <RowList>
-            {arrivalList.map((row) => (
-              <ArrivalItem key={row.reservation.id} row={row} today={today} onResult={setFeedback} />
-            ))}
+          <RowList items={arrivalList}>
+            {(row) => <ArrivalItem key={row.reservation.id} row={row} today={today} onResult={setFeedback} />}
           </RowList>
         </TodayBlock>
 
@@ -145,10 +143,8 @@ export function TodayPage() {
           empty={{ title: 'Nenhuma saída hoje.', description: 'Os hóspedes com saída marcada para hoje aparecem aqui.' }}
           truncated={inHouse.data && { shown: inHouse.data.data.length, total: inHouse.data.total }}
         >
-          <RowList>
-            {departureList.map((row) => (
-              <DepartureItem key={row.reservation.id} row={row} onResult={setFeedback} />
-            ))}
+          <RowList items={departureList}>
+            {(row) => <DepartureItem key={row.reservation.id} row={row} onResult={setFeedback} />}
           </RowList>
         </TodayBlock>
 
@@ -163,10 +159,8 @@ export function TodayPage() {
           isEmpty={inHouseList.length === 0}
           empty={{ title: 'Nenhum hóspede na casa.', description: 'Quem fizer check-in aparece aqui.' }}
         >
-          <RowList>
-            {inHouseList.map((r) => (
-              <InHouseItem key={r.id} reservation={r} />
-            ))}
+          <RowList items={inHouseList}>
+            {(r) => <InHouseItem key={r.id} reservation={r} />}
           </RowList>
         </TodayBlock>
 
@@ -181,10 +175,8 @@ export function TodayPage() {
           isEmpty={cleaning.length === 0}
           empty={{ title: 'Nenhum quarto em limpeza.', description: 'O quarto entra aqui no check-out.' }}
         >
-          <RowList>
-            {cleaning.map((room) => (
-              <CleaningItem key={room.id} room={room} onResult={setFeedback} />
-            ))}
+          <RowList items={cleaning}>
+            {(room) => <CleaningItem key={room.id} room={room} onResult={setFeedback} />}
           </RowList>
         </TodayBlock>
       </div>

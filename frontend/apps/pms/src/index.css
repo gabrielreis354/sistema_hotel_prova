@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    font-family: Inter, system-ui, sans-serif;
+    font-family: theme('fontFamily.sans');
   }
   body {
     @apply bg-gray-50 text-gray-900 antialiased;

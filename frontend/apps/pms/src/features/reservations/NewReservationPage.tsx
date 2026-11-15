@@ -158,7 +158,7 @@ export function NewReservationPage() {
 
         <aside className="lg:sticky lg:top-4" aria-label="Resumo da reserva">
           <Card className="space-y-3 p-4">
-            <h2 className="text-sm font-semibold text-gray-800">Resumo</h2>
+            <h2 className="text-section text-gray-800">Resumo</h2>
             <dl className="space-y-2 text-sm">
               <Row label="Hóspede">{guest?.full_name ?? '—'}</Row>
               <Row label="Período">
@@ -224,7 +224,7 @@ export function NewReservationPage() {
 function Section({ step, title, children }: { step: number; title: string; children: ReactNode }) {
   return (
     <Card className="space-y-3 p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+      <h2 className="flex items-center gap-2 text-section text-gray-800">
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 text-xs text-brand tabular-nums">
           {step}
         </span>

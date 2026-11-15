@@ -27,14 +27,26 @@ const preset = {
           cleaning: '#d97706', // Limpeza   — âmbar
           maintenance: '#dc2626', // Manutenção — vermelho
         },
+        // Marca por variável CSS (T-08.1): o valor mora em @hotel/ui/tokens.css, para cada hotel
+        // poder ter a sua. `brand` significa "faça isto" (GUIA_UI_CORPORATIVA, regra 2).
         brand: {
-          DEFAULT: '#0f766e', // teal — identidade do produto
-          fg: '#ffffff',
+          DEFAULT: 'rgb(var(--color-brand) / <alpha-value>)',
+          fg: 'rgb(var(--color-brand-fg) / <alpha-value>)',
         },
       },
       fontFamily: {
-        // Uma família (Inter) para todo o produto.
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        // Uma família (Inter) para todo o produto. "Inter Variable" é o nome que o
+        // @fontsource-variable/inter registra: a fonte vai no bundle do app, sem Google Fonts,
+        // e funciona com a rede bloqueada (CA-08.b). As outras ficam só de reserva.
+        sans: ['"Inter Variable"', 'Inter', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        // Escala do GUIA_UI_CORPORATIVA §4 (T-08.1). Apoio nunca abaixo de 12 px.
+        title: ['20px', { lineHeight: '28px', fontWeight: '600' }], // título da página
+        section: ['14px', { lineHeight: '20px', fontWeight: '600' }], // título de seção
+        body: ['14px', { lineHeight: '20px' }], // corpo (formulário no celular usa text-base, 16 px)
+        support: ['12px', { lineHeight: '16px' }], // apoio
+        figure: ['24px', { lineHeight: '32px', fontWeight: '600' }], // valor de destaque, com tabular-nums
       },
       fontVariantNumeric: {
         // Números tabulares em valores monetários e no rack (alinhamento de colunas).

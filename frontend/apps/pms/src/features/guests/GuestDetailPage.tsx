@@ -48,7 +48,7 @@ export function GuestDetailPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{guest.full_name}</h1>
+        <h1 className="text-title">{guest.full_name}</h1>
         <div className="flex gap-2">
           <Link to={`/hospedes/${id}/editar`}>
             <Button variant="secondary">Editar</Button>
@@ -90,7 +90,7 @@ export function GuestDetailPage() {
       </Card>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-gray-700">Histórico de estadias</h2>
+        <h2 className="text-section text-gray-700">Histórico de estadias</h2>
         {stays.isLoading && <Spinner />}
         {stays.isError && <p className="text-sm text-status-maintenance">Falha ao carregar estadias.</p>}
         {stays.data && stays.data.length === 0 && (

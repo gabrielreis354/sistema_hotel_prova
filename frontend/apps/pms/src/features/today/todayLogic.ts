@@ -151,3 +151,16 @@ export function toTodayAlerts(raw: RawAlerts): TodayAlerts {
 export function formatPercent(rate: number): string {
   return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(rate)}%`;
 }
+
+/** Itens visíveis por bloco antes de "Ver todas" (SPEC-08, T-08.4; GUIA_UI_CORPORATIVA §5). */
+export const BLOCK_LIMIT = 8;
+
+/**
+ * Corte do bloco: os `limit` primeiros e quantos ficaram de fora. A ordem vem de quem chama
+ * (arrivalRows e departureRows já põem alerta e atraso primeiro), então o corte nunca esconde o
+ * que pede atenção.
+ */
+export function visibleRows<T>(rows: readonly T[], expanded: boolean, limit = BLOCK_LIMIT): { shown: T[]; hidden: number } {
+  if (expanded || rows.length <= limit) return { shown: [...rows], hidden: 0 };
+  return { shown: rows.slice(0, limit), hidden: rows.length - limit };
+}
