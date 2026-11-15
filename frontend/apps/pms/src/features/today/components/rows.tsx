@@ -156,7 +156,7 @@ export function ArrivalItem({ row, onResult }: { row: ArrivalRow<ReservationList
   const r = row.reservation;
   const [confirming, setConfirming] = useState(false);
   const { run, busy } = useRowTransition(r, onResult);
-  const allowed = reservationActions(r.status).checkIn;
+  const allowed = reservationActions(r.status, r).checkIn;
   const blocked = allowed.enabled ? checkInBlockedReason(r.room) : null;
   const checkIn = blocked ? { enabled: false, reason: blocked } : allowed;
   const slot = `chegada-${r.id}`;

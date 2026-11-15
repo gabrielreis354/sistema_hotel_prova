@@ -342,3 +342,26 @@ describe('guestDraftFromTerm — o que foi digitado na busca vira o campo do cad
     expect(guestDraftFromTerm('  ')).toEqual({ full_name: '', cpf: '', phone: '', email: '' });
   });
 });
+
+describe('reservationActions — check-in pela janela de datas (regra de 15/11/2026)', () => {
+  const hoje = '2026-11-15';
+  it('reserva vencida: check-in desabilitado, motivo manda cancelar, cancelar segue habilitado', () => {
+    const a = reservationActions('PENDING', { check_in_date: '2026-09-10', check_out_date: '2026-09-12' }, hoje);
+    expect(a.checkIn.enabled).toBe(false);
+    expect(a.checkIn.reason).toBe('Reserva vencida: a saída era 12/09/2026. Cancele em vez de fazer o check-in.');
+    expect(a.cancel).toEqual({ enabled: true });
+  });
+  it('entrada no futuro: check-in desabilitado com a data de entrada', () => {
+    const a = reservationActions('CONFIRMED', { check_in_date: '2026-11-20', check_out_date: '2026-11-22' }, hoje);
+    expect(a.checkIn).toEqual({ enabled: false, reason: 'Check-in só a partir de 20/11/2026.' });
+  });
+  it('chegada de hoje e chegada atrasada dentro do período: habilitado', () => {
+    expect(reservationActions('PENDING', { check_in_date: hoje, check_out_date: '2026-11-16' }, hoje).checkIn).toEqual({ enabled: true });
+    expect(reservationActions('CONFIRMED', { check_in_date: '2026-11-14', check_out_date: '2026-11-16' }, hoje).checkIn).toEqual({ enabled: true });
+  });
+  it('o motivo do status vem antes do das datas', () => {
+    const a = reservationActions('CHECKED_OUT', { check_in_date: '2026-09-10', check_out_date: '2026-09-12' }, hoje);
+    expect(a.checkIn.reason).toBe('Estadia encerrada.');
+  });
+});
+
