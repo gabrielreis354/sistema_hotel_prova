@@ -12,9 +12,9 @@ export interface NavItem {
 }
 
 /**
- * Navegação por papel (§7.1 do plano). WAITER só vê Comanda; ADMIN vê tudo, incluindo
- * Configurações. A lista é a fonte única do menu e do gate de rota (RequireRole usa os
- * mesmos papéis).
+ * Navegação por papel (§7.1 do plano). WAITER só vê Comanda; ADMIN vê todos os itens do menu.
+ * A lista é a fonte do menu. O gate de rota é o `RequireRole` de cada rota no `App.tsx`, que
+ * pode ter rota fora do menu (Usuários, até a tela existir).
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Hoje', roles: ['ADMIN', 'RECEPTIONIST'], mobilePrimary: true },
@@ -24,7 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/quartos', label: 'Quartos', roles: ['ADMIN', 'RECEPTIONIST'] },
   { to: '/comanda', label: 'Comanda', roles: ['ADMIN', 'RECEPTIONIST', 'WAITER'], mobilePrimary: true },
   { to: '/indicadores', label: 'Indicadores', roles: ['ADMIN'] },
-  { to: '/config/usuarios', label: 'Usuários', roles: ['ADMIN'] },
+  // "Usuários" (/config/usuarios) volta no 5º semestre, quando a tela existir; a rota segue no App.tsx.
 ];
 
 export function navItemsForRole(role: Role): NavItem[] {
@@ -37,7 +37,7 @@ export const MOBILE_TABS_MAX = 5;
 /**
  * Barra inferior do celular (D-3). Se os itens do papel cabem em 5, vão todos direto (a
  * recepção tem 5, o garçom 1) — um "Mais" com um item só seria um toque a mais à toa. Se não
- * cabem (ADMIN, 7), ficam os `mobilePrimary` e o resto entra em "Mais", sempre filtrado pelo
+ * cabem (ADMIN, 6), ficam os `mobilePrimary` e o resto entra em "Mais", sempre filtrado pelo
  * papel: nada aparece no "Mais" que o RequireRole não deixaria abrir.
  */
 export function mobileNavForRole(role: Role): { primary: NavItem[]; more: NavItem[] } {
