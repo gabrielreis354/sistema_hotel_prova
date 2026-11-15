@@ -130,7 +130,7 @@ Corrigido no commit `b8f31d4`:
 - 🟢-4 (parte): comentário de `account-bill.test.js`.
 
 **Em aberto:**
-- 🟡-5, hóspede de madrugada (reserva de 14 a 15/11 com chegada à 01:30 de 15/11): **decisão do Gabriel**.
+- 🟡-5, hóspede de madrugada: **o Gabriel decidiu pela opção (a) em 15/11**. A limitação fica aceita no MVP e registrada no CLAUDE.md §3; a tolerância com horário de corte vai para o 5º semestre.
 - 🟢-1, botão de cancelar na linha da chegada vencida do painel: hoje a recepção cancela pelo detalhe da reserva.
 - 🟢-3, reserva sem datas no front: o servidor barra.
 - 🟢-4, restante: flakiness na virada das 03:00 UTC e falta de teste da ligação nos componentes. Registrados, sem dono.
