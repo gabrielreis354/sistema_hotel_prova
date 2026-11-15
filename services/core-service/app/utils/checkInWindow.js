@@ -22,9 +22,10 @@ export function checkInWindow(checkInDate, checkOutDate, today) {
 const brDate = (iso) => iso.split('-').reverse().join('/');
 
 /** Corpo do 422 de check-in fora da janela, com `code` estável para a tela decidir. */
-export function checkInWindowError(window, reservation) {
+export function checkInWindowError(window, reservation, today) {
     if (window === CHECK_IN_WINDOW.TOO_EARLY) {
         return { code: window, error: `Check-in só a partir de ${brDate(reservation.check_in_date)}, a data de entrada da reserva` };
     }
-    return { code: window, error: `Reserva vencida: a saída era ${brDate(reservation.check_out_date)}. Cancele a reserva em vez de fazer o check-in` };
+    const saida = reservation.check_out_date === today ? 'a saída é hoje' : `a saída era ${brDate(reservation.check_out_date)}`;
+    return { code: window, error: `Reserva vencida: ${saida}. Cancele a reserva em vez de fazer o check-in` };
 }

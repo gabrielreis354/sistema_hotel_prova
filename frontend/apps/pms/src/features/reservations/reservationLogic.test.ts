@@ -348,7 +348,7 @@ describe('reservationActions — check-in pela janela de datas (regra de 15/11/2
   it('reserva vencida: check-in desabilitado, motivo manda cancelar, cancelar segue habilitado', () => {
     const a = reservationActions('PENDING', { check_in_date: '2026-09-10', check_out_date: '2026-09-12' }, hoje);
     expect(a.checkIn.enabled).toBe(false);
-    expect(a.checkIn.reason).toBe('Reserva vencida: a saída era 12/09/2026. Cancele em vez de fazer o check-in.');
+    expect(a.checkIn.reason).toBe('Reserva vencida: a saída era 12/09/2026. Cancele a reserva em vez de fazer o check-in.');
     expect(a.cancel).toEqual({ enabled: true });
   });
   it('entrada no futuro: check-in desabilitado com a data de entrada', () => {
@@ -358,6 +358,10 @@ describe('reservationActions — check-in pela janela de datas (regra de 15/11/2
   it('chegada de hoje e chegada atrasada dentro do período: habilitado', () => {
     expect(reservationActions('PENDING', { check_in_date: hoje, check_out_date: '2026-11-16' }, hoje).checkIn).toEqual({ enabled: true });
     expect(reservationActions('CONFIRMED', { check_in_date: '2026-11-14', check_out_date: '2026-11-16' }, hoje).checkIn).toEqual({ enabled: true });
+  });
+  it('saída hoje: vencida, e o motivo diz que a saída é hoje', () => {
+    const a = reservationActions('PENDING', { check_in_date: '2026-11-14', check_out_date: hoje }, hoje);
+    expect(a.checkIn.reason).toBe('Reserva vencida: a saída é hoje. Cancele a reserva em vez de fazer o check-in.');
   });
   it('o motivo do status vem antes do das datas', () => {
     const a = reservationActions('CHECKED_OUT', { check_in_date: '2026-09-10', check_out_date: '2026-09-12' }, hoje);

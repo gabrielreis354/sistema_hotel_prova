@@ -60,6 +60,12 @@ export function serverMessage(body: unknown): string | undefined {
   return undefined;
 }
 
+const CHECK_IN_WINDOW_CODES = ['CHECK_IN_TOO_EARLY', 'RESERVATION_EXPIRED'];
+
+export function isCheckInWindowError(body: unknown): boolean {
+  return typeof body === 'object' && body !== null && 'code' in body && CHECK_IN_WINDOW_CODES.includes(String(body.code));
+}
+
 /** Erro de reserva com os quartos em conflito, quando o 409 os informa (RoomOccupied). */
 export class RoomConflictError extends ApiError {
   constructor(
@@ -214,6 +220,11 @@ export async function transitionReservation(id: string, action: ReservationTrans
         ? await api.PUT('/reservations/{id}/check-out', options)
         : await api.PUT('/reservations/{id}/cancel', options);
 
+  // Check-in fora da janela de datas (regra de 15/11/2026): não é corrida com outro atendimento,
+  // e a mensagem do servidor já diz o que fazer.
+  if (response.status === 422 && isCheckInWindowError(error)) {
+    throw new ApiError(serverMessage(error) ?? TRANSITION_FAILURE[action], 422);
+  }
   if (response.status === 422) {
     const detail = serverMessage(error);
     throw new ApiError(

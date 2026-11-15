@@ -121,6 +121,17 @@ describe('transitionReservation — 422 da máquina de estados', () => {
     });
   });
 
+  it('422 da janela de datas mostra a mensagem do servidor, sem culpar outro atendimento (🟡-2 do qa-redteam de 15/11)', async () => {
+    const error = 'Reserva vencida: a saída era 12/09/2026. Cancele a reserva em vez de fazer o check-in';
+    api.PUT.mockResolvedValue(reply(422, { code: 'RESERVATION_EXPIRED', error }));
+    await expect(transitionReservation('res1', 'check-in')).rejects.toMatchObject({ status: 422, message: error });
+
+    api.PUT.mockResolvedValue(reply(422, { code: 'CHECK_IN_TOO_EARLY', error: 'Check-in só a partir de 20/11/2026' }));
+    await expect(transitionReservation('res1', 'check-in')).rejects.toMatchObject({
+      message: expect.not.stringMatching(/outro atendimento/),
+    });
+  });
+
   it('chama o endpoint dedicado de cada ação — nunca PUT /reservations/{id}', async () => {
     api.PUT.mockResolvedValue(reply(200, { id: 'res1' }));
     await transitionReservation('res1', 'check-in');

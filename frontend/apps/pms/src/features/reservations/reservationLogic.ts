@@ -128,10 +128,8 @@ function checkInByDates(stay: StayDates | undefined, today: string): ActionState
     return { enabled: false, reason: `Check-in só a partir de ${formatDateBR(stay.check_in_date)}.` };
   }
   if (window === 'EXPIRED') {
-    return {
-      enabled: false,
-      reason: `Reserva vencida: a saída era ${formatDateBR(stay.check_out_date)}. Cancele em vez de fazer o check-in.`,
-    };
+    const saida = stay.check_out_date === today ? 'a saída é hoje' : `a saída era ${formatDateBR(stay.check_out_date)}`;
+    return { enabled: false, reason: `Reserva vencida: ${saida}. Cancele a reserva em vez de fazer o check-in.` };
   }
   return { enabled: true };
 }

@@ -49,7 +49,7 @@ async function checkIn(reservationId) {
     if (res.status !== 200) throw new Error(`check-in falhou: ${res.status} ${JSON.stringify(res.body)}`);
 }
 
-// Datas distintas por reserva: os quartos não colidem no EXCLUDE de ocupação.
+// Cada reserva usa um quarto novo, então datas iguais não colidem no EXCLUDE de ocupação.
 // Estadia a partir de hoje: o check-in só abre dentro do período (regra de 15/11/2026).
 const nextDates = (nights) => stayFromToday(nights);
 

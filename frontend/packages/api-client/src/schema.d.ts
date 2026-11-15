@@ -2209,13 +2209,13 @@ export interface paths {
                         "application/json": components["schemas"]["RoomError"];
                     };
                 };
-                /** @description Check-in não permitido no status atual */
+                /** @description Check-in não permitido no status atual, ou fora da janela de datas (regra de 15/11/2026): code CHECK_IN_TOO_EARLY quando a data de entrada ainda não chegou; code RESERVATION_EXPIRED quando a data de saída já chegou (cancele a reserva). "Hoje" é contado no horário de Brasília. Reserva e quartos não mudam. */
                 422: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["CheckInError"];
                     };
                 };
             };
@@ -5140,6 +5140,12 @@ export interface components {
             field?: string;
             /** @description Só no 400 INVALID_INPUT */
             errors?: string[];
+        };
+        /** @description 422 do check-in. Com code: fora da janela de datas (regra de 15/11/2026) — CHECK_IN_TOO_EARLY (a entrada ainda não chegou) ou RESERVATION_EXPIRED (a saída é hoje ou já passou; cancele a reserva). Sem code: o status atual não permite o check-in. */
+        CheckInError: {
+            error: string;
+            /** @enum {string} */
+            code?: "CHECK_IN_TOO_EARLY" | "RESERVATION_EXPIRED";
         };
         /** @description Quarto ocupado no período. room_ids vem quando a checagem da aplicação acha o conflito; numa corrida barrada pelo banco (EXCLUDE), só error. */
         RoomOccupied: {

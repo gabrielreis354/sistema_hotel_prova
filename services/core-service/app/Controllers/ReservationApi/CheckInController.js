@@ -41,8 +41,9 @@ export default async function CheckInController(request, response) {
         }
 
         // Datas antes dos quartos: reserva vencida ou adiantada não chega a travar quarto.
-        const window = checkInWindow(reservation.check_in_date, reservation.check_out_date, todayInHotel());
-        if (window !== CHECK_IN_WINDOW.OPEN) return await fail(422, checkInWindowError(window, reservation));
+        const today = todayInHotel();
+        const window = checkInWindow(reservation.check_in_date, reservation.check_out_date, today);
+        if (window !== CHECK_IN_WINDOW.OPEN) return await fail(422, checkInWindowError(window, reservation, today));
 
         const pivotRows = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id }, transaction });
         const extraRoomIds = pivotRows

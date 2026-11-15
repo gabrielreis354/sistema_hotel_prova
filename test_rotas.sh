@@ -1,5 +1,8 @@
 #!/bin/bash
 BASE="http://localhost:8080"
+# Datas a partir de hoje, no horário do hotel: o check-in do T12 só abre dentro do período (regra de 15/11/2026).
+d() { TZ=America/Sao_Paulo date -d "+$1 day" +%F; }
+D0=$(d 0); D2=$(d 2); D4=$(d 4); D6=$(d 6)
 
 # Iniciar port-forward em background
 kubectl port-forward svc/nginx 8080:80 -n hotel-system &>/tmp/pf.log &
@@ -56,8 +59,8 @@ ROOM_ID_2=$(echo "$ROOM2" | python3 -c "import sys,json; print(json.load(sys.std
 echo "Room 102 ID: $ROOM_ID_2"
 
 echo ""
-echo "=== T07: Quartos disponíveis (2026-08-01 a 2026-08-05) ==="
-curl -s "$BASE/rooms/available?check_in=2026-08-01&check_out=2026-08-05" \
+echo "=== T07: Quartos disponíveis ($D0 a $D4) ==="
+curl -s "$BASE/rooms/available?check_in=$D0&check_out=$D4" \
   -H "Authorization: Bearer $JWT" \
   | python3 -c "
 import sys,json
@@ -81,7 +84,7 @@ echo "=== T09: Criar reserva (total calculado automaticamente) ==="
 RES=$(curl -s -X POST "$BASE/reservations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT" \
-  -d "{\"guest_id\":\"$GUEST_ID\",\"room_id\":\"$ROOM_ID\",\"check_in_date\":\"2026-08-01\",\"check_out_date\":\"2026-08-05\"}")
+  -d "{\"guest_id\":\"$GUEST_ID\",\"room_id\":\"$ROOM_ID\",\"check_in_date\":\"$D0\",\"check_out_date\":\"$D4\"}")
 echo "$RES"
 RES_ID=$(echo "$RES" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 TOTAL=$(echo "$RES" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_amount'])")
@@ -92,12 +95,12 @@ echo "=== T10: Double booking (espera 409) ==="
 curl -s -o /dev/null -w "HTTP %{http_code}" -X POST "$BASE/reservations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT" \
-  -d "{\"guest_id\":\"$GUEST_ID\",\"room_id\":\"$ROOM_ID\",\"check_in_date\":\"2026-08-03\",\"check_out_date\":\"2026-08-07\"}"
+  -d "{\"guest_id\":\"$GUEST_ID\",\"room_id\":\"$ROOM_ID\",\"check_in_date\":\"$D2\",\"check_out_date\":\"$D6\"}"
 echo ""
 
 echo ""
 echo "=== T11: Disponíveis pós-reserva (101 deve sumir) ==="
-curl -s "$BASE/rooms/available?check_in=2026-08-01&check_out=2026-08-05" \
+curl -s "$BASE/rooms/available?check_in=$D0&check_out=$D4" \
   -H "Authorization: Bearer $JWT" \
   | python3 -c "
 import sys,json
