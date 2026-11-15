@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { onlineManager } from '@tanstack/react-query';
 import { offlineBannerText, useOnline } from './connection.js';
-import { OfflineBanner } from './components/OfflineBanner.js';
+import { OfflineBanner, OfflineNotice } from './components/OfflineBanner.js';
 import { addTap, applyOutcome, awaitsServer, markSending } from './queueCore.js';
 
 const tap = (productId: string) => ({
@@ -39,16 +39,22 @@ describe('OfflineBanner — renderização', () => {
     expect(html).toBe('<div role="status" aria-live="polite"></div>');
   });
 
-  it('sem rede, mostra o aviso e quantos lançamentos aguardam', () => {
+  it('abrindo a conta já sem rede, a região nasce vazia e o texto só entra depois (🟡-2 do red team)', () => {
+    // renderToString é o primeiro render, antes de qualquer efeito: é o que o leitor de tela
+    // registra primeiro. Se o texto viesse junto com a região, não seria anunciado.
     const html = renderToString(<OfflineBanner online={false} waiting={2} />);
-    expect(html).toContain('role="status"');
+    expect(html).toBe('<div role="status" aria-live="polite"></div>');
+  });
+
+  it('o aviso diz "Sem conexão" e quantos lançamentos aguardam', () => {
+    const html = renderToString(<OfflineNotice waiting={2} />);
     expect(html).toContain('Sem conexão:');
     expect(html).toContain('os lançamentos serão enviados quando a rede voltar.');
     expect(html).toContain('2 lançamentos aguardando a rede.');
   });
 
-  it('sem rede e sem fila, não inventa contagem', () => {
-    const html = renderToString(<OfflineBanner online={false} waiting={0} />);
+  it('sem fila, não inventa contagem', () => {
+    const html = renderToString(<OfflineNotice waiting={0} />);
     expect(html).toContain('Sem conexão:');
     expect(html).not.toContain('aguardando');
   });
@@ -58,13 +64,13 @@ describe('useOnline — ligado ao onlineManager do TanStack Query', () => {
   afterEach(() => onlineManager.setOnline(true));
 
   function Probe() {
-    return <OfflineBanner online={useOnline()} waiting={1} />;
+    return <p>{useOnline() ? 'com rede' : 'sem rede'}</p>;
   }
 
-  it('a faixa aparece quando o onlineManager diz offline e some quando a rede volta', () => {
+  it('segue o onlineManager: offline e de volta', () => {
     onlineManager.setOnline(false);
-    expect(renderToString(<Probe />)).toContain('1 lançamento aguardando a rede.');
+    expect(renderToString(<Probe />)).toContain('sem rede');
     onlineManager.setOnline(true);
-    expect(renderToString(<Probe />)).not.toContain('Sem conexão');
+    expect(renderToString(<Probe />)).toContain('com rede');
   });
 });
