@@ -372,3 +372,28 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
         expect(n).toBe(0);
     });
 });
+
+// qa-explorador de 15/11 (docs/qa/exploratorio_m8-seed-painel-hoje_15nov2026.md).
+describe('seed do dia — o roteiro da banca (qa-explorador de 15/11)', () => {
+    beforeAll(async () => {
+        await truncateAll();
+        await runSeed('2026-12-10 15:00-03');
+    });
+
+    it('🟡 a saída do dia tem saldo a pagar: o passo 5 do roteiro registra pagamento no check-out', async () => {
+        const r = await one(`SELECT r.total_amount::numeric AS total,
+                                    COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'PAID'), 0)::numeric AS pago,
+                                    MIN(p.kind) AS kind
+                               FROM reservations r JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000007'
+                               LEFT JOIN payments p ON p.reservation_id = r.id
+                              GROUP BY r.total_amount`);
+        expect({ total: Number(r.total), pago: Number(r.pago), kind: r.kind }).toEqual({ total: 450, pago: 150, kind: 'DEPOSIT' });
+    });
+
+    it('🟢 pagamento novo do seed usa um meio de pagamento atual (CARTAO_CREDITO, não o CARTAO antigo)', async () => {
+        const { n } = await one(`SELECT COUNT(*)::int AS n FROM payments p JOIN reservations r ON r.id = p.reservation_id
+            JOIN guests g ON g.id = r.guest_id
+            WHERE g.cpf IN ('30000000022','30000000024','40000000014','40000000015') AND p.method = 'CARTAO'`);
+        expect(n).toBe(0);
+    });
+});

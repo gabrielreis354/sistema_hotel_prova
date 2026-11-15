@@ -36,3 +36,19 @@ o download de PDF fica fora.
 `infra/k8s/minio-setup.sh` (usa `mc`) continua funcionando; ou (b) `docker save` da imagem que ainda estiver
 em cache em alguma máquina do trio e `docker load` no computador da banca, com o digest anotado no roteiro.
 O mesmo vale para `infra/k8s/` se ele usa a mesma imagem.
+
+---
+
+Origem: QA explorador no navegador da branch `feature/m8-seed-datas-do-dia` (`a0441eb`), relatório em
+`docs/qa/exploratorio_m8-seed-painel-hoje_15nov2026.md`. Os achados abaixo são da tela de Indicadores e não reprovam o M8.
+
+### 🟢 [Indicadores] "Meios de pagamento" mostra o código `CARTAO` cru
+**Onde:** `/indicadores` (ADMIN, 1366), tabela "Recebido por meio de pagamento". O mapa de rótulos fica em `frontend/apps/pms/src/features/analytics/shares.ts`.
+**Passos:** entre como `admin@aurora.example` e abra `/indicadores`.
+**Obtido:** as linhas mostram "CARTAO · 3 · R$ 3.950,00", ao lado de "PIX" e de "Dinheiro" (este com rótulo). Na Pousada Sol aparecem "CARTAO", "PIX" e "Dinheiro". O mapa conhece `CARTAO_CREDITO` e `CARTAO_DEBITO`, mas não o `CARTAO` antigo, que o seed grava. A conta da reserva já trata esse valor (`reservationLogic.ts:249-250`, "Cartão").
+**Quem ganha:** o gerente lê "Cartão" em vez de um código de banco.
+**Evidência:** `evidencias/m8-seed-painel-hoje_15112026/03_indicadores_admin_1366_inicial.png`.
+**Sugestão:** acrescentar `CARTAO: 'Cartão'` ao mapa do `shares.ts`, como a conta da reserva já faz.
+
+### Nota, já conhecido (🟢-2 do red team de 31/10): "Última saída" com data futura ficou visível no ranking
+Com o seed do dia, Isabela Castro (17/11/2026), Henrique Dias e Felipe Rocha (18/11/2026) aparecem em "Hóspedes frequentes" com uma "Última saída" que ainda não aconteceu. O ponto já está registrado em `docs/qa/redteam_t056-indicadores_31out2026.md` (🟢-2). Fica a nota de que agora ele aparece na demonstração.

@@ -11,7 +11,8 @@
 -- O QUE MONTA, NOS DOIS HOTÉIS (hoje = H, no fuso do hotel):
 --   Hotel Aurora                              Pousada Sol
 --   - 4 estadias na casa (106, 107, 203, 302) - 2 estadias na casa (4, 10)
---   - saída hoje: 107                         - saída hoje: 10
+--   - saída hoje: 107 (só o sinal pago:       - saída hoje: 10
+--     o check-out cobra R$ 300,00)
 --   - chegada hoje com sinal pago hoje: 201   - chegada hoje com sinal pago hoje: 5
 --   - chegada hoje sem sinal (no-show): 102
 --   - saída de hoje já feita, pagamento no    - saída de hoje já feita, pagamento no
@@ -57,6 +58,7 @@ DECLARE
   v_delta int;
   movida boolean;
   v_existe boolean;
+  v_kind text;
   v_conflito record;
 BEGIN
   FOR s IN
@@ -64,7 +66,7 @@ BEGIN
       -- hotel,   CPF,          quarto, entrada, saída, situação,      pagamento, método,     quando
       -- Estadias na casa: as CHECKED_IN do seed_hotels.sql (pagas na entrada)
       ('aurora', '30000000006', '106',  -2,  3, 'CHECKED_IN',  750.00, 'PIX',      'entrada'),
-      ('aurora', '30000000007', '107',  -3,  0, 'CHECKED_IN',  450.00, 'CARTAO',   'entrada'),
+      ('aurora', '30000000007', '107',  -3,  0, 'CHECKED_IN',  150.00, 'PIX',      'entrada'),  -- só o sinal: o check-out cobra 300
       ('aurora', '30000000008', '203',  -1,  3, 'CHECKED_IN', 1400.00, 'PIX',      'entrada'),
       ('aurora', '30000000009', '302',  -2,  2, 'CHECKED_IN', 3200.00, 'CARTAO',   'entrada'),
       ('sol',    '40000000005', '4',    -1,  2, 'CHECKED_IN',  360.00, 'PIX',      'entrada'),
@@ -74,7 +76,7 @@ BEGIN
       ('aurora', '30000000023', '102',   0,  3, 'CONFIRMED',   NULL,   NULL,       NULL),
       ('sol',    '40000000014', '5',     0,  2, 'CONFIRMED',   120.00, 'PIX',      'hoje'),
       -- Saída de hoje já feita: pagamento no check-out, quarto fica em limpeza
-      ('aurora', '30000000024', '105',  -2,  0, 'CHECKED_OUT', 300.00, 'CARTAO',   'hoje'),
+      ('aurora', '30000000024', '105',  -2,  0, 'CHECKED_OUT', 300.00, 'CARTAO_CREDITO', 'hoje'),
       ('sol',    '40000000015', '3',    -3,  0, 'CHECKED_OUT', 360.00, 'DINHEIRO', 'hoje')
     ) AS v(subdomain, cpf, room, ci_off, co_off, status, pay_amount, pay_method, pay_when)
   LOOP
@@ -151,13 +153,13 @@ BEGIN
                   WHEN 'entrada' THEN (v_ci + time '15:00') AT TIME ZONE tz
                   ELSE LEAST(agora, (hoje + time '11:00') AT TIME ZONE tz)
                 END;
-      UPDATE payments SET paid_at = v_paid
+      -- Pagamento menor que a estadia é sinal (DEPOSIT): a linha do tempo mostra "Sinal · PIX".
+      v_kind := CASE WHEN s.pay_amount < v_price * (s.co_off - s.ci_off) THEN 'DEPOSIT' ELSE 'FULL' END;
+      UPDATE payments SET paid_at = v_paid, kind = v_kind
        WHERE reservation_id = v_res AND amount = s.pay_amount AND status = 'PAID' AND deleted_at IS NULL;
       IF NOT FOUND THEN
-        -- Sinal da chegada (CONFIRMED) é DEPOSIT: a linha do tempo mostra "Sinal · PIX".
         INSERT INTO payments (tenant_id, reservation_id, amount, method, status, paid_at, kind)
-        VALUES (v_tenant, v_res, s.pay_amount, s.pay_method, 'PAID', v_paid,
-                CASE WHEN s.status = 'CONFIRMED' THEN 'DEPOSIT' ELSE 'FULL' END);
+        VALUES (v_tenant, v_res, s.pay_amount, s.pay_method, 'PAID', v_paid, v_kind);
       END IF;
     END IF;
 
