@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
+import { formatCpf } from '@hotel/domain';
 import { Button, Card, Field, Input, Spinner } from '@hotel/ui';
 import { MIN_SEARCH_TERM, searchTermOf, useCreateGuest, useGuestSearch, type Guest } from '../../guests/index.js';
 import { ApiError } from '../../../lib/http.js';
@@ -38,7 +39,7 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
         <div className="min-w-0">
           <p className="font-medium">{selected.full_name}</p>
           <p className="text-sm text-gray-600">
-            {[selected.cpf, selected.phone, selected.email].filter(Boolean).join(' · ') || 'Sem documento ou contato'}
+            {[formatCpf(selected.cpf), selected.phone, selected.email].filter(Boolean).join(' · ') || 'Sem documento ou contato'}
           </p>
         </div>
         <Button variant="secondary" onClick={() => onSelect(null)}>
@@ -103,7 +104,7 @@ export function GuestPicker({ selected, onSelect }: { selected: Guest | null; on
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-gray-900">{g.full_name}</span>
                   <span className="block truncate text-sm font-normal text-gray-600">
-                    {[g.cpf, g.phone, g.email].filter(Boolean).join(' · ') || 'Sem documento ou contato'}
+                    {[formatCpf(g.cpf), g.phone, g.email].filter(Boolean).join(' · ') || 'Sem documento ou contato'}
                   </span>
                 </span>
                 <span className="shrink-0 text-sm text-brand">Usar</span>
