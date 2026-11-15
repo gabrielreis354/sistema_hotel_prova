@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# start.sh — Utilitário de operação do Sistema de Gestão de Hotel (Kubernetes)
+# start.sh — Utilitário de operação do Sistema de Gestão de Hotel (Kubernetes e, no
+#            compose-up, o Docker Compose da demonstração)
 # =============================================================================
 set -euo pipefail
 
@@ -30,6 +31,7 @@ usage() {
     echo "  test      Expõe postgres via port-forward e roda a suite de testes"
     echo "  tunnel    Inicia port-forward nginx → localhost:8080"
     echo "  health    Verifica o endpoint /health (requer tunnel ativo)"
+    echo "  compose-up  Docker Compose: sobe tudo e confere se o rabbitmq-setup terminou bem [args do up]"
     echo "  help      Mostra esta mensagem"
     echo ""
 }
@@ -232,6 +234,46 @@ cmd_health() {
 }
 
 # =============================================================================
+# Docker Compose (demonstração no computador do grupo). O `up -d` não espera o rabbitmq-setup:
+# desde o #148 ele só exige o broker "iniciado" e espera a API sozinho, até 3 min. Se ele falhar
+# (senha errada, broker lento demais), o `up` termina com sucesso mesmo assim, o analytics fica sem
+# usuário e sem fila, e os Indicadores aparecem zerados. Aqui a falha volta a aparecer na hora.
+COMPOSE_SETUP_TIMEOUT="${COMPOSE_SETUP_TIMEOUT:-200}"   # um pouco acima dos 3 min do script
+
+# Estado do contêiner one-shot: "exited 0" quando terminou bem; vazio enquanto nem foi criado.
+compose_setup_state() {
+    docker compose ps -a --format '{{.State}} {{.ExitCode}}' rabbitmq-setup 2>/dev/null | head -n1
+}
+
+wait_rabbitmq_setup() {
+    local deadline=$((SECONDS + COMPOSE_SETUP_TIMEOUT)) state
+    info "Aguardando o rabbitmq-setup criar filas e usuários (até ${COMPOSE_SETUP_TIMEOUT}s)..."
+    while :; do
+        state=$(compose_setup_state)
+        case "$state" in
+            "exited 0") log "rabbitmq-setup terminou bem: filas e usuários do core e do analytics criados."; return 0 ;;
+            exited*|dead*)
+                docker compose logs --tail=30 rabbitmq-setup || true
+                err "rabbitmq-setup falhou ($state). Sem ele o analytics não consome e os Indicadores ficam zerados. Veja o log acima." ;;
+        esac
+        [ "$SECONDS" -lt "$deadline" ] || {
+            docker compose logs --tail=30 rabbitmq-setup || true
+            err "rabbitmq-setup não terminou em ${COMPOSE_SETUP_TIMEOUT}s (estado: ${state:-não criado})."
+        }
+        sleep 3
+    done
+}
+
+cmd_compose_up() {
+    command -v docker &>/dev/null || err "docker não encontrado."
+    docker compose config -q || err "docker compose config falhou: confira as variáveis obrigatórias do .env (README, Subir tudo)."
+    info "docker compose up -d $*"
+    docker compose up -d "$@"
+    wait_rabbitmq_setup
+    docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+}
+
+# =============================================================================
 case "${1:-help}" in
     up)      cmd_up ;;
     down)    cmd_down ;;
@@ -243,5 +285,6 @@ case "${1:-help}" in
     test)    cmd_test ;;
     tunnel)  cmd_tunnel ;;
     health)  cmd_health ;;
+    compose-up) shift; cmd_compose_up "$@" ;;
     help|*)  usage ;;
 esac
