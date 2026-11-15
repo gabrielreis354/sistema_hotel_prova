@@ -58,3 +58,9 @@ Ver os PRs #155, #156, #157 e #159 a #162.
 | 6 | SPEC-08: T-08.5 e T-08.6 | Média | Antes de 24/11 se der tempo; T-08.6 tem o "Sair" já resolvido |
 | 7 | "Em limpeza desde" mostra a hora em que o seed rodou | Baixa | Vem do `occurred_at` do outbox |
 | 8 | Depois de ensaio, recriar o banco antes da banca | — | O seed avisa com `WARNING`; está no cabeçalho do `seed_hoje.sql` |
+
+#### Adendo — T-08.5 e correções (mesma sessão)
+- **T-08.5** (PR #167): `PageHeader` e `Section` promovidos ao `@hotel/ui` e aplicados em Hoje, Reservas, Hóspedes, Quartos, Comanda e Indicadores. Na ficha do hóspede: exclusão com confirmação que diz o que faz, status com ponto e rótulo, contraste dos rótulos.
+- **Bug achado no navegador:** o detalhe da reserva ficava em branco porque um `useEffect` estava depois do `return` de carregando. Corrigido no PR #161 (`17db690`). Agora há uma checagem de hooks depois de `return` em todas as páginas (`hooksOrder.test.ts`) e um render no servidor contando os `primary` por status.
+- **qa-redteam da T-08.5:** aprovado com ressalvas, tudo tratado no `e697497`, que ainda não foi conferido no navegador. Ficou para depois: promover o `ButtonLink` (T-08.6). O backend deixa excluir hóspede com estadia ativa, e isso foi para o repasse de dono indefinido.
+- **Estado:** o #157 (M8) foi mergeado. Pilha da SPEC-08 para revisão: #159 → #160 → #161 → #162 → #167.
