@@ -36,7 +36,7 @@ Na raiz do repositório, como no cabeçalho do `docker-compose.yml`:
    do MinIO e as do RabbitMQ. A mensagem de erro diz qual falta.
 2. **Subir, criar as tabelas e semear:**
    ```bash
-   docker compose up -d --build
+   ./start.sh compose-up --build   # docker compose up -d --build + confere o rabbitmq-setup
    docker compose exec backend node command.js migrate
    docker compose exec -e ALLOW_SEED=1 backend node command.js seed
    ```

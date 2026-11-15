@@ -305,7 +305,7 @@ cp .env.example .env
 # Porta 80 já em uso? defina NGINX_PORT=<porta> E MINIO_PUBLIC_ENDPOINT=http://localhost:<porta>
 # no .env — os dois juntos, senão o download de PDF (URL assinada) aponta para a porta errada.
 node services/core-service/scripts/gerar_chaves_jwt.js   # chaves RS256 do JWT (ADR-006), uma vez só
-docker compose up -d --build
+./start.sh compose-up --build   # = docker compose up -d --build + confere o rabbitmq-setup
 docker compose ps          # espere os 6 serviços ficarem "healthy" (não só "Up")
 docker compose exec backend node command.js migrate
 docker compose exec -e ALLOW_SEED=1 backend node command.js seed   # opcional — dados de demonstração
