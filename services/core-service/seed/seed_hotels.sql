@@ -247,6 +247,12 @@ WHERE t.subdomain = 'aurora'
 AND NOT EXISTS (
   SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
 )
+-- As estadias CHECKED_IN são levadas para o dia pelo seed_hoje.sql (M8): a data de entrada
+-- deixa de ser a do arquivo, e a guarda acima não as acharia mais. Para elas, a identidade é
+-- (hóspede, quarto) — nenhum desses hóspedes tem outra reserva no mesmo quarto.
+AND NOT (v.status = 'CHECKED_IN' AND EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.guest_id = g.id AND r.deleted_at IS NULL
+))
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -422,6 +428,12 @@ WHERE t.subdomain = 'sol'
 AND NOT EXISTS (
   SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.check_in_date = v.check_in::date
 )
+-- As estadias CHECKED_IN são levadas para o dia pelo seed_hoje.sql (M8): a data de entrada
+-- deixa de ser a do arquivo, e a guarda acima não as acharia mais. Para elas, a identidade é
+-- (hóspede, quarto) — nenhum desses hóspedes tem outra reserva no mesmo quarto.
+AND NOT (v.status = 'CHECKED_IN' AND EXISTS (
+  SELECT 1 FROM reservations r WHERE r.room_id = rm.id AND r.guest_id = g.id AND r.deleted_at IS NULL
+))
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------

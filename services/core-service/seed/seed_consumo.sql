@@ -123,7 +123,7 @@ WITH alvo AS (
   JOIN reservations r ON r.id = a.reservation_id
   JOIN rooms rm       ON rm.id = r.room_id AND rm.number = '106'
   WHERE a.type = 'ROOM' AND a.charges_lodging = true AND a.status = 'OPEN'
-    AND a.deleted_at IS NULL AND r.check_in_date = '2026-06-15'
+    AND a.deleted_at IS NULL AND r.status = 'CHECKED_IN'   -- a data muda todo dia (seed_hoje.sql)
   UNION ALL
   SELECT a.id, a.tenant_id, a.label
   FROM accounts a
