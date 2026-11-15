@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  visibleRows,
   arrivalRows,
   checkInBlockedReason,
   departureRows,
@@ -140,5 +141,22 @@ describe('formatPercent', () => {
     expect(formatPercent(72.5)).toBe('72,5%');
     expect(formatPercent(100)).toBe('100%');
     expect(formatPercent(0)).toBe('0%');
+  });
+});
+
+describe('visibleRows — corte de 8 por bloco (SPEC-08, T-08.4)', () => {
+  const rows = Array.from({ length: 30 }, (_, i) => i);
+
+  it('mostra os 8 primeiros e conta o resto', () => {
+    expect(visibleRows(rows, false)).toEqual({ shown: rows.slice(0, 8), hidden: 22 });
+  });
+
+  it('expandido mostra tudo', () => {
+    expect(visibleRows(rows, true)).toEqual({ shown: rows, hidden: 0 });
+  });
+
+  it('até 8 itens não corta nada', () => {
+    expect(visibleRows(rows.slice(0, 8), false)).toEqual({ shown: rows.slice(0, 8), hidden: 0 });
+    expect(visibleRows([], false)).toEqual({ shown: [], hidden: 0 });
   });
 });
