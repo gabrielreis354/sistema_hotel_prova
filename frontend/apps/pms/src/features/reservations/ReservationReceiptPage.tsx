@@ -19,7 +19,8 @@ export function ReservationReceiptPage() {
   const bill = useBill(id);
   // Quem emitiu (T-09.1). Fica fora das guardas de carregamento e de erro de propósito: o
   // cabeçalho é opcional, e o comprovante não espera por ele nem cai se /tenants/me falhar.
-  const issuer = receiptIssuer(useMyTenant().data);
+  const tenant = useMyTenant();
+  const issuer = receiptIssuer(tenant.data);
 
   if (reservation.isPending || bill.isPending) {
     return (
@@ -48,7 +49,11 @@ export function ReservationReceiptPage() {
     <div className="min-h-screen bg-white">
       <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4 print:hidden">
         <BackLink to={`/reservas/${id}?aba=conta`}>← Voltar à reserva</BackLink>
-        <Button onClick={() => window.print()}>Imprimir</Button>
+        <div className="flex items-center gap-3">
+          {/* Não bloqueia: só avisa que o papel ainda sairia sem o nome do hotel. */}
+          {tenant.isPending && <span className="text-xs text-gray-600">Buscando o nome do hotel…</span>}
+          <Button onClick={() => window.print()}>Imprimir</Button>
+        </div>
       </div>
 
       <article className="mx-auto max-w-2xl space-y-6 p-6 text-gray-900 print:max-w-none print:p-0">

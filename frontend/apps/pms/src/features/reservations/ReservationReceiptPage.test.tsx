@@ -47,13 +47,16 @@ function backend(tenant: { status: number; body: unknown }) {
   });
 }
 
-async function renderReceipt() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+async function renderReceipt({ prefetchTenant = true } = {}) {
+  // retryOnMount: false — sem isso, uma consulta que falhou no prefetch volta a "carregando" ao
+  // montar, e o teste do 500 nunca via a página com o hotel em erro (🟡-1 do qa-redteam).
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false } } });
   await Promise.all([
     client.prefetchQuery({ queryKey: reservationKeys.detail('res1'), queryFn: () => getReservation('res1') }),
     client.prefetchQuery({ queryKey: reservationKeys.bill('res1'), queryFn: () => getBill('res1') }),
-    client.prefetchQuery(myTenantOptions()),
+    prefetchTenant ? client.prefetchQuery(myTenantOptions()) : Promise.resolve(),
   ]);
+  if (prefetchTenant) expect(client.getQueryState(myTenantOptions().queryKey)?.status).not.toBe('pending');
   return renderToString(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/reservas/res1/comprovante']}>
@@ -106,5 +109,15 @@ describe('ReservationReceiptPage — emissor no topo (T-09.1)', () => {
     expect(html).toContain('Imprimir');
     expect(html).not.toContain('CNPJ');
     expect(html).not.toContain('Não foi possível');
+    expect(html).not.toContain('Buscando o nome do hotel');
+  });
+
+  it('com o hotel ainda carregando, o comprovante aparece e avisa, sem bloquear a impressão', async () => {
+    backend({ status: 200, body: { id: 't1', name: 'Pousada Aurora', legal_id: null } });
+    const html = await renderReceipt({ prefetchTenant: false });
+    expect(html).toContain('Comprovante de conta');
+    expect(html).toContain('Imprimir');
+    expect(html).toContain('Buscando o nome do hotel');
+    expect(html).not.toContain('Pousada Aurora');
   });
 });
