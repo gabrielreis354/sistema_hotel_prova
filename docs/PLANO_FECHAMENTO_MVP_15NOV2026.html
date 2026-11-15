@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fechamento do MVP Gesway</title>
+<style>
+  :root {
+    --bg: #f7f8f9; --card: #ffffff; --ink: #14181f; --muted: #5b6573; --line: #e3e6ea;
+    --brand: #0f766e; --brand-soft: #e6f2f0;
+    --ok: #15803d; --ok-soft: #e8f5ec; --warn: #b45309; --warn-soft: #fdf3e6; --bad: #b91c1c; --bad-soft: #fdecec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --card: #171b21; --ink: #e8ebef; --muted: #9aa4b1; --line: #2a3038;
+      --brand: #2dd4bf; --brand-soft: #12302d;
+      --ok: #4ade80; --ok-soft: #12291b; --warn: #fbbf24; --warn-soft: #2e2410; --bad: #f87171; --bad-soft: #2f1515;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --card: #171b21; --ink: #e8ebef; --muted: #9aa4b1; --line: #2a3038;
+    --brand: #2dd4bf; --brand-soft: #12302d;
+    --ok: #4ade80; --ok-soft: #12291b; --warn: #fbbf24; --warn-soft: #2e2410; --bad: #f87171; --bad-soft: #2f1515;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+  header.hero { margin-bottom: 28px; }
+  .eyebrow { color: var(--brand); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+  h1 { font-size: clamp(26px, 4vw, 34px); line-height: 1.2; margin: 6px 0 10px; }
+  h2 { font-size: 21px; margin: 40px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 17px; margin: 22px 0 8px; }
+  p, li { color: var(--ink); }
+  .lead { color: var(--muted); font-size: 17px; margin: 0; }
+  .dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 20px 0 0; }
+  .date { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .date b { display: block; font-size: 20px; color: var(--brand); }
+  .date span { color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 12px 0; }
+  .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  tr:last-child td { border-bottom: 0; }
+  .tag { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .ok { background: var(--ok-soft); color: var(--ok); }
+  .warn { background: var(--warn-soft); color: var(--warn); }
+  .bad { background: var(--bad-soft); color: var(--bad); }
+  .people { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .person h3 { margin-top: 0; color: var(--brand); }
+  .person ul { padding-left: 18px; margin: 0; }
+  .person li { margin: 6px 0; }
+  .when { color: var(--muted); font-size: 13px; font-weight: 600; }
+  code { font: 14px ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--brand-soft); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  .note { border-left: 4px solid var(--brand); background: var(--brand-soft); padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+  .muted { color: var(--muted); }
+  footer { margin-top: 48px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+
+<header class="hero">
+  <div class="eyebrow">Gesway · Plano de fechamento</div>
+  <h1>O que falta para entregar o MVP, quem faz e como saber que ficou pronto</h1>
+  <p class="lead">De 15/11 até a apresentação em 10/12/2026. Este documento se lê sozinho: não precisa de nenhum outro para ser entendido.</p>
+  <div class="dates">
+    <div class="date"><b>24/11</b><span>Congelamento: depois dele, só correção</span></div>
+    <div class="date"><b>01/12</b><span>Versão final na <code>main</code> e ensaio geral</span></div>
+    <div class="date"><b>10/12</b><span>Entrega e apresentação</span></div>
+  </div>
+</header>
+
+<h2>1. Por que este plano existe</h2>
+<p>O Gesway é um sistema de gestão para hotéis e pousadas pequenos: reservas, check-in e check-out, comanda do garçom, pagamento e indicadores do gerente. O MVP do 4º semestre é <strong>um roteiro de demonstração de 7 passos</strong>, apresentado ao vivo para a banca no computador do grupo (Docker Compose, sem nuvem). Tudo que não aparece no roteiro fica para o 5º semestre.</p>
+<p>Em 14/11 fizemos o <strong>primeiro ensaio completo</strong>. Os 7 passos funcionaram de ponta a ponta, mas ainda há problemas que impedem uma demonstração tranquila. Este plano lista o que falta, quem faz cada parte e como saber que ficou pronto.</p>
+
+<h2>2. Em que o Sirlande está trabalhando</h2>
+<p class="muted">Levantado no git em 15/11.</p>
+<ul>
+  <li><strong>Última atividade: 11/11.</strong> Desde 27/10 ele trabalhou em duas frentes:
+    <ul>
+      <li>a <strong>tela de pagamento no check-out</strong>, que já está na <code>develop</code>;</li>
+      <li>o <strong>agente de QA exploratório</strong>, que usa o sistema no navegador como uma recepcionista usaria e reporta defeitos.</li>
+    </ul>
+  </li>
+  <li><strong>Comanda do garçom: nenhum commit desde 27/10.</strong> A comanda é dele e ainda tem 2 pendências (seção 3).</li>
+  <li><strong>Próximo item da lista dele, com prazo em 17/11:</strong> fazer os dados de demonstração usarem as datas do dia. Hoje todas as reservas de exemplo são de janeiro a junho de 2026. No dia da apresentação, o painel "Hoje" e os cartões do gerente apareceriam <strong>zerados</strong>.</li>
+</ul>
+
+<h2>3. Situação do frontend, passo a passo do roteiro</h2>
+<p>O frontend é um app só, em React + TypeScript, usado pela recepção, pelo garçom e pelo gerente.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Passo do roteiro</th><th>Tela</th><th>Situação</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Administrador cadastra categorias e quartos</td><td>Quartos / Categorias</td><td><span class="tag ok">Pronto</span></td></tr>
+    <tr><td>2</td><td>Recepção cria a reserva, vê o valor antes de confirmar e faz o check-in</td><td>Nova reserva, Detalhe da reserva</td><td><span class="tag ok">Pronto</span> O walk-in do balcão vai direto ao check-in</td></tr>
+    <tr><td>3</td><td>Garçom, pelo celular, lança consumo na conta da suíte e numa mesa, <strong>inclusive sem rede</strong></td><td>Comanda</td><td><span class="tag warn">Quase</span> Funciona, inclusive a fila que guarda os lançamentos sem rede. Faltam 2 acabamentos</td></tr>
+    <tr><td>4</td><td>Recepção abre o painel do dia: chegadas, saídas e risco de <em>no-show</em></td><td>Hoje</td><td><span class="tag warn">Quase</span> A tela está pronta, mas aparece vazia sem dados de hoje</td></tr>
+    <tr><td>5</td><td>No check-out, a conta aparece em linha do tempo, o pagamento é registrado e a estadia fecha</td><td>Detalhe da reserva → Pagamento</td><td><span class="tag ok">Pronto</span> Inclui o estorno</td></tr>
+    <tr><td>6</td><td>Hóspede faz reserva direta e paga o sinal por PIX; o pagamento confirma a reserva</td><td><strong>Sem tela</strong>: o site público ainda não existe</td><td><span class="tag warn">Decidir</span> O backend funciona e foi ensaiado no sandbox do Asaas em 12/11. Falta decidir como mostrar à banca</td></tr>
+    <tr><td>7</td><td>Gerente abre os indicadores, servidos pelo serviço separado de analytics (a parte de microsserviços que a banca avalia)</td><td>Indicadores</td><td><span class="tag warn">Quase</span> Pronto, mas em desenvolvimento local dá erro 404 até o PR #145 entrar. Também aparece zerado sem dados de hoje</td></tr>
+  </tbody>
+</table></div>
+
+<h3>O que falta no frontend</h3>
+<ol>
+  <li><strong>Comanda: aviso de "sem conexão".</strong> Quando a rede cai, a fila guarda o lançamento, mas o garçom não vê nenhum aviso. Falta uma faixa: "Sem conexão: os lançamentos serão enviados quando a rede voltar".</li>
+  <li><strong>Comanda: tempo restante para desfazer.</strong> Depois de um toque, o garçom tem 5 segundos para desfazer. A tela mostra o preço, mas não quanto tempo resta.</li>
+  <li><strong>Comanda: conferir três acabamentos dados como feitos.</strong> São o aviso de mesa com nome repetido, a caixa que cortava a primeira linha e o rodapé fixo da conta. Basta uma passada do agente de QA exploratório.</li>
+  <li><strong>Proxy do ambiente de desenvolvimento (PR #145).</strong> Corrige o erro 404 dos indicadores. Precisa de merge.</li>
+  <li><strong>Passo 6, reserva direta.</strong> Duas saídas:
+    <ul>
+      <li>(a) mostrar pela API pública, com o QR do PIX e a reserva mudando para "confirmada" no app. Custo quase zero.</li>
+      <li>(b) construir uma página pública mínima de reserva. Uns 3 a 4 dias, perto do congelamento.</li>
+    </ul>
+    <strong>Recomendação: (a).</strong></li>
+  <li><strong>Risco conhecido.</strong> O app ainda não funciona instalado no celular (PWA). Se o garçom <em>recarregar</em> a página sem rede, o app não abre. Na demonstração, desligue a rede com a comanda já aberta e não recarregue.</li>
+</ol>
+
+<h3>Revisão das telas "prontas" (15/11)</h3>
+<p>As telas marcadas como prontas foram revisadas uma a uma, por papel, no computador e no celular: 52 telas, sem erro de JavaScript e sem chamada com falha. Ainda assim, a revisão achou o que corrigir antes do congelamento:</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Gravidade</th><th>Achado</th><th>Quem</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag bad">Aparece na banca</span></td><td><strong>Os dados de demonstração põem hóspedes "na casa" em quartos marcados como livres.</strong> O painel Hoje mostra "Livres 15 · Ocupação 0%" com 4 hóspedes na casa, e a Nova reserva oferece quartos ocupados como livres.</td><td>Sirlande, junto dos dados do dia</td></tr>
+    <tr><td><span class="tag warn">Regra</span></td><td><strong>O check-in não confere as datas.</strong> Uma reserva vencida em setembro ainda pode receber check-in e lançar diárias de noites que não aconteceram. Nova regra: check-in só quando a entrada já chegou e a saída ainda não passou.</td><td>Gabriel</td></tr>
+    <tr><td><span class="tag warn">Informação</span></td><td>O gráfico de sazonalidade pula os meses sem reserva: de março vai direto para junho.</td><td>Weslley</td></tr>
+    <tr><td><span class="tag warn">Informação</span></td><td>O comprovante impresso não diz qual hotel o emitiu.</td><td>Gabriel</td></tr>
+    <tr><td><span class="tag warn">Informação</span></td><td>O CPF aparece de três jeitos (completo, mascarado e formatado), conforme a tela.</td><td>Gabriel</td></tr>
+    <tr><td><span class="tag ok">Acabamento</span></td><td>Seis ajustes menores, entre eles o nome "Hotel PMS" no lugar de <strong>Gesway</strong> e botões pequenos para o toque no celular.</td><td>Gabriel e Sirlande</td></tr>
+  </tbody>
+</table></div>
+
+<p class="muted">Fora do MVP, por decisão de 21/10 (não fazer agora): tela de Usuários, rack (mapa visual de reservas), financeiro, grupos/B2B e site público completo.</p>
+
+<h2>4. O que falta fora do frontend</h2>
+<div class="card">
+  <h3 style="margin-top:0">Dados de demonstração com as datas do dia <span class="when">· Sirlande · 17/11</span></h3>
+  <p>Os dados precisam ter:</p>
+  <ul>
+    <li>uma estadia em andamento que cubra hoje;</li>
+    <li>uma chegada e uma saída marcadas para hoje;</li>
+    <li>um pagamento recebido hoje;</li>
+    <li>um quarto "em limpeza";</li>
+    <li>o status de cada quarto coerente com a estadia: hóspede na casa significa quarto ocupado.</li>
+  </ul>
+  <p>Rodar duas vezes não pode duplicar nada.</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">O sistema sobe na primeira tentativa <span class="when">· Weslley · 17/11</span></h3>
+  <p>Hoje, num computador limpo, o primeiro <code>docker compose up</code> falha porque o backend não espera a fila de mensagens (RabbitMQ) ficar pronta. Isso precisa estar resolvido antes da banca.</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Trocar a chave de teste do Asaas <span class="when">· Weslley · já</span></h3>
+  <p>A chave apareceu num chat em 12/11.</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Roteiro automatizado <span class="when">· Gabriel 20/11 · Weslley 22/11</span></h3>
+  <p>O ensaio foi feito por um script de navegador (Playwright) que percorre os 7 passos. Ele entra no repositório e roda no CI como verificação que avisa, mas não bloqueia o merge. Assim, qualquer quebra no roteiro aparece no mesmo dia, e não no ensaio.</p>
+</div>
+
+<h2>5. Divisão do trabalho</h2>
+<div class="people">
+  <div class="card person">
+    <h3>Gabriel</h3>
+    <ul>
+      <li><span class="when">até 16/11</span> Merge do proxy (#145) e do relatório do ensaio (#144); decidir os PRs de documentação.</li>
+      <li><span class="when">antes de 24/11</span> Regra de datas do check-in; comprovante com o hotel; CPF sempre no mesmo formato; marca Gesway.</li>
+      <li><span class="when">até 20/11</span> Roteiro automatizado no repositório.</li>
+      <li><span class="when">se o Sirlande concordar</span> Aviso de sem conexão e tempo para desfazer, na comanda.</li>
+      <li><span class="when">01/12</span> Publicar a versão final, com aprovação do Sirlande.</li>
+    </ul>
+  </div>
+  <div class="card person">
+    <h3>Sirlande</h3>
+    <ul>
+      <li><span class="when">até 17/11</span> Dados de demonstração com as datas do dia e quartos coerentes com as estadias.</li>
+      <li><span class="when">até 20/11</span> Fechar a comanda: fazer os 2 acabamentos ou combinar que o Gabriel os faz, e conferir os 3 restantes.</li>
+      <li><span class="when">contínuo</span> Revisar os PRs de frontend do Gabriel e aprovar a versão final.</li>
+    </ul>
+  </div>
+  <div class="card person">
+    <h3>Weslley</h3>
+    <ul>
+      <li><span class="when">já</span> Trocar a chave do Asaas.</li>
+      <li><span class="when">até 17/11</span> Sistema sobe na 1ª tentativa, conferido em 3 ciclos limpos.</li>
+      <li><span class="when">até 22/11</span> Roteiro e frontend no CI. O roteiro precisa esperar o servidor do frontend terminar de carregar antes de começar.</li>
+      <li><span class="when">antes de 24/11</span> Sazonalidade sem pular meses.</li>
+      <li><span class="when">contínuo</span> Documentos acadêmicos conferidos contra os critérios de aceite.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="note"><strong>Todos, 24/11 (congelamento):</strong> segundo ensaio completo, num ambiente recém-criado, com os dados do dia. Critérios: os 7 passos funcionam, o painel Hoje e os indicadores mostram números diferentes de zero e não sobra nenhum defeito grave. De 25 a 30/11 entram só correções, cada uma revisada antes do merge.</div>
+
+<h2>6. Calendário</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Data</th><th>O que precisa estar pronto</th><th>Quem</th></tr></thead>
+  <tbody>
+    <tr><td>15–16/11</td><td>Proxy e relatório do ensaio na <code>develop</code>; chave do Asaas trocada</td><td>Gabriel · Weslley</td></tr>
+    <tr><td>17/11</td><td>Dados com as datas do dia; sistema sobe na 1ª tentativa</td><td>Sirlande · Weslley</td></tr>
+    <tr><td>20/11</td><td>Comanda fechada; roteiro automatizado no repositório</td><td>Sirlande (+Gabriel) · Gabriel</td></tr>
+    <tr><td>22/11</td><td>Roteiro rodando no CI</td><td>Weslley</td></tr>
+    <tr><td><strong>24/11</strong></td><td><strong>Congelamento + 2º ensaio, nenhum defeito grave</strong></td><td>todos</td></tr>
+    <tr><td>01/12</td><td>Versão final na <code>main</code> + ensaio geral</td><td>Gabriel, com aprovação do Sirlande</td></tr>
+    <tr><td><strong>10/12</strong></td><td><strong>Apresentação</strong></td><td>todos</td></tr>
+  </tbody>
+</table></div>
+
+<h2>7. Em aberto</h2>
+<p>Como mostrar o passo 6 (reserva direta com PIX)? A recomendação é mostrar pela API, com o QR e a reserva confirmando no app, em vez de construir uma página pública às vésperas do congelamento.</p>
+
+<footer>
+  Versão de 15/11/2026. No repositório: <code>docs/PLANO_FECHAMENTO_MVP_15NOV2026.md</code>. Detalhes da revisão: <code>docs/qa/revisao_telas_prontas_15112026.md</code>. Mensagens individuais: <code>docs/delegacoes/fechamento_mvp_*_15nov2026.md</code>.
+</footer>
+</main>
+</body>
+</html>
