@@ -36,3 +36,14 @@ describe('mobileNavForRole (D-3)', () => {
     expect([...primary, ...more].every((i) => i.roles.includes(role))).toBe(true);
   });
 });
+
+describe('ícones do menu (SPEC-08, T-08.2)', () => {
+  it('todo item tem ícone, e o rótulo continua obrigatório (ícone nunca sozinho)', () => {
+    for (const role of ['ADMIN', 'RECEPTIONIST', 'WAITER'] as Role[]) {
+      for (const item of navItemsForRole(role)) {
+        expect(item.icon, item.label).toBeTruthy();
+        expect(item.label.trim().length, item.to).toBeGreaterThan(0);
+      }
+    }
+  });
+});

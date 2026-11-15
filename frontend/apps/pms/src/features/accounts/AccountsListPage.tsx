@@ -58,7 +58,7 @@ export function AccountsListPage() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3">
-      <h1 className="text-xl font-semibold">Comanda</h1>
+      <h1 className="text-title">Comanda</h1>
 
       {notice && (
         <Notice focus>

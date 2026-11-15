@@ -33,7 +33,7 @@ export function TodayBlock({ id, title, count, caption, isLoading, error, onRetr
     <section aria-labelledby={`${id}-titulo`}>
       <Card className="h-full space-y-2 p-4">
         <header>
-          <h2 id={`${id}-titulo`} className="flex items-baseline gap-2 text-base font-semibold text-gray-900">
+          <h2 id={`${id}-titulo`} className="flex items-baseline gap-2 text-section text-gray-900">
             {title}
             {count !== undefined && (
               <span className="rounded-full bg-gray-100 px-2 text-sm font-semibold tabular-nums text-gray-800">

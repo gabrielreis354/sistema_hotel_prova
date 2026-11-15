@@ -15,7 +15,7 @@ export function RoomsHeader({ title, action }: { title: string; action?: ReactNo
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="text-title">{title}</h1>
         {action}
       </div>
       <nav aria-label="Quartos e categorias" className="flex gap-1 border-b border-gray-200">

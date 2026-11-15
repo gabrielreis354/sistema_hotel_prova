@@ -1,0 +1,15 @@
+/*
+ * Tokens de cor que mudam por hotel (SPEC-08, T-08.1). O preset do Tailwind lê a marca daqui
+ * (`rgb(var(--color-brand) / <alpha-value>)`), então trocar esta variável num lugar só muda a cor
+ * em todo o app (CA-08.c) — é por aqui que cada hotel do SaaS terá a sua (DESIGN_PMS.md §5).
+ *
+ * Canais RGB separados por espaço, sem `rgb()`: o Tailwind precisa compor a transparência
+ * (`bg-brand/10` no item ativo do menu).
+ *
+ * #115e59 (teal escuro): mesma família do #0f766e anterior, mais sóbria. Texto branco sobre ela
+ * passa de 5,5:1 para 7,6:1 (CA-08.d).
+ */
+:root {
+  --color-brand: 17 94 89;
+  --color-brand-fg: 255 255 255;
+}
