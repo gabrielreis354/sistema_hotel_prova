@@ -497,3 +497,14 @@ export function nextTab(current: ReservationTab, key: string): ReservationTab | 
     : -1;
   return RESERVATION_TABS[alvo] ?? null;
 }
+
+/**
+ * Ação principal da reserva (T-08.3, GUIA_UI_CORPORATIVA regra 1): a que é possível agora — check-in,
+ * senão check-out. Ela vai para o cabeçalho em primary; as demais ficam secundárias, com o motivo.
+ * Cancelar nunca é a principal, mesmo quando é a única ação possível (SPEC-08 §5).
+ */
+export function primaryAction(actions: ReservationActions): 'check-in' | 'check-out' | null {
+  if (actions.checkIn.enabled) return 'check-in';
+  if (actions.checkOut.enabled) return 'check-out';
+  return null;
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   nextTab,
+  primaryAction,
   buildBillTimeline,
   guestDraftFromTerm,
   maskCpf,
@@ -386,5 +387,42 @@ describe('nextTab — abas da reserva pelo teclado (W3C, decisão de 15/11)', ()
 
   it('outras teclas não trocam de aba (Tab, Enter e letras seguem o comportamento normal)', () => {
     for (const key of ['Tab', 'Enter', ' ', 'a', 'ArrowDown']) expect(nextTab('resumo', key)).toBeNull();
+  });
+});
+
+describe('primaryAction — uma ação principal na reserva (T-08.3, CA-08.e e CA-08.f)', () => {
+  const today = '2026-12-10';
+  const naJanela = { check_in_date: '2026-12-10', check_out_date: '2026-12-12' };
+  const futura = { check_in_date: '2026-12-20', check_out_date: '2026-12-22' };
+  const primary = (status: string | undefined, stay = naJanela) => primaryAction(reservationActions(status, stay, today));
+
+  it('PENDING (walk-in) e CONFIRMED na janela: o check-in é a principal', () => {
+    expect(primary('PENDING')).toBe('check-in');
+    expect(primary('CONFIRMED')).toBe('check-in');
+  });
+
+  it('CHECKED_IN: o check-out é a principal', () => {
+    expect(primary('CHECKED_IN')).toBe('check-out');
+  });
+
+  it('fora da janela, encerrada, cancelada ou status desconhecido: nenhuma principal', () => {
+    expect(primary('CONFIRMED', futura)).toBeNull();
+    expect(primary('CHECKED_OUT')).toBeNull();
+    expect(primary('CANCELLED')).toBeNull();
+    expect(primary(undefined)).toBeNull();
+    expect(primary('QUALQUER')).toBeNull();
+  });
+
+  it('cancelar nunca é a principal, mesmo sendo a única ação possível', () => {
+    const a = reservationActions('CONFIRMED', futura, today);
+    expect(a.cancel.enabled).toBe(true);
+    expect(primaryAction(a)).toBeNull();
+  });
+
+  it('toda ação indisponível tem motivo em texto (CA-08.f)', () => {
+    for (const s of ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED', undefined]) {
+      const a = reservationActions(s, futura, today);
+      for (const st of [a.checkIn, a.checkOut, a.cancel]) if (!st.enabled) expect(st.reason, String(s)).toBeTruthy();
+    }
   });
 });

@@ -22,8 +22,8 @@ export function AppShell() {
   const logout = useAuthStore((s) => s.logout);
   const items = user ? navItemsForRole(user.role) : [];
   const mobile = user ? mobileNavForRole(user.role) : { primary: [], more: [] };
-  // Nome do hotel no cabeçalho (T-08.2): a mesma consulta do emissor do comprovante (T-09.1),
-  // em cache por uma hora. Sem resposta, o cabeçalho fica só com quem está logado.
+  // Nome do hotel no cabeçalho (T-08.2): a mesma consulta do emissor do comprovante (T-09.1), em
+  // cache por uma hora. Sem resposta, o lugar dele fica com "Gesway".
   const { data: tenant } = useMyTenant();
 
   // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
@@ -45,14 +45,21 @@ export function AppShell() {
 
       <div className="flex min-h-screen min-w-0 flex-col">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
-          <div className="min-w-0 truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
-          <div className="flex min-w-0 items-center gap-3">
-            {/* No celular cabem o hotel e o Sair; quem está logado aparece a partir de sm (640 px). */}
+          {/* No celular, quem está logado fica embaixo do hotel: num aparelho compartilhado o garçom
+              precisa ver de quem é a sessão antes de lançar (🟡-3 do qa-redteam de 15/11). */}
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
+            <div className="truncate text-support text-gray-600 sm:hidden">
+              {user?.name} · {user ? ROLE_LABEL[user.role] : ''}
+            </div>
+          </div>
+          <div className="flex min-w-0 shrink-0 items-center gap-3">
             <div className="hidden min-w-0 truncate text-right text-sm sm:block">
               <span className="font-medium">{user?.name}</span>
               <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
             </div>
-            <Button variant="ghost" size="compact" onClick={logout}>
+            {/* 48 px até o xl (CA-08.g); compacto só no desktop. */}
+            <Button variant="ghost" className="xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm" onClick={logout}>
               Sair
             </Button>
           </div>
@@ -105,7 +112,14 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
       {open && (
         <>
           {/* Fundo: toque fora fecha. Não é foco de teclado — o Esc faz o mesmo. */}
-          <div className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div
+            className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30"
+            aria-hidden="true"
+            onClick={() => {
+              setOpen(false);
+              moreRef.current?.focus(); // como o Esc: o foco não cai no body
+            }}
+          />
           <nav
             ref={sheetRef}
             id="menu-mais"
