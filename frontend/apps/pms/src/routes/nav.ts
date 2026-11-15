@@ -1,8 +1,13 @@
+import type { LucideIcon } from 'lucide-react';
+// Um import por ícone (SPEC-08 §8): o bundle leva só os seis usados, não a biblioteca.
+import { BedDouble, CalendarDays, ChartColumn, ClipboardList, Receipt, Users } from 'lucide-react';
 import type { Role } from '../types.js';
 
 export interface NavItem {
   to: string;
   label: string;
+  /** Ícone de traço fino antes do rótulo (T-08.2). Nunca aparece sozinho: o rótulo é obrigatório. */
+  icon: LucideIcon;
   roles: Role[];
   /**
    * Fica direto na barra inferior do celular (D-3, decisão do Gabriel de 04/11/2026). Os
@@ -17,13 +22,13 @@ export interface NavItem {
  * pode ter rota fora do menu (Usuários, até a tela existir).
  */
 export const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Hoje', roles: ['ADMIN', 'RECEPTIONIST'], mobilePrimary: true },
-  { to: '/reservas', label: 'Reservas', roles: ['ADMIN', 'RECEPTIONIST'], mobilePrimary: true },
-  { to: '/hospedes', label: 'Hóspedes', roles: ['ADMIN', 'RECEPTIONIST'], mobilePrimary: true },
+  { to: '/', label: 'Hoje', icon: CalendarDays, roles: ['ADMIN', 'RECEPTIONIST'], mobilePrimary: true },
+  { to: '/reservas', label: 'Reservas', icon: ClipboardList, roles: ['ADMIN', 'RECEPTIONIST'], mobilePrimary: true },
+  { to: '/hospedes', label: 'Hóspedes', icon: Users, roles: ['ADMIN', 'RECEPTIONIST'], mobilePrimary: true },
   // Categorias ficam dentro de Quartos (abas da própria tela) — uma aba a menos no celular.
-  { to: '/quartos', label: 'Quartos', roles: ['ADMIN', 'RECEPTIONIST'] },
-  { to: '/comanda', label: 'Comanda', roles: ['ADMIN', 'RECEPTIONIST', 'WAITER'], mobilePrimary: true },
-  { to: '/indicadores', label: 'Indicadores', roles: ['ADMIN'] },
+  { to: '/quartos', label: 'Quartos', icon: BedDouble, roles: ['ADMIN', 'RECEPTIONIST'] },
+  { to: '/comanda', label: 'Comanda', icon: Receipt, roles: ['ADMIN', 'RECEPTIONIST', 'WAITER'], mobilePrimary: true },
+  { to: '/indicadores', label: 'Indicadores', icon: ChartColumn, roles: ['ADMIN'] },
   // "Usuários" (/config/usuarios) volta no 5º semestre, quando a tela existir; a rota segue no App.tsx.
 ];
 

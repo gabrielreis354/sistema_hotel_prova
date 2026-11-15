@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, matchPath, useLocation } from 'react-router-dom';
+import { Ellipsis } from 'lucide-react';
 import { Button, cn } from '@hotel/ui';
 import { useAuthStore } from '../stores/auth.js';
 import { mobileNavForRole, navItemsForRole, type NavItem } from '../routes/nav.js';
+import { useMyTenant } from '../features/tenant/index.js';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
@@ -20,28 +22,37 @@ export function AppShell() {
   const logout = useAuthStore((s) => s.logout);
   const items = user ? navItemsForRole(user.role) : [];
   const mobile = user ? mobileNavForRole(user.role) : { primary: [], more: [] };
+  // Nome do hotel no cabeçalho (T-08.2): a mesma consulta do emissor do comprovante (T-09.1),
+  // em cache por uma hora. Sem resposta, o cabeçalho fica só com quem está logado.
+  const { data: tenant } = useMyTenant();
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[220px_1fr]">
       {/* Sidebar — desktop */}
       <aside className="hidden border-r border-gray-200 bg-white md:flex md:flex-col">
-        <div className="px-4 py-4 text-lg font-semibold text-brand">Hotel PMS</div>
-        <nav className="flex-1 space-y-1 px-2">
+        {/* Marca do produto em neutro: brand é "faça isto", não enfeite (GUIA_UI_CORPORATIVA, regra 2). */}
+        <div className="px-4 py-4">
+          <span className="text-lg font-semibold tracking-tight text-gray-900">Gesway</span>
+        </div>
+        <nav aria-label="Menu" className="flex-1 space-y-1 px-2">
           {items.map((item) => (
-            <NavItemLink key={item.to} to={item.to} label={item.label} />
+            <NavItemLink key={item.to} item={item} />
           ))}
         </nav>
       </aside>
 
       <div className="flex min-h-screen flex-col">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
-          <div className="text-sm">
-            <span className="font-medium">{user?.name}</span>
-            <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
+          <div className="min-w-0 truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="min-w-0 truncate text-right text-sm">
+              <span className="font-medium">{user?.name}</span>
+              <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
+            </div>
+            <Button variant="ghost" size="compact" onClick={logout}>
+              Sair
+            </Button>
           </div>
-          <Button variant="ghost" size="compact" onClick={logout}>
-            Sair
-          </Button>
         </header>
 
         <main className="flex-1 p-4 pb-20 md:pb-4">
@@ -54,7 +65,8 @@ export function AppShell() {
   );
 }
 
-const TAB = 'flex min-h-touch min-w-0 flex-1 items-center justify-center px-1 text-center text-sm leading-tight';
+// Aba do celular: ícone em cima, rótulo embaixo (12 px, o piso da escala) — o rótulo nunca some.
+const TAB = 'flex min-h-touch min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1 text-center text-support';
 
 /** Barra inferior do celular: abas diretas + "Mais" com o restante (só se houver restante). */
 function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) {
@@ -101,6 +113,7 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
                       )
                     }
                   >
+                    <item.icon aria-hidden="true" className="mr-3 size-5 shrink-0" strokeWidth={1.75} />
                     {item.label}
                   </NavLink>
                 </li>
@@ -118,7 +131,8 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
             end={item.to === '/'}
             className={({ isActive }) => cn(TAB, isActive ? 'font-medium text-brand' : 'text-gray-600')}
           >
-            {item.label}
+            <item.icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
+            <span className="max-w-full truncate">{item.label}</span>
           </NavLink>
         ))}
         {more.length > 0 && (
@@ -134,7 +148,8 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
               open || inMore ? 'font-medium text-brand' : 'text-gray-600',
             )}
           >
-            Mais
+            <Ellipsis aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
+            <span>Mais</span>
           </Button>
         )}
       </nav>
@@ -142,19 +157,26 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
   );
 }
 
-function NavItemLink({ to, label }: { to: string; label: string }) {
+/**
+ * Item do menu lateral (T-08.2): ícone de traço fino + rótulo. Ativo = fundo brand/10, texto
+ * brand e fio de 2 px à esquerda — o fio diz "você está aqui" mesmo para quem não distingue a cor.
+ */
+function NavItemLink({ item }: { item: NavItem }) {
   return (
     <NavLink
-      to={to}
-      end={to === '/'}
+      to={item.to}
+      end={item.to === '/'}
       className={({ isActive }) =>
         cn(
-          'block rounded-md px-3 py-2 text-sm',
-          isActive ? 'bg-brand/10 text-brand font-medium' : 'text-gray-700 hover:bg-gray-100',
+          'flex items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm',
+          isActive
+            ? 'border-brand bg-brand/10 font-medium text-brand'
+            : 'border-transparent text-gray-700 hover:bg-gray-100',
         )
       }
     >
-      {label}
+      <item.icon aria-hidden="true" className="size-[18px] shrink-0" strokeWidth={1.75} />
+      {item.label}
     </NavLink>
   );
 }
