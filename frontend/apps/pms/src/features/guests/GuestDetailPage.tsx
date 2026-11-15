@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Spinner } from '@hotel/ui';
-import { formatCpf, formatDateBR, RESERVATION_STATUS_LABEL, type ReservationStatus } from '@hotel/domain';
+import { Button, Card, PageHeader, Section, Spinner } from '@hotel/ui';
+import { formatCpf, formatDateBR } from '@hotel/domain';
 import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import { useGuest, useDeleteGuest } from './queries.js';
+import { ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
 
 // GET /reservations devolve ReservationListItem (Reservation + guest/room/user resumidos),
 // não o Reservation puro — usar o schema errado aqui é o mesmo erro de tipagem que os casts
@@ -47,50 +48,62 @@ export function GuestDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-title">{guest.full_name}</h1>
-        <div className="flex gap-2">
-          <Link to={`/hospedes/${id}/editar`}>
-            <Button variant="secondary">Editar</Button>
-          </Link>
-          {!confirming ? (
-            <Button variant="danger" onClick={() => setConfirming(true)}>
-              Excluir
+      <PageHeader
+        title={guest.full_name}
+        context="Hóspede"
+        action={
+          <>
+            <ButtonLink to={`/hospedes/${id}/editar`} variant="secondary">
+              Editar
+            </ButtonLink>
+            {/* Excluir é irreversível e não é a ação da tela: fica discreto, e a confirmação diz o que
+                vai acontecer (GUIA_UI_CORPORATIVA, regra 7). */}
+            {!confirming && (
+              <Button variant="ghost" className="text-status-maintenance" onClick={() => setConfirming(true)}>
+                Excluir
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      {confirming && (
+        <Card className="space-y-3 border-status-maintenance/40 bg-status-maintenance/5 p-4">
+          <p className="text-sm text-gray-800">
+            Excluir o cadastro de <strong>{guest.full_name}</strong>? As reservas antigas continuam, com o nome guardado.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="danger"
+              disabled={del.isPending}
+              onClick={() => {
+                setDelError(null);
+                del.mutate(id as string, {
+                  onSuccess: () => navigate('/hospedes'),
+                  onError: (e) => setDelError(e instanceof ApiError ? e.message : 'Erro ao excluir.'),
+                });
+              }}
+            >
+              {del.isPending ? 'Excluindo…' : 'Sim, excluir hóspede'}
             </Button>
-          ) : (
-            <>
-              <Button
-                variant="danger"
-                disabled={del.isPending}
-                onClick={() => {
-                  setDelError(null);
-                  del.mutate(id as string, {
-                    onSuccess: () => navigate('/hospedes'),
-                    onError: (e) =>
-                      setDelError(e instanceof ApiError ? e.message : 'Erro ao excluir.'),
-                  });
-                }}
-              >
-                Confirmar
-              </Button>
-              <Button variant="ghost" onClick={() => setConfirming(false)}>
-                Cancelar
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+            <Button variant="ghost" disabled={del.isPending} onClick={() => setConfirming(false)}>
+              Manter hóspede
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {delError && <p className="text-sm text-status-maintenance">{delError}</p>}
 
-      <Card className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-        <Info label="CPF" value={formatCpf(guest.cpf)} />
-        <Info label="Telefone" value={guest.phone} />
-        <Info label="E-mail" value={guest.email} />
-      </Card>
+      <Section title="Contato">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Info label="CPF" value={formatCpf(guest.cpf)} />
+          <Info label="Telefone" value={guest.phone} />
+          <Info label="E-mail" value={guest.email} />
+        </div>
+      </Section>
 
-      <section className="space-y-2">
-        <h2 className="text-section text-gray-700">Histórico de estadias</h2>
+      <Section title="Histórico de estadias">
         {stays.isLoading && <Spinner />}
         {stays.isError && <p className="text-sm text-status-maintenance">Falha ao carregar estadias.</p>}
         {stays.data && stays.data.length === 0 && (
@@ -116,7 +129,8 @@ export function GuestDetailPage() {
                       {r.check_out_date ? formatDateBR(r.check_out_date) : '—'}
                     </td>
                     <td className="px-4 py-2">
-                      {r.status ? RESERVATION_STATUS_LABEL[r.status as ReservationStatus] : '—'}
+                      {/* Ponto e palavra (GUIA, regra 3), como no resto do app. */}
+                      {r.status ? <ReservationStatusBadge status={r.status} /> : '—'}
                     </td>
                   </tr>
                 ))}
@@ -124,7 +138,7 @@ export function GuestDetailPage() {
             </table>
           </Card>
         )}
-      </section>
+      </Section>
 
       <Link to="/hospedes" className="inline-block text-sm text-brand hover:underline">
         ← Voltar para hóspedes
@@ -136,7 +150,8 @@ export function GuestDetailPage() {
 function Info({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-gray-400">{label}</p>
+      {/* gray-600: o gray-400 dava 2,5:1 sobre o branco, abaixo dos 4,5:1 (CA-08.d). */}
+      <p className="text-xs uppercase tracking-wide text-gray-600">{label}</p>
       <p className="text-sm">{value || '—'}</p>
     </div>
   );

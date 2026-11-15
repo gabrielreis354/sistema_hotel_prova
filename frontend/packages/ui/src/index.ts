@@ -8,3 +8,4 @@ export { ErrorState } from './ErrorState.js';
 export { Money } from './Money.js';
 export { Notice, type NoticeTone } from './Notice.js';
 export { ActionSlot, type ActionState } from './ActionSlot.js';
+export { PageHeader, Section } from './PageHeader.js';

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatCpf, formatDateBR } from '@hotel/domain';
-import { ActionSlot, Button, Card, ErrorState, Spinner, cn } from '@hotel/ui';
+import { ActionSlot, Button, Card, ErrorState, Section, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/auth.js';
@@ -21,7 +21,7 @@ import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
 import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
 import { canReceivePayment } from './paymentLogic.js';
-import { BackLink, ButtonLink, CardHeading, InfoItem, Money, Notice } from './components/primitives.js';
+import { BackLink, ButtonLink, InfoItem, Money, Notice } from './components/primitives.js';
 
 type Tab = ReservationTab;
 type Confirming = null | 'check-out' | 'cancel';
@@ -285,9 +285,8 @@ export function ReservationDetailPage() {
       </div>
 
       {tab === 'resumo' && (
-        <section id="painel-resumo" role="tabpanel" aria-labelledby="aba-resumo" className="space-y-4">
-          <Card className="p-4">
-            <CardHeading>Hóspede</CardHeading>
+        <section id="painel-resumo" role="tabpanel" aria-labelledby="aba-resumo" className="space-y-5 pt-1">
+          <Section title="Hóspede">
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <InfoItem label="Nome">
                 {r.guest?.id ? (
@@ -302,10 +301,9 @@ export function ReservationDetailPage() {
               <InfoItem label="Telefone">{r.guest?.phone || '—'}</InfoItem>
               <InfoItem label="E-mail">{r.guest?.email || '—'}</InfoItem>
             </dl>
-          </Card>
+          </Section>
 
-          <Card className="p-4">
-            <CardHeading>Estadia</CardHeading>
+          <Section title="Estadia">
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <InfoItem label="Entrada">{r.check_in_date ? formatDateBR(r.check_in_date) : '—'}</InfoItem>
               <InfoItem label="Saída">{r.check_out_date ? formatDateBR(r.check_out_date) : '—'}</InfoItem>
@@ -315,10 +313,9 @@ export function ReservationDetailPage() {
               </InfoItem>
               <InfoItem label="Criada por">{r.user?.name ?? '—'}</InfoItem>
             </dl>
-          </Card>
+          </Section>
 
-          <Card className="p-4">
-            <CardHeading>Quartos</CardHeading>
+          <Section title="Quartos">
             {rooms.length === 0 ? (
               <p className="text-sm text-gray-600">Nenhum quarto vinculado.</p>
             ) : (
@@ -341,7 +338,7 @@ export function ReservationDetailPage() {
                 ))}
               </ul>
             )}
-          </Card>
+          </Section>
         </section>
       )}
 

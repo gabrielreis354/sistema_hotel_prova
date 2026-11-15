@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, Spinner } from '@hotel/ui';
+import { Card, PageHeader, Spinner } from '@hotel/ui';
 import { GuestForm } from './GuestForm.js';
 import { useCreateGuest, useGuest, useUpdateGuest } from './queries.js';
 import { ApiError } from '../../lib/http.js';
@@ -17,7 +17,7 @@ export function GuestNewPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-title">Novo hóspede</h1>
+      <PageHeader title="Novo hóspede" />
       <Card className="p-6">
         <GuestForm
           submitLabel="Cadastrar"
@@ -49,7 +49,7 @@ export function GuestEditPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-title">Editar hóspede</h1>
+      <PageHeader title="Editar hóspede" />
       <Card className="p-6">
         <GuestForm
           submitLabel="Salvar"

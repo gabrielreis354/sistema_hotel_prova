@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { EmptyState } from '@hotel/ui';
+import { EmptyState, PageHeader } from '@hotel/ui';
 
 /** Moldura das telas de cadastro e edição: volta, título, conteúdo. */
 export function FormShell({
@@ -19,7 +19,7 @@ export function FormShell({
       <Link to={backTo} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline md:min-h-0">
         ← {backLabel}
       </Link>
-      <h1 className="text-title">{title}</h1>
+      <PageHeader title={title} />
       {children}
     </div>
   );
