@@ -30,14 +30,16 @@
 ## Achados
 
 ### 🟡-1 A falha do setup ficou silenciosa
-- **Antes:** o setup falhando aparecia no próprio `docker compose up`.
+- **Antes do #148:** nada dependia do setup, então uma senha errada nele já passava em silêncio. O
+  que aparecia no `up` era o broker lento (unhealthy), e aí o `up` inteiro abortava.
 - **Agora:** o `up -d` termina com sucesso, e o setup pode sair com erro depois, até 3 min mais
-  tarde. Causas possíveis: senha errada no `.env` ou broker lento demais.
+  tarde. Causas possíveis: senha errada no `.env` ou broker lento demais. O #148 tirou o único sinal
+  que havia, sem pôr outro no lugar (correção do qa-redteam desta revisão).
 - **Efeito:** o analytics fica sem usuário e sem fila, não consome nada, e o passo 7 do roteiro
   (Indicadores) aparece zerado. Na frente da banca, isso parece defeito do analytics.
 - **Correção (feita nesta mesma branch, com o OK do Gabriel):** `./start.sh compose-up [args do up]`
   roda o `docker compose up -d`, espera o `rabbitmq-setup` terminar e para com o log dele se o
-  código de saída não for 0 ou se passar de 200 s. O README passa a indicá-lo no "Subir tudo".
+  código de saída não for 0 ou se passar de 240 s. O README passa a indicá-lo no "Subir tudo".
 
 ### 🟢-2 A validação não conferiu o analytics
 A tabela do PR mostra o `rabbitmq-setup`, o backend e o nginx. Quem prova a integração dos
@@ -45,8 +47,16 @@ microsserviços é o analytics consumindo os eventos do core. No ensaio de 24/11
 `analytics-service` saudável e os Indicadores com números.
 
 ### 🟢-3 Processo
-O CLAUDE.md pede qa-redteam antes de merge na `develop`. A correção é pequena e está certa, mas o
+O fluxo do grupo pede qa-redteam antes de merge na `develop` (`docs/DIVISAO_TRABALHO_TIME_09set2026.md`). A correção é pequena e está certa, mas o
 passo fica registrado para os próximos PRs.
+
+## Alternativa considerada: `depends_on` do analytics no setup
+O qa-redteam sugeriu `analytics-service` → `rabbitmq-setup: service_completed_successfully`, como o
+backend faz com o `minio-setup`. O `up` puro voltaria a falhar na hora. **Não adotada:** o nginx
+depende de o contêiner do analytics existir. Se o setup falhar, o analytics não é criado, o nginx não
+sobe, e o PMS inteiro fica fora do ar na demonstração. O compose foi desenhado para o oposto: o PMS
+segue com o analytics ou o broker fora. Com o `compose-up`, a falha aparece e o PMS continua no ar.
+A decisão final é do Weslley, dono do compose.
 
 ## Verificação do `compose-up`
 - **Docker simulado**, com o estado do `rabbitmq-setup` controlado:
