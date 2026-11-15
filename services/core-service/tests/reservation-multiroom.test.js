@@ -5,6 +5,7 @@ import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest } from './helpers/factories.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 // Rodada 3, etapa F — reservas com vários quartos e contratos (P-1 a P-4 do catálogo de
 // eventos, docs/specs/anexos/SPEC-01-catalogo-eventos.md §11).
@@ -268,7 +269,8 @@ describe('Contratos — P-2 e P-3', () => {
     });
 
     it('P-2: cancelar contrato com a reserva-bloco em CHECKED_IN → 409, contrato e reserva intactos (CA-F.2.a)', async () => {
-        const { contrato, assinatura } = await contratoAssinado([await novoQuarto()], { in: '2028-11-01', out: '2028-11-03' });
+        const hoje = stayFromToday(2); // o check-in abaixo só abre dentro do período
+        const { contrato, assinatura } = await contratoAssinado([await novoQuarto()], { in: hoje.check_in_date, out: hoje.check_out_date });
         const reservaId = assinatura.body.reservation.id;
         expect((await request(app).put(`/reservations/${reservaId}/check-in`).set(auth())).status).toBe(200);
 
@@ -381,7 +383,8 @@ describe('Revisões de 10/10 — integridade da reserva', () => {
     });
 
     it('estadia encerrada (CHECKED_OUT) não recebe quarto novo (409)', async () => {
-        const r = (await reservar(await novoQuarto(), [], { in: '2029-05-01', out: '2029-05-03' })).body;
+        const hoje = stayFromToday(2);
+        const r = (await reservar(await novoQuarto(), [], { in: hoje.check_in_date, out: hoje.check_out_date })).body;
         await request(app).put(`/reservations/${r.id}/check-in`).set(auth());
         await request(app).put(`/reservations/${r.id}/check-out`).set(auth());
 

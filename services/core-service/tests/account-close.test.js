@@ -13,6 +13,7 @@ import AccountModel from '../app/Models/AccountModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
 import { checkInWithoutAccount } from './helpers/legacyStay.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 // Import tardio: sem o módulo, só os testes do migrate falham — não o arquivo inteiro.
 async function closeEndedStayAccounts(db) {
@@ -26,14 +27,8 @@ const auth = (token) => ({ Authorization: `Bearer ${token}` });
 let jwt, tenantId, otherJwt, waiterJwt;
 let category, guest;
 let roomNumber = 500;
-let month = 0;
-
-const nextDates = () => {
-    month += 1;
-    const m = String((month % 12) + 1).padStart(2, '0');
-    const year = 2027 + Math.floor(month / 12);
-    return { check_in_date: `${year}-${m}-01`, check_out_date: `${year}-${m}-03` };
-};
+// Estadia a partir de hoje: o check-in só abre dentro do período (regra de 15/11/2026).
+const nextDates = () => stayFromToday(2); // 2 diárias, como antes
 
 const close = (accountId, token = jwt) =>
     request(app).put(`/accounts/${accountId}/close`).set(auth(token));
