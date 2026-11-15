@@ -1,7 +1,7 @@
 # SPEC-09 — Correções das telas do MVP antes do congelamento
 
 **Prioridade:** 🟠 Alta. São defeitos que a banca vê no roteiro de 10/12
-**Estado:** 🔲 Aguarda aprovação do Gabriel
+**Estado:** 🟡 Aprovada pelo Gabriel em 15/11; em implementação
 **Responsável:** Gabriel, com agentes de IA. Revisão: Sirlande
 **Criado em:** 15/11/2026
 **Prazo:** 22/11, antes do congelamento de 24/11
@@ -43,7 +43,7 @@ funciona. **Nada muda em regra de negócio, rota da API ou contrato.**
 | Nome do hotel no comprovante | Vem de `GET /tenants/me`, que já existe e vale para qualquer papel logado | Não precisa de backend. Colocar o nome no JWT ficaria velho se o hotel mudasse de nome |
 | Se `/tenants/me` falhar | O comprovante imprime mesmo assim, sem o cabeçalho do hotel | O comprovante é entregue no check-out com o hóspede esperando. Não pode travar por um dado de enfeite |
 | Formato do CPF | **Sempre** `000.000.000-00` na tela, por uma função única em `@hotel/domain`. Fora de 11 dígitos, mostra como está | Hoje o mesmo hóspede aparece de três jeitos |
-| CPF na lista de hóspedes | Formatado e **completo**, como hoje (**a confirmar pelo Gabriel**) | A recepção precisa conferir o documento no balcão. Mascarar na lista continua como pendência de LGPD já registrada (🟢-1 do red team de 02/11) |
+| CPF na lista de hóspedes | Formatado e **completo**, como hoje (decisão do Gabriel, 15/11) | A recepção precisa conferir o documento no balcão. Mascarar na lista continua como pendência de LGPD já registrada (🟢-1 do red team de 02/11) |
 | Comprovante | Continua mascarado (`***.456.789-**`) | Papel entregue ao hóspede: decisão já tomada no `maskCpf` |
 | Saldo negativo numa linha | Valor sem sinal + a palavra **"crédito"** | Cor ou sinal sozinhos não bastam (RNF-025). O balcão já usa "Crédito" na conta da suíte (`StaffActions.tsx:109`) |
 | Total negativo da conta | Continua "A devolver" | Já está certo e é uma decisão de fechamento, não de linha |
@@ -134,7 +134,7 @@ As três não tocam nos mesmos arquivos e podem andar em paralelo.
 
 ## 7. Como será executada
 
-1. O Gabriel aprova esta Spec e responde à decisão em aberto do CPF na lista (§3).
+1. ✅ O Gabriel aprovou esta Spec em 15/11 e decidiu o CPF completo na lista (§3).
 2. Um agente de implementação por tarefa, cada um numa cópia isolada do repositório (worktree).
    O prompt segue o modelo do `CLAUDE.md` §5 e manda ler antes o `frontend/DESIGN_PMS.md` e os
    arquivos citados nesta Spec.
