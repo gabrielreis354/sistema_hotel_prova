@@ -21,6 +21,9 @@ export function GuestRow({ guest, onOpen }: { guest: Guest; onOpen: (path: strin
 
   function handleRowClick(event: MouseEvent<HTMLTableRowElement>) {
     if ((event.target as Element).closest('a')) return;
+    // Arrastar ou dar duplo clique para copiar o CPF ou o e-mail não abre o hóspede
+    // (🟡-2 do qa-redteam de 15/11).
+    if (typeof window !== 'undefined' && window.getSelection()?.toString()) return;
     onOpen(path);
   }
 

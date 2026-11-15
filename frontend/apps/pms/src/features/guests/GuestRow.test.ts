@@ -34,6 +34,17 @@ describe('GuestRow — a linha inteira abre o hóspede (CA-09.f)', () => {
     expect(link.props.to).toBe('/hospedes/g1');
   });
 
+  it('selecionar texto na linha (para copiar o CPF) não abre o hóspede (🟡-2 do qa-redteam)', () => {
+    vi.stubGlobal('window', { getSelection: () => ({ toString: () => '300.000.000-14' }) });
+    try {
+      const { row, onOpen } = render();
+      clickOn(row, false);
+      expect(onOpen).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('alvo de toque: linha com altura mínima de 48 px (h-12)', () => {
     expect(render().row.props.className).toContain('h-12');
   });

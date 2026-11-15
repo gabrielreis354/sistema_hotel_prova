@@ -24,6 +24,17 @@ describe('guestMatches', () => {
     expect(guestMatches(guests[1]!, '(21)')).toBe(true);
   });
 
+  it('CPF gravado cru casa com a busca formatada, como a lista o mostra (🟡-1 do qa-redteam)', () => {
+    const cru: Guest = { id: '4', full_name: 'Nelson', cpf: '30000000014', phone: '11900000001' };
+    expect(guestMatches(cru, '300.000.000')).toBe(true);
+    expect(guestMatches(cru, '300.000.000-14')).toBe(true);
+    expect(guestMatches(guests[0]!, '11122233344')).toBe(true);
+    expect(guestMatches(cru, '(11) 90000')).toBe(true);
+    expect(guestMatches(cru, '999.000')).toBe(false);
+    // termo com letras não cai na busca por dígitos
+    expect(guestMatches(cru, 'ana 300')).toBe(false);
+  });
+
   it('ignora campos ausentes sem quebrar', () => {
     const semContato: Guest = { id: '3', full_name: 'So Nome' };
     expect(guestMatches(semContato, 'nome')).toBe(true);
