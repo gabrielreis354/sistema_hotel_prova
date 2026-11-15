@@ -85,7 +85,7 @@ export function AccountPage() {
         <BackLink />
         <span className="text-xs text-gray-500">{account.type ? ACCOUNT_TYPE_LABEL[account.type] : ''}</span>
       </div>
-      <h1 className="text-xl font-semibold">{account.label}</h1>
+      <h1 className="text-title">{account.label}</h1>
       {stale && (
         <p role="status" className="text-xs text-gray-600">
           Sem conexão com o sistema: mostrando a última versão da conta. Os lançamentos ficam na fila.

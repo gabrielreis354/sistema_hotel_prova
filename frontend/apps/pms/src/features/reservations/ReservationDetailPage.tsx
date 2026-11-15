@@ -117,7 +117,7 @@ export function ReservationDetailPage() {
       <Card className="flex flex-wrap items-start justify-between gap-4 p-4">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold">{r.guest?.full_name ?? 'Hóspede removido'}</h1>
+            <h1 className="text-title">{r.guest?.full_name ?? 'Hóspede removido'}</h1>
             <ReservationStatusBadge status={r.status} />
           </div>
           <p className="text-sm text-gray-600 tabular-nums">
@@ -295,7 +295,7 @@ export function ReservationDetailPage() {
         <section id="painel-conta" role="tabpanel" className="space-y-4">
           {confirming === 'check-out' && (
             <Card className="space-y-3 border-brand/50 p-4">
-              <h2 className="text-sm font-semibold text-gray-800">Confirmar check-out</h2>
+              <h2 className="text-section text-gray-800">Confirmar check-out</h2>
               <p className="text-sm text-gray-700">
                 Confira a conta abaixo com o hóspede. O check-out fecha as contas da estadia e manda o quarto para limpeza.
               </p>
@@ -329,7 +329,7 @@ export function ReservationDetailPage() {
 
           {receiving && balance !== null && r.id && (
             <Card className="space-y-3 p-4">
-              <h2 className="text-sm font-semibold text-gray-800">Registrar pagamento</h2>
+              <h2 className="text-section text-gray-800">Registrar pagamento</h2>
               {/* key: o valor preenchido acompanha o saldo depois de cada pagamento. */}
               <PaymentForm key={balance} reservationId={r.id} balanceCents={balance} onResult={setPaymentResult} />
             </Card>
@@ -337,7 +337,7 @@ export function ReservationDetailPage() {
 
           <Card className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-800">Conta da estadia</h2>
+              <h2 className="text-section text-gray-800">Conta da estadia</h2>
               <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" className="min-h-touch md:min-h-0 md:py-1.5 md:text-sm">
                 Comprovante para imprimir
               </ButtonLink>

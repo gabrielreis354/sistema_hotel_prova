@@ -19,7 +19,7 @@ export function FormShell({
       <Link to={backTo} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline md:min-h-0">
         ← {backLabel}
       </Link>
-      <h1 className="text-xl font-semibold">{title}</h1>
+      <h1 className="text-title">{title}</h1>
       {children}
     </div>
   );

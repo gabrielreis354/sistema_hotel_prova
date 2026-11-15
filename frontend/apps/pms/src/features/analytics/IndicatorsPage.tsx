@@ -115,7 +115,7 @@ export function IndicatorsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold">Indicadores</h1>
+        <h1 className="text-title">Indicadores</h1>
         <p className="text-sm text-gray-500">Hoje, {formatDateBR(today)}</p>
       </header>
 
