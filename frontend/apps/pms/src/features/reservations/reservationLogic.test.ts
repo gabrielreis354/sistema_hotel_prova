@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  nextTab,
   buildBillTimeline,
   guestDraftFromTerm,
   maskCpf,
@@ -369,3 +370,21 @@ describe('reservationActions — check-in pela janela de datas (regra de 15/11/2
   });
 });
 
+
+describe('nextTab — abas da reserva pelo teclado (W3C, decisão de 15/11)', () => {
+  it('setas andam em círculo entre Resumo e Conta', () => {
+    expect(nextTab('resumo', 'ArrowRight')).toBe('conta');
+    expect(nextTab('conta', 'ArrowRight')).toBe('resumo');
+    expect(nextTab('resumo', 'ArrowLeft')).toBe('conta');
+    expect(nextTab('conta', 'ArrowLeft')).toBe('resumo');
+  });
+
+  it('Home vai para a primeira e End para a última', () => {
+    expect(nextTab('conta', 'Home')).toBe('resumo');
+    expect(nextTab('resumo', 'End')).toBe('conta');
+  });
+
+  it('outras teclas não trocam de aba (Tab, Enter e letras seguem o comportamento normal)', () => {
+    for (const key of ['Tab', 'Enter', ' ', 'a', 'ArrowDown']) expect(nextTab('resumo', key)).toBeNull();
+  });
+});

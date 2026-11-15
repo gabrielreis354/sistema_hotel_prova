@@ -477,3 +477,23 @@ export function guestDraftFromTerm(term: string): GuestDraft {
   if (digits.length >= 8 && digits.length >= t.replace(/\s/g, '').length - 4) return { ...draft, phone: t };
   return { ...draft, full_name: t };
 }
+
+/** As abas do detalhe da reserva, na ordem da tela. */
+export const RESERVATION_TABS = ['resumo', 'conta'] as const;
+export type ReservationTab = (typeof RESERVATION_TABS)[number];
+
+/**
+ * Aba seguinte pelo teclado, no padrão de abas da W3C (decisão de 15/11, SPEC-08 §9): setas andam em
+ * círculo, Home vai para a primeira, End para a última. Outra tecla devolve null e não troca nada.
+ */
+export function nextTab(current: ReservationTab, key: string): ReservationTab | null {
+  const n = RESERVATION_TABS.length;
+  const i = RESERVATION_TABS.indexOf(current);
+  const alvo =
+    key === 'ArrowRight' ? (i + 1) % n
+    : key === 'ArrowLeft' ? (i - 1 + n) % n
+    : key === 'Home' ? 0
+    : key === 'End' ? n - 1
+    : -1;
+  return RESERVATION_TABS[alvo] ?? null;
+}
