@@ -73,7 +73,7 @@ PR)
 - A correção está no PR #154: `./start.sh compose-up [flags]` sobe o compose e confere se o setup
   terminou bem. Passou pelo qa-redteam e por dois `up` reais seguidos.
 
-**Merges feitos nesta sessão em `develop`, em ordem:** #145, #147, #144, #149, #150, #151 e #152.
+**Merges feitos nesta sessão em `develop`, em ordem:** #145, #147, #144, #149, #150, #151, #152 e #154.
 Todos tinham CI verde e qa-redteam. A partir de hoje, o Gabriel delegou o merge ordenado dos PRs
 prontos dele.
 
@@ -122,7 +122,7 @@ O core ficou com 1.215 testes no #147.
 | # | Pendência | Prioridade | Observação |
 |---|-----------|-----------|------------|
 | 1 | Seed com as datas do dia e quartos coerentes com as estadias | 🔴 Alta | Sirlande, 17/11. Sem isso, o painel Hoje e os Indicadores aparecem zerados na banca. Critérios em `docs/delegacoes/fechamento_mvp_sirlande_15nov2026.md` |
-| 2 | Merge do #154 (`compose-up`) | 🟡 Média | Falta só o CI terminar verde. O qa-redteam já foi feito |
+| 2 | ~~Merge do #154 (`compose-up`)~~ | ✅ Feito | Mergeado em 15/11 (`c62cdba`), com CI verde e qa-redteam |
 | 3 | Roteiro automatizado no repositório (`frontend/e2e/`, `pnpm e2e`) | 🟡 Média | Gabriel, até 20/11. O #145 já entrou, então não há mais bloqueio. O script do ensaio está no scratchpad da sessão (`ensaio_roteiro.mjs`). Depois, o job de CI, não bloqueante, fica com o Weslley (22/11) |
 | 4 | Passo 8 no Grafana, execução verde do Actions e Doc 08 v1.3 | 🟡 Média | Weslley. Passo 8 e Actions até 24/11; Doc 08 antes de 10/12 |
 | 5 | Trocar a chave de sandbox do Asaas | 🟡 Média | Weslley, já. É condição para o passo 6 com o sandbox real |
@@ -132,7 +132,7 @@ O core ficou com 1.215 testes no #147.
 | 9 | Avisar o Sirlande do que mudou nas áreas da SPEC-08 | 🟢 Baixa | `nav.ts` (sem "Usuários") e `ReservationDetailPage` (prefetch do hotel) |
 | 10 | Decisões do Gabriel | 🟢 Baixa | "-R$" na coluna Valor ao lado do saldo "crédito"; `formatCpf` só com dígito verificador válido; dono para normalizar o CPF gravado (`docs/qa/repasses/para_dono-indefinido_15112026.md`); PRs #133, #134, #146 e #129 |
 | 11 | Pendências técnicas menores | 🟢 Baixa | Erro 500 com UUID inválido nas rotas de transição da reserva; linha vencida no painel Hoje sem atalho para cancelar; README diz "6 serviços" no compose |
-| 12 | Limpar worktrees da sessão | 🟢 Baixa | `~/wt-t091`, `~/wt-t092`, `~/wt-t093`, `~/wt-vitetest`, `~/wt-checkin` e `~/wt-ensaio-docs` já foram mergeados. `~/wt-composeup` depois do #154 |
+| 12 | Limpar worktrees da sessão | 🟢 Baixa | `~/wt-t091`, `~/wt-t092`, `~/wt-t093`, `~/wt-vitetest`, `~/wt-checkin`, `~/wt-ensaio-docs` e `~/wt-composeup` já foram mergeados |
 
 #### Próximos passos sugeridos (em ordem)
 
