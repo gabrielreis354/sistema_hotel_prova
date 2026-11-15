@@ -1,0 +1,3 @@
+# Saída do Playwright: capturas de cada passo, traces e relatório HTML. O relatório cita, o git não guarda.
+test-results/
+playwright-report/
