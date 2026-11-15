@@ -1,0 +1,16 @@
+{
+  "name": "@hotel/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Roteiro de demonstração (7 passos) ponta a ponta no navegador, contra o compose no ar. Fora do `pnpm test`: precisa do backend.",
+  "scripts": {
+    "e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2",
+    "@types/node": "^24.19.2",
+    "typescript": "^5.6.3"
+  }
+}

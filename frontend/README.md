@@ -40,6 +40,7 @@ pnpm gen:api            # regenera os tipos a partir de services/core-service/co
 pnpm --filter @hotel/domain test
 pnpm --filter app-pms dev    # sobe o Vite em :5173; proxy /api -> core :3000 e /api/analytics -> nginx
 pnpm build              # build de todos os pacotes/apps (turbo)
+pnpm e2e                # roteiro da banca (7 passos) no navegador; precisa do compose no ar — e2e/README.md
 ```
 
 ## Integração com o backend
