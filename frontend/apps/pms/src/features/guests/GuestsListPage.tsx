@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button, Card, EmptyState, Input, Spinner } from '@hotel/ui';
 import { useGuests } from './queries.js';
 import { filterGuests } from './guestFilter.js';
+import { GuestRow } from './GuestRow.js';
 
 export function GuestsListPage() {
   const navigate = useNavigate();
@@ -64,16 +65,7 @@ export function GuestsListPage() {
                 </thead>
                 <tbody>
                   {filtered.map((g) => (
-                    <tr key={g.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-2">
-                        <Link to={`/hospedes/${g.id}`} className="font-medium text-brand hover:underline">
-                          {g.full_name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 tabular-nums text-gray-600">{g.cpf || '—'}</td>
-                      <td className="hidden px-4 py-2 text-gray-600 sm:table-cell">{g.phone || '—'}</td>
-                      <td className="hidden px-4 py-2 text-gray-600 sm:table-cell">{g.email || '—'}</td>
-                    </tr>
+                    <GuestRow key={g.id} guest={g} onOpen={navigate} />
                   ))}
                 </tbody>
               </table>

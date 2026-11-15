@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { decimalToCents, formatDateBR } from '@hotel/domain';
+import { decimalToCents, formatCpf, formatDateBR } from '@hotel/domain';
 import { ActionSlot, Button, Card, ErrorState, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
 import { useAuthStore } from '../../stores/auth.js';
@@ -236,7 +236,7 @@ export function ReservationDetailPage() {
                   '—'
                 )}
               </InfoItem>
-              <InfoItem label="CPF">{r.guest?.cpf || '—'}</InfoItem>
+              <InfoItem label="CPF">{formatCpf(r.guest?.cpf) ?? '—'}</InfoItem>
               <InfoItem label="Telefone">{r.guest?.phone || '—'}</InfoItem>
               <InfoItem label="E-mail">{r.guest?.email || '—'}</InfoItem>
             </dl>

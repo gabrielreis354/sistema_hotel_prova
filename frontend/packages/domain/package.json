@@ -2,7 +2,7 @@
   "name": "@hotel/domain",
   "version": "0.0.0",
   "private": true,
-  "description": "Regras de domínio puras: dinheiro (centavos), datas (America/Sao_Paulo) e máquinas de estado.",
+  "description": "Regras de domínio puras: dinheiro (centavos), datas (America/Sao_Paulo), máquinas de estado e formato de documentos.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
