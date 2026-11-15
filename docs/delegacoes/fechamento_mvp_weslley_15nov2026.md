@@ -39,7 +39,7 @@ Gabriel vai colocá-lo no repositório até 20/11, em `frontend/e2e/`, com o com
 **Critérios de aceite:**
 - [ ] o job é **não bloqueante**: avisa, mas não impede o merge. Essa foi a proposta 7 do encontro de 03/11;
 - [ ] não usa segredo real nenhum (PIX no modo simulado, `PIX_PROVIDER=fake`);
-- [ ] também entra o job do frontend (lint, tipos e testes do `app-pms`), que estava pendente desde 31/10;
+- [ ] o job do frontend você já entregou em 31/10 (`ci-frontend.yml`: tipos, testes e build); o roteiro entra como um job à parte, sem mexer nele;
 - [ ] **aquecer o Vite antes do roteiro**: abrir uma página e esperar. Em 15/11, a primeira rodada logo após subir o ambiente falhou nos 7 passos porque o Vite recarregou a página no meio, otimizando dependências. A segunda passou 7 de 7.
 
 ## 3b. Indicadores — gráfico de sazonalidade — antes de 24/11
@@ -60,7 +60,7 @@ aceite do enunciado antes de cada reentrega ao professor.
 |---|---|
 | Já | Chave do Asaas trocada |
 | 17/11 | Compose sobe na primeira tentativa |
-| 22/11 | Roteiro e frontend no CI |
+| 22/11 | Roteiro no CI |
 | 24/11 | Congelamento + segundo ensaio com todos |
 | 01/12 | Versão final + ensaio geral |
 | 10/12 | Apresentação |

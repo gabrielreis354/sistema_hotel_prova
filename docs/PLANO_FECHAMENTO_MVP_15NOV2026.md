@@ -110,7 +110,7 @@ Fora do MVP, por decisão de 21/10 (não fazer agora):
 - Até 17/11: fazer o sistema subir na primeira tentativa. Conferir com 3 ciclos de `docker compose down -v` seguido de `up -d` sem erro.
 - Até 22/11:
   - colocar no CI o roteiro automatizado, sem bloquear o merge;
-  - criar o job de CI do frontend (lint, tipos e testes).
+  - o job de CI do frontend (tipos, testes e build) já existe desde 31/10 (`ci-frontend.yml`); o roteiro entra como job separado.
 - Documentos acadêmicos: estimativa de custo AWS (#146) e Doc 08, conferidos contra os critérios de aceite antes de cada reentrega.
 
 ### Todos
