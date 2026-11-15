@@ -25,7 +25,11 @@ const ROUTES = [
     ['get', '/reservations/nao-e-uuid/accounts'],
     ['get', '/reservations/nao-e-uuid/consumptions'],
     ['post', '/reservations/nao-e-uuid/consumptions'],
+    ['delete', '/reservations/nao-e-uuid/rooms/00000000-0000-4000-8000-000000000000'],
+    ['delete', '/reservations/nao-e-uuid/consumptions/00000000-0000-4000-8000-000000000000'],
 ];
+
+const MISSING = '00000000-0000-4000-8000-000000000000';
 
 describe('rotas de reserva com :id inválido', () => {
     it.each(ROUTES)('%s %s → 404 "Reserva não encontrada"', async (method, path) => {
@@ -41,7 +45,23 @@ describe('rotas de reserva com :id inválido', () => {
 
     it('UUID válido que não existe continua 404 pelo controller', async () => {
         const res = await request(app)
-            .put('/reservations/00000000-0000-4000-8000-000000000000/check-in')
+            .put(`/reservations/${MISSING}/check-in`)
+            .set('Authorization', `Bearer ${jwt}`);
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ error: 'Reserva não encontrada' });
+    });
+
+    it(':roomId que não é UUID responde 404, não 500 (🟡-1 do red team)', async () => {
+        const res = await request(app)
+            .delete(`/reservations/${MISSING}/rooms/nao-e-uuid`)
+            .set('Authorization', `Bearer ${jwt}`);
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ error: 'Quarto não vinculado a esta reserva' });
+    });
+
+    it(':consumptionId que não é UUID continua 404 pelo controller', async () => {
+        const res = await request(app)
+            .delete(`/reservations/${MISSING}/consumptions/nao-e-uuid`)
             .set('Authorization', `Bearer ${jwt}`);
         expect(res.status).toBe(404);
     });

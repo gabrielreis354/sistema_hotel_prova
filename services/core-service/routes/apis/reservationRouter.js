@@ -28,9 +28,14 @@ export default (() => {
     // :id que não é UUID chegava ao Postgres como cast inválido e virava 500 nas transições
     // (check-in, check-out, cancelamento) e nas demais rotas de uma reserva. Para o cliente, um id
     // que não existe é 404 — o mesmo corpo que os controllers já devolvem. Vale para todas as
-    // rotas com :id deste router; :roomId e :consumptionId seguem validados nos controllers.
+    // rotas com :id deste router. O :roomId ganha a mesma guarda (o controller o põe direto no
+    // WHERE); o :consumptionId já é validado no DeleteConsumptionController.
     router.param('id', (request, response, next, id) => {
         if (!isUuid(id)) return response.status(404).json({ error: 'Reserva não encontrada' });
+        return next();
+    });
+    router.param('roomId', (request, response, next, roomId) => {
+        if (!isUuid(roomId)) return response.status(404).json({ error: 'Quarto não vinculado a esta reserva' });
         return next();
     });
 
