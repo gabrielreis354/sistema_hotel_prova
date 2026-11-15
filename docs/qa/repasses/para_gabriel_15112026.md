@@ -74,3 +74,20 @@ Origem: red team da branch `fix/reserva-id-invalido-404` (`docs/qa/redteam_reser
 **Cenário (reproduzido):** `GET /public/probe/bookings/x/status`, sem token, responde `500 {"error":"Erro interno do servidor"}`. Qualquer pessoa na internet produz 500 à vontade nessa rota: os alertas de taxa de erro disparam e o log enche de stack com SQL. O corpo não expõe dado.
 **Regra violada:** um recurso inexistente deve responder 404. Para rota pública, a regra pesa mais, porque não há autenticação filtrando quem chega.
 **Correção sugerida:** `isUuid` no controller, ou `router.param(id, …)` no `publicBookingRouter`, devolvendo o mesmo 404 de reserva inexistente (sem diferenciar formato inválido de id ausente).
+
+---
+
+## Repasse do red team da T-08.4 (SPEC-08, #162), 15/11
+
+Gravado em /tmp porque o orquestrador pediu a saída só lá. Acrescentar ao `docs/qa/repasses/para_gabriel_15112026.md` do dia.
+
+### 🟢 [UI] O aviso de truncamento de Saídas usa os números de "Na casa"
+**Onde:** `frontend/apps/pms/src/features/today/TodayPage.tsx:144`, `components/TodayBlock.tsx:47-50`
+**Cenário:** com 130 hóspedes CHECKED_IN e 12 saindo hoje, o bloco Saídas mostra "Mostrando 100 de 130. A lista completa está em Reservas." acima de 12 linhas. O número não descreve o bloco, e uma saída atrasada pode estar entre os 30 não carregados sem aparecer.
+**Regra:** GUIA regra 8; contador fiel ao bloco (CA-05.3.e)
+**Correção sugerida:** um texto específico ("Há mais hóspedes na casa do que o painel carrega; confira as saídas em Reservas") ou uma consulta própria de saídas com `to=today`.
+
+### 🟢 [UI] "Na casa" corta em 100 sem avisar
+**Onde:** `TodayPage.tsx:151-165` (sem `truncated`), `todayApi.ts:10,17`
+**Cenário:** com 120 hóspedes na casa, a pílula mostra "100" e não há aviso. Os outros 20 não existem para o painel.
+**Correção sugerida:** passar também a "Na casa" `truncated={inHouse.data && { shown: inHouse.data.data.length, total: inHouse.data.total }}`.
