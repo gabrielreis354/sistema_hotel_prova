@@ -51,11 +51,6 @@ export function BackLink({ to, children }: { to: string; children: ReactNode }) 
   );
 }
 
-/** Título de bloco dentro de um cartão. */
-export function CardHeading({ children }: { children: ReactNode }) {
-  return <h2 className="mb-3 text-section text-gray-800">{children}</h2>;
-}
-
 /** Rótulo pequeno + valor, para fichas de dados. */
 export function InfoItem({ label, children }: { label: string; children: ReactNode }) {
   return (

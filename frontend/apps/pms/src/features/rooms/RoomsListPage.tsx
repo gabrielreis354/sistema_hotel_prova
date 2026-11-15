@@ -38,7 +38,14 @@ export function RoomsListPage() {
               ? 'Cadastre os quartos do hotel para a recepção abrir reservas. Antes, crie ao menos uma categoria com a tarifa.'
               : 'O administrador ainda não cadastrou os quartos do hotel.'
           }
-          action={canWrite ? newRoom : undefined}
+          // Secundária: o "Novo quarto" do cabeçalho já é a ação principal (CA-08.e).
+          action={
+            canWrite ? (
+              <WriteButton canWrite variant="secondary" onClick={() => navigate('/quartos/novo')}>
+                Novo quarto
+              </WriteButton>
+            ) : undefined
+          }
         />
       )}
 

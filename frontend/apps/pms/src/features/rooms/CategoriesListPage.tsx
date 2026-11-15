@@ -40,7 +40,14 @@ export function CategoriesListPage() {
               ? 'A categoria define capacidade e diária. Crie a primeira para cadastrar os quartos.'
               : 'O administrador ainda não cadastrou as categorias de quarto.'
           }
-          action={canWrite ? newCategory : undefined}
+          // Secundária: o "Nova categoria" do cabeçalho já é a ação principal (CA-08.e).
+          action={
+            canWrite ? (
+              <WriteButton canWrite variant="secondary" onClick={() => navigate('/quartos/categorias/nova')}>
+                Nova categoria
+              </WriteButton>
+            ) : undefined
+          }
         />
       )}
 

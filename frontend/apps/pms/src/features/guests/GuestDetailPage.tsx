@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, PageHeader, Section, Spinner } from '@hotel/ui';
@@ -36,6 +36,11 @@ export function GuestDetailPage() {
   const del = useDeleteGuest();
   const [confirming, setConfirming] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  // Antes de qualquer return antecipado (regra dos hooks).
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+  }, [confirming]);
 
   const stays = useQuery({
     queryKey: ['guest-stays', id],
@@ -68,9 +73,13 @@ export function GuestDetailPage() {
       />
 
       {confirming && (
+        // O "Excluir" sai da tela ao abrir: o foco vem para a confirmação, senão cairia no body
+        // (🟡-2 do qa-redteam da T-08.5), como no cancelamento da reserva.
+        <div ref={confirmRef} tabIndex={-1} role="alertdialog" aria-label="Confirmar exclusão do hóspede" className="focus:outline-none">
         <Card className="space-y-3 border-status-maintenance/40 bg-status-maintenance/5 p-4">
           <p className="text-sm text-gray-800">
-            Excluir o cadastro de <strong>{guest.full_name}</strong>? As reservas antigas continuam, com o nome guardado.
+            Excluir o cadastro de <strong>{guest.full_name}</strong>? As reservas dele continuam, mas passam a aparecer
+            como "Hóspede removido". Não dá para desfazer por aqui.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -91,6 +100,7 @@ export function GuestDetailPage() {
             </Button>
           </div>
         </Card>
+        </div>
       )}
 
       {delError && <p className="text-sm text-status-maintenance">{delError}</p>}
