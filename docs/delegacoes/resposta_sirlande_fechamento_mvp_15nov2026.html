@@ -67,7 +67,7 @@
     <div class="decision">
       <span class="pill brand">Comanda: opção (b)</span>
       <span class="pill warn">SPEC-08 fora do plano</span>
-      <span class="pill warn">3 ajustes no M8</span>
+      <span class="pill warn">2 ajustes no M8</span>
     </div>
   </header>
 
@@ -101,13 +101,11 @@
   </section>
 
   <section>
-    <h2>3. Três pontos do M8 que mudam os critérios</h2>
+    <h2>3. Três pontos do M8</h2>
 
-    <h3><span class="tag">3.1</span>O seed sozinho não acende os indicadores</h3>
-    <p>Os 4 cartões do gerente leem as projeções do analytics (<code>proj_payments</code>, <code>proj_reservations</code>, <code>proj_rooms</code>), alimentadas pelo outbox via RabbitMQ. O seed grava só no banco do core. Para os cartões saírem de zero, depois do seed é preciso rodar:</p>
-<pre><code>ALLOW_SEED=1 node command.js seed
-node command.js outbox-initial-load</code></pre>
-    <p class="ask"><strong>Pedido:</strong> pôr o segundo comando no §9 ("Dados do dia") e no roteiro do ensaio de 24/11.</p>
+    <h3><span class="tag">3.1</span>O seed acende os indicadores pelos triggers do outbox</h3>
+    <p>Os 4 cartões do gerente leem as projeções do analytics (<code>proj_payments</code>, <code>proj_reservations</code>, <code>proj_rooms</code>). Quem as alimenta são os triggers <code>AFTER INSERT OR UPDATE</code> do outbox nas 6 tabelas do catálogo (<code>applyDbConstraints.js</code>). O <code>migrate</code> cria esses triggers antes do seed, então o que o seed grava chega ao analytics pelo mesmo caminho da API, sem passo extra. O <code>outbox-initial-load</code> só é necessário num banco populado antes dos triggers existirem.</p>
+    <p class="ask"><strong>Pedido:</strong> no ensaio de 24/11, conferir que o publicador e o consumidor estão de pé quando o seed roda. O critério "depois do seed, os 4 cartões mostram números diferentes de zero" vale como está.</p>
 
     <h3><span class="tag">3.2</span>O fuso é problema do seed, não do analytics</h3>
     <p>O plano diz que "os indicadores cortam o dia em UTC". Isso foi corrigido na D-68: o analytics conta o dia em <code>HOTEL_TIMEZONE</code> (<code>GetRevenueController.js:27</code>). O risco agora está no seed: o <code>CURRENT_DATE</code> do Postgres segue o fuso da sessão (UTC), e um seed rodado depois das 21h em Brasília gravaria "hoje" como amanhã. O M8 calcula o dia com <code>(now() AT TIME ZONE 'America/Sao_Paulo')::date</code>.</p>

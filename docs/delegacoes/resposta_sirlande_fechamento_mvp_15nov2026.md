@@ -32,18 +32,13 @@ Com a opção (a), a conta não fechava em 6 dias (18 a 23/11). A T-08.6 ("Sair"
 
 **Pedido:** acrescentar essa tabela à minha seção no §5 do plano e a linha da SPEC-08 ao calendário do §6.
 
-## 3. Três pontos do M8 que mudam os critérios
+## 3. Três pontos do M8
 
-### 3.1 O seed sozinho não acende os indicadores
+### 3.1 O seed acende os indicadores pelos triggers do outbox
 
-Os 4 cartões do gerente leem as projeções do analytics (`proj_payments`, `proj_reservations`, `proj_rooms`), alimentadas pelo outbox via RabbitMQ. O seed grava só no banco do core. Para os cartões saírem de zero, depois do seed é preciso rodar:
+Os 4 cartões do gerente leem as projeções do analytics (`proj_payments`, `proj_reservations`, `proj_rooms`). Quem as alimenta são os triggers `AFTER INSERT OR UPDATE` do outbox nas 6 tabelas do catálogo (`applyDbConstraints.js`, `applyOutbox`). O `migrate` cria esses triggers antes do seed, então o que o seed grava chega ao analytics pelo mesmo caminho da API, sem passo extra. O `outbox-initial-load` só é necessário num banco populado antes dos triggers existirem.
 
-```bash
-ALLOW_SEED=1 node command.js seed
-node command.js outbox-initial-load
-```
-
-**Pedido:** pôr o segundo comando no §9 ("Dados do dia") e no roteiro do ensaio de 24/11. No M8 eu confiro se a carga inicial pode rodar duas vezes sem duplicar e documento a ordem no `--help` do `command.js`.
+**Pedido:** no ensaio de 24/11, conferir que o publicador e o consumidor estão de pé quando o seed roda. O critério "depois do seed, os 4 cartões mostram números diferentes de zero" vale como está.
 
 ### 3.2 O fuso é problema do seed, não do analytics
 
