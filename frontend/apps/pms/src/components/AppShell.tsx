@@ -26,8 +26,10 @@ export function AppShell() {
   // em cache por uma hora. Sem resposta, o cabeçalho fica só com quem está logado.
   const { data: tenant } = useMyTenant();
 
+  // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
+  // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[220px_1fr]">
+    <div className="min-h-screen md:grid md:grid-cols-[220px_minmax(0,1fr)]">
       {/* Sidebar — desktop */}
       <aside className="hidden border-r border-gray-200 bg-white md:flex md:flex-col">
         {/* Marca do produto em neutro: brand é "faça isto", não enfeite (GUIA_UI_CORPORATIVA, regra 2). */}
@@ -41,11 +43,12 @@ export function AppShell() {
         </nav>
       </aside>
 
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-screen min-w-0 flex-col">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
           <div className="min-w-0 truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
           <div className="flex min-w-0 items-center gap-3">
-            <div className="min-w-0 truncate text-right text-sm">
+            {/* No celular cabem o hotel e o Sair; quem está logado aparece a partir de sm (640 px). */}
+            <div className="hidden min-w-0 truncate text-right text-sm sm:block">
               <span className="font-medium">{user?.name}</span>
               <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
             </div>
