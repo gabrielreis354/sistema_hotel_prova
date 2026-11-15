@@ -14,6 +14,7 @@ import { createCategory, createRoom, createGuest, createReservation } from './he
 import AccountModel from '../app/Models/AccountModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
 import { checkInWithoutAccount } from './helpers/legacyStay.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -48,14 +49,9 @@ async function checkIn(reservationId) {
     if (res.status !== 200) throw new Error(`check-in falhou: ${res.status} ${JSON.stringify(res.body)}`);
 }
 
-// Datas distintas por reserva: os quartos não colidem no EXCLUDE de ocupação.
-let month = 0;
-const nextDates = (nights) => {
-    month += 1;
-    const m = String((month % 12) + 1).padStart(2, '0');
-    const year = 2027 + Math.floor(month / 12);
-    return { check_in_date: `${year}-${m}-01`, check_out_date: `${year}-${m}-${String(1 + nights).padStart(2, '0')}` };
-};
+// Cada reserva usa um quarto novo, então datas iguais não colidem no EXCLUDE de ocupação.
+// Estadia a partir de hoje: o check-in só abre dentro do período (regra de 15/11/2026).
+const nextDates = (nights) => stayFromToday(nights);
 
 async function createUser(role) {
     const email = `${role.toLowerCase()}_bill_${Date.now()}@test.com`;

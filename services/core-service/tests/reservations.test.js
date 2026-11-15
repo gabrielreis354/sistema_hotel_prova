@@ -4,6 +4,7 @@ import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest } from './helpers/factories.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 const app = createApp();
 let jwt;
@@ -135,8 +136,7 @@ describe('Máquina de estados das reservas', () => {
             .send({
                 guest_id:       guestId,
                 room_id:        roomId2,
-                check_in_date:  '2027-04-01',
-                check_out_date: '2027-04-04',
+                ...stayFromToday(3),
             });
         reservationId = res.body.id;
     });
@@ -257,16 +257,13 @@ describe('Cancelamento de reservas', () => {
 describe('Check-in com quartos extras (fix propagação de status)', () => {
     let reservationId;
     let extraRoomId;
+    let mainRoomId;
 
     beforeAll(async () => {
-        // Restaurar quarto 202 para AVAILABLE antes deste teste
-        await request(app)
-            .put(`/rooms/${roomId2}`)
-            .set('Authorization', `Bearer ${jwt}`)
-            .send({ status: 'AVAILABLE' });
-
-        // Criar quarto extra
+        // Quartos novos: o 202 já teve, hoje, a estadia da máquina de estados, e o check-in só abre
+        // com a estadia começando hoje (regra de 15/11/2026).
         const cat = await createCategory(app, jwt, { name: 'Extra', price_per_night: 150 });
+        mainRoomId = (await createRoom(app, jwt, cat.id, { number: '203' })).id;
         extraRoomId = (await createRoom(app, jwt, cat.id, { number: '301' })).id;
 
         // Criar reserva com quarto principal
@@ -275,9 +272,8 @@ describe('Check-in com quartos extras (fix propagação de status)', () => {
             .set('Authorization', `Bearer ${jwt}`)
             .send({
                 guest_id:       guestId,
-                room_id:        roomId2,
-                check_in_date:  '2027-10-01',
-                check_out_date: '2027-10-05',
+                room_id:        mainRoomId,
+                ...stayFromToday(4),
             });
         reservationId = resCreate.body.id;
 
@@ -297,7 +293,7 @@ describe('Check-in com quartos extras (fix propagação de status)', () => {
         expect(res.body.status).toBe('CHECKED_IN');
 
         const [mainRoom, extraRoom] = await Promise.all([
-            request(app).get(`/rooms/${roomId2}`).set('Authorization', `Bearer ${jwt}`),
+            request(app).get(`/rooms/${mainRoomId}`).set('Authorization', `Bearer ${jwt}`),
             request(app).get(`/rooms/${extraRoomId}`).set('Authorization', `Bearer ${jwt}`),
         ]);
 
@@ -313,7 +309,7 @@ describe('Check-in com quartos extras (fix propagação de status)', () => {
         expect(res.status).toBe(200);
 
         const [mainRoom, extraRoom] = await Promise.all([
-            request(app).get(`/rooms/${roomId2}`).set('Authorization', `Bearer ${jwt}`),
+            request(app).get(`/rooms/${mainRoomId}`).set('Authorization', `Bearer ${jwt}`),
             request(app).get(`/rooms/${extraRoomId}`).set('Authorization', `Bearer ${jwt}`),
         ]);
 

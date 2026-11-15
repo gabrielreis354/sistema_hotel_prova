@@ -7,6 +7,7 @@ import { createCategory, createRoom } from './helpers/factories.js';
 import PaymentModel from '../app/Models/PaymentModel.js';
 import ReservationModel from '../app/Models/ReservationModel.js';
 import { resetPixProviderForTests } from '../app/services/pix/index.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 // Fluxo ponta a ponta com PIX_PROVIDER=asaas: reserva pública → cobrança → webhook → banco.
 // A API do Asaas é MOCKADA (sem rede, sem conta): estes testes provam o comportamento do
@@ -597,7 +598,8 @@ describe('DELETE /reservations/:id — cobrança PIX no Asaas', () => {
 // Fica por último no arquivo: o check-in ocupa um quarto do hotel A.
 describe('PUT /reservations/:id/check-in — sinal PIX de reserva PENDING', () => {
     it('cancela o sinal no Asaas depois do check-in e mantém as outras cobranças PIX', async () => {
-        const booking = await book(hotelA, '2027-12-01', '2027-12-02');
+        const hoje = stayFromToday(1); // o check-in abaixo só abre dentro do período
+        const booking = await book(hotelA, hoje.check_in_date, hoje.check_out_date);
         const depositChargeId = booking.body.pix.provider_charge_id;
         const deposit = await PaymentModel.unscoped().findOne({ where: { reservation_id: booking.body.reservation.id } });
         const otherChargeId = 'pay_999001';

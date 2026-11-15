@@ -43,6 +43,19 @@ export function canCheckOut(status: ReservationStatus): boolean {
   return canTransitionReservation(status, 'CHECKED_OUT');
 }
 
+/**
+ * Janela do check-in pelas datas (regra de 15/11/2026, igual ao backend em
+ * app/utils/checkInWindow.js): só quando a entrada já chegou e a saída ainda não. Chegada
+ * atrasada dentro do período vale. Datas 'yyyy-MM-dd'; `today` no fuso do hotel (todayISO).
+ */
+export type CheckInWindow = 'OPEN' | 'TOO_EARLY' | 'EXPIRED';
+
+export function checkInWindow(checkIn: string, checkOut: string, today: string): CheckInWindow {
+  if (today < checkIn) return 'TOO_EARLY';
+  if (today >= checkOut) return 'EXPIRED';
+  return 'OPEN';
+}
+
 export const ROOM_STATUSES = ['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'] as const;
 export type RoomStatus = (typeof ROOM_STATUSES)[number];
 

@@ -7,12 +7,15 @@ import {
   canCancelReservation,
   canCheckIn,
   canCheckOut,
+  checkInWindow,
   decimalToCents,
+  formatDateBR,
   multiplyCents,
   nightsBetween,
   parseHotelDate,
   RESERVATION_STATUSES,
   sumCents,
+  todayISO,
   type Cents,
   type ReservationStatus,
 } from '@hotel/domain';
@@ -112,18 +115,43 @@ function action(allowed: boolean, blocked: string | undefined): ActionState {
   return allowed ? { enabled: true } : { enabled: false, reason: blocked ?? UNKNOWN_STATUS };
 }
 
+export interface StayDates {
+  check_in_date?: string | null;
+  check_out_date?: string | null;
+}
+
+// Status permite, mas as datas não (regra de 15/11/2026): o servidor responderia 422.
+function checkInByDates(stay: StayDates | undefined, today: string): ActionState {
+  if (!stay?.check_in_date || !stay.check_out_date) return { enabled: true };
+  const window = checkInWindow(stay.check_in_date, stay.check_out_date, today);
+  if (window === 'TOO_EARLY') {
+    return { enabled: false, reason: `Check-in só a partir de ${formatDateBR(stay.check_in_date)}.` };
+  }
+  if (window === 'EXPIRED') {
+    const saida = stay.check_out_date === today ? 'a saída é hoje' : `a saída era ${formatDateBR(stay.check_out_date)}`;
+    return { enabled: false, reason: `Reserva vencida: ${saida}. Cancele a reserva em vez de fazer o check-in.` };
+  }
+  return { enabled: true };
+}
+
 /**
  * Quais ações a recepção pode fazer agora. A decisão vem da allowlist de @hotel/domain
- * (fail-safe: status desconhecido desabilita tudo); este arquivo só acrescenta o motivo.
+ * (fail-safe: status desconhecido desabilita tudo) e, no check-in, da janela de datas;
+ * este arquivo só acrescenta o motivo. `stay` traz as datas da reserva.
  */
-export function reservationActions(status: string | undefined): ReservationActions {
+export function reservationActions(
+  status: string | undefined,
+  stay?: StayDates,
+  today: string = todayISO(),
+): ReservationActions {
   const known = isReservationStatus(status) ? status : undefined;
   if (!known) {
     const off = { enabled: false, reason: UNKNOWN_STATUS };
     return { checkIn: off, checkOut: off, cancel: off };
   }
+  const byStatus = action(canCheckIn(known), CHECK_IN_BLOCKED[known]);
   return {
-    checkIn: action(canCheckIn(known), CHECK_IN_BLOCKED[known]),
+    checkIn: byStatus.enabled ? checkInByDates(stay, today) : byStatus,
     checkOut: action(canCheckOut(known), CHECK_OUT_BLOCKED[known]),
     cancel: action(canCancelReservation(known), CANCEL_BLOCKED[known]),
   };

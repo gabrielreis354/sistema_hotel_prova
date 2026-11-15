@@ -3,6 +3,7 @@ import {
   canTransitionReservation,
   canCancelReservation,
   canCheckIn,
+  checkInWindow,
   canCheckOut,
   canTransitionRoom,
   ROOM_STATUS_META,
@@ -68,3 +69,13 @@ describe('quarto — allowlist', () => {
     }
   });
 });
+
+describe('checkInWindow — o check-in só abre dentro do período (regra de 15/11/2026)', () => {
+  const hoje = '2026-11-15';
+  it('entrada hoje → aberta', () => expect(checkInWindow('2026-11-15', '2026-11-17', hoje)).toBe('OPEN'));
+  it('chegada atrasada dentro do período → aberta', () => expect(checkInWindow('2026-11-14', '2026-11-16', hoje)).toBe('OPEN'));
+  it('entrada amanhã → cedo demais', () => expect(checkInWindow('2026-11-16', '2026-11-18', hoje)).toBe('TOO_EARLY'));
+  it('saída hoje → vencida (não sobra noite)', () => expect(checkInWindow('2026-11-13', '2026-11-15', hoje)).toBe('EXPIRED'));
+  it('saída em setembro → vencida', () => expect(checkInWindow('2026-09-10', '2026-09-12', hoje)).toBe('EXPIRED'));
+});
+

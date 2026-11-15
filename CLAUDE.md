@@ -70,6 +70,15 @@ CHECKED_IN → CANCELLED            (não permitido)
 > **Walk-in:** a reserva criada no balcão nasce `PENDING` e pode ir direto a `CHECKED_IN`.
 > `CONFIRMED` nasce do sinal PIX pago (webhook) ou da assinatura de contrato B2B. Backend
 > (`CheckInController`) e `@hotel/domain` (`state-machines.ts`) seguem a mesma regra.
+>
+> **Janela do check-in (decisão do Gabriel de 15/11/2026):** além do status, o check-in só
+> abre quando a data de entrada já chegou e a de saída ainda não. Hoje é contado no horário do hotel.
+> Entrada futura → 422 `CHECK_IN_TOO_EARLY`; saída hoje ou antes → 422 `RESERVATION_EXPIRED`,
+> e a reserva vencida se cancela. Chegada atrasada dentro do período vale. Backend em
+> `app/utils/checkInWindow.js`; frontend em `checkInWindow` do `@hotel/domain`.
+> **Limitação aceita no MVP (15/11):** o hóspede que chega de madrugada no dia da saída
+> (reserva de 14 a 15/11, chegada à 01:30 de 15/11) cai em `RESERVATION_EXPIRED`. Tolerância
+> com horário de corte fica para o 5º semestre.
 
 ### Máquina de estados — Quartos
 

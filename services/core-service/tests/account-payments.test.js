@@ -23,6 +23,7 @@ import PaymentModel from '../app/Models/PaymentModel.js';
 import getPixProvider from '../app/services/pix/index.js';
 import { fromCents, toCents } from '../app/utils/calculateStayTotal.js';
 import { checkInWithoutAccount } from './helpers/legacyStay.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 const app = createApp();
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -37,13 +38,8 @@ const newRoom = async (category = standard) => {
     return createRoom(app, jwt, category.id, { number: String(roomNumber) });
 };
 
-let month = 0;
-const nextDates = (nights) => {
-    month += 1;
-    const m = String((month % 12) + 1).padStart(2, '0');
-    const year = 2030 + Math.floor(month / 12);
-    return { check_in_date: `${year}-${m}-01`, check_out_date: `${year}-${m}-${String(1 + nights).padStart(2, '0')}` };
-};
+// Estadia a partir de hoje: o check-in só abre dentro do período (regra de 15/11/2026).
+const nextDates = (nights) => stayFromToday(nights);
 
 const openAccount = async (body, token = jwt) => {
     const res = await request(app).post('/accounts').set(auth(token)).send(body);

@@ -5,6 +5,7 @@ import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 // T-05.3 / D-1 (decisão do Gabriel de 04/11/2026): a recepção conclui a limpeza pelo painel
 // "Hoje". Endpoint dedicado, só CLEANING → AVAILABLE — o PUT /rooms/:id genérico continua só
@@ -30,7 +31,7 @@ async function createUserToken(role) {
 /** Quarto levado a CLEANING pelo caminho real: check-in e check-out. */
 async function roomInCleaning(number) {
     const room = await createRoom(app, adminJwt, categoryId, { number });
-    const reservation = await createReservation(app, adminJwt, guestId, room.id, { check_in_date: '2027-07-01', check_out_date: '2027-07-02' });
+    const reservation = await createReservation(app, adminJwt, guestId, room.id, stayFromToday(1));
     for (const step of ['check-in', 'check-out']) {
         const res = await request(app).put(`/reservations/${reservation.id}/${step}`).set('Authorization', `Bearer ${adminJwt}`);
         expect(res.status).toBe(200);
@@ -83,7 +84,7 @@ describe('PUT /rooms/:id/release', () => {
 
     it('quarto OCCUPIED → 409 (hóspede dentro não volta para a venda)', async () => {
         const room = await createRoom(app, adminJwt, categoryId, { number: '405' });
-        const r = await createReservation(app, adminJwt, guestId, room.id, { check_in_date: '2027-07-05', check_out_date: '2027-07-06' });
+        const r = await createReservation(app, adminJwt, guestId, room.id, stayFromToday(1));
         await request(app).put(`/reservations/${r.id}/check-in`).set('Authorization', `Bearer ${adminJwt}`);
         const res = await release(room.id, receptionistJwt);
         expect(res.status).toBe(409);
@@ -135,7 +136,7 @@ describe('PUT /rooms/:id/release', () => {
         const extra = await createRoom(app, adminJwt, categoryId, { number: '411' });
         const criada = await request(app).post('/reservations').set('Authorization', `Bearer ${adminJwt}`).send({
             guest_id: guestId, room_id: principal.id, extra_room_ids: [extra.id],
-            check_in_date: '2027-07-10', check_out_date: '2027-07-12',
+            ...stayFromToday(2),
         });
         expect(criada.status).toBe(201);
         expect((await request(app).put(`/reservations/${criada.body.id}/check-in`).set('Authorization', `Bearer ${adminJwt}`)).status).toBe(200);

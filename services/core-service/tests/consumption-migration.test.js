@@ -20,6 +20,7 @@ import { createCategory, createRoom, createGuest, createReservation } from './he
 import AccountModel from '../app/Models/AccountModel.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
 import { checkInWithoutAccount } from './helpers/legacyStay.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 // Import tardio: sem o módulo, só os testes da migração falham — não o arquivo inteiro.
 async function migrateConsumptions(db) {
@@ -39,9 +40,7 @@ async function newReservation({ checkIn = false } = {}) {
     roomNumber += 1;
     const room = await createRoom(app, jwt, category.id, { number: String(roomNumber) });
     const guest = await createGuest(app, jwt, { email: `consumo_${roomNumber}_${Date.now()}@test.com` });
-    const reservation = await createReservation(app, jwt, guest.id, room.id, {
-        check_in_date: `2028-0${(roomNumber % 9) + 1}-01`, check_out_date: `2028-0${(roomNumber % 9) + 1}-03`
-    });
+    const reservation = await createReservation(app, jwt, guest.id, room.id, stayFromToday(2));
     if (checkIn) await checkInWithoutAccount(app, jwt, reservation.id);
     return { reservation, room, guest };
 }

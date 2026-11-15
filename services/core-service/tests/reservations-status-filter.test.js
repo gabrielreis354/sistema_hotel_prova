@@ -4,11 +4,17 @@ import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
+import { addDays } from './helpers/stayDates.js';
+import { todayInHotel } from '../app/utils/hotelTimezone.js';
 
 // T-05.3 — o painel "Hoje" pede as reservas por situação, recortadas no servidor:
 //   ?status=CHECKED_IN                                → hóspedes na casa (inclui saída atrasada)
 //   ?from=HOJE&to=HOJE&status=PENDING,CONFIRMED       → chegadas do dia e em atraso
 // Sem isso a tela teria de baixar reservas fora da janela e filtrar no cliente.
+
+// Datas a partir de hoje: a reserva CHECKED_IN só recebe check-in dentro do período (regra de 15/11/2026).
+const HOJE = todayInHotel();
+const dia = (n) => addDays(HOJE, n);
 
 const app = createApp();
 let jwt;
@@ -30,21 +36,21 @@ beforeAll(async () => {
     const guest = (await createGuest(app, jwt, { full_name: 'Hóspede Filtro' })).id;
 
     // PENDING
-    ids.pending = (await createReservation(app, jwt, guest, rooms[0], { check_in_date: '2027-05-10', check_out_date: '2027-05-12' })).id;
+    ids.pending = (await createReservation(app, jwt, guest, rooms[0], { check_in_date: HOJE, check_out_date: dia(2) })).id;
     // CHECKED_IN
-    ids.checkedIn = (await createReservation(app, jwt, guest, rooms[1], { check_in_date: '2027-05-10', check_out_date: '2027-05-14' })).id;
+    ids.checkedIn = (await createReservation(app, jwt, guest, rooms[1], { check_in_date: HOJE, check_out_date: dia(4) })).id;
     expect((await request(app).put(`/reservations/${ids.checkedIn}/check-in`).set('Authorization', `Bearer ${jwt}`)).status).toBe(200);
     // CANCELLED
-    ids.cancelled = (await createReservation(app, jwt, guest, rooms[2], { check_in_date: '2027-05-10', check_out_date: '2027-05-11' })).id;
+    ids.cancelled = (await createReservation(app, jwt, guest, rooms[2], { check_in_date: HOJE, check_out_date: dia(1) })).id;
     expect((await request(app).put(`/reservations/${ids.cancelled}/cancel`).set('Authorization', `Bearer ${jwt}`)).status).toBe(200);
     // PENDING fora da janela de 10/05
-    ids.later = (await createReservation(app, jwt, guest, rooms[3], { check_in_date: '2027-06-01', check_out_date: '2027-06-03' })).id;
+    ids.later = (await createReservation(app, jwt, guest, rooms[3], { check_in_date: dia(22), check_out_date: dia(24) })).id;
 
     // Outro hotel com uma reserva CHECKED_IN — não pode aparecer.
     const oCat = await createCategory(app, otherJwt, { price_per_night: 100 });
     const oRoom = (await createRoom(app, otherJwt, oCat.id, { number: '301' })).id;
     const oGuest = (await createGuest(app, otherJwt, { full_name: 'Hóspede Outro' })).id;
-    ids.other = (await createReservation(app, otherJwt, oGuest, oRoom, { check_in_date: '2027-05-10', check_out_date: '2027-05-12' })).id;
+    ids.other = (await createReservation(app, otherJwt, oGuest, oRoom, { check_in_date: HOJE, check_out_date: dia(2) })).id;
     await request(app).put(`/reservations/${ids.other}/check-in`).set('Authorization', `Bearer ${otherJwt}`);
 });
 
@@ -68,7 +74,7 @@ describe('GET /reservations?status=', () => {
     });
 
     it('combina com from/to (sobreposição ao dia)', async () => {
-        const res = await list({ from: '2027-05-10', to: '2027-05-10', status: 'PENDING,CONFIRMED' });
+        const res = await list({ from: HOJE, to: HOJE, status: 'PENDING,CONFIRMED' });
         expect(res.status).toBe(200);
         expect(res.body.map((r) => r.id)).toEqual([ids.pending]);
     });

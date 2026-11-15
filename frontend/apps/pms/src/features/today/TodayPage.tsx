@@ -128,7 +128,7 @@ export function TodayPage() {
         >
           <RowList>
             {arrivalList.map((row) => (
-              <ArrivalItem key={row.reservation.id} row={row} onResult={setFeedback} />
+              <ArrivalItem key={row.reservation.id} row={row} today={today} onResult={setFeedback} />
             ))}
           </RowList>
         </TodayBlock>

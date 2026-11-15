@@ -12,6 +12,7 @@ import { createCategory, createRoom, createGuest, createReservation } from './he
 import AccountModel from '../app/Models/AccountModel.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
 import { checkInWithoutAccount } from './helpers/legacyStay.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 const app = createApp();
 
@@ -346,7 +347,7 @@ describe('Conta ROOM só recebe item durante a estadia (qa-redteam 19/10)', () =
         const category = await createCategory(app, jwt, { name: 'Suíte Itens' });
         const room = await createRoom(app, jwt, category.id, { number: '501' });
         const guest = await createGuest(app, jwt, { email: `suite_itens_${Date.now()}@test.com` });
-        const reservation = await createReservation(app, jwt, guest.id, room.id);
+        const reservation = await createReservation(app, jwt, guest.id, room.id, stayFromToday(2));
         reservationId = reservation.id;
         await checkInWithoutAccount(app, jwt, reservationId);
 

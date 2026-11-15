@@ -87,7 +87,7 @@ export function ReservationDetailPage() {
   }
 
   const r = reservation.data;
-  const actions = reservationActions(r.status);
+  const actions = reservationActions(r.status, r);
   const nights = r.check_in_date && r.check_out_date ? safeNights(r.check_in_date, r.check_out_date) : null;
   const timeline = bill.data ? buildBillTimeline(bill.data) : null;
   const balance = bill.data ? officialBalanceCents(bill.data) : null;

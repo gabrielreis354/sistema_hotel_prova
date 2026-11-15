@@ -9,6 +9,7 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountModel from '../app/Models/AccountModel.js';
 import { checkInWithoutAccount } from './helpers/legacyStay.js';
+import { stayFromToday } from './helpers/stayDates.js';
 
 const app = createApp();
 
@@ -65,8 +66,7 @@ beforeAll(async () => {
             guest_id: guest.id,
             room_id: room101.id,
             extra_room_ids: [room102.id],
-            check_in_date: '2027-03-01',
-            check_out_date: '2027-03-05'
+            ...stayFromToday(4)
         });
     if (res.status !== 201) throw new Error(`reserva multiquarto falhou: ${JSON.stringify(res.body)}`);
     stay = res.body;
@@ -77,7 +77,7 @@ beforeAll(async () => {
     const otherCategory = await createCategory(app, otherJwt);
     otherRoom = await createRoom(app, otherJwt, otherCategory.id, { number: '101' });
     otherGuest = await createGuest(app, otherJwt, { email: `vizinho_${Date.now()}@test.com` });
-    otherStay = await createReservation(app, otherJwt, otherGuest.id, otherRoom.id);
+    otherStay = await createReservation(app, otherJwt, otherGuest.id, otherRoom.id, stayFromToday(4));
     await checkIn(otherJwt, otherStay.id);
 });
 
@@ -134,9 +134,7 @@ describe('POST /accounts — conta ROOM', () => {
     });
 
     it('RN-005 na corrida: a checagem prévia não vê a outra conta e o índice barra → 422 (nunca 500)', async () => {
-        const reservation = await createReservation(app, jwt, guest.id, room104.id, {
-            check_in_date: '2027-04-01', check_out_date: '2027-04-03'
-        });
+        const reservation = await createReservation(app, jwt, guest.id, room104.id, stayFromToday(2));
         await checkIn(jwt, reservation.id);
         const body = roomAccount({ reservation_id: reservation.id, room_id: room104.id, label: 'Suíte 104' });
         expect((await post(jwt, body)).status).toBe(201);

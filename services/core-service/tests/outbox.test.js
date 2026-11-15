@@ -7,6 +7,7 @@ import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest } from './helpers/factories.js';
+import { addDays, stayFromToday } from './helpers/stayDates.js';
 
 // T-01.4 / H.1 — outbox transacional (CA-01.4.a, d). O contrato é o catálogo de eventos v1.0
 // (docs/specs/anexos/SPEC-01-catalogo-eventos.md): envelope (§2), eventos e payload mínimo (§4),
@@ -103,7 +104,7 @@ describe('Quarto — rooms (§4.3)', () => {
         const principal = await novoQuarto();
         const extra = await novoQuarto();
         const r = await request(app).post('/reservations').set(auth()).send({
-            guest_id: guest.id, room_id: principal, extra_room_ids: [extra], check_in_date: '2029-01-01', check_out_date: '2029-01-03',
+            guest_id: guest.id, room_id: principal, extra_room_ids: [extra], ...stayFromToday(2),
         });
         expect(r.status).toBe(201);
 
@@ -149,26 +150,28 @@ describe('Hóspede — guests: minimização (§4.4)', () => {
 
 describe('Reserva — reservations (§4.5)', () => {
     let reservaId;
+    const estadia = stayFromToday(2); // recebe o check-in no teste de transição
 
     it('reservation.created com os campos do catálogo; dinheiro como texto; created_at ISO UTC', async () => {
         const guest = await createGuest(app, jwt, { full_name: 'Hóspede Reserva' });
         const r = await request(app).post('/reservations').set(auth()).send({
-            guest_id: guest.id, room_id: await novoQuarto(), check_in_date: '2029-02-01', check_out_date: '2029-02-03',
+            guest_id: guest.id, room_id: await novoQuarto(), ...estadia,
         });
         reservaId = r.body.id;
 
         const e = await ultimo(reservaId);
         expect(e.type).toBe('reservation.created');
         expect(chaves(e.payload)).toEqual(['check_in_date', 'check_out_date', 'created_at', 'guest_id', 'room_id', 'status', 'total_amount']);
-        expect(e.payload).toMatchObject({ status: 'PENDING', check_in_date: '2029-02-01', check_out_date: '2029-02-03', total_amount: '300.00' });
+        expect(e.payload).toMatchObject({ status: 'PENDING', ...estadia, total_amount: '300.00' });
         expect(e.payload.created_at).toMatch(ISO_UTC);
     });
 
     it('mudar datas gera reservation.updated (com o total recalculado)', async () => {
-        await request(app).put(`/reservations/${reservaId}`).set(auth()).send({ check_out_date: '2029-02-04' });
+        const novaSaida = addDays(estadia.check_out_date, 1);
+        await request(app).put(`/reservations/${reservaId}`).set(auth()).send({ check_out_date: novaSaida });
         const lista = await eventos(reservaId);
         const atualizacoes = lista.filter((e) => e.type === 'reservation.updated');
-        expect(atualizacoes.at(-1).payload).toMatchObject({ check_out_date: '2029-02-04', total_amount: '450.00' });
+        expect(atualizacoes.at(-1).payload).toMatchObject({ check_out_date: novaSaida, total_amount: '450.00' });
     });
 
     it('transição de estado gera reservation.status_changed com previous_status', async () => {

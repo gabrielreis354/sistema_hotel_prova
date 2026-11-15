@@ -152,11 +152,20 @@ function useRowTransition(reservation: ReservationListItem, onResult: OnResult) 
 
 // ─── Chegadas ────────────────────────────────────────────────────────────────────────
 
-export function ArrivalItem({ row, onResult }: { row: ArrivalRow<ReservationListItem>; onResult: OnResult }) {
+export function ArrivalItem({
+  row,
+  today,
+  onResult,
+}: {
+  row: ArrivalRow<ReservationListItem>;
+  /** O mesmo "hoje" do painel (useHotelToday), para a janela do check-in não divergir da lista. */
+  today: string;
+  onResult: OnResult;
+}) {
   const r = row.reservation;
   const [confirming, setConfirming] = useState(false);
   const { run, busy } = useRowTransition(r, onResult);
-  const allowed = reservationActions(r.status).checkIn;
+  const allowed = reservationActions(r.status, r, today).checkIn;
   const blocked = allowed.enabled ? checkInBlockedReason(r.room) : null;
   const checkIn = blocked ? { enabled: false, reason: blocked } : allowed;
   const slot = `chegada-${r.id}`;
