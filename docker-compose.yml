@@ -115,9 +115,13 @@ services:
       RABBITMQ_ANALYTICS_PASSWORD: ${RABBITMQ_ANALYTICS_PASSWORD:?defina RABBITMQ_ANALYTICS_PASSWORD no .env antes de subir o compose}
     volumes:
       - ./infra/k8s/rabbitmq-setup.sh:/rabbitmq-setup.sh:ro
+    # Só "iniciado", não "saudável" (🟡-1 do ensaio de 14/11): no 1º `up` a frio o healthcheck do
+    # broker estourava o prazo no WSL, o compose desistia com "container rabbitmq is unhealthy" e
+    # nem o setup nem o nginx subiam. O próprio script espera a API do RabbitMQ responder (até 3 min),
+    # então não precisa do healthcheck para começar.
     depends_on:
       rabbitmq:
-        condition: service_healthy
+        condition: service_started
     restart: "no"
 
   backend:
