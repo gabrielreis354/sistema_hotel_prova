@@ -3,7 +3,9 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatCpf, formatDateBR } from '@hotel/domain';
 import { ActionSlot, Button, Card, ErrorState, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/auth.js';
+import { myTenantOptions } from '../tenant/index.js';
 import { useBill, useReservation, useTransitionReservation } from './queries.js';
 import type { ReservationTransition } from './reservationsApi.js';
 import { buildBillTimeline, officialBalanceCents, reservationActions, safeNights } from './reservationLogic.js';
@@ -37,6 +39,12 @@ export function ReservationDetailPage() {
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   const role = useAuthStore((s) => s.user?.role);
+  // Adianta o hotel emissor do comprovante (T-09.1): quem abre o comprovante vem desta tela, e
+  // assim o nome já está no cache quando a recepção clica em Imprimir.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    void queryClient.prefetchQuery(myTenantOptions());
+  }, [queryClient]);
   // Fora do cartão do formulário: quando o saldo zera, o formulário some e o aviso fica.
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
   const paymentResultRef = useRef<HTMLParagraphElement>(null);
