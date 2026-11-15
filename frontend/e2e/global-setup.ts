@@ -23,6 +23,12 @@ type StoredSession = { token: string; user: unknown };
 
 /** Health do nginx e um login do admin pela API: prova que o banco foi semeado e que a senha confere. */
 async function assertBackendUp(): Promise<StoredSession> {
+  // O roteiro grava dados "E2E" no Hotel Aurora: só no compose descartável desta máquina, nunca no
+  // ambiente da apresentação nem em servidor remoto.
+  const host = new URL(API_URL).hostname;
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(host)) {
+    throw new Error(`[e2e] E2E_API_URL=${API_URL} não é local. O roteiro só roda contra o compose descartável (${COMPOSE_PROJECT}) desta máquina.`);
+  }
   try {
     const r = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(5_000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
