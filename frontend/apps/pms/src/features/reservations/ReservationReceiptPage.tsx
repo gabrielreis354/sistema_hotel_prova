@@ -66,7 +66,7 @@ export function ReservationReceiptPage() {
 
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-wide text-gray-500">Comprovante de conta</p>
-          <h1 className="text-xl font-semibold">{r.guest?.full_name ?? 'Hóspede'}</h1>
+          <h1 className="text-title">{r.guest?.full_name ?? 'Hóspede'}</h1>
           <p className="text-sm text-gray-700 tabular-nums">
             Quarto {rooms.map((x) => x.number).join(', ') || '—'} ·{' '}
             {r.check_in_date && r.check_out_date ? `${formatDateBR(r.check_in_date)} a ${formatDateBR(r.check_out_date)}` : '—'}

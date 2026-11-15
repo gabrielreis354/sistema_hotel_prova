@@ -30,7 +30,7 @@ export function Block({ title, caption, isLoading, error, onRetry, isEmpty, empt
     <Card className="space-y-3 p-4">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="font-semibold">{title}</h2>
+          <h2 className="text-section">{title}</h2>
           <p className="text-xs text-gray-500">{caption}</p>
         </div>
         {actions}

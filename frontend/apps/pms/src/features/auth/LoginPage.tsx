@@ -56,7 +56,7 @@ export function LoginPage() {
         noValidate
       >
         <div>
-          <h1 className="text-xl font-semibold">Entrar</h1>
+          <h1 className="text-title">Entrar</h1>
           <p className="text-sm text-gray-500">PMS — Gestão de Hotel</p>
         </div>
 

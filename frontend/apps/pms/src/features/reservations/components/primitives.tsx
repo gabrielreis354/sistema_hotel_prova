@@ -43,7 +43,7 @@ export { Money, Notice } from '@hotel/ui';
 export function PageHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-xl font-semibold">{title}</h1>
+      <h1 className="text-title">{title}</h1>
       {action}
     </div>
   );
@@ -60,7 +60,7 @@ export function BackLink({ to, children }: { to: string; children: ReactNode }) 
 
 /** Título de bloco dentro de um cartão. */
 export function CardHeading({ children }: { children: ReactNode }) {
-  return <h2 className="mb-3 text-sm font-semibold text-gray-800">{children}</h2>;
+  return <h2 className="mb-3 text-section text-gray-800">{children}</h2>;
 }
 
 /** Rótulo pequeno + valor, para fichas de dados. */
