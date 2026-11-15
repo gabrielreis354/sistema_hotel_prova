@@ -131,9 +131,17 @@ Fora do MVP, por decisão de 21/10 (não fazer agora):
 - 01/12: publicar a versão final na `main`, com aprovação do Sirlande.
 
 ### Sirlande
-- Até 17/11: dados de demonstração com as datas do dia (§4).
-- Até 20/11: fechar a comanda. Pode fazer os itens 1 a 3 do §3 ele mesmo, ou combinar com o Gabriel que os itens 1 e 2 passam para ele.
-- Revisar os PRs de frontend do Gabriel e aprovar a versão final de 01/12.
+Resposta dele em 15/11: PR #156.
+
+| O quê | Prazo | Estimativa |
+|---|---|---|
+| Dados de demonstração com as datas do dia (§4). PR #157 aberto em 15/11 | 17/11 | — |
+| Comanda: **opção (b)**. O Gabriel faz o aviso de "sem conexão" e o tempo restante para desfazer (`fix/comanda-acabamento`); o Sirlande revisa e confere os outros 3 acabamentos com o qa-explorador | 20/11 | 0,5 dia |
+| SPEC-08 mínima: T-08.1 (Inter), T-08.2 (marca e ícones), T-08.3 (hierarquia de ações), mais a T-08.4 (painel Hoje). PRs #159 a #162 abertos em 15/11 | 24/11 | 3 dias |
+| Setas do teclado nas abas da reserva e foco da folha "Mais" | 24/11 | 0,5 dia |
+| Revisão do roteiro automatizado (`feature/e2e-roteiro`) e aprovação da versão final de 01/12 | antes de 24/11 | — |
+
+A T-08.6 ("Sair" com 36 px) entra se sobrar tempo; senão, vira correção depois do congelamento.
 
 ### Weslley
 - Já: trocar a chave do Asaas.
@@ -163,6 +171,7 @@ Fora do MVP, por decisão de 21/10 (não fazer agora):
 | 17/11 | Dados de demonstração com as datas do dia; sistema sobe na 1ª tentativa | Sirlande · Weslley |
 | 20/11 | Comanda fechada; roteiro automatizado no repositório | Sirlande (+Gabriel) · Gabriel |
 | 22/11 | Roteiro rodando no CI | Weslley |
+| 24/11 | SPEC-08 mínima na `develop` | Sirlande |
 | 24/11 | Congelamento + 2º ensaio, zero 🔴 | todos |
 | 01/12 | Versão final na `main` + ensaio geral | Gabriel, com aprovação do Sirlande |
 | 10/12 | Apresentação | todos |
