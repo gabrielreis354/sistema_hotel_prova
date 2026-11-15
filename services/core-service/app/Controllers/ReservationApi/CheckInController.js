@@ -5,6 +5,8 @@ import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { openStayAccount } from '../../utils/reservationRoomAccount.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
+import { todayInHotel } from '../../utils/hotelTimezone.js';
+import { CHECK_IN_WINDOW, checkInWindow, checkInWindowError } from '../../utils/checkInWindow.js';
 
 const CHECK_IN_FROM = 'AVAILABLE';
 
@@ -37,6 +39,10 @@ export default async function CheckInController(request, response) {
         if (!['PENDING', 'CONFIRMED'].includes(reservation.status)) {
             return await fail(422, { error: `Check-in não permitido no status '${reservation.status}'` });
         }
+
+        // Datas antes dos quartos: reserva vencida ou adiantada não chega a travar quarto.
+        const window = checkInWindow(reservation.check_in_date, reservation.check_out_date, todayInHotel());
+        if (window !== CHECK_IN_WINDOW.OPEN) return await fail(422, checkInWindowError(window, reservation));
 
         const pivotRows = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id }, transaction });
         const extraRoomIds = pivotRows

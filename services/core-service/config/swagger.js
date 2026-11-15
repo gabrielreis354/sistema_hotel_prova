@@ -1052,7 +1052,7 @@ const options = {
                         200: { description: 'Status alterado para CHECKED_IN', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         404: { description: 'Reserva ou quarto não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'code ROOM_NOT_AVAILABLE — o quarto principal ou um quarto extra não está AVAILABLE (ocupado, em limpeza ou em manutenção). Reserva e quartos não mudam.', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } },
-                        422: { description: 'Check-in não permitido no status atual', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        422: { description: 'Check-in não permitido no status atual, ou fora da janela de datas (regra de 15/11/2026): code CHECK_IN_TOO_EARLY quando a data de entrada ainda não chegou; code RESERVATION_EXPIRED quando a data de saída já chegou (cancele a reserva). "Hoje" é contado no horário de Brasília. Reserva e quartos não mudam.', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomError' } } } }
                     }
                 }
             },
