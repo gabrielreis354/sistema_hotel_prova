@@ -89,6 +89,13 @@ export function ReservationDetailPage() {
     });
   }
 
+  // Antes de qualquer return: hook depois de return antecipado muda a ordem entre renders.
+  useEffect(() => {
+    if (confirming !== 'check-out') return;
+    checkOutRef.current?.focus();
+    checkOutRef.current?.scrollIntoView({ block: 'center' });
+  }, [confirming]);
+
   if (reservation.isPending) return <Spinner label="Carregando reserva…" />;
   if (reservation.isError || !reservation.data) {
     const notFound = reservation.error instanceof ApiError && reservation.error.status === 404;
@@ -116,12 +123,6 @@ export function ReservationDetailPage() {
 
   // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary.
   const primary = primaryAction(actions);
-
-  useEffect(() => {
-    if (confirming !== 'check-out') return;
-    checkOutRef.current?.focus();
-    checkOutRef.current?.scrollIntoView({ block: 'center' });
-  }, [confirming]);
 
   function openCheckOut() {
     setFeedback(null);
