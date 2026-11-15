@@ -67,3 +67,9 @@ nenhum
 | 🟢-2 `frontend/README.md` | ✅ Diz que os indicadores pedem o compose (nginx e analytics) |
 
 Verificação depois das correções: PMS com 307 testes, typecheck dos dois tsconfigs, build. Os 7 passos do roteiro no compose limpo, com a config do repositório: 7 de 7.
+
+## Correção posterior (15/11)
+O qa-redteam da T-09.1 notou que o `vite.config.test.ts` **nunca rodou**: o exclude padrão do
+Vitest descarta `**/vite.config.*`, mesmo com o arquivo no `include`. O arquivo foi renomeado
+para `viteProxy.test.ts`, e os 2 testes agora rodam e passam. A verificação "reproduzida depois
+da correção" deste relatório valia para o comportamento do proxy, não para esse teste.
