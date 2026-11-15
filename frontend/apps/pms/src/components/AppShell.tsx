@@ -73,10 +73,17 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const moreRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
   const inMore = more.some((i) => matchPath({ path: i.to, end: false }, pathname));
 
   // Navegou (por um item do "Mais" ou pela barra): a folha fecha.
   useEffect(() => setOpen(false), [pathname]);
+
+  // A folha abriu: o foco entra nela, no primeiro item (🟢-3 do qa-redteam da T-05.3; decisão de
+  // 15/11, SPEC-08 §9). Sem isso, quem usa teclado ou leitor de tela fica atrás do fundo escuro.
+  useEffect(() => {
+    if (open) sheetRef.current?.querySelector<HTMLElement>('a, button')?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -97,6 +104,7 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
           {/* Fundo: toque fora fecha. Não é foco de teclado — o Esc faz o mesmo. */}
           <div className="sheet-backdrop fixed inset-0 z-30 bg-gray-900/30" aria-hidden="true" onClick={() => setOpen(false)} />
           <nav
+            ref={sheetRef}
             id="menu-mais"
             aria-label="Mais opções"
             className="sheet-up fixed inset-x-0 bottom-12 z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
