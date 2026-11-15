@@ -63,3 +63,21 @@ A comanda é sua, então ninguém mexe nela sem o seu OK. Responda com (a) ou (b
 | 24/11 | Congelamento + segundo ensaio com todos |
 | 01/12 | Versão final + ensaio geral |
 | 10/12 | Apresentação |
+
+## Atualização do fim de 15/11
+
+O que entrou na `develop` hoje e mexe na sua área:
+
+- **SPEC-09** (#149, #150, #151), correções de tela da revisão de 15/11:
+  - o item "Usuários" saiu do `routes/nav.ts`. A rota `config/usuarios` continua no `App.tsx`;
+  - a `ReservationDetailPage` passou a buscar antes o hotel do comprovante (`useQueryClient().prefetchQuery`);
+  - o CPF aparece formatado, por `formatCpf` do `@hotel/domain`, na lista e no detalhe de hóspedes, na reserva e no `GuestPicker`;
+  - a linha da lista de Hóspedes ficou inteira clicável (`GuestRow.tsx`).
+
+  A sua **SPEC-08** mexe nesses mesmos arquivos (ícones no `nav.ts` e hierarquia de ações na reserva). Ao começar, parta da `develop` atual: nada da SPEC-08 foi feito, só não pode haver conflito.
+- **Check-in só dentro do período da reserva** (#147). Isso afeta o seu seed: reserva `PENDING` ou `CONFIRMED` que você quiser mostrar como "chegada de hoje" precisa ter `check_in_date <= hoje < check_out_date`.
+- **`./start.sh compose-up --build`** (#154) é o jeito novo de subir o compose. Ele avisa se o `rabbitmq-setup` falhar.
+
+**O que mais pesa agora é o seu item 1, o seed com as datas do dia (17/11).** Sem ele, o painel Hoje e
+os Indicadores aparecem zerados na banca. Se não der até 17/11, avise o Gabriel: um agente pode
+fazer numa branch, e você revisa.
