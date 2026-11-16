@@ -133,8 +133,9 @@ jobs:
 
       # O globalSetup do e2e confere a API e aquece o Vite antes dos passos.
       # Prazo próprio, bem abaixo dos 45 min do job: se o roteiro travar, este passo falha (em vez
-      # de o job ser cancelado) e os passos de falha abaixo ainda publicam o relatório e os logs.
-      # Uma rodada normal leva ~1 min.
+      # de o job ser cancelado) e os passos de falha abaixo ainda rodam — os logs do compose saem,
+      # e o que o Playwright já gravou em test-results/ também. O relatório HTML NÃO sai: o
+      # processo é morto antes de escrevê-lo. Uma rodada normal leva ~1 min.
       - name: Roteiro (pnpm e2e)
         working-directory: frontend
         timeout-minutes: 15

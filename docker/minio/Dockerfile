@@ -5,12 +5,16 @@
 # não percebia; quem clonava o repo do zero não subia o compose. O código-fonte segue público
 # (AGPLv3), então a imagem passa a nascer aqui.
 #
-# Tudo fixo: trocar de versão é decisão consciente, nunca um `latest` que muda sozinho.
-# - Os ARG MINIO_RELEASE e MC_RELEASE são a FONTE ÚNICA da versão. A tag da imagem
-#   (gesway/minio:<MINIO_RELEASE>) aparece também no docker-compose.yml e no
-#   infra/k8s/minio.yaml, e o scripts/verificar_imagem_minio.sh confere que as quatro linhas
-#   batem com este ARG (o start.sh e o CI rodam o script). Ao trocar a RELEASE, troque o
-#   commit também e rode o script.
+# Fixos: código do minio e do mc (tag + commit) e imagens base (digest). Os pacotes do apk
+# (git, curl, ca-certificates) acompanham o repositório da alpine 3.24 no dia do build. Trocar de
+# versão é decisão consciente, nunca um `latest` que muda sozinho.
+# - A tag da imagem é gesway/minio:<MINIO_RELEASE> — só o ARG MINIO_RELEASE entra nela, e ele é
+#   a fonte única da tag. Ela aparece também no docker-compose.yml e no infra/k8s/minio.yaml, e
+#   o scripts/verificar_imagem_minio.sh confere que as quatro linhas batem com o ARG (o
+#   start.sh e o CI rodam o script). Ao trocar a RELEASE, troque o commit também e rode o script.
+# - Trocar SÓ o mc, um digest ou o Go mantém a tag: o compose recompila com `--build`, mas o
+#   k8s não vê mudança no manifest e o pod segue com a imagem velha. Depois do build, rode
+#   `kubectl -n hotel-system rollout restart statefulset/minio` (ou suba a RELEASE).
 # - Tags do GitHub podem ser movidas: o build confere o commit esperado depois do clone.
 # - Imagens base por digest. Go 1.27: a linha 1.24 do go.mod já não recebe correção de
 #   segurança, e a imagem do Go roda com GOTOOLCHAIN=local (ignora o `toolchain` do go.mod).
