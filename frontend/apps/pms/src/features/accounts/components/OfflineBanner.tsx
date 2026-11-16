@@ -28,7 +28,7 @@ export function OfflineNotice({ waiting, elsewhere = 0 }: { waiting: number; els
  * faixa é anunciada também quando a conta abre já sem rede (🟡-2 do red team de 15/11), e não
  * só quando a rede cai com a tela aberta.
  *
- * Por que não o `focus` do `Notice` local: mover o foco tiraria o garçom do lugar em que está
+ * Por que não o `focus` do `InfoNotice` local: mover o foco tiraria o garçom do lugar em que está
  * na tela a cada conta aberta sem rede, e o aviso não pede ação. Ele é informativo, como o
  * `status` do rodapé, e a região viva basta. O custo é a faixa aparecer um quadro depois da
  * conta, só na abertura.

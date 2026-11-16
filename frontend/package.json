@@ -13,6 +13,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "e2e": "pnpm --filter @hotel/e2e e2e",
     "gen:api": "pnpm --filter @hotel/api-client run generate"
   },
   "devDependencies": {

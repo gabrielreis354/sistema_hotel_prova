@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Button, ErrorState, Field, Input } from '@hotel/ui';
+import { Button, ErrorState, Field, Input, PageHeader } from '@hotel/ui';
 import { decimalToCents, formatBRL, formatDateBR, todayISO } from '@hotel/domain';
 import type { Period } from './analyticsApi.js';
 import { defaultPeriod, fillMonths, monthLabel, monthlyWindow, periodError, SEASONALITY_WINDOWS } from './period.js';
@@ -114,10 +114,7 @@ export function IndicatorsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-title">Indicadores</h1>
-        <p className="text-sm text-gray-500">Hoje, {formatDateBR(today)}</p>
-      </header>
+      <PageHeader title="Indicadores" context={`Hoje, ${formatDateBR(today)}`} />
 
       <section aria-label="Números do dia" className="space-y-3">
         <KpiCards kpis={kpis} busy={occupancy.isLoading || revenueToday.isLoading} />

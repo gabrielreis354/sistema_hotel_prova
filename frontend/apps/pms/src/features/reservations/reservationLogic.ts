@@ -503,8 +503,14 @@ export function nextTab(current: ReservationTab, key: string): ReservationTab | 
  * senão check-out. Ela vai para o cabeçalho em primary; as demais ficam secundárias, com o motivo.
  * Cancelar nunca é a principal, mesmo quando é a única ação possível (SPEC-08 §5).
  */
-export function primaryAction(actions: ReservationActions): 'check-in' | 'check-out' | null {
+export function primaryAction(
+  actions: ReservationActions,
+  { paymentDue = false }: { paymentDue?: boolean } = {},
+): 'check-in' | 'check-out' | null {
   if (actions.checkIn.enabled) return 'check-in';
-  if (actions.checkOut.enabled) return 'check-out';
+  // Com saldo a receber, a ação do balcão é o pagamento (o PaymentForm da aba Conta): o check-out
+  // desce para secondary e volta a principal quando o saldo zera — paga, depois sai (decisão do
+  // Sirlande de 16/11, repasse do qa-explorador; CA-08.e).
+  if (actions.checkOut.enabled && !paymentDue) return 'check-out';
   return null;
 }

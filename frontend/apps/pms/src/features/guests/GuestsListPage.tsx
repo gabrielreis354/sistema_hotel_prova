@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, EmptyState, Input, Spinner } from '@hotel/ui';
+import { Button, Card, EmptyState, ErrorState, Input, PageHeader, Spinner } from '@hotel/ui';
 import { useGuests } from './queries.js';
 import { filterGuests } from './guestFilter.js';
 import { GuestRow } from './GuestRow.js';
@@ -14,29 +14,26 @@ export function GuestsListPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-title">Hóspedes</h1>
-        <Button size="compact" onClick={() => navigate('/hospedes/novo')}>
-          Novo hóspede
-        </Button>
-      </div>
+      <PageHeader
+        title="Hóspedes"
+        context={data && data.length > 0 ? `${data.length} ${data.length === 1 ? 'hóspede' : 'hóspedes'}` : undefined}
+        action={<Button onClick={() => navigate('/hospedes/novo')}>Novo hóspede</Button>}
+      />
 
       {isLoading && <Spinner />}
 
-      {isError && (
-        <Card className="p-4 text-sm text-status-maintenance">
-          Não foi possível carregar os hóspedes.{' '}
-          <button className="underline" onClick={() => refetch()}>
-            Tentar de novo
-          </button>
-        </Card>
-      )}
+      {isError && <ErrorState message="Não foi possível carregar os hóspedes." onRetry={() => refetch()} />}
 
       {data && data.length === 0 && (
         <EmptyState
           title="Nenhum hóspede cadastrado"
           description="Cadastre o primeiro hóspede para começar a criar reservas."
-          action={<Button onClick={() => navigate('/hospedes/novo')}>Cadastrar hóspede</Button>}
+          // Secundária: o "Novo hóspede" do cabeçalho já é a ação principal da tela (CA-08.e).
+          action={
+            <Button variant="secondary" onClick={() => navigate('/hospedes/novo')}>
+              Cadastrar hóspede
+            </Button>
+          }
         />
       )}
 

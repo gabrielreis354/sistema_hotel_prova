@@ -5,7 +5,8 @@ import { Button, Card, EmptyState, ErrorState, Field, Input, Spinner, cn } from 
 import { useReservationList } from './queries.js';
 import { PERIOD_PRESETS, pageCount, presetRange, safeNights, type PeriodPreset } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
-import { ButtonLink, Money, PageHeader } from './components/primitives.js';
+import { Money, PageHeader } from './components/primitives.js';
+import { ButtonLink } from '../../components/links.js';
 
 const PAGE_SIZE = 20;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -64,13 +65,13 @@ export function ReservationsListPage() {
       <Card className="space-y-3 p-4">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Atalhos de período">
           {PERIOD_PRESETS.map((p) => (
+            // 48 px até o xl, compacto só no desktop (CA-08.g): no tablet do balcão tinham 36 px.
             <Button
               key={p.id}
-              size="compact"
               variant={activePreset === p.id ? 'primary' : 'secondary'}
               aria-pressed={activePreset === p.id}
               onClick={() => applyPreset(p.id)}
-              className="min-h-touch md:min-h-0"
+              className="xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm"
             >
               {p.label}
             </Button>
@@ -107,7 +108,12 @@ export function ReservationsListPage() {
         <EmptyState
           title="Nenhuma reserva neste período"
           description="Amplie o período nos atalhos acima ou crie uma reserva para o hóspede no balcão."
-          action={<ButtonLink to="/reservas/nova">Nova reserva</ButtonLink>}
+          // Secundária: o "Nova reserva" do cabeçalho já é a ação principal (CA-08.e).
+          action={
+            <ButtonLink to="/reservas/nova" variant="secondary">
+              Nova reserva
+            </ButtonLink>
+          }
         />
       )}
 
@@ -138,7 +144,7 @@ export function ReservationsListPage() {
                       <td className="px-4 py-2">
                         <Link
                           to={`/reservas/${r.id}`}
-                          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand md:min-h-0 md:py-1"
+                          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand xl:min-h-0 xl:py-1"
                         >
                           {r.guest?.full_name ?? 'Hóspede removido'}
                         </Link>

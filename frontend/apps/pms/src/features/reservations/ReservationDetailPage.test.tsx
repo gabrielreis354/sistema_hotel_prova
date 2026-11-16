@@ -9,6 +9,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 // (CA-08.e) na tela de verdade, não só na função (🟡-2 do qa-redteam de 15/11).
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn() }));
 vi.mock('../../lib/api.js', () => ({ api }));
+// No render do servidor o zustand lê o estado inicial (sem usuário): o papel entra por dublê.
+const session = vi.hoisted(() => ({ user: null as { role: string } | null }));
+vi.mock('../../stores/auth.js', () => ({
+  useAuthStore: <T,>(select: (s: typeof session) => T) => select(session),
+}));
 
 import { ReservationDetailPage } from './ReservationDetailPage.js';
 import { reservationKeys } from './queries.js';
@@ -19,7 +24,7 @@ function reply(status: number, body: unknown) {
   return { data: ok ? body : undefined, error: ok ? undefined : body, response: { status, ok } };
 }
 
-async function renderDetail(status: string) {
+async function renderDetail(status: string, { aba }: { aba?: 'conta' } = {}) {
   const reservation = {
     id: 'res1',
     status,
@@ -43,7 +48,7 @@ async function renderDetail(status: string) {
   ]);
   return renderToString(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/reservas/res1']}>
+      <MemoryRouter initialEntries={[aba ? `/reservas/res1?aba=${aba}` : '/reservas/res1']}>
         <Routes>
           <Route path="/reservas/:id" element={<ReservationDetailPage />} />
         </Routes>
@@ -82,6 +87,28 @@ describe('ReservationDetailPage — uma ação principal (T-08.3, CA-08.e)', () 
       expect(html, status).toContain('Cancelar reserva');
       expect(html, status).toContain('acao-cancelar-motivo');
     }
+  });
+});
+
+describe('ReservationDetailPage — saldo a receber (decisão de 16/11, CA-08.e)', () => {
+  afterEach(() => {
+    session.user = null;
+  });
+
+  it('CHECKED_IN com saldo, recepção na aba Conta: só "Registrar pagamento" em primary', async () => {
+    session.user = { role: 'RECEPTIONIST' };
+    const html = await renderDetail('CHECKED_IN', { aba: 'conta' });
+    expect(primaryButtons(html)).toEqual(['Registrar pagamento']);
+    expect(html).toContain('Fazer check-out');
+  });
+
+  it('aba Resumo (a padrão), com saldo: o check-out segue principal — o pagamento só existe na Conta (redteam da T-08.6, 🟡2)', async () => {
+    session.user = { role: 'RECEPTIONIST' };
+    expect(primaryButtons(await renderDetail('CHECKED_IN'))).toEqual(['Fazer check-out']);
+  });
+
+  it('sem quem possa receber (sessão vazia): o check-out continua a principal', async () => {
+    expect(primaryButtons(await renderDetail('CHECKED_IN', { aba: 'conta' }))).toEqual(['Fazer check-out']);
   });
 });
 

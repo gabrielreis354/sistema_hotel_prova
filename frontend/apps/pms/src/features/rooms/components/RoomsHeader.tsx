@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { cn } from '@hotel/ui';
+import { PageHeader, cn } from '@hotel/ui';
 
 const TABS = [
   { to: '/quartos', label: 'Quartos', end: true },
@@ -14,10 +14,7 @@ const TABS = [
 export function RoomsHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-title">{title}</h1>
-        {action}
-      </div>
+      <PageHeader title={title} action={action} />
       <nav aria-label="Quartos e categorias" className="flex gap-1 border-b border-gray-200">
         {TABS.map((t) => (
           <NavLink
@@ -26,7 +23,7 @@ export function RoomsHeader({ title, action }: { title: string; action?: ReactNo
             end={t.end}
             className={({ isActive }) =>
               cn(
-                '-mb-px inline-flex min-h-touch items-center border-b-2 px-4 text-sm md:min-h-0 md:py-2',
+                '-mb-px inline-flex min-h-touch items-center border-b-2 px-4 text-sm xl:min-h-0 xl:py-2',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
                 isActive ? 'border-brand font-medium text-brand' : 'border-transparent text-gray-600 hover:text-gray-900',
               )

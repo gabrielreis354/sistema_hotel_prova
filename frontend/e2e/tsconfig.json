@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Roteiro e2e (Playwright): roda no Node e fala com o navegador",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["playwright.config.ts", "global-setup.ts", "src", "tests"]
+}

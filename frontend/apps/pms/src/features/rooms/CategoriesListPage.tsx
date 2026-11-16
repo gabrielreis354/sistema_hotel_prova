@@ -6,7 +6,7 @@ import { countRoomsByCategory } from './roomRules.js';
 import { RoomsHeader } from './components/RoomsHeader.js';
 import { ReadOnlyNotice } from './components/ReadOnlyNotice.js';
 import { EditAction, WriteButton } from './components/Actions.js';
-import { Money } from './components/Money.js';
+import { DecimalMoney } from './components/DecimalMoney.js';
 import { Table, THead, Th, Tr, Td } from './components/Table.js';
 
 export function CategoriesListPage() {
@@ -40,7 +40,14 @@ export function CategoriesListPage() {
               ? 'A categoria define capacidade e diária. Crie a primeira para cadastrar os quartos.'
               : 'O administrador ainda não cadastrou as categorias de quarto.'
           }
-          action={canWrite ? newCategory : undefined}
+          // Secundária: o "Nova categoria" do cabeçalho já é a ação principal (CA-08.e).
+          action={
+            canWrite ? (
+              <WriteButton canWrite variant="secondary" onClick={() => navigate('/quartos/categorias/nova')}>
+                Nova categoria
+              </WriteButton>
+            ) : undefined
+          }
         />
       )}
 
@@ -63,7 +70,7 @@ export function CategoriesListPage() {
                 <Td className="font-medium">{c.name}</Td>
                 <Td align="right">{c.capacity ?? '—'}</Td>
                 <Td align="right">
-                  <Money value={c.price_per_night} />
+                  <DecimalMoney value={c.price_per_night} />
                 </Td>
                 <Td align="right" className="hidden text-gray-600 sm:table-cell">
                   {rooms.data ? (counts.get(c.id ?? '') ?? 0) : '—'}

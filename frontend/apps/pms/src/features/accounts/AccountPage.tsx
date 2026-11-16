@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ErrorState, Spinner } from '@hotel/ui';
+import { ErrorState, PageHeader, Spinner } from '@hotel/ui';
 import { formatBRL } from '@hotel/domain';
 import { useAuthStore } from '../../stores/auth.js';
 import { useAccount } from './queries.js';
@@ -10,7 +10,7 @@ import { looksOffline, useOnline } from './connection.js';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { footerTotals } from './accountTotals.js';
 import { ACCOUNT_TYPE_LABEL } from './accountFilter.js';
-import { Notice } from './components/Notice.js';
+import { InfoNotice } from './components/InfoNotice.js';
 import { ItemList } from './components/ItemList.js';
 import { MenuGrid } from './components/MenuGrid.js';
 import { StaffActions } from './components/StaffActions.js';
@@ -89,11 +89,8 @@ export function AccountPage() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <BackLink />
-        <span className="text-xs text-gray-500">{account.type ? ACCOUNT_TYPE_LABEL[account.type] : ''}</span>
-      </div>
-      <h1 className="text-title">{account.label}</h1>
+      <BackLink />
+      <PageHeader title={account.label} context={account.type ? ACCOUNT_TYPE_LABEL[account.type] : undefined} />
       <OfflineBanner offline={offline} waiting={waiting} elsewhere={elsewhere} />
       {/* Sem rede, a faixa acima já avisa: esta linha fica para o erro do servidor com rede. */}
       {stale && !offline && (
@@ -103,10 +100,10 @@ export function AccountPage() {
       )}
 
       {othersHere > 0 && (
-        <Notice>
+        <InfoNotice>
           {othersHere === 1 ? 'Há 1 lançamento' : `Há ${othersHere} lançamentos`} de outro usuário nesta conta
           esperando neste aparelho. Eles só são enviados quando essa pessoa entrar de novo.
-        </Notice>
+        </InfoNotice>
       )}
 
       <ItemList

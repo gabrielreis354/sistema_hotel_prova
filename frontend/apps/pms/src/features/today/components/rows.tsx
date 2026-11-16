@@ -6,7 +6,6 @@ import { formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { ActionSlot, Button, Money, Spinner, StatusBadge, cn } from '@hotel/ui';
 import { ApiError } from '../../../lib/http.js';
 import {
-  ButtonLink,
   ReservationStatusBadge,
   officialBalanceCents,
   reservationActions,
@@ -18,6 +17,7 @@ import {
 } from '../../reservations/index.js';
 import { useReleaseRoom } from '../../rooms/index.js';
 import { BLOCK_LIMIT, checkInBlockedReason, visibleRows, type ArrivalRow, type CleaningRoom, type DepartureRow } from '../todayLogic.js';
+import { ButtonLink } from '../../../components/links.js';
 
 export type Feedback = { kind: 'success' | 'error'; text: string };
 type OnResult = (f: Feedback) => void;

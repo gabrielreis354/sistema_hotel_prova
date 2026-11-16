@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Button, EmptyState, ErrorState, Input, Spinner } from '@hotel/ui';
+import { Button, EmptyState, ErrorState, Input, PageHeader, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { filterAccounts, openedAtLabel, sortAccounts } from './accountFilter.js';
-import { Notice } from './components/Notice.js';
+import { InfoNotice } from './components/InfoNotice.js';
 import { OpenAccountForm } from './components/OpenAccountForm.js';
 
 /**
@@ -58,10 +58,10 @@ export function AccountsListPage() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3">
-      <h1 className="text-title">Comanda</h1>
+      <PageHeader title="Comanda" />
 
       {notice && (
-        <Notice focus>
+        <InfoNotice focus>
           {notice}{' '}
           {closed?.closedId && (
             <Link to={`/comanda/${closed.closedId}`} className="inline-flex min-h-touch items-center font-medium text-brand underline">
@@ -74,15 +74,15 @@ export function AccountsListPage() {
               Receber na reserva
             </Link>
           )}
-        </Notice>
+        </InfoNotice>
       )}
 
       {othersWaiting > 0 && (
-        <Notice>
+        <InfoNotice>
           {othersWaiting === 1 ? 'Há 1 lançamento' : `Há ${othersWaiting} lançamentos`} de outro usuário
           esperando neste aparelho{othersAccounts.length > 0 && ` (${othersAccounts.join(', ')})`}. Eles só são enviados quando essa pessoa entrar de
           novo — não feche essas contas antes.
-        </Notice>
+        </InfoNotice>
       )}
 
       {/* Rede ruim não apaga a lista já carregada (🟡-3): só avisa. */}
