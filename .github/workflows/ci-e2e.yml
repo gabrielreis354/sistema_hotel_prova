@@ -96,11 +96,13 @@ jobs:
           image=$(bash scripts/verificar_imagem_minio.sh)
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
+      # As duas actions docker/* por SHA (tag mutável de terceiro num job que roda código do PR);
+      # as actions/* e pnpm/* seguem por tag, como no resto do repositório.
       - name: Setup Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Build da imagem do MinIO (com cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: docker/minio
           tags: ${{ steps.minio.outputs.image }}
@@ -130,8 +132,12 @@ jobs:
         run: pnpm --filter @hotel/e2e exec playwright install --with-deps chromium
 
       # O globalSetup do e2e confere a API e aquece o Vite antes dos passos.
+      # Prazo próprio, bem abaixo dos 45 min do job: se o roteiro travar, este passo falha (em vez
+      # de o job ser cancelado) e os passos de falha abaixo ainda publicam o relatório e os logs.
+      # Uma rodada normal leva ~1 min.
       - name: Roteiro (pnpm e2e)
         working-directory: frontend
+        timeout-minutes: 15
         run: pnpm e2e
 
       # O trace de falha guarda o JWT dos 3 usuários e a senha do seed (frontend/e2e/README.md,
