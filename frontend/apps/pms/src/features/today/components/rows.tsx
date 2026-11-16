@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { LogIn, LogOut, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +16,17 @@ import {
   type ReservationTransition,
 } from '../../reservations/index.js';
 import { useReleaseRoom } from '../../rooms/index.js';
-import { BLOCK_LIMIT, checkInBlockedReason, visibleRows, type ArrivalRow, type CleaningRoom, type DepartureRow } from '../todayLogic.js';
+import {
+  BLOCK_LIMIT,
+  arrivalFlags,
+  checkInBlockedReason,
+  toggleFocusTarget,
+  visibleRows,
+  type ArrivalRow,
+  type CleaningRoom,
+  type DepartureRow,
+  type ToggleFocusTarget,
+} from '../todayLogic.js';
 import { ButtonLink } from '../../../components/links.js';
 
 export type Feedback = { kind: 'success' | 'error'; text: string };
@@ -37,16 +47,50 @@ const ICON = 'size-4 shrink-0';
  */
 export function RowList<T>({ items, children }: { items: readonly T[]; children: (item: T) => ReactNode }) {
   const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const listRef = useRef<HTMLUListElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // Destino do foco do último toque no botão; só vale para o render que ele causou.
+  const pendingFocus = useRef<ToggleFocusTarget | null>(null);
   const { shown } = visibleRows(items, expanded);
+
+  // Ressalva 🟡2 da T-08.4: depois de expandir ou recolher, o foco e a vista não podem se perder.
+  useEffect(() => {
+    const target = pendingFocus.current;
+    pendingFocus.current = null;
+    if (!target) return;
+    if (target.kind === 'item') {
+      const item = listRef.current?.children[target.index] as HTMLElement | undefined;
+      // O primeiro link ou botão do item (o nome do hóspede); sem nenhum, o próprio item.
+      const focusable = item?.querySelector<HTMLElement>('a[href], button:not([disabled])');
+      if (focusable) focusable.focus();
+      else if (item) {
+        item.tabIndex = -1;
+        item.focus();
+      }
+      return;
+    }
+    // Recolher tira milhares de px de cima do botão: sem isto, no iOS a pessoa cai em outro bloco.
+    buttonRef.current?.scrollIntoView({ block: 'nearest' });
+    buttonRef.current?.focus();
+  }, [expanded]);
+
   return (
     <div className="space-y-2">
-      <ul className="divide-y divide-gray-100">{shown.map(children)}</ul>
+      <ul id={listId} ref={listRef} className="divide-y divide-gray-100">
+        {shown.map(children)}
+      </ul>
       {items.length > BLOCK_LIMIT && (
         <Button
+          ref={buttonRef}
           variant="ghost"
           className="w-full text-brand xl:min-h-0 xl:h-9 xl:text-sm"
           aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
+          aria-controls={listId}
+          onClick={() => {
+            pendingFocus.current = toggleFocusTarget(!expanded, items.length);
+            setExpanded(!expanded);
+          }}
         >
           {expanded ? 'Mostrar menos' : `Ver todas (${items.length})`}
         </Button>
@@ -197,6 +241,7 @@ export function ArrivalItem({
   const checkIn = blocked ? { enabled: false, reason: blocked } : allowed;
   const slot = `chegada-${r.id}`;
   const panelId = `${slot}-confirmacao`;
+  const flags = arrivalFlags(row);
 
   return (
     <Row
@@ -241,16 +286,21 @@ export function ArrivalItem({
         <GuestLink reservation={r} />
         <ReservationStatusBadge status={r.status} />
       </HeadLine>
-      <StayLine reservation={r} />
-      {(row.noShowRisk || row.late) && (
-        <div className="flex flex-wrap gap-2">
-          {/* Cor + rótulo (CA-05.3.f): nunca só o vermelho. */}
-          {row.noShowRisk && <StatusBadge tone="maintenance" label="Sem pagamento · risco de no-show" className="font-medium" />}
-          {row.late && r.check_in_date && (
-            <StatusBadge tone="cleaning" label={`Chegada atrasada · entrada era ${formatDateBR(r.check_in_date)}`} />
-          )}
-        </div>
-      )}
+      {/* Selos ao lado da estadia, não numa linha própria (ressalva 🟡1 da T-08.4): em 375 px a
+          chegada com alerta perde uma linha inteira. Se não couber, o selo quebra e não some. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <StayLine reservation={r} />
+        {flags.map((f) => (
+          // Cor + rótulo (CA-05.3.f): nunca só o vermelho. O texto completo vai para o leitor de
+          // tela e para a dica do mouse; o curto é o que cabe na linha.
+          <span key={f.tone} title={f.full}>
+            <span aria-hidden="true">
+              <StatusBadge tone={f.tone} label={f.label} className={f.tone === 'maintenance' ? 'font-medium' : undefined} />
+            </span>
+            <span className="sr-only">{f.full}</span>
+          </span>
+        ))}
+      </div>
     </Row>
   );
 }
