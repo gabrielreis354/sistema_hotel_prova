@@ -57,6 +57,11 @@ O trace de falha grava a rede e o localStorage: o JWT dos 3 usuários e a senha 
 `/auth/login`. No CI, publique `playwright-report/` e `test-results/` **só em falha**, com
 retenção curta (poucos dias), e só de rodadas contra o ambiente descartável.
 
+O workflow `.github/workflows/ci-e2e.yml` segue essa regra: o artefato `e2e-playwright` sai só em
+falha, com retenção de 3 dias. O job sobe o compose num runner descartável, com `.env` de senhas
+aleatórias, chaves JWT geradas na hora e `PIX_PROVIDER=fake`. Ele roda em todo PR para `develop` e
+`main` e avisa sem bloquear (`continue-on-error`, fora dos checks obrigatórios).
+
 ## Variáveis
 
 | Variável | Padrão | Para quê |
