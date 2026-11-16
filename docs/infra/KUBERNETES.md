@@ -60,6 +60,10 @@ A imagem do MinIO (`gesway/minio:RELEASE...`) tambem e local: e compilada do cod
 `docker/minio/Dockerfile`, porque `minio/minio` e `quay.io/minio/minio` dao 401 no pull anonimo.
 O `./start.sh up` constroi essa imagem antes do apply. O manifest usa `imagePullPolicy: Never`:
 se a imagem faltar, o pod fica em `ErrImageNeverPull` em vez de baixar de um registro externo.
+No minikube (qualquer perfil), rode `eval $(minikube -p <perfil> docker-env)` antes, ou o
+`./start.sh up` para com a instrucao. Com containerd/cri-o, kind ou k3d, carregue a imagem a mao
+(`minikube image build`, `kind load docker-image`, `k3d image import`) e rode
+`MINIO_IMAGEM_NO_CLUSTER=1 ./start.sh up`.
 
 Em seguida, aplique todos os recursos:
 
