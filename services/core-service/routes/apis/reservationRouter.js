@@ -2,7 +2,7 @@ import { Router } from 'express';
 import authMiddleware from '../../middlewares/auth.middleware.js';
 import tenantMiddleware from '../../middlewares/tenant.middleware.js';
 import { requireRole } from '../../middlewares/role.middleware.js';
-import isUuid from '../../app/utils/isUuid.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 import ListReservationController from '../../app/Controllers/ReservationApi/ListReservationController.js';
 import GetReservationController from '../../app/Controllers/ReservationApi/GetReservationController.js';
@@ -30,14 +30,8 @@ export default (() => {
     // que não existe é 404 — o mesmo corpo que os controllers já devolvem. Vale para todas as
     // rotas com :id deste router. O :roomId ganha a mesma guarda (o controller o põe direto no
     // WHERE); o :consumptionId já é validado no DeleteConsumptionController.
-    router.param('id', (request, response, next, id) => {
-        if (!isUuid(id)) return response.status(404).json({ error: 'Reserva não encontrada' });
-        return next();
-    });
-    router.param('roomId', (request, response, next, roomId) => {
-        if (!isUuid(roomId)) return response.status(404).json({ error: 'Quarto não vinculado a esta reserva' });
-        return next();
-    });
+    router.param('id', notFoundUnlessUuid('Reserva não encontrada'));
+    router.param('roomId', notFoundUnlessUuid('Quarto não vinculado a esta reserva'));
 
     router.get('/', ListReservationController);
     router.get('/:id', GetReservationController);

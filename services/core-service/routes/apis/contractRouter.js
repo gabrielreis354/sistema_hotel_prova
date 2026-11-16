@@ -11,9 +11,13 @@ import DownloadContractPdfController from '../../app/Controllers/ContractApi/Dow
 import SignContractController from '../../app/Controllers/ContractApi/SignContractController.js';
 import CancelContractController from '../../app/Controllers/ContractApi/CancelContractController.js';
 import PayContractInstallmentController from '../../app/Controllers/ContractApi/PayContractInstallmentController.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 const router = Router();
 router.use(authMiddleware, tenantMiddleware);
+// :id que não é UUID responde 404, não 500 (repasse de 15/11; mesmo molde do reservationRouter).
+router.param('id', notFoundUnlessUuid('Contrato não encontrado'));
+router.param('installmentId', notFoundUnlessUuid('Parcela não encontrada'));
 router.get('/', ListContractController);
 router.get('/:id/pdf', DownloadContractPdfController);
 router.get('/:id', GetContractController);

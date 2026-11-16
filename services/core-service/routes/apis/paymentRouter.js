@@ -8,10 +8,14 @@ import GetPaymentController from '../../app/Controllers/PaymentApi/GetPaymentCon
 import CreatePaymentController from '../../app/Controllers/PaymentApi/CreatePaymentController.js';
 import UpdatePaymentController from '../../app/Controllers/PaymentApi/UpdatePaymentController.js';
 import VoidPaymentController from '../../app/Controllers/PaymentApi/VoidPaymentController.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 const paymentRouter = Router();
 
 paymentRouter.use(authMiddleware, tenantMiddleware);
+
+// :id que não é UUID responde 404, não 500 (repasse de 15/11; mesmo molde do reservationRouter).
+paymentRouter.param('id', notFoundUnlessUuid('Pagamento não encontrado.'));
 
 /**
  * DELETE /payments/:id não existe mais (T-06.13, CA-06.13.a): lançamento financeiro não se
