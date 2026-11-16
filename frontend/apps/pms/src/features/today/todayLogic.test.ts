@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   visibleRows,
+  arrivalFlags,
   arrivalRows,
   checkInBlockedReason,
   departureRows,
@@ -8,6 +9,7 @@ import {
   inHouseRows,
   soldToday,
   toTodayAlerts,
+  toggleFocusTarget,
   type TodayReservation,
 } from './todayLogic.js';
 
@@ -158,5 +160,61 @@ describe('visibleRows — corte de 8 por bloco (SPEC-08, T-08.4)', () => {
   it('até 8 itens não corta nada', () => {
     expect(visibleRows(rows.slice(0, 8), false)).toEqual({ shown: rows.slice(0, 8), hidden: 0 });
     expect(visibleRows([], false)).toEqual({ shown: [], hidden: 0 });
+  });
+});
+
+describe('arrivalFlags — selos curtos da chegada (ressalva 🟡1 da T-08.4, decisão de 16/11)', () => {
+  const chegada = (late: boolean, noShowRisk: boolean, checkIn = '2026-11-03') => ({
+    reservation: res('r1', 'CONFIRMED', checkIn, '2026-11-06'),
+    late,
+    noShowRisk,
+  });
+
+  it('chegada sem alerta não tem selo', () => {
+    expect(arrivalFlags(chegada(false, false))).toEqual([]);
+  });
+
+  it('sem pagamento: rótulo curto na tela, risco de no-show no texto completo', () => {
+    expect(arrivalFlags(chegada(false, true))).toEqual([
+      { tone: 'maintenance', label: 'Sem pagamento', full: 'Sem pagamento · risco de no-show' },
+    ]);
+  });
+
+  it('atrasada: dia e mês na tela, a data inteira no texto completo', () => {
+    expect(arrivalFlags(chegada(true, false))).toEqual([
+      { tone: 'cleaning', label: 'Atrasada · 03/11', full: 'Chegada atrasada · entrada era 03/11/2026' },
+    ]);
+  });
+
+  it('os dois alertas: sem pagamento primeiro', () => {
+    expect(arrivalFlags(chegada(true, true)).map((f) => f.label)).toEqual(['Sem pagamento', 'Atrasada · 03/11']);
+  });
+
+  it('atrasada sem data de entrada não inventa selo', () => {
+    expect(arrivalFlags({ reservation: { id: 'r2', status: 'CONFIRMED' }, late: true, noShowRisk: false })).toEqual([]);
+  });
+
+  // Medido em 375 px (16/11): até 16 caracteres o selo cabe ao lado de "Quarto 101 · 3 diárias" e a
+  // chegada perde uma linha inteira. Com 17 ("Atrasada · desde 15/11" tinha 22) ele já quebrava.
+  it('nenhum rótulo curto passa de 16 caracteres', () => {
+    for (const f of arrivalFlags(chegada(true, true, '2026-12-31'))) expect(f.label.length).toBeLessThanOrEqual(16);
+  });
+});
+
+describe('toggleFocusTarget — foco do "Ver todas" e do "Mostrar menos" (ressalva 🟡2 da T-08.4)', () => {
+  it('ao expandir, o foco vai para o primeiro item que apareceu (o 9º)', () => {
+    expect(toggleFocusTarget(true, 30)).toEqual({ kind: 'item', index: 8 });
+  });
+
+  it('ao recolher, o foco fica no botão, que precisa voltar para a vista', () => {
+    expect(toggleFocusTarget(false, 30)).toEqual({ kind: 'button' });
+  });
+
+  it('com o corte informado, o primeiro item novo é o do corte', () => {
+    expect(toggleFocusTarget(true, 12, 5)).toEqual({ kind: 'item', index: 5 });
+  });
+
+  it('sem item novo para mostrar, o foco fica no botão', () => {
+    expect(toggleFocusTarget(true, 8)).toEqual({ kind: 'button' });
   });
 });
