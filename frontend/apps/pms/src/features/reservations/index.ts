@@ -6,9 +6,6 @@ export { ReservationReceiptPage } from './ReservationReceiptPage.js';
 export { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 // Usados pelo painel "Hoje" (T-05.3): check-in/out na linha com a mesma máquina de estados e a
 // mesma conta do detalhe — nenhuma regra de reserva é reescrita fora deste módulo.
-export { ButtonLink } from './components/primitives.js';
-// BackLink: a volta com alvo de toque, usada também na ficha do hóspede inexistente (T-08.5).
-export { BackLink } from './components/primitives.js';
 export { useBill, useFreshBill, useTransitionReservation, reservationKeys } from './queries.js';
 export { listReservations, type ReservationListItem, type ReservationPage, type ReservationTransition } from './reservationsApi.js';
 export { officialBalanceCents, reservationActions, safeNights } from './reservationLogic.js';

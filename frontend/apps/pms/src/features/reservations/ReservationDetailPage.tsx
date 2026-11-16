@@ -21,7 +21,9 @@ import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
 import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
 import { canReceivePayment } from './paymentLogic.js';
-import { BackLink, ButtonLink, InfoItem, Money, Notice } from './components/primitives.js';
+import { InfoItem, Money, Notice } from './components/primitives.js';
+import { BackLink, ButtonLink } from '../../components/links.js';
+import { LoadError } from '../../components/LoadError.js';
 
 type Tab = ReservationTab;
 type Confirming = null | 'check-out' | 'cancel';
@@ -98,16 +100,15 @@ export function ReservationDetailPage() {
 
   if (reservation.isPending) return <Spinner label="Carregando reserva…" />;
   if (reservation.isError || !reservation.data) {
-    const notFound = reservation.error instanceof ApiError && reservation.error.status === 404;
     return (
-      <div className="mx-auto max-w-3xl space-y-3">
-        {/* Reserva que não existe não tem "tentar de novo": o caminho é voltar à lista. */}
-        {notFound ? (
-          <Notice tone="error">Reserva não encontrada — ela pode ter sido excluída.</Notice>
-        ) : (
-          <ErrorState message="Não foi possível carregar a reserva." onRetry={() => reservation.refetch()} />
-        )}
-        <BackLink to="/reservas">← Voltar para reservas</BackLink>
+      <div className="mx-auto max-w-3xl">
+        <LoadError
+          error={reservation.error}
+          notFound="Reserva não encontrada — ela pode ter sido excluída."
+          failed="Não foi possível carregar a reserva."
+          onRetry={() => reservation.refetch()}
+          back={{ to: '/reservas', label: '← Voltar para reservas' }}
+        />
       </div>
     );
   }
@@ -121,8 +122,10 @@ export function ReservationDetailPage() {
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
-  // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary.
-  const primary = primaryAction(actions);
+  // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary. Com
+  // saldo a receber, na aba Conta a principal é o "Registrar pagamento" (decisão de 16/11); no Resumo
+  // o formulário não aparece, e o check-out segue principal — ele próprio leva à Conta (redteam da T-08.6).
+  const primary = primaryAction(actions, { paymentDue: receiving && tab === 'conta' });
 
   function openCheckOut() {
     setFeedback(null);
@@ -391,7 +394,7 @@ export function ReservationDetailPage() {
           <Card className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-section text-gray-800">Conta da estadia</h2>
-              <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" className="min-h-touch md:min-h-0 md:py-1.5 md:text-sm">
+              <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" className="min-h-touch xl:min-h-0 xl:py-1.5 xl:text-sm">
                 Comprovante para imprimir
               </ButtonLink>
             </div>

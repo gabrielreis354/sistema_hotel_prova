@@ -7,10 +7,12 @@ import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import { useGuest, useDeleteGuest } from './queries.js';
-import { GuestLoadError } from './GuestLoadError.js';
 import { DELETE_GUEST_REASON, canDeleteGuest } from './guestRules.js';
 import { useAuthStore } from '../../stores/auth.js';
-import { BackLink, ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
+import { ReservationStatusBadge } from '../reservations/index.js';
+import { BackLink, ButtonLink } from '../../components/links.js';
+import { LoadError } from '../../components/LoadError.js';
+import { GUEST_LOAD } from './guestLoad.js';
 
 // GET /reservations devolve ReservationListItem (Reservation + guest/room/user resumidos),
 // não o Reservation puro — usar o schema errado aqui é o mesmo erro de tipagem que os casts
@@ -60,7 +62,13 @@ export function GuestDetailPage() {
   });
 
   if (isLoading) return <Spinner label="Carregando hóspede…" />;
-  if (isError || !guest) return <GuestLoadError error={guestQuery.error} onRetry={() => guestQuery.refetch()} />;
+  if (isError || !guest) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <LoadError error={guestQuery.error} {...GUEST_LOAD} onRetry={() => guestQuery.refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">

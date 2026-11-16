@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { EmptyState, PageHeader } from '@hotel/ui';
+import { PageHeader } from '@hotel/ui';
 
 /** Moldura das telas de cadastro e edição: volta, título, conteúdo. */
 export function FormShell({
@@ -16,26 +16,11 @@ export function FormShell({
 }) {
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <Link to={backTo} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline md:min-h-0">
+      <Link to={backTo} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline xl:min-h-0">
         ← {backLabel}
       </Link>
       <PageHeader title={title} />
       {children}
     </div>
-  );
-}
-
-/** Registro que sumiu (404): diz o provável motivo e devolve à lista. */
-export function NotFound({ title, backTo, backLabel }: { title: string; backTo: string; backLabel: string }) {
-  return (
-    <EmptyState
-      title={title}
-      description="Pode ter sido excluído por outra pessoa."
-      action={
-        <Link to={backTo} className="text-sm font-medium text-brand hover:underline">
-          {backLabel}
-        </Link>
-      }
-    />
   );
 }

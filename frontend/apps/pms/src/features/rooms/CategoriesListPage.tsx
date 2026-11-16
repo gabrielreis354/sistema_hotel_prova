@@ -6,7 +6,7 @@ import { countRoomsByCategory } from './roomRules.js';
 import { RoomsHeader } from './components/RoomsHeader.js';
 import { ReadOnlyNotice } from './components/ReadOnlyNotice.js';
 import { EditAction, WriteButton } from './components/Actions.js';
-import { Money } from './components/Money.js';
+import { DecimalMoney } from './components/DecimalMoney.js';
 import { Table, THead, Th, Tr, Td } from './components/Table.js';
 
 export function CategoriesListPage() {
@@ -70,7 +70,7 @@ export function CategoriesListPage() {
                 <Td className="font-medium">{c.name}</Td>
                 <Td align="right">{c.capacity ?? '—'}</Td>
                 <Td align="right">
-                  <Money value={c.price_per_night} />
+                  <DecimalMoney value={c.price_per_night} />
                 </Td>
                 <Td align="right" className="hidden text-gray-600 sm:table-cell">
                   {rooms.data ? (counts.get(c.id ?? '') ?? 0) : '—'}

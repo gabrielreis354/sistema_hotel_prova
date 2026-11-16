@@ -10,12 +10,13 @@ import {
   useRoom,
   useUpdateRoom,
 } from './queries.js';
-import { isNotFound, messageOf } from './errorMessages.js';
+import { messageOf } from './errorMessages.js';
 import { changedRoomFields, keepFirstSnapshot, roomDeleteBlockReason, toRoomInput } from './roomRules.js';
 import type { RoomInput } from './roomsApi.js';
 import { DeleteControl } from './components/DeleteControl.js';
 import { ActionLink } from './components/Actions.js';
-import { FormShell, NotFound } from './components/FormShell.js';
+import { FormShell } from './components/FormShell.js';
+import { LoadError } from '../../components/LoadError.js';
 
 const BACK = { backTo: '/quartos', backLabel: 'Quartos' } as const;
 
@@ -80,8 +81,7 @@ export function RoomEditPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loading = room.isLoading || categories.isLoading;
-  const gone = room.isError && isNotFound(room.error);
-  const failed = !gone && (room.isError || categories.isError);
+  const failed = room.isError || categories.isError;
 
   // Base do diff congelada na primeira carga (keepFirstSnapshot): um refetch com o
   // formulário aberto não pode mudar o "original", senão o diff reenviaria o status velho.
@@ -96,10 +96,12 @@ export function RoomEditPage() {
   return (
     <FormShell title={room.data ? `Quarto ${room.data.number}` : 'Editar quarto'} {...BACK}>
       {loading && <Spinner label="Carregando quarto…" />}
-      {gone && <NotFound title="Quarto não encontrado" backTo="/quartos" backLabel="Voltar para quartos" />}
+      {/* A volta já está no topo do FormShell: o LoadError não repete. */}
       {failed && (
-        <ErrorState
-          message="Não foi possível carregar o quarto. Verifique a conexão e tente de novo."
+        <LoadError
+          error={room.isError ? room.error : null /* só o 404 do quarto é "não encontrado" (redteam da T-08.6, 🟢4) */}
+          notFound="Quarto não encontrado — ele pode ter sido excluído por outra pessoa."
+          failed="Não foi possível carregar o quarto. Verifique a conexão e tente de novo."
           onRetry={() => {
             room.refetch();
             categories.refetch();

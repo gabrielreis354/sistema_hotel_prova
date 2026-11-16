@@ -44,11 +44,6 @@ export function messageOf(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Sem resposta do servidor. Verifique a conexão e tente de novo.';
 }
 
-/** O registro sumiu (404) — a tela mostra "não encontrado", não "erro de conexão". */
-export function isNotFound(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 404;
-}
-
 export interface WriteContext {
   entity: 'room' | 'category';
   action: 'create' | 'update' | 'delete';

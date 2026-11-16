@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, ErrorState, Spinner } from '@hotel/ui';
+import { Card, Spinner } from '@hotel/ui';
 import { centsToBRLInput, decimalToCents } from '@hotel/domain';
 import { CategoryForm } from './CategoryForm.js';
 import {
@@ -11,9 +11,10 @@ import {
   useDeleteCategory,
   useUpdateCategory,
 } from './queries.js';
-import { isNotFound, messageOf } from './errorMessages.js';
+import { messageOf } from './errorMessages.js';
 import { DeleteControl } from './components/DeleteControl.js';
-import { FormShell, NotFound } from './components/FormShell.js';
+import { FormShell } from './components/FormShell.js';
+import { LoadError } from '../../components/LoadError.js';
 
 const BACK = { backTo: '/quartos/categorias', backLabel: 'Categorias' } as const;
 
@@ -54,16 +55,19 @@ export function CategoryEditPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const gone = category.isError && isNotFound(category.error);
-  const failed = category.isError && !gone;
 
   return (
     <FormShell title={category.data ? `Categoria ${category.data.name}` : 'Editar categoria'} {...BACK}>
       {category.isLoading && <Spinner label="Carregando categoria…" />}
-      {gone && (
-        <NotFound title="Categoria não encontrada" backTo="/quartos/categorias" backLabel="Voltar para categorias" />
+      {/* A volta já está no topo do FormShell: o LoadError não repete. */}
+      {category.isError && (
+        <LoadError
+          error={category.error}
+          notFound="Categoria não encontrada — ela pode ter sido excluída por outra pessoa."
+          failed="Não foi possível carregar a categoria. Verifique a conexão e tente de novo."
+          onRetry={() => category.refetch()}
+        />
       )}
-      {failed && <ErrorState message="Não foi possível carregar a categoria. Verifique a conexão e tente de novo." onRetry={() => category.refetch()} />}
       {category.data && (
         <Card className="space-y-4 p-4 sm:p-6">
           <CategoryForm
