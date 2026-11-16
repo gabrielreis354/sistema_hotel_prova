@@ -60,13 +60,18 @@ export function retryGuestDetail(failureCount: number, error: unknown): boolean 
   return failureCount < 1;
 }
 
-export function useGuest(id: string | undefined) {
-  return useQuery({
+/** Opções da ficha, separadas do hook para o teste prender que a regra de retry está ligada. */
+export function guestDetailOptions(id: string | undefined) {
+  return {
     queryKey: guestKeys.detail(id ?? ''),
     queryFn: () => getGuest(id as string),
     enabled: !!id,
     retry: retryGuestDetail,
-  });
+  };
+}
+
+export function useGuest(id: string | undefined) {
+  return useQuery(guestDetailOptions(id));
 }
 
 export function useCreateGuest() {

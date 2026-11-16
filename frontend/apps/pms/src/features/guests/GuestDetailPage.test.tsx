@@ -74,7 +74,6 @@ describe('GuestDetailPage — Excluir só para o administrador (🟡-1, CA-08.f)
     const attrs = await renderGuest({ role: 'RECEPTIONIST' }).then((html) => button(html, 'Excluir'));
     expect(attrs).toBeDefined();
     expect(attrs).toMatch(/disabled=""/);
-    expect(attrs).toMatch(/title="Só o administrador exclui hóspedes\."/);
     expect(attrs).toMatch(/aria-describedby="/);
   });
 

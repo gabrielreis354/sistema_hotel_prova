@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, ErrorState, Notice, PageHeader, Section, Spinner } from '@hotel/ui';
+import { ActionSlot, Button, Card, ErrorState, Notice, PageHeader, Section, Spinner } from '@hotel/ui';
 import { formatCpf, formatDateBR } from '@hotel/domain';
 import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
@@ -9,7 +9,7 @@ import { ApiError } from '../../lib/http.js';
 import { useGuest, useDeleteGuest } from './queries.js';
 import { DELETE_GUEST_REASON, canDeleteGuest } from './guestRules.js';
 import { useAuthStore } from '../../stores/auth.js';
-import { ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
+import { BackLink, ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
 
 // GET /reservations devolve ReservationListItem (Reservation + guest/room/user resumidos),
 // não o Reservation puro — usar o schema errado aqui é o mesmo erro de tipagem que os casts
@@ -70,7 +70,7 @@ export function GuestDetailPage() {
         ) : (
           <ErrorState message="Não foi possível carregar o hóspede." onRetry={() => guestQuery.refetch()} />
         )}
-        <BackToGuests />
+        <BackLink to="/hospedes">← Voltar para hóspedes</BackLink>
       </div>
     );
   }
@@ -82,30 +82,31 @@ export function GuestDetailPage() {
         context="Hóspede"
         action={
           <>
-            <ButtonLink to={`/hospedes/${id}/editar`} variant="secondary">
+            {/* sm:self-start: o cabeçalho estica os filhos, e o motivo do Excluir embaixo deixava o
+                Editar com a altura do bloco inteiro no desktop. */}
+            <ButtonLink to={`/hospedes/${id}/editar`} variant="secondary" className="sm:self-start">
               Editar
             </ButtonLink>
             {/* Excluir é irreversível e não é a ação da tela: fica discreto, e a confirmação diz o que
                 vai acontecer (GUIA_UI_CORPORATIVA, regra 7). */}
-            {/* Sem permissão o Excluir fica na tela, desabilitado e com o motivo — não some
-                (CA-08.f). Antes a recepção confirmava e levava 403 (🟡-1 do qa-explorador de 16/11). */}
+            {/* Sem permissão o Excluir fica na tela, desabilitado e com o motivo em texto embaixo
+                (CA-08.f, ActionSlot como na reserva) — title não abre em botão desabilitado nem no
+                celular. Antes a recepção confirmava e levava 403 (qa-explorador e redteam de 16/11). */}
             {!confirming && (
-              <Button
-                ref={deleteRef}
-                variant="ghost"
-                className="text-status-maintenance"
-                disabled={!canDelete}
-                title={canDelete ? undefined : DELETE_GUEST_REASON}
-                aria-describedby={canDelete ? undefined : DELETE_REASON_ID}
-                onClick={() => setConfirming(true)}
-              >
-                Excluir
-              </Button>
-            )}
-            {!canDelete && (
-              <span id={DELETE_REASON_ID} className="sr-only">
-                {DELETE_GUEST_REASON}
-              </span>
+              <ActionSlot id="hospede-excluir" state={{ enabled: canDelete, reason: DELETE_GUEST_REASON }}>
+                {(describedBy) => (
+                  <Button
+                    ref={deleteRef}
+                    variant="ghost"
+                    className="text-status-maintenance"
+                    disabled={!canDelete}
+                    aria-describedby={describedBy}
+                    onClick={() => setConfirming(true)}
+                  >
+                    Excluir
+                  </Button>
+                )}
+              </ActionSlot>
             )}
           </>
         }
@@ -191,18 +192,8 @@ export function GuestDetailPage() {
         )}
       </Section>
 
-      <BackToGuests />
+      <BackLink to="/hospedes">← Voltar para hóspedes</BackLink>
     </div>
-  );
-}
-
-const DELETE_REASON_ID = 'hospede-excluir-motivo';
-
-function BackToGuests() {
-  return (
-    <Link to="/hospedes" className="inline-block text-sm text-brand hover:underline">
-      ← Voltar para hóspedes
-    </Link>
   );
 }
 
