@@ -51,6 +51,15 @@ cmd_up() {
     bash scripts/k8s_garantir_secret_jwt.sh
     # [revisão do Weslley] Secret analytics-db (T-01.4/H.3) — ver scripts/k8s_garantir_secret_analytics.sh.
     bash scripts/k8s_garantir_secret_analytics.sh
+    # MinIO compilado do fonte (o pull do quay.io dá 401 num nó limpo). O manifest usa
+    # imagePullPolicy: Never, então a imagem precisa existir no daemon do cluster antes do apply.
+    # Com cache, o build leva segundos; o 1º leva vários minutos (compila minio e mc).
+    # Minikube: rode `eval $(minikube docker-env)` antes, como no build do backend.
+    local minio_image
+    minio_image=$(grep -m1 -o 'gesway/minio:RELEASE[^[:space:]]*' infra/k8s/minio.yaml)
+    [ -n "$minio_image" ] || err "Imagem gesway/minio não encontrada em infra/k8s/minio.yaml."
+    info "Construindo $minio_image (docker/minio/Dockerfile)..."
+    docker build -q -t "$minio_image" docker/minio >/dev/null || err "Falhou o build da imagem do MinIO."
     kubectl apply -k infra/k8s/
     echo ""
     info "Aguardando todos os pods ficarem prontos (timeout: 120s)..."

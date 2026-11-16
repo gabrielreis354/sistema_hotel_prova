@@ -56,6 +56,11 @@ Antes de aplicar os manifests, crie a imagem local do backend:
 docker build -t sistema-gestao-hotel-backend:latest .
 ```
 
+A imagem do MinIO (`gesway/minio:RELEASE...`) tambem e local: e compilada do codigo-fonte por
+`docker/minio/Dockerfile`, porque `minio/minio` e `quay.io/minio/minio` dao 401 no pull anonimo.
+O `./start.sh up` constroi essa imagem antes do apply. O manifest usa `imagePullPolicy: Never`:
+se a imagem faltar, o pod fica em `ErrImageNeverPull` em vez de baixar de um registro externo.
+
 Em seguida, aplique todos os recursos:
 
 ```bash
