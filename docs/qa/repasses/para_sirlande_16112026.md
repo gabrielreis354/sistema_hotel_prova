@@ -22,3 +22,12 @@ Origem: qa-explorador da T-08.5 (`feature/t085-cabecalho-cartoes`, `docs/qa/expl
 **Pergunta:** o `PaymentForm` é um "objeto próprio" (SPEC-08 §T-08.5) e por isso pode ter o próprio primary? Se sim, registrar a exceção no anexo da SPEC-08. Se não, o "Registrar pagamento" vira o principal nessa aba e o check-out desce para secondary enquanto houver saldo, ou o inverso.
 
 Casos parecidos e mais leves, que dependem da mesma resposta: o atalho de período selecionado ("Próximos 7 dias" em `/reservas`, "12 meses" em `/indicadores`) usa o mesmo `bg-brand` do primary, e em `/indicadores` convive com "Aplicar período". É estado de seleção (`aria-pressed`), não ação, mas visualmente é igual a um segundo primary.
+
+---
+Origem: qa-redteam da correção da ficha do hóspede (T-08.5, `docs/qa/redteam_t085-ficha-hospede_16112026.md`). Fora do diff auditado (e697497...HEAD). Não entra no veredito.
+
+### 🟡 [Estados] Edição do hóspede chama qualquer falha de "Hóspede não encontrado." e não tem saída
+**Onde:** `frontend/apps/pms/src/features/guests/GuestFormPages.tsx:47-48`
+**Cenário:** abrir `/hospedes/<id>/editar` com o core-service fora do ar ou respondendo 500 → a tela mostra uma linha solta "Hóspede não encontrado.", sem "Tentar de novo" e sem link de volta. É o mesmo defeito que o 🟡-4 do qa-explorador corrigiu na ficha, na tela irmã que usa o mesmo `useGuest`. A recepção acha que o cadastro sumiu, quando foi uma queda de rede.
+**Regra violada:** critério do time de erro com saída; GUIA_UI_CORPORATIVA (estado de erro).
+**Correção sugerida:** o mesmo molde da ficha (`GuestDetailPage.tsx:62-75`): `Notice` com volta no 404, `ErrorState` com "Tentar de novo" no resto. De preferência, pelo componente compartilhado sugerido no 🟢-2 do red team.
