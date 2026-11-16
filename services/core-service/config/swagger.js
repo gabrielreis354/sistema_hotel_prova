@@ -962,7 +962,15 @@ const options = {
                         409: { description: 'CPF ou e-mail já cadastrado para outro hóspede', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 },
-                delete: { tags: ['Hóspedes'], summary: 'Remove', responses: { 204: { description: 'OK' } } }
+                delete: {
+                    tags: ['Hóspedes'],
+                    summary: 'Remove (soft delete). Recusa com 409 se houver reserva PENDING, CONFIRMED ou CHECKED_IN',
+                    responses: {
+                        204: { description: 'OK' },
+                        404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        409: { description: 'Hóspede com reserva ativa (PENDING, CONFIRMED ou CHECKED_IN)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                    }
+                }
             },
             '/address/{cep}': {
                 parameters: [{ in: 'path', name: 'cep', required: true, schema: { type: 'string', example: '01310100' }, description: 'CEP com ou sem formatação (8 dígitos)' }],
