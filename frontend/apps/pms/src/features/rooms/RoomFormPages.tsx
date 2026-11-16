@@ -99,7 +99,7 @@ export function RoomEditPage() {
       {/* A volta já está no topo do FormShell: o LoadError não repete. */}
       {failed && (
         <LoadError
-          error={room.error ?? categories.error}
+          error={room.isError ? room.error : null /* só o 404 do quarto é "não encontrado" (redteam da T-08.6, 🟢4) */}
           notFound="Quarto não encontrado — ele pode ter sido excluído por outra pessoa."
           failed="Não foi possível carregar o quarto. Verifique a conexão e tente de novo."
           onRetry={() => {

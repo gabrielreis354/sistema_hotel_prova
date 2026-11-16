@@ -123,8 +123,9 @@ export function ReservationDetailPage() {
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
   // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary. Com
-  // saldo a receber, a principal é o "Registrar pagamento" da aba Conta (decisão de 16/11).
-  const primary = primaryAction(actions, { paymentDue: receiving });
+  // saldo a receber, na aba Conta a principal é o "Registrar pagamento" (decisão de 16/11); no Resumo
+  // o formulário não aparece, e o check-out segue principal — ele próprio leva à Conta (redteam da T-08.6).
+  const primary = primaryAction(actions, { paymentDue: receiving && tab === 'conta' });
 
   function openCheckOut() {
     setFeedback(null);
