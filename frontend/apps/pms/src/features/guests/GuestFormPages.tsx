@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, PageHeader, Spinner } from '@hotel/ui';
 import { GuestForm } from './GuestForm.js';
+import { GuestLoadError } from './GuestLoadError.js';
 import { useCreateGuest, useGuest, useUpdateGuest } from './queries.js';
 import { ApiError } from '../../lib/http.js';
 import type { Guest } from './guestsApi.js';
@@ -40,12 +41,14 @@ export function GuestNewPage() {
 export function GuestEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: guest, isLoading, isError } = useGuest(id);
+  const guestQuery = useGuest(id);
+  const { data: guest, isLoading, isError } = guestQuery;
   const update = useUpdateGuest(id ?? '');
   const [serverError, setServerError] = useState<string | null>(null);
 
-  if (isLoading) return <Spinner />;
-  if (isError || !guest) return <p className="text-sm text-status-maintenance">Hóspede não encontrado.</p>;
+  if (isLoading) return <Spinner label="Carregando hóspede…" />;
+  // Mesmo estado de erro da ficha (repasse do qa-redteam de 16/11): antes um 500 virava "não encontrado".
+  if (isError || !guest) return <GuestLoadError error={guestQuery.error} onRetry={() => guestQuery.refetch()} />;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ActionSlot, Button, Card, ErrorState, Notice, PageHeader, Section, Spinner } from '@hotel/ui';
+import { ActionSlot, Button, Card, Notice, PageHeader, Section, Spinner } from '@hotel/ui';
 import { formatCpf, formatDateBR } from '@hotel/domain';
 import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import { useGuest, useDeleteGuest } from './queries.js';
+import { GuestLoadError } from './GuestLoadError.js';
 import { DELETE_GUEST_REASON, canDeleteGuest } from './guestRules.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { BackLink, ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
@@ -59,21 +60,7 @@ export function GuestDetailPage() {
   });
 
   if (isLoading) return <Spinner label="Carregando hóspede…" />;
-  if (isError || !guest) {
-    // Mesmo molde da reserva inexistente: 404 não tem "tentar de novo", o caminho é voltar; falha
-    // de servidor ou de rede não é "não encontrado" (🟡-4 do qa-explorador de 16/11).
-    const notFound = guestQuery.error instanceof ApiError && guestQuery.error.status === 404;
-    return (
-      <div className="mx-auto max-w-3xl space-y-3">
-        {notFound ? (
-          <Notice tone="error">Hóspede não encontrado — ele pode ter sido excluído.</Notice>
-        ) : (
-          <ErrorState message="Não foi possível carregar o hóspede." onRetry={() => guestQuery.refetch()} />
-        )}
-        <BackLink to="/hospedes">← Voltar para hóspedes</BackLink>
-      </div>
-    );
-  }
+  if (isError || !guest) return <GuestLoadError error={guestQuery.error} onRetry={() => guestQuery.refetch()} />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
