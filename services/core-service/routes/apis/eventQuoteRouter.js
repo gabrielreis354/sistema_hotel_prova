@@ -10,9 +10,12 @@ import DeleteEventQuoteController from '../../app/Controllers/EventQuoteApi/Dele
 import DownloadQuotePdfController from '../../app/Controllers/EventQuoteApi/DownloadQuotePdfController.js';
 import ConfirmEventQuoteController from '../../app/Controllers/EventQuoteApi/ConfirmEventQuoteController.js';
 import CancelEventQuoteController from '../../app/Controllers/EventQuoteApi/CancelEventQuoteController.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 const router = Router();
 router.use(authMiddleware, tenantMiddleware);
+// :id que não é UUID responde 404, não 500 (repasse de 15/11; mesmo molde do reservationRouter).
+router.param('id', notFoundUnlessUuid('Orçamento não encontrado'));
 router.get('/', ListEventQuoteController);
 router.get('/:id/pdf', DownloadQuotePdfController);
 router.get('/:id', GetEventQuoteController);

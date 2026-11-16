@@ -4,9 +4,10 @@ import { Button, cn, type ButtonProps } from '@hotel/ui';
 import { READ_ONLY_REASON } from '../roomRules.js';
 import { READ_ONLY_NOTICE_ID } from './ReadOnlyNotice.js';
 
-// 48px no celular (o gerente consulta e o admin corrige andando), compacto na tabela do
-// desktop — os dois contextos físicos do DESIGN_PMS.md §5.
-const RESPONSIVE = 'md:h-8 md:min-h-0 md:px-3 md:text-sm';
+// 48px no celular e no tablet (o gerente consulta e o admin corrige andando), compacto só na
+// tabela do desktop, a partir de xl — CA-08.g e GUIA_UI_CORPORATIVA, regra 9. Antes o corte era md
+// (768 px) e o botão ficava com 32 px no tablet do balcão.
+const RESPONSIVE = 'xl:h-8 xl:min-h-0 xl:px-3 xl:text-sm';
 
 /**
  * Botão de escrita. Sem permissão ele continua na tela, desabilitado, com o motivo em

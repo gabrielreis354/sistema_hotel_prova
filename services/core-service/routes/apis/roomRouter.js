@@ -10,11 +10,15 @@ import CreateRoomController from '../../app/Controllers/RoomApi/CreateRoomContro
 import UpdateRoomController from '../../app/Controllers/RoomApi/UpdateRoomController.js';
 import DeleteRoomController from '../../app/Controllers/RoomApi/DeleteRoomController.js';
 import ReleaseRoomController from '../../app/Controllers/RoomApi/ReleaseRoomController.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 export default (() => {
     const router = Router();
 
     router.use(authMiddleware, tenantMiddleware);
+
+    // :id que não é UUID responde 404, não 500 (repasse de 15/11; mesmo molde do reservationRouter).
+    router.param('id', notFoundUnlessUuid('Quarto não encontrado'));
 
     // Gestão de quartos é da recepção/admin — o garçom (WAITER) não entra aqui.
     // Rota /available antes de /:id para não ser capturada como parâmetro.

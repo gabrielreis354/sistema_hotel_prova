@@ -6,7 +6,7 @@ import { formatFloor, sortRooms } from './roomRules.js';
 import { RoomsHeader } from './components/RoomsHeader.js';
 import { ReadOnlyNotice } from './components/ReadOnlyNotice.js';
 import { EditAction, WriteButton } from './components/Actions.js';
-import { Money } from './components/Money.js';
+import { DecimalMoney } from './components/DecimalMoney.js';
 import { Table, THead, Th, Tr, Td } from './components/Table.js';
 
 export function RoomsListPage() {
@@ -38,7 +38,14 @@ export function RoomsListPage() {
               ? 'Cadastre os quartos do hotel para a recepção abrir reservas. Antes, crie ao menos uma categoria com a tarifa.'
               : 'O administrador ainda não cadastrou os quartos do hotel.'
           }
-          action={canWrite ? newRoom : undefined}
+          // Secundária: o "Novo quarto" do cabeçalho já é a ação principal (CA-08.e).
+          action={
+            canWrite ? (
+              <WriteButton canWrite variant="secondary" onClick={() => navigate('/quartos/novo')}>
+                Novo quarto
+              </WriteButton>
+            ) : undefined
+          }
         />
       )}
 
@@ -71,7 +78,7 @@ export function RoomsListPage() {
                   {r.category?.name ?? <span className="text-status-maintenance">Sem categoria</span>}
                 </Td>
                 <Td align="right" className="hidden md:table-cell">
-                  <Money value={r.category?.price_per_night} />
+                  <DecimalMoney value={r.category?.price_per_night} />
                 </Td>
                 <Td>{r.status ? <StatusBadge status={r.status} /> : '—'}</Td>
                 <Td align="right">

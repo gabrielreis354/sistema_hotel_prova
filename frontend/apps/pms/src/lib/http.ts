@@ -8,3 +8,8 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
+
+/** O registro sumiu (404): a tela mostra "não encontrado", não "erro de conexão". Subiu de rooms na T-08.6. */
+export function isNotFound(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404;
+}

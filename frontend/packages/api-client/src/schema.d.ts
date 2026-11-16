@@ -1744,7 +1744,7 @@ export interface paths {
             };
         };
         post?: never;
-        /** Remove */
+        /** Remove (soft delete). Recusa com 409 se houver reserva PENDING, CONFIRMED ou CHECKED_IN */
         delete: {
             parameters: {
                 query?: never;
@@ -1762,6 +1762,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Não encontrado */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Hóspede com reserva ativa (PENDING, CONFIRMED ou CHECKED_IN) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };

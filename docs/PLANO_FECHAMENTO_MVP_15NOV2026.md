@@ -2,13 +2,18 @@
 
 > Este documento pode ser lido sem nenhum outro. Os códigos internos das tarefas (M3, T-05.5 etc.)
 > aparecem só entre parênteses, para quem quiser achar o assunto no repositório.
+>
+> **Atualizado na noite de 15/11** com a resposta do Sirlande (PR #156) e com o estado real do git
+> (§2). A versão HTML (`PLANO_FECHAMENTO_MVP_15NOV2026.html`) é a da tarde de 15/11; quando os dois
+> divergirem, vale este arquivo.
 
 ## 1. Por que este plano existe
 
 O Gesway é um sistema de gestão para hotéis e pousadas pequenos: reservas, check-in e check-out,
 comanda do garçom, pagamento e indicadores do gerente. O MVP do 4º semestre foi definido como
-**um roteiro de demonstração de 7 passos**, apresentado ao vivo para a banca no computador do grupo
-(Docker Compose, sem nuvem). Tudo que não aparece no roteiro fica para o 5º semestre.
+**um roteiro de demonstração de 7 passos** (mais o passo 8, de 30 s, no Grafana), apresentado ao
+vivo para a banca no computador do grupo (Docker Compose, sem nuvem). Tudo que não aparece no
+roteiro fica para o 5º semestre.
 
 Datas que não mudam:
 - **24/11:** congelamento. Depois dele não entra funcionalidade nova, só correção.
@@ -16,55 +21,93 @@ Datas que não mudam:
 - **10/12:** entrega e apresentação.
 
 Em 14/11 o grupo fez o **primeiro ensaio completo**: os 7 passos funcionaram de ponta a ponta,
-mas com problemas que ainda impedem uma demonstração tranquila. Este plano lista o que falta,
+mas com problemas que ainda impediam uma demonstração tranquila. Este plano lista o que falta,
 quem faz cada parte e como saber que ficou pronto.
 
-## 2. Em que o Sirlande está trabalhando (levantado no git em 15/11)
+## 2. Estado do time no git (noite de 15/11)
 
-- **Última atividade: 11/11.** Entre 27/10 e 11/11 ele trabalhou em duas coisas:
-  - a **tela de pagamento no check-out**, que já está na `develop`;
-  - o **agente de QA exploratório**, que usa o sistema no navegador como uma recepcionista usaria e reporta defeitos.
-- **Comanda do garçom: nenhum commit desde 27/10.** A comanda é dele e ainda tem 2 pendências (ver §3, passo 3).
-- Os únicos PRs abertos dele são de documentação: o registro de status (#133) e o parecer sobre o plano (#134).
-- **Próximo item na lista dele, com prazo em 17/11:** fazer os dados de demonstração usarem as datas do dia. Hoje todas as reservas do seed são de janeiro a junho de 2026. Por isso, no dia da apresentação, o painel "Hoje" e os cartões do gerente aparecem **zerados**.
+### Sirlande: muito ativo em 15/11
+Da manhã ao fim da tarde, entregou e respondeu ao plano:
+- **Resposta ao plano** (PR #156, aberto): concorda com a direção, escolhe a opção (b) da comanda,
+  põe a SPEC-08 na carga dele e ajusta 3 pontos do seed (incorporados neste arquivo).
+- **Seed com as datas do dia** (#157): ✅ na `develop` em 15/11, dois dias antes do prazo.
+- **SPEC-08 mínima** (#159 a #162: Inter, marca Gesway, ícones, ação principal da reserva, abas
+  com setas, foco da folha "Mais" e painel Hoje): ✅ na `develop` em 15/11, com o OK do Gabriel.
+  O commit `17db690` corrigiu a tela de detalhe da reserva, que ficava em branco por um hook depois
+  do `return` antecipado; ele entrou junto.
+- **T-08.5** (#167, aberto, CI verde): `PageHeader` e `Section` no `@hotel/ui`, menos cartões nas telas.
+- Docs abertos: decisões de bibliotecas (#155), relatório de 15/11 (#163), status (#133) e
+  parecer de 28/10 (#134).
+
+### Weslley: última atividade às 14:30 de 15/11
+- **1º `up` a frio** (#148): ✅ na `develop`. O `./start.sh compose-up` (#154, do Gabriel) passou a
+  avisar quando o `rabbitmq-setup` falha.
+- Docs abertos: relatório da suíte com o broker de teste (#153), estimativa AWS (#146) e rascunho do
+  Doc 08 (#129).
+- **Nenhum commit** ainda em: imagem do MinIO (🔴, abaixo), roteiro no CI, `seed_hoje.sql` no
+  `./start.sh seed` (k8s), passo 8 no Grafana e Doc 08 v1.3. A troca da chave do Asaas não tem
+  registro no git (é feita no painel do Asaas): confirmar com ele.
+
+### Gabriel (com os agentes de IA), em 15/11
+- ✅ Na `develop`:
+  - SPEC-09 (#149 a #151);
+  - teste do proxy do Vite rodando de verdade (#152);
+  - `compose-up` (#154);
+  - 404 para id de reserva inválido (#164);
+  - roteiro automatizado (#166);
+  - relatório da sessão e folha de respostas da banca (#158).
+- Abertos:
+  - comanda (#165), aguardando a revisão do Sirlande;
+  - red team da T-08.4 (#168), só documentação.
 
 ## 3. Situação do frontend, passo a passo do roteiro
 
-O frontend é o app `app-pms`: React + TypeScript, um app só para recepção, garçom e gerente. Ele já tem as telas de login, painel Hoje, reservas, hóspedes, quartos e categorias, comanda e indicadores.
+O frontend é o app `app-pms`: React + TypeScript, um app só para recepção, garçom e gerente.
 
 | # | Passo do roteiro | Tela | Situação |
 |---|---|---|---|
 | 1 | Administrador cadastra categorias e quartos | Quartos / Categorias | ✅ Pronto |
-| 2 | Recepção cria a reserva, vê o valor antes de confirmar e faz o check-in | Nova reserva, Detalhe da reserva | ✅ Pronto (o walk-in do balcão vai direto ao check-in) |
-| 3 | Garçom, pelo celular, lança consumo na conta da suíte e numa mesa, **inclusive sem rede** | Comanda | 🟡 Funciona, inclusive a fila que guarda os lançamentos sem rede. Faltam 2 acabamentos (abaixo) |
-| 4 | Recepção abre o painel do dia: chegadas, saídas e risco de *no-show* | Hoje | 🟡 A tela está pronta, mas **aparece vazia** porque o seed não tem dados de hoje |
+| 2 | Recepção cria a reserva, vê o valor antes de confirmar e faz o check-in | Nova reserva, Detalhe da reserva | ✅ Pronto. Walk-in vai direto ao check-in; o check-in só abre dentro do período da reserva (#147); uma ação principal por tela (SPEC-08) |
+| 3 | Garçom, pelo celular, lança consumo na conta da suíte e numa mesa, **inclusive sem rede** | Comanda | 🟡 Os 2 acabamentos estão no **#165**, aguardando a revisão do Sirlande |
+| 4 | Recepção abre o painel do dia: chegadas, saídas e risco de *no-show* | Hoje | ✅ Com dados do dia (#157) e mais enxuto (T-08.4). Restam 2 🟡 da T-08.4 (§3, item 7) e 2 🟡 do painel com o Gabriel (§5) |
 | 5 | No check-out, a conta aparece em linha do tempo, o pagamento é registrado, e a conta e a estadia fecham | Detalhe da reserva → Pagamento | ✅ Pronto (inclui o estorno) |
-| 6 | Hóspede faz reserva direta e paga o sinal por PIX; o pagamento confirma a reserva | **Sem tela.** O site público é só uma pasta com README | 🟡 O backend funciona e foi ensaiado no sandbox do Asaas em 12/11. **Falta decidir como mostrar à banca** (abaixo) |
-| 7 | Gerente abre os indicadores, servidos pelo serviço separado de analytics (a parte de microsserviços que a banca avalia) | Indicadores | 🟡 Pronto, mas em desenvolvimento local dá erro 404 enquanto o **PR #145** não entra. Também aparece zerado sem dados de hoje |
+| 6 | Hóspede faz reserva direta e paga o sinal por PIX; o pagamento confirma a reserva | Sem tela: pela API pública | ✅ Decidido: API + sandbox real do Asaas (§7). O provedor simulado fica para queda de rede |
+| 7 | Gerente abre os indicadores, servidos pelo serviço separado de analytics (a parte de microsserviços que a banca avalia) | Indicadores | ✅ O 404 no `pnpm dev` acabou (#145) e os cartões têm números do dia (#157) |
+
+O roteiro inteiro roda sozinho com `pnpm e2e` (#166): 7 passos, duas rodadas seguidas num ambiente
+novo. Veja `frontend/e2e/README.md`.
 
 ### O que falta no frontend para a demonstração
 
-1. **Comanda, aviso de "sem conexão"** (achado 7 da revisão de 27/10). Quando a rede cai, a fila guarda o lançamento, mas o garçom não vê nenhum aviso de que está sem rede. Falta uma faixa "Sem conexão: os lançamentos serão enviados quando a rede voltar", ligada ao detector de conexão da biblioteca de dados (`onlineManager` do TanStack Query).
-2. **Comanda, tempo restante para desfazer.** Depois de um toque, o garçom tem 5 segundos para desfazer. A tela mostra o preço do item, mas não quanto tempo ainda resta.
-3. **Comanda, conferir os 3 acabamentos dados como feitos:** o aviso de mesa com nome repetido, a caixa que cortava a primeira linha e o rodapé fixo da conta. Basta uma passada do agente de QA exploratório.
-4. **Proxy do ambiente de desenvolvimento (PR #145, aberto).** Corrige o erro 404 dos indicadores no `pnpm dev`. Precisa de merge.
-5. **Passo 6, reserva direta.** Existem duas saídas:
-   - **(a)** Mostrar pela API pública, com uma chamada pronta, o QR do PIX e a reserva mudando para "confirmada" na tela de reservas do app. Custo: quase zero. Foi a proposta da pauta de 03/11 (decisão 5), ainda não registrada.
-   - **(b)** Construir uma página pública mínima de reserva. Custo: uns 3 a 4 dias, perto do congelamento.
+1. ~~**Comanda, aviso de "sem conexão"**~~ e 2. ~~**tempo restante para desfazer**~~: **feitos no #165**
+   (opção (b) do Sirlande). Faltam a revisão dele e a passada do qa-explorador.
+3. **Comanda, conferir os 3 acabamentos dados como feitos:** o aviso de mesa com nome repetido, a
+   caixa que cortava a primeira linha e o rodapé fixo da conta (Sirlande, com o qa-explorador, até 20/11).
+4. ~~**Proxy do ambiente de desenvolvimento**~~: resolvido no #145.
+5. ~~**Passo 6, reserva direta**~~: decidido em 15/11, opção (a) com o sandbox real do Asaas
+   (webhook pelo ngrok, como no ensaio de 12/11).
+6. **Risco aceito, sem tarefa:** o app ainda não é um PWA. Se o garçom **recarregar a página sem
+   rede**, o app não abre. No passo 3, desligar a rede com a comanda já aberta e não recarregar.
+   Fica para o 5º semestre.
+7. **Painel Hoje, 2 🟡 da T-08.4** (Sirlande, até 24/11; comentados no #162):
+   - no celular de 375 px, a lista de chegadas ainda passa do limite de 3.000 px no pior caso (3.091 px);
+   - "Ver todas" e "Mostrar menos" perdem o lugar na tela e o foco do teclado.
+8. **T-08.5** (#167): revisar antes do congelamento.
 
-   **Decidido em 15/11: (a), com o sandbox real do Asaas** (como no ensaio de 12/11, webhook pelo ngrok). O provedor simulado fica só para queda de rede: é a única API externa visível no roteiro (ver a reavaliação abaixo). Ver a pergunta ao Gabriel no §7.
-6. **Risco conhecido, sem tarefa:** o app ainda não é um PWA, ou seja, não tem um *service worker* que guarde as telas no aparelho. Se o garçom **recarregar a página sem rede**, o app não abre. Na demonstração, o passo 3 deve **desligar a rede com a comanda já aberta e não recarregar**. Fica registrado para o 5º semestre.
+Bibliotecas (decisão de 15/11, #155): **só a Inter e o `lucide-react` entram antes de 10/12**.
+As duas já estão na `develop`.
 
 ### Revisão das telas "prontas" (15/11)
 
 As telas marcadas como ✅ foram revisadas uma a uma, por papel, no computador e no celular
-(`docs/qa/revisao_telas_prontas_15112026.md`). Funcionam todas, sem erro de JavaScript e sem
-requisição com falha, mas a revisão achou pontos a corrigir antes do congelamento:
-- **O seed põe hóspedes "na casa" em quartos marcados como livres.** O painel Hoje mostra "Livres 15 · Ocupação 0%" com 4 hóspedes na casa. Vai junto da tarefa do seed (Sirlande).
-- ~~**O check-in não confere as datas.**~~ **Resolvido no PR #147:** o check-in só abre quando a entrada já chegou e a saída ainda não. O hóspede de madrugada no dia da saída fica como limitação aceita no MVP.
-- **O gráfico de sazonalidade pula meses**, e o **comprovante não diz qual hotel o emitiu**.
-- **O CPF aparece de três jeitos:** completo, mascarado e formatado, conforme a tela.
-- Seis acabamentos menores, como o nome "Hotel PMS" no lugar de Gesway e alvos de toque pequenos no celular.
+(`docs/qa/revisao_telas_prontas_15112026.md`). Situação dos pontos achados:
+- ~~O seed põe hóspedes "na casa" em quartos marcados como livres~~: resolvido no #157.
+- ~~O check-in não confere as datas~~: resolvido no #147. O hóspede de madrugada no dia da saída
+  fica como limitação aceita no MVP.
+- ~~O gráfico de sazonalidade pula meses; o comprovante não diz qual hotel o emitiu; o CPF aparece de
+  três jeitos~~: resolvidos na SPEC-09 (#149 a #151).
+- ~~Nome "Hotel PMS"; botões desabilitados na reserva encerrada; "Sair" com 36 px~~: resolvidos na
+  SPEC-08 (#160 e #161; o "Sair" tem 48 px até o desktop).
 
 ### Reavaliação do MVP contra o Termo e os documentos entregues (15/11)
 
@@ -78,86 +121,95 @@ Os documentos estão coerentes com esse recorte:
 - o Doc 06 (C4) se declara arquitetura-alvo;
 - o Doc 02 explica que as rotas B2B ficam no core até a extração do `b2b-service`, no 5º semestre.
 
-**O que a demonstração precisa mostrar e hoje não mostra.** O Doc 08 promete para o 4º semestre
-API externa real, Prometheus e Grafana locais e CI por serviço. O código tem tudo isso; o roteiro
-não mostra.
+| # | Ponto | Critério do Termo | O que fazer | Dono | Situação |
+|---|---|---|---|---|---|
+| R1 | A única API externa visível é o PIX | Integração externa (C2) | Passo 6 com o **sandbox real do Asaas**; o simulado só se a rede cair. O ViaCEP fica como evidência, pelo Swagger | Gabriel e Weslley | Decidido |
+| R2 | Prometheus e Grafana estão no compose, mas nenhum passo abre o Grafana | Monitoramento (C8) | **Passo 8, de 30 s:** o painel do Grafana com as métricas do core e a fila do RabbitMQ | Weslley | A fazer |
+| R3 | Os workflows existem, mas a banca não os vê | CI/CD (C6) | Uma execução verde do GitHub Actions aberta na apresentação | Weslley | A fazer |
+| R4 | O Doc 08 entregue é a v1.1 (29/10) | Documentação (C9) | Doc 08 v1.3 com o estado real, antes de 10/12 | Weslley | A fazer |
+| R5 | O menu "Usuários" mostrava "em breve" | — | Esconder o item no MVP | Gabriel | ✅ SPEC-09 (#149 a #151) |
+| R6 | Perguntas prováveis da banca (funcionários, hotel novo, FNRH, caixa) | — | Folha de respostas | Gabriel | ✅ `docs/banca/FOLHA_RESPOSTAS_BANCA.md` (#158) |
 
-| # | Ponto | Critério do Termo | O que fazer | Dono |
-|---|---|---|---|---|
-| R1 | A única API externa visível é o PIX. O ViaCEP existe só pela API: a tela que o usaria é a de clientes corporativos, fora do MVP | Integração externa (C2) | Passo 6 com o **sandbox real do Asaas**; o provedor simulado só se a rede cair. O ViaCEP fica como evidência de reserva, mostrado pelo Swagger | Gabriel e Weslley |
-| R2 | Prometheus e Grafana estão no compose, mas nenhum passo abre o Grafana | Monitoramento (C8) | **Passo 8, de 30 s:** o painel do Grafana com as métricas do core e a fila do RabbitMQ. Conferir no ensaio de 24/11 | Weslley |
-| R3 | Os três workflows existem, mas a banca não os vê | CI/CD (C6) | Uma execução verde do GitHub Actions aberta na apresentação | Weslley |
-| R4 | O Doc 08 entregue é a v1.1 (29/10): o roteiro ainda aparece "a fazer" e o passo 6 como "proposta" | Documentação (C9) | Doc 08 v1.3 com o estado real, antes de 10/12 | Weslley (dono do Doc 08) |
-| R5 | O menu "Usuários" mostra "em breve" na frente da banca | — | Esconder o item no MVP (fica para o 5º semestre) | Gabriel (SPEC-09) |
-| R6 | Perguntas prováveis de uma banca de mercado: como cadastrar funcionários (só pelo seed ou pela API)? Como um hotel novo entra (só pela API)? E a ficha de registro do hóspede, obrigatória no Brasil? E o fechamento de caixa? | — | **Folha de respostas** de 1 página: estão no Doc 02 (RF-004, RF-001, RF-055, RF-056) e planejados para o 5º semestre | Gabriel |
-
-As correções de tela da revisão e o R5 estão especificados na **SPEC-09**
-(`docs/specs/SPEC-09-acabamento-telas-mvp.md`).
-
-Fora do MVP, por decisão de 21/10 (não fazer agora):
-- a tela de Usuários, que hoje mostra só "em breve";
-- o rack (mapa visual de reservas);
-- o financeiro;
-- grupos e B2B;
-- o site público completo.
+Fora do MVP, por decisão de 21/10 (não fazer agora): a tela de Usuários, o rack, o financeiro,
+grupos e B2B, e o site público completo.
 
 ## 4. O que falta fora do frontend
 
-- **Dados de demonstração com as datas do dia** (Sirlande, até 17/11). Precisa ter:
-  - uma estadia em andamento que cubra hoje;
-  - uma chegada e uma saída marcadas para hoje;
-  - um pagamento recebido hoje, no horário de Brasília;
-  - um quarto "em limpeza", para mostrar o botão "liberar quarto".
-
-  Rodar o seed duas vezes não pode duplicar dados, e ele continua exigindo `ALLOW_SEED=1`.
-- **O sistema sobe na primeira tentativa** (Weslley). Hoje, num computador limpo, o primeiro `docker compose up` falha porque o backend não espera a fila de mensagens (RabbitMQ) ficar pronta. Isso precisa resolver antes da banca.
-- **Trocar a chave de teste do Asaas** (Weslley, já). A chave apareceu num chat em 12/11.
-- **Roteiro automatizado.** O ensaio de 14/11 foi feito por um script de navegador (Playwright) que passa pelos 7 passos. Esse script precisa entrar no repositório (Gabriel) e rodar no CI como verificação que avisa mas não bloqueia (Weslley). Assim, qualquer quebra no roteiro aparece no dia em que acontece, e não no ensaio.
+- ✅ **Dados de demonstração com as datas do dia** (#157). Critérios da resposta do Sirlande (#156, §3):
+  - **Os indicadores acendem pelos triggers do outbox.** O `migrate` cria os triggers antes do
+    seed, então o que o seed grava chega ao analytics pelo mesmo caminho da API. O
+    `outbox-initial-load` só é necessário num banco populado antes dos triggers.
+    **No ensaio de 24/11: conferir que o publicador e o consumidor estão de pé quando o seed roda.**
+  - **O fuso é do seed, não do analytics.** O analytics já conta o dia no fuso do hotel (D-68). O
+    seed calcula "hoje" no horário de São Paulo, então rodar depois das 21h em Brasília não grava amanhã.
+  - **Idempotência com datas relativas.** Rodado de novo, o seed reescreve datas e status, sem criar
+    linhas, e respeita a janela do check-in (#147). **Critério: rodar o seed em dois dias diferentes
+    mantém o painel Hoje com números diferentes de zero nos dois.**
+  - Pendência (Weslley): o `./start.sh seed` (k8s) ainda não aplica o `seed_hoje.sql`. No compose,
+    o seed já o aplica.
+- **O sistema sobe na primeira tentativa** (Weslley):
+  - ✅ a espera do RabbitMQ (#148), e o `./start.sh compose-up` avisa se o setup falhar (#154);
+  - 🔴 **em aberto: a imagem do MinIO.** O `docker-compose.yml` (linhas 48 e 67) usa
+    `quay.io/minio/minio:latest`, que deu 401 num computador limpo. **É o maior risco para o ensaio
+    de 24/11.**
+- **Trocar a chave de teste do Asaas** (Weslley, já). A chave apareceu num chat em 12/11. Sem
+  registro no git: confirmar.
+- ✅ **Roteiro automatizado no repositório** (#166). Falta **rodar no CI** como verificação que avisa
+  mas não bloqueia (Weslley, até 22/11). Os cuidados com o artefato do trace estão no README do e2e.
 
 ## 5. Divisão do trabalho
 
 ### Gabriel (com os agentes de IA)
-- Até 16/11:
-  - revisar e fazer o merge do #145 (proxy) e do #144 (relatório do ensaio de 14/11), atualizando antes o painel de andamento que vai no #144;
-  - decidir sobre os PRs de documentação #133, #134, #146 e #129.
-- Até 20/11: colocar o roteiro automatizado no repositório (`frontend/e2e/`, comando `pnpm e2e`), com revisão do agente qa-redteam antes do merge.
-- **Só se o Sirlande concordar** (a comanda é dele): implementar os itens 1 e 2 do §3, o aviso de sem conexão e o tempo restante para desfazer.
-- Até 22/11: as correções de tela da SPEC-09, com agentes e revisão do qa-redteam, e a folha de respostas para a banca (R6).
-- No roteiro: o passo 6 no sandbox real (R1) e o passo 8 no Grafana (R2).
+- ✅ Até 16/11: merge do #145 (proxy) e do #144 (ensaio de 14/11).
+- **Ainda a decidir:** os PRs de documentação #133, #134, #146 e #129, e os PRs de documentação
+  do Sirlande (#155, #156 e #163) e do Weslley (#153).
+- ✅ Roteiro automatizado (#166), com o qa-redteam antes do merge.
+- ✅ Comanda, opção (b): aviso de sem conexão e tempo para desfazer (#165, aguardando o Sirlande).
+- ✅ SPEC-09 (#149 a #151) e folha de respostas da banca (#158).
+- Até 24/11, os 2 🟡 do painel Hoje que estão com ele (`docs/qa/repasses/para_gabriel_15112026.md`):
+  - os cartões do topo ficam uma ação atrás;
+  - o duplo clique em "Confirmar check-in" envia dois PUT.
+- No roteiro: o passo 6 no sandbox real (R1).
 - Decisões que só ele pode tomar:
-  - ~~como mostrar o passo 6~~ (decidido em 15/11: opção (a), §3, item 5);
-  - se o balcão passa a validar o CPF;
+  - se o balcão passa a validar o CPF (dígito verificador);
   - registrar no CLAUDE.md a regra de que, no walk-in, o check-in cancela a cobrança de sinal pendente.
 - 01/12: publicar a versão final na `main`, com aprovação do Sirlande.
 
 ### Sirlande
 Resposta dele em 15/11: PR #156.
 
-| O quê | Prazo | Estimativa |
+| O quê | Prazo | Situação |
 |---|---|---|
-| Dados de demonstração com as datas do dia (§4). PR #157 aberto em 15/11 | 17/11 | — |
-| Comanda: **opção (b)**. O Gabriel faz o aviso de "sem conexão" e o tempo restante para desfazer (`fix/comanda-acabamento`); o Sirlande revisa e confere os outros 3 acabamentos com o qa-explorador | 20/11 | 0,5 dia |
-| SPEC-08 mínima: T-08.1 (Inter), T-08.2 (marca e ícones), T-08.3 (hierarquia de ações), mais a T-08.4 (painel Hoje). PRs #159 a #162 abertos em 15/11 | 24/11 | 3 dias |
-| Setas do teclado nas abas da reserva e foco da folha "Mais" | 24/11 | 0,5 dia |
-| Revisão do roteiro automatizado (`feature/e2e-roteiro`) e aprovação da versão final de 01/12 | antes de 24/11 | — |
+| Dados de demonstração com as datas do dia (§4) | 17/11 | ✅ #157, em 15/11 |
+| Comanda, opção (b): revisar o #165 e conferir os outros 3 acabamentos com o qa-explorador | 20/11 | A fazer (0,5 dia) |
+| SPEC-08 mínima: T-08.1, T-08.2, T-08.3 e T-08.4 | 24/11 | ✅ #159 a #162, em 15/11. Faltam os 2 🟡 da T-08.4 (§3, item 7) |
+| Setas do teclado nas abas da reserva e foco da folha "Mais" | 24/11 | ✅ no #161 |
+| T-08.5, cabeçalho e seções | 24/11 | #167 aberto |
+| Revisão do roteiro automatizado | antes de 24/11 | O #166 já entrou; a revisão dele continua bem-vinda e vira correção |
+| Aprovação da versão final `develop → main` | 01/12 | — |
 
-A T-08.6 ("Sair" com 36 px) entra se sobrar tempo; senão, vira correção depois do congelamento.
+A T-08.6 ("Sair" com 36 px) foi resolvida dentro do #161, com o botão de 48 px até o desktop.
 
 ### Weslley
-- Já: trocar a chave do Asaas.
-- Até 17/11: fazer o sistema subir na primeira tentativa. Conferir com 3 ciclos de `docker compose down -v` seguido de `up -d` sem erro.
-- Até 22/11:
-  - colocar no CI o roteiro automatizado, sem bloquear o merge;
-  - o job de CI do frontend (tipos, testes e build) já existe desde 31/10 (`ci-frontend.yml`); o roteiro entra como job separado.
-- Até 24/11: o passo 8 do roteiro, no Grafana (R2), e uma execução verde do Actions pronta para mostrar (R3).
+- Já: trocar a chave do Asaas (confirmar).
+- 🔴 Até 17/11: a imagem do MinIO que dá 401 num computador limpo (§4). Conferir com 3 ciclos de
+  `docker compose down -v` seguido de `./start.sh compose-up --build` sem erro.
+- Até 22/11: o roteiro (`pnpm e2e`) no CI, como job separado que não bloqueia o merge. O job de CI do
+  frontend (tipos, testes e build) já existe (`ci-frontend.yml`).
+- Até 24/11:
+  - o passo 8 no Grafana (R2) e uma execução verde do Actions pronta para mostrar (R3);
+  - o `seed_hoje.sql` no `./start.sh seed` (k8s);
+  - o rótulo `CARTAO` em `shares.ts`.
 - Antes de 10/12: Doc 08 v1.3 com o estado real (R4).
-- Documentos acadêmicos: estimativa de custo AWS (#146) e Doc 08, conferidos contra os critérios de aceite antes de cada reentrega.
+- Documentos acadêmicos: estimativa de custo AWS (#146) e Doc 08, conferidos contra os critérios de
+  aceite antes de cada reentrega.
 
 ### Todos
 - **24/11, congelamento.** Segundo ensaio completo, num ambiente recém-criado, com os dados do dia. Critérios:
-  - os 7 passos funcionam, mais o passo 8 no Grafana;
+  - os 7 passos funcionam (`pnpm e2e` verde), mais o passo 8 no Grafana;
   - o passo 6 no sandbox real do Asaas;
-  - o painel Hoje e os indicadores mostram números diferentes de zero;
+  - o publicador e o consumidor do outbox de pé quando o seed roda;
+  - o painel Hoje e os indicadores com números diferentes de zero;
   - nenhum defeito 🔴 em aberto.
 - **25 a 30/11:** só correções. Cada uma passa pela revisão do qa-redteam.
 - **01/12:** versão final e ensaio geral.
@@ -165,39 +217,45 @@ A T-08.6 ("Sair" com 36 px) entra se sobrar tempo; senão, vira correção depoi
 
 ## 6. Calendário
 
-| Data | O que precisa estar pronto | Quem |
-|---|---|---|
-| 15–16/11 | Merge do proxy (#145) e do relatório do ensaio (#144); chave do Asaas trocada | Gabriel · Weslley |
-| 17/11 | Dados de demonstração com as datas do dia; sistema sobe na 1ª tentativa | Sirlande · Weslley |
-| 20/11 | Comanda fechada; roteiro automatizado no repositório | Sirlande (+Gabriel) · Gabriel |
-| 22/11 | Roteiro rodando no CI | Weslley |
-| 24/11 | SPEC-08 mínima na `develop` | Sirlande |
-| 24/11 | Congelamento + 2º ensaio, zero 🔴 | todos |
-| 01/12 | Versão final na `main` + ensaio geral | Gabriel, com aprovação do Sirlande |
-| 10/12 | Apresentação | todos |
+| Data | O que precisa estar pronto | Quem | Situação |
+|---|---|---|---|
+| 15–16/11 | Merge do proxy (#145) e do relatório do ensaio (#144); chave do Asaas trocada | Gabriel · Weslley | ✅ merges · chave a confirmar |
+| 17/11 | Dados do dia; sistema sobe na 1ª tentativa | Sirlande · Weslley | ✅ seed · 🔴 MinIO em aberto |
+| 20/11 | Comanda fechada; roteiro automatizado no repositório | Sirlande (+Gabriel) · Gabriel | #165 na revisão · ✅ #166 |
+| 22/11 | Roteiro rodando no CI | Weslley | A fazer |
+| 24/11 | SPEC-08 mínima na `develop` | Sirlande | ✅ em 15/11; 2 🟡 e a T-08.5 em aberto |
+| 24/11 | Congelamento + 2º ensaio, zero 🔴 | todos | — |
+| 01/12 | Versão final na `main` + ensaio geral | Gabriel, com aprovação do Sirlande | — |
+| 10/12 | Apresentação | todos | — |
 
 ## 7. Decisões e o que segue em aberto
 
 - **Decidido em 15/11:** o passo 6 é mostrado pela API, com o QR e a reserva confirmando no app,
   no sandbox real do Asaas.
-- **Em aberto:** aprovar a SPEC-09 (correções das telas), incluindo se o CPF continua completo na
-  lista de hóspedes.
+- **Decidido em 15/11:** a SPEC-09 foi aprovada (`a122664`); na lista de hóspedes, o CPF aparece
+  completo e formatado.
+- **Decidido em 15/11:** comanda pela opção (b) (#156) e SPEC-08 mínima na carga do Sirlande.
+- **Em aberto (Gabriel):** validar o CPF no balcão; "-R$" na coluna Valor da conta; quem cuida da
+  normalização do CPF.
 
 ## 8. Documentos ligados a este plano
 
+- Resposta do Sirlande: `docs/delegacoes/resposta_sirlande_fechamento_mvp_15nov2026.md` (PR #156)
 - Mensagem ao Sirlande: `docs/delegacoes/fechamento_mvp_sirlande_15nov2026.md`
 - Mensagem ao Weslley: `docs/delegacoes/fechamento_mvp_weslley_15nov2026.md`
 - Painel de andamento, que acompanha o dia a dia: `docs/PAINEL_DE_ANDAMENTO_MVP.md`
 - Relatório do primeiro ensaio (14/11): `docs/qa/ensaio_roteiro_14112026.md`
+- Roteiro automatizado: `frontend/e2e/README.md`
+- Folha de respostas da banca: `docs/banca/FOLHA_RESPOSTAS_BANCA.md`
 
-Próximo passo do Gabriel: o roteiro automatizado (`feature/e2e-roteiro`), a partir da `develop`,
-depois que o #145 entrar.
+Próximo passo do Gabriel: os 2 🟡 do painel Hoje (§5) depois da revisão do #165, e o qa-explorador
+nas telas da SPEC-09 (390 px e impressão).
 
 ## 9. Como verificar
 
 - **Documentos:** conferir cada número de PR e cada situação com `git log origin/develop` e `gh pr list` antes do commit.
-- **Roteiro automatizado:**
-  - rodar num ambiente de compose recém-criado, só para o ensaio;
-  - passar os 7 passos duas vezes seguidas;
-  - apagar o ambiente no fim (`docker compose -p gesway-ensaio down -v`).
-- **Dados do dia:** depois do seed, o painel Hoje e os 4 cartões do gerente mostram valores diferentes de zero.
+- **Roteiro automatizado:** `pnpm e2e` num ambiente de compose recém-criado, só para o ensaio
+  (`gesway-ensaio`); passar os 7 passos duas vezes seguidas; apagar o ambiente no fim
+  (`docker compose -p gesway-ensaio down -v`).
+- **Dados do dia:** depois do seed, o painel Hoje e os 4 cartões do gerente mostram valores
+  diferentes de zero, também quando o seed roda em outro dia.

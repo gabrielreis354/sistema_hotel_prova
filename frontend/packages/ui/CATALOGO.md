@@ -21,11 +21,18 @@ ter uma pessoa aprovando componente dos outros.
 
 ---
 
+## Bibliotecas por baixo
+
+Até 10/12, nenhuma além de `lucide-react` para ícones (com texto ao lado e `aria-hidden`) e da fonte Inter. A partir do 5º semestre, componente com comportamento de teclado e leitor de tela (Tabs, Combobox, Dialog, DropdownMenu) nasce sobre o Radix, no modelo do shadcn, e segue a regra de promoção acima. Decisão de 15/11 na SPEC-08, seção 9.
+
+---
+
 ## Componentes
 
 | Componente | Para quê | Quando **não** usar |
 |---|---|---|
-| `Button` | Ação. Variantes `primary`, `secondary`, `ghost`, `danger`; tamanhos `comfortable` (mobile, alvo ≥ 48px) e `compact` (tabela e rack no desktop) | Navegação — use `Link` do router. Um `Button` que só navega quebra abrir em nova aba |
+| `Button` | Ação. Variantes `primary`, `secondary`, `ghost`, `danger`; tamanhos `comfortable` (mobile, alvo ≥ 48px) e `compact` (tabela e rack no desktop) | Navegação — use `Link` do router. Um `Button` que só navega quebra abrir em nova aba. Link com cara de botão: `ButtonLink` do app (`apps/pms/src/components/links.tsx`) |
+| `buttonClasses` | As classes do `Button` (mesmas variantes) para outro elemento. Existe para o `ButtonLink` do app, que é `<a>` do roteador — o `@hotel/ui` não depende de react-router (T-08.6) | Para recriar um botão com `<div>` ou `<span>`: use o `Button` |
 | `Input` | Campo de texto. Foco visível, estado de erro por `aria-invalid` | Sozinho num formulário — envolva em `Field`, senão o campo fica sem rótulo |
 | `Field` | Rótulo + controle + mensagem de erro, com `htmlFor` ligado | Texto de ajuda que não é erro; isso ainda não existe e precisa de variante nova |
 | `StatusBadge` | Status com ponto colorido **e** rótulo textual sempre juntos. Quarto: `status={room.status}`. Outro status (reserva, parcela): `tone` (`StatusTone` de `@hotel/domain`) + `label`, escolhidos pelo módulo dono do status | Para *escolher* status num formulário — selo é leitura, não controle. Nem com cor fora dos `StatusTone`: tom novo entra primeiro no preset e no `STATUS_TONES` |
@@ -37,6 +44,8 @@ ter uma pessoa aprovando componente dos outros.
 | `Notice` | Aviso de resultado de uma ação (`success` → `role="status"`, `error` → `role="alert"`), focável para o leitor de tela anunciar. Promovido na T-05.3 | Erro de carregamento com "tentar de novo" — isso é o `ErrorState` |
 | `ActionSlot` | Ação + o **motivo** quando está desabilitada, ligado por `aria-describedby` (RNF-026). Promovido na T-05.3 | Ação que o papel nunca terá — essa não aparece; o slot é para "agora não dá" |
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
+| `PageHeader` | Topo de toda página (T-08.5): título de 20 px, contexto curto embaixo (data, contagem) e a ação principal à direita; no celular a ação desce, na largura toda | Título de seção dentro da página — use `Section`. E não ponha duas ações `primary` nele: a segunda é `secondary` (GUIA, regra 1) |
+| `Section` | Bloco só de leitura: título de seção e um fio em cima, sem cartão (ficha do hóspede, resumo da reserva) | O que pede atenção ou recebe dado — formulário, confirmação, pagamento: isso é `Card` |
 
 ---
 
@@ -45,9 +54,12 @@ ter uma pessoa aprovando componente dos outros.
 Registrados porque já se sabe que vão ser precisos por mais de um módulo. Quem chegar
 primeiro cria local; o segundo promove.
 
-> **Primeira versão local já existe** para `Table`, `Money` e `Select` em
+> **Primeira versão local já existe** para `Table` e `Select` em
 > `apps/pms/src/features/rooms/components/` (T-05.1, 21/10). Quem precisar no segundo módulo
-> promove de lá, em vez de recriar.
+> promove de lá, em vez de recriar. O `Money` local de quartos virou `DecimalMoney` na T-08.6
+> (recebe o DECIMAL em texto; o `Money` daqui recebe centavos), e o `Notice` local da comanda
+> virou `InfoNotice` (aviso neutro). Nenhum componente do app repete nome daqui
+> (`apps/pms/src/components/uiNames.test.ts`).
 
 | Falta | Quem vai precisar | Observação |
 |---|---|---|

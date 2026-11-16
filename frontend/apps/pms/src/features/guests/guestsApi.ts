@@ -1,6 +1,7 @@
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import type { components } from '@hotel/api-client';
+import { DELETE_GUEST_REASON } from './guestRules.js';
 
 /** Tipo do hóspede vindo do schema do OpenAPI (components.schemas.Guest). */
 export type Guest = components['schemas']['Guest'];
@@ -62,12 +63,12 @@ export async function deleteGuest(id: string): Promise<void> {
   const { error, response } = await api.DELETE('/guests/{id}', {
     params: { path: { id } },
   });
-  if (error || !response.ok) {
-    // Um hóspede com reservas vinculadas costuma bater em conflito no backend — dá a dica.
-    const hint =
-      response.status === 409
-        ? 'O hóspede pode ter reservas vinculadas.'
-        : 'Tente novamente.';
-    throw new ApiError(`Não foi possível remover o hóspede. ${hint}`, response.status);
+  // A tela já desabilita para quem não é ADMIN; o 403 cobre papel trocado com a ficha aberta.
+  if (response.status === 403) throw new ApiError(DELETE_GUEST_REASON, 403);
+  // 409: reserva PENDING, CONFIRMED ou CHECKED_IN (decisão de 16/11). O servidor diz o motivo e o
+  // que fazer; tentar de novo não resolve.
+  if (response.status === 409) {
+    throw new ApiError(error?.error ?? 'Hóspede com reserva ativa não pode ser excluído — encerre ou cancele a reserva antes.', 409);
   }
+  if (error || !response.ok) throw new ApiError('Não foi possível remover o hóspede. Tente novamente.', response.status);
 }

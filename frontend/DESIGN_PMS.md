@@ -169,4 +169,6 @@ a partir do código.
 | `apple-design` | Bom em gesto, material e profundidade — útil **se** o rack ganhar arrastar-e-soltar. Primeiro candidato a entrar depois |
 | `find-animation-opportunities` | Procura lugares para animar. Num PMS o incentivo está invertido |
 | `prototype`, `pick-ui-library` | A stack e os componentes já foram escolhidos |
-| `ask-sonner` | Só se adotarmos o Sonner para toast. Hoje existe `packages/ui/src/feedback.tsx` |
+| `ask-sonner` | Só se adotarmos o Sonner para toast. Hoje existe `packages/ui/src/feedback.tsx`; o toast ficou para o 5º semestre (SPEC-08, seção 9) |
+
+> **Dependências de UI (decisão de 15/11, SPEC-08 §9):** até a entrega de 10/12 só entram `@fontsource-variable/inter` e `lucide-react`. Componente com comportamento (abas, combobox, janela, menu) vem do Radix por baixo do `@hotel/ui`, a partir do 5º semestre e com ADR. Biblioteca com tema próprio (MUI, Mantine, Chakra, Ant) não entra.

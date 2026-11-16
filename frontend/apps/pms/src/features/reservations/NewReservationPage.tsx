@@ -9,7 +9,8 @@ import { RoomConflictError } from './reservationsApi.js';
 import { quoteStay, roomConflictMessage, safeNights } from './reservationLogic.js';
 import { GuestPicker } from './components/GuestPicker.js';
 import { RoomPicker } from './components/RoomPicker.js';
-import { ButtonLink, Money, Notice, PageHeader } from './components/primitives.js';
+import { Money, Notice, PageHeader } from './components/primitives.js';
+import { ButtonLink } from '../../components/links.js';
 
 /**
  * Nova reserva no balcão (CA-05.2.c, l, m). Uma página só, em três blocos — período,

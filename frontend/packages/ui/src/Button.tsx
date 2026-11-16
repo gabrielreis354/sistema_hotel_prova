@@ -39,9 +39,19 @@ export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof button> {}
 
+export type ButtonVariants = VariantProps<typeof button>;
+
+/**
+ * As classes do Button, para quem precisa da mesma cara em outro elemento — o `ButtonLink` do app,
+ * que é `<a>` do roteador (T-08.6). O @hotel/ui não depende de react-router; só entrega as classes.
+ */
+export function buttonClasses(variants: ButtonVariants = {}, className?: string): string {
+  return cn(button(variants), className);
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, block, type = 'button', ...props }, ref) => (
-    <button ref={ref} type={type} className={cn(button({ variant, size, block }), className)} {...props} />
+    <button ref={ref} type={type} className={buttonClasses({ variant, size, block }, className)} {...props} />
   ),
 );
 Button.displayName = 'Button';

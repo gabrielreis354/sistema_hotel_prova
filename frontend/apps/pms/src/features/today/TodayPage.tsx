@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDateBR } from '@hotel/domain';
-import { Button, ErrorState, Notice, Spinner, cn } from '@hotel/ui';
-import { ButtonLink } from '../reservations/index.js';
+import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
+
 import { useOccupancy } from '../analytics/index.js';
 import { useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
 import { arrivalRows, departureRows, formatPercent, inHouseRows, soldToday } from './todayLogic.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { TodayCounters, type Counter } from './components/TodayCounters.js';
 import { ArrivalItem, CleaningItem, DepartureItem, InHouseItem, RowList, type Feedback } from './components/rows.js';
+import { ButtonLink } from '../../components/links.js';
 
 const NO_IDS: ReadonlySet<string> = new Set();
 
@@ -62,10 +63,7 @@ export function TodayPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-title">Hoje</h1>
-        <p className="text-sm text-gray-600 tabular-nums">{formatDateBR(today)}</p>
-      </header>
+      <PageHeader title="Hoje" context={formatDateBR(today)} />
 
       <TodayCounters
         counters={counters}
