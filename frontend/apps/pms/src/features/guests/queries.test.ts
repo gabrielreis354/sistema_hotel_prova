@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() }));
 vi.mock('../../lib/api.js', () => ({ api }));
 
-import { MIN_SEARCH_TERM, SEARCH_LIMIT, guestKeys, guestSearchOptions, searchTermOf } from './queries.js';
+import { MIN_SEARCH_TERM, SEARCH_LIMIT, guestKeys, guestSearchOptions, retryGuestDetail, searchTermOf } from './queries.js';
+import { ApiError } from '../../lib/http.js';
 
 beforeEach(() => api.GET.mockReset());
 
@@ -41,5 +42,20 @@ describe('guestSearchOptions — busca no servidor, nunca a coleção', () => {
   it('erro do servidor vira ApiError com mensagem de busca', async () => {
     api.GET.mockResolvedValue({ data: undefined, error: { error: 'x' }, response: { ok: false, status: 500 } });
     await expect(guestSearchOptions('ana').queryFn()).rejects.toMatchObject({ status: 500, message: 'Falha ao buscar hóspedes.' });
+  });
+});
+
+describe('retryGuestDetail — 4xx não se repete', () => {
+  // A ficha de um hóspede inexistente ficava ~8 s em "Carregando…" repetindo o 404
+  // (qa-explorador de 16/11, 🟡-4). 4xx é resposta definitiva; só falha de servidor ou rede repete.
+  it('404 e 403: nenhuma nova tentativa', () => {
+    expect(retryGuestDetail(0, new ApiError('x', 404))).toBe(false);
+    expect(retryGuestDetail(0, new ApiError('x', 403))).toBe(false);
+  });
+
+  it('500 e erro de rede: uma nova tentativa, como o padrão do app', () => {
+    expect(retryGuestDetail(0, new ApiError('x', 500))).toBe(true);
+    expect(retryGuestDetail(1, new ApiError('x', 500))).toBe(false);
+    expect(retryGuestDetail(0, new TypeError('Failed to fetch'))).toBe(true);
   });
 });
