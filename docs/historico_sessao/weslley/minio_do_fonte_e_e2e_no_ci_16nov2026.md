@@ -11,7 +11,7 @@ Fechar três itens do fechamento do MVP (`docs/delegacoes/fechamento_mvp_weslley
 2. o roteiro e2e no CI, avisando sem bloquear (até 22/11);
 3. o `seed_hoje.sql` no `./start.sh seed` do k8s.
 
-Confirmado com o Weslley: a chave do Asaas já foi trocada e vale até julho de 2027.
+Confirmado com o Weslley: a chave do Asaas (sandbox) já foi trocada e vence em **31/07/2027 às 00:00**.
 
 ## O que foi feito
 
@@ -95,3 +95,4 @@ antes e depois.
 | 6 | `docker compose build minio` na máquina de quem já tinha a imagem | 🟢 | O Dockerfile mudou e a tag é a mesma: um `up` sem `--build` usa a imagem velha |
 | 7 | Plano B para a banca: `docker save` da imagem `gesway/minio` pronta | 🟢 | O 1º `up` depende do GitHub e do `proxy.golang.org` |
 | 8 | A branch `fix/minio-build-do-fonte` no GitHub ficou para trás | 🟢 | Tudo está na `feature/ci-e2e` (PR #176). Pode ser apagada depois do merge |
+| 9 | Renovar a chave do Asaas (sandbox) antes de **31/07/2027 às 00:00** | 🟢 | Depois dessa data o PIX real do passo 6 para de funcionar. Gerar a nova no painel do Asaas, trocar no `.env` da máquina da apresentação e revogar a antiga. A chave nunca vai para o repositório |
