@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, PageHeader, Spinner } from '@hotel/ui';
 import { GuestForm } from './GuestForm.js';
-import { GuestLoadError } from './GuestLoadError.js';
+import { LoadError } from '../../components/LoadError.js';
+import { GUEST_LOAD } from './guestLoad.js';
 import { useCreateGuest, useGuest, useUpdateGuest } from './queries.js';
 import { ApiError } from '../../lib/http.js';
 import type { Guest } from './guestsApi.js';
@@ -48,7 +49,13 @@ export function GuestEditPage() {
 
   if (isLoading) return <Spinner label="Carregando hóspede…" />;
   // Mesmo estado de erro da ficha (repasse do qa-redteam de 16/11): antes um 500 virava "não encontrado".
-  if (isError || !guest) return <GuestLoadError error={guestQuery.error} onRetry={() => guestQuery.refetch()} />;
+  if (isError || !guest) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <LoadError error={guestQuery.error} {...GUEST_LOAD} onRetry={() => guestQuery.refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-lg space-y-4">

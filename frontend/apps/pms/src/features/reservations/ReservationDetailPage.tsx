@@ -23,6 +23,7 @@ import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
 import { canReceivePayment } from './paymentLogic.js';
 import { InfoItem, Money, Notice } from './components/primitives.js';
 import { BackLink, ButtonLink } from '../../components/links.js';
+import { LoadError } from '../../components/LoadError.js';
 
 type Tab = ReservationTab;
 type Confirming = null | 'check-out' | 'cancel';
@@ -99,16 +100,15 @@ export function ReservationDetailPage() {
 
   if (reservation.isPending) return <Spinner label="Carregando reserva…" />;
   if (reservation.isError || !reservation.data) {
-    const notFound = reservation.error instanceof ApiError && reservation.error.status === 404;
     return (
-      <div className="mx-auto max-w-3xl space-y-3">
-        {/* Reserva que não existe não tem "tentar de novo": o caminho é voltar à lista. */}
-        {notFound ? (
-          <Notice tone="error">Reserva não encontrada — ela pode ter sido excluída.</Notice>
-        ) : (
-          <ErrorState message="Não foi possível carregar a reserva." onRetry={() => reservation.refetch()} />
-        )}
-        <BackLink to="/reservas">← Voltar para reservas</BackLink>
+      <div className="mx-auto max-w-3xl">
+        <LoadError
+          error={reservation.error}
+          notFound="Reserva não encontrada — ela pode ter sido excluída."
+          failed="Não foi possível carregar a reserva."
+          onRetry={() => reservation.refetch()}
+          back={{ to: '/reservas', label: '← Voltar para reservas' }}
+        />
       </div>
     );
   }
