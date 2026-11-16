@@ -45,7 +45,7 @@ export { PageHeader } from '@hotel/ui';
 /** Link de volta, discreto, acima do conteúdo. */
 export function BackLink({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Link to={to} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline md:min-h-0 md:py-1">
+    <Link to={to} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline xl:min-h-0 xl:py-1">
       {children}
     </Link>
   );

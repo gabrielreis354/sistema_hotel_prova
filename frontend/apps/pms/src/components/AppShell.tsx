@@ -193,7 +193,8 @@ function NavItemLink({ item }: { item: NavItem }) {
       end={item.to === '/'}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm',
+          // 48 px até o xl: a barra lateral já aparece no tablet (md), onde tinha 36 px (CA-08.g).
+          'flex min-h-touch items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm xl:min-h-0',
           isActive
             ? 'border-brand bg-brand/10 font-medium text-brand'
             : 'border-transparent text-gray-700 hover:bg-gray-100',

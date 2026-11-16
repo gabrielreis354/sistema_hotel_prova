@@ -47,7 +47,8 @@ describe('alvo de toque até o xl (CA-08.g)', () => {
   it('atalhos de período: o compacto (h-9) só vale no xl', () => {
     const lista = readFileSync(path.join(src, 'features/reservations/ReservationsListPage.tsx'), 'utf-8');
     const atalhos = lista.slice(lista.indexOf('Atalhos de período'), lista.indexOf('</div>', lista.indexOf('Atalhos de período')));
-    expect(atalhos).toMatch(/min-h-touch/);
+    // Sem size="compact": o tamanho padrão do Button (comfortable) é o de 48 px; o compacto entra no xl.
     expect(atalhos).not.toMatch(/size="compact"/);
+    expect(atalhos).toMatch(/xl:h-9 xl:min-h-0/);
   });
 });

@@ -16,7 +16,7 @@ export function FormShell({
 }) {
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <Link to={backTo} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline md:min-h-0">
+      <Link to={backTo} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline xl:min-h-0">
         ← {backLabel}
       </Link>
       <PageHeader title={title} />
