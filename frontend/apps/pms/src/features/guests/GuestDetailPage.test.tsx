@@ -78,6 +78,15 @@ describe('GuestDetailPage — Excluir só para o administrador (🟡-1, CA-08.f)
     expect(attrs).toMatch(/aria-describedby="/);
   });
 
+  it('recepção: o motivo aparece em texto na tela, não só em title ou sr-only (redteam de 16/11, 🟡-1)', async () => {
+    const html = await renderGuest({ role: 'RECEPTIONIST' });
+    const id = button(html, 'Excluir')?.match(/aria-describedby="([^"]+)"/)?.[1];
+    // A tag inteira (atributos antes e depois do id) e o texto dela.
+    const reason = html.match(new RegExp(`<[a-z]+([^>]*id="${id}"[^>]*)>([^<]*)<`));
+    expect(reason?.[2]).toBe('Só o administrador exclui hóspedes.');
+    expect(reason?.[1]).not.toContain('sr-only');
+  });
+
   it('admin: Excluir habilitado', async () => {
     const attrs = await renderGuest({ role: 'ADMIN' }).then((html) => button(html, 'Excluir'));
     expect(attrs).toBeDefined();
@@ -92,6 +101,11 @@ describe('GuestDetailPage — hóspede que não carrega (🟡-4)', () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain('href="/hospedes"');
     expect(html).not.toContain('Tentar de novo');
+  });
+
+  it('404: a volta tem alvo de toque, é a única saída da tela (redteam de 16/11, 🟡-2, CA-08.g)', async () => {
+    const html = await renderGuest({ role: 'RECEPTIONIST', guestStatus: 404 });
+    expect(html).toMatch(/<a[^>]*class="[^"]*min-h-touch[^"]*"[^>]*href="\/hospedes"|<a[^>]*href="\/hospedes"[^>]*class="[^"]*min-h-touch/);
   });
 
   it('500: não diz "não encontrado"; oferece Tentar de novo e a volta', async () => {

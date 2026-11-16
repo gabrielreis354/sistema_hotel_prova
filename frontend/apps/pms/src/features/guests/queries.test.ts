@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() }));
 vi.mock('../../lib/api.js', () => ({ api }));
 
-import { MIN_SEARCH_TERM, SEARCH_LIMIT, guestKeys, guestSearchOptions, retryGuestDetail, searchTermOf } from './queries.js';
+import { MIN_SEARCH_TERM, SEARCH_LIMIT, guestKeys, guestDetailOptions, guestSearchOptions, retryGuestDetail, searchTermOf } from './queries.js';
 import { ApiError } from '../../lib/http.js';
 
 beforeEach(() => api.GET.mockReset());
@@ -57,5 +57,14 @@ describe('retryGuestDetail — 4xx não se repete', () => {
     expect(retryGuestDetail(0, new ApiError('x', 500))).toBe(true);
     expect(retryGuestDetail(1, new ApiError('x', 500))).toBe(false);
     expect(retryGuestDetail(0, new TypeError('Failed to fetch'))).toBe(true);
+  });
+});
+
+describe('guestDetailOptions — a ficha usa a regra de retry', () => {
+  // Sem isto, apagar o `retry` do useGuest não quebrava nenhum teste (redteam de 16/11, 🟢-1).
+  it('liga retryGuestDetail e consulta só com id', () => {
+    expect(guestDetailOptions('g1').retry).toBe(retryGuestDetail);
+    expect(guestDetailOptions('g1').queryKey).toEqual(guestKeys.detail('g1'));
+    expect(guestDetailOptions(undefined).enabled).toBe(false);
   });
 });
