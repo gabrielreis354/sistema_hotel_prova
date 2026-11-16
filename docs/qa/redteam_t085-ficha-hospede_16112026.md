@@ -84,6 +84,6 @@ O teste `GuestDetailPage.test.tsx:77` confere só o atributo `title=`. Ele passa
 | 🟢-1 retry sem teste | Corrigido. `guestDetailOptions` separada do hook, como a `guestSearchOptions`. Teste: `retry === retryGuestDetail`. O mutante que apaga o `retry` agora morre. |
 | 🟢-2 terceiro molde de "não encontrado" | Fica para a T-08.6, junto com a promoção do `ButtonLink`: um `NotFound` comum no `@hotel/ui`. |
 | 🟢-3 4xx fora do 404 e os "8 s" | Sem mudança. O backend só responde 404 ou 500 nessa rota. Os 8 s foram medidos no exploratório; a causa exata não foi apurada. |
-| Repasse `GuestFormPages.tsx:47` | Em aberto, em `repasses/para_sirlande_16112026.md`. Mesmo defeito na tela de edição, fora do que foi aprovado para esta rodada. |
+| Repasse `GuestFormPages.tsx:47` | Corrigido a pedido do Sirlande. O estado de erro da ficha virou `GuestLoadError` (módulo de hóspedes), usado pela ficha e pela edição: 404 com aviso e volta, 500 e rede com "Tentar de novo". Testes no `GuestDetailPage.test.tsx` (404, 500, carregado). No navegador: o 404 na edição tem volta de 48 px, e o hóspede real abre com o formulário preenchido. Mutação: 3 de 3 mortos. |
 
-Mutação nas correções: 3 de 3 mutantes mortos (sem retry, sem o motivo, volta sem alvo de toque).
+Mutação nas correções das ressalvas: 3 de 3 mutantes mortos (sem retry, sem o motivo, volta sem alvo de toque).

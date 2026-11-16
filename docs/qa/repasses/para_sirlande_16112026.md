@@ -31,3 +31,5 @@ Origem: qa-redteam da correção da ficha do hóspede (T-08.5, `docs/qa/redteam_
 **Cenário:** abrir `/hospedes/<id>/editar` com o core-service fora do ar ou respondendo 500 → a tela mostra uma linha solta "Hóspede não encontrado.", sem "Tentar de novo" e sem link de volta. É o mesmo defeito que o 🟡-4 do qa-explorador corrigiu na ficha, na tela irmã que usa o mesmo `useGuest`. A recepção acha que o cadastro sumiu, quando foi uma queda de rede.
 **Regra violada:** critério do time de erro com saída; GUIA_UI_CORPORATIVA (estado de erro).
 **Correção sugerida:** o mesmo molde da ficha (`GuestDetailPage.tsx:62-75`): `Notice` com volta no 404, `ErrorState` com "Tentar de novo" no resto. De preferência, pelo componente compartilhado sugerido no 🟢-2 do red team.
+
+**Desfecho (16/11):** corrigido no #167 pelo `GuestLoadError`, compartilhado com a ficha. Ver o desfecho em `docs/qa/redteam_t085-ficha-hospede_16112026.md`.
