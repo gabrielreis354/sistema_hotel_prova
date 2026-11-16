@@ -27,7 +27,7 @@ usage() {
     echo "  logs      Streaming de logs do backend (ctrl+c para sair)"
     echo "  migrate   Executa migrations no cluster (Job com a imagem do backend)"
     echo "  deploy    Atualiza o backend: migrate, rollout e migrate de novo [imagem opcional]"
-    echo "  seed      Aplica o seed de demonstração (hotéis + comanda) — exige ALLOW_SEED=1"
+    echo "  seed      Aplica o seed de demonstração (hotéis + comanda + cenário de hoje) — exige ALLOW_SEED=1"
     echo "  test      Expõe postgres via port-forward e roda a suite de testes"
     echo "  tunnel    Inicia port-forward nginx → localhost:8080"
     echo "  health    Verifica o endpoint /health (requer tunnel ativo)"
