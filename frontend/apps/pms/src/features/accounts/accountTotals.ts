@@ -1,6 +1,6 @@
 import { decimalToCents, formatBRL, multiplyCents, sumCents, type Cents } from '@hotel/domain';
 import type { AccountBill } from './accountsApi.js';
-import { pendingFor, type QueueEntry } from './queueCore.js';
+import { UNDO_MS, pendingFor, type QueueEntry } from './queueCore.js';
 
 /** O mínimo de um item de conta que a tela precisa (subconjunto de AccountItem). */
 export interface ItemLike {
@@ -51,6 +51,25 @@ export function footerTotals(serverTotal: string, entries: QueueEntry[], account
 /** Texto do botão: numa linha com 2× ou mais, desfazer tira só um, e o botão diz isso. */
 export function undoLabel(quantity: number): string {
   return quantity > 1 ? 'Desfazer 1' : 'Desfazer';
+}
+
+/**
+ * Segundos inteiros que restam da janela de desfazer, arredondados para cima: logo depois do
+ * toque mostra 5, e o 0 não chega à tela, porque o botão some quando a janela fecha (canUndo).
+ *
+ * Limitado à janela: um `now` anterior ao toque (relógio da tela atrasado) mostrava "65 s" ou
+ * "6 s" (🟡-1 do red team de 15/11). A janela nunca passa de UNDO_MS, a contagem também não.
+ */
+export function undoSecondsLeft(undoUntil: number, now: number): number {
+  return Math.min(UNDO_MS / 1_000, Math.max(0, Math.ceil((undoUntil - now) / 1_000)));
+}
+
+/**
+ * Nome do botão para leitor de tela. Fixo, sem os segundos: não muda a cada tique, e o leitor
+ * não fica repetindo a contagem. O prazo vai por extenso, uma vez.
+ */
+export function undoAccessibleName(quantity: number, description: string): string {
+  return `${undoLabel(quantity)}: ${description}, disponível por ${UNDO_MS / 1_000} segundos após o toque`;
 }
 
 /**

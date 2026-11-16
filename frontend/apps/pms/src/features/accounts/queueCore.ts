@@ -214,9 +214,14 @@ export function dismiss(entries: QueueEntry[], clientItemId: string): QueueEntry
   );
 }
 
+/** O lançamento ainda não está no servidor (no prazo de desfazer, na fila ou enviando). */
+export function awaitsServer(entry: QueueEntry): boolean {
+  return PENDING.includes(entry.status);
+}
+
 /** Lançamentos da conta que ainda não estão no servidor. */
 export function pendingFor(entries: QueueEntry[], accountId: string): QueueEntry[] {
-  return entries.filter((e) => e.accountId === accountId && PENDING.includes(e.status));
+  return entries.filter((e) => e.accountId === accountId && awaitsServer(e));
 }
 
 /** A aba fechou no meio do envio: não se sabe se chegou. Reenviar é seguro (RN-008). */

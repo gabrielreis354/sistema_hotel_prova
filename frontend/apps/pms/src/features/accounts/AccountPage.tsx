@@ -5,7 +5,9 @@ import { formatBRL } from '@hotel/domain';
 import { useAuthStore } from '../../stores/auth.js';
 import { useAccount } from './queries.js';
 import { queue, useQueueEntries, useQueueRunner } from './queueStore.js';
-import { pendingFor } from './queueCore.js';
+import { awaitsServer, pendingFor } from './queueCore.js';
+import { looksOffline, useOnline } from './connection.js';
+import { OfflineBanner } from './components/OfflineBanner.js';
 import { footerTotals } from './accountTotals.js';
 import { ACCOUNT_TYPE_LABEL } from './accountFilter.js';
 import { InfoNotice } from './components/InfoNotice.js';
@@ -42,6 +44,12 @@ export function AccountPage() {
   // Lançamentos de outro usuário nesta conta, parados neste aparelho: não aparecem nem somam,
   // mas fechar a conta agora faria o servidor recusá-los — consumo sem cobrança (D-1).
   const othersHere = pendingFor(entries.filter((e) => e.ownerId !== user?.id), id).length;
+  const offline = looksOffline(useOnline(), mine);
+  // A faixa conta tudo o que este usuário tem esperando a rede, em qualquer conta: a queda é do
+  // aparelho, não da conta aberta.
+  const waiting = mine.filter(awaitsServer).length;
+  // Quantos deles são de outras contas: a faixa diz, para o número bater com a lista desta conta.
+  const elsewhere = waiting - pendingCount;
 
   if (!account) {
     if (fetchStatus === 'paused') {
@@ -83,7 +91,9 @@ export function AccountPage() {
     <div className="mx-auto flex max-w-xl flex-col gap-3">
       <BackLink />
       <PageHeader title={account.label} context={account.type ? ACCOUNT_TYPE_LABEL[account.type] : undefined} />
-      {stale && (
+      <OfflineBanner offline={offline} waiting={waiting} elsewhere={elsewhere} />
+      {/* Sem rede, a faixa acima já avisa: esta linha fica para o erro do servidor com rede. */}
+      {stale && !offline && (
         <p role="status" className="text-xs text-gray-600">
           Sem conexão com o sistema: mostrando a última versão da conta. Os lançamentos ficam na fila.
         </p>

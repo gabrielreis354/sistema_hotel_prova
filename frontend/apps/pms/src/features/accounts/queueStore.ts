@@ -150,15 +150,21 @@ export function useQueueEntries(): QueueEntry[] {
   return useSyncExternalStore(subscribe, queue.snapshot, queue.snapshot);
 }
 
-/** Relógio da tela enquanto há prazo correndo: o "Desfazer" some quando a janela fecha. */
+/**
+ * Relógio da tela enquanto há prazo correndo: o "Desfazer" some quando a janela fecha.
+ *
+ * O intervalo só força o render; a hora é lida no próprio render. Antes o hook devolvia a hora
+ * do último tique: no render do toque ela era anterior ao toque, e a contagem do desfazer
+ * mostrava "65 s" ou "6 s" até o tique seguinte (🟡-1 do red team de 15/11).
+ */
 export function useNow(active: boolean, everyMs = 250): number {
-  const [now, setNow] = useState(() => Date.now());
+  const [, tick] = useState(0);
   useEffect(() => {
     if (!active) return;
-    const timer = setInterval(() => setNow(Date.now()), everyMs);
+    const timer = setInterval(() => tick((n) => n + 1), everyMs);
     return () => clearInterval(timer);
   }, [active, everyMs]);
-  return active ? now : Date.now();
+  return Date.now();
 }
 
 /**
