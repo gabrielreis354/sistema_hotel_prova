@@ -18,6 +18,7 @@ vi.mock('../../stores/auth.js', () => ({
 }));
 
 import { GuestDetailPage } from './GuestDetailPage.js';
+import { GuestEditPage } from './GuestFormPages.js';
 import { guestKeys } from './queries.js';
 import { getGuest } from './guestsApi.js';
 import type { Role } from '../../types.js';
@@ -29,7 +30,8 @@ function reply(status: number, body: unknown) {
 
 const GUEST = { id: 'g1', full_name: 'Maria Oliveira', cpf: '12345678901', phone: null, email: null };
 
-async function renderGuest({ role, guestStatus = 200 }: { role: Role; guestStatus?: number }) {
+// `edit`: a tela de edição usa o mesmo useGuest e o mesmo estado de erro (repasse do redteam de 16/11).
+async function renderGuest({ role, guestStatus = 200, page = 'detail' }: { role: Role; guestStatus?: number; page?: 'detail' | 'edit' }) {
   session.user = { role };
   api.GET.mockImplementation(async (path: string) => {
     if (path === '/guests/{id}') return reply(guestStatus, guestStatus === 200 ? GUEST : { error: 'x' });
@@ -40,9 +42,10 @@ async function renderGuest({ role, guestStatus = 200 }: { role: Role; guestStatu
   await client.prefetchQuery({ queryKey: guestKeys.detail('g1'), queryFn: () => getGuest('g1') });
   return renderToString(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/hospedes/g1']}>
+      <MemoryRouter initialEntries={[page === 'edit' ? '/hospedes/g1/editar' : '/hospedes/g1']}>
         <Routes>
           <Route path="/hospedes/:id" element={<GuestDetailPage />} />
+          <Route path="/hospedes/:id/editar" element={<GuestEditPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -112,6 +115,31 @@ describe('GuestDetailPage — hóspede que não carrega (🟡-4)', () => {
     expect(html).not.toContain('não encontrado');
     expect(html).toContain('Tentar de novo');
     expect(html).toContain('href="/hospedes"');
+  });
+});
+
+describe('GuestEditPage — hóspede que não carrega (repasse do redteam de 16/11)', () => {
+  it('404: aviso de não encontrado e a volta com alvo de toque, sem "Tentar de novo"', async () => {
+    const html = await renderGuest({ role: 'RECEPTIONIST', guestStatus: 404, page: 'edit' });
+    expect(html).toContain('Hóspede não encontrado');
+    expect(html).toContain('role="alert"');
+    expect(html).toMatch(/<a[^>]*class="[^"]*min-h-touch[^"]*"[^>]*href="\/hospedes"|<a[^>]*href="\/hospedes"[^>]*class="[^"]*min-h-touch/);
+    expect(html).not.toContain('Tentar de novo');
+  });
+
+  it('500: não diz "não encontrado"; oferece Tentar de novo e a volta', async () => {
+    const html = await renderGuest({ role: 'RECEPTIONIST', guestStatus: 500, page: 'edit' });
+    expect(html).not.toContain('não encontrado');
+    expect(html).toContain('Tentar de novo');
+    expect(html).toContain('href="/hospedes"');
+  });
+
+  it('carregado: o formulário, sem estado de erro', async () => {
+    // Os valores entram nos campos só no navegador (formulário não controlado): aqui basta o form.
+    const html = await renderGuest({ role: 'RECEPTIONIST', page: 'edit' });
+    expect(html).toContain('Editar hóspede');
+    expect(html).toContain('<form');
+    expect(html).not.toContain('role="alert"');
   });
 });
 
