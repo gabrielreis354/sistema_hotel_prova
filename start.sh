@@ -296,6 +296,9 @@ cmd_compose_up() {
     command -v docker &>/dev/null || err "docker não encontrado."
     [[ "$COMPOSE_SETUP_TIMEOUT" =~ ^[0-9]+$ ]] || err "COMPOSE_SETUP_TIMEOUT deve ser um número de segundos (veio: $COMPOSE_SETUP_TIMEOUT)."
     docker compose config -q || err "docker compose config falhou: confira as variáveis obrigatórias do .env (README, Subir tudo)."
+    # A tag do MinIO no compose tem de bater com o ARG do Dockerfile: com a tag velha, o compose
+    # reaproveitaria a imagem velha em cache sem recompilar.
+    bash scripts/verificar_imagem_minio.sh >/dev/null || err "Tag do MinIO divergente (mensagem acima)."
     local check_setup=0
     if compose_up_includes_setup "$@"; then
         check_setup=1

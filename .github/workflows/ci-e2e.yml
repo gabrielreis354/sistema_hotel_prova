@@ -90,9 +90,10 @@ jobs:
       # (por isso é rápido — não é a imagem carregada que o compose reaproveita).
       - name: Tag da imagem do MinIO
         id: minio
+        # Confere que compose e k8s usam a tag do ARG do Dockerfile (falha se divergir).
+        # Atribuição em linha própria: dentro do echo, a falha do script não pararia o passo.
         run: |
-          image=$(grep -m1 -o 'gesway/minio:RELEASE[^[:space:]]*' docker-compose.yml || true)
-          [ -n "$image" ] || { echo "::error::tag gesway/minio:RELEASE... não achada no docker-compose.yml"; exit 1; }
+          image=$(bash scripts/verificar_imagem_minio.sh)
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
       - name: Setup Buildx

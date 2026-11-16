@@ -44,7 +44,8 @@ services:
 
   minio:
     # Compilado do código-fonte (docker/minio/Dockerfile): minio/minio e quay.io/minio/minio dão
-    # 401 no pull anônimo numa máquina limpa. Tag RELEASE fixa no Dockerfile.
+    # 401 no pull anônimo numa máquina limpa. A versão vem do ARG MINIO_RELEASE do Dockerfile;
+    # a tag abaixo (e a do minio-setup e a do k8s) é conferida por scripts/verificar_imagem_minio.sh.
     build: ./docker/minio
     image: gesway/minio:RELEASE.2025-10-15T17-29-55Z
     # never: com build + image, o compose tentaria baixar docker.io/gesway/minio antes de
