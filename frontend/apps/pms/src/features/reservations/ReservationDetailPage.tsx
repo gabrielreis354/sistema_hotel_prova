@@ -122,8 +122,9 @@ export function ReservationDetailPage() {
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
-  // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary.
-  const primary = primaryAction(actions);
+  // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary. Com
+  // saldo a receber, a principal é o "Registrar pagamento" da aba Conta (decisão de 16/11).
+  const primary = primaryAction(actions, { paymentDue: receiving });
 
   function openCheckOut() {
     setFeedback(null);
