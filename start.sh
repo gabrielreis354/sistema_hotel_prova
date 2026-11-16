@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# start.sh — Utilitário de operação do Sistema de Gestão de Hotel (Kubernetes)
+# start.sh — Utilitário de operação do Sistema de Gestão de Hotel (Kubernetes e, no
+#            compose-up, o Docker Compose da demonstração)
 # =============================================================================
 set -euo pipefail
 
@@ -30,6 +31,8 @@ usage() {
     echo "  test      Expõe postgres via port-forward e roda a suite de testes"
     echo "  tunnel    Inicia port-forward nginx → localhost:8080"
     echo "  health    Verifica o endpoint /health (requer tunnel ativo)"
+    echo "  compose-up  Docker Compose: sobe tudo e confere se o rabbitmq-setup terminou bem [flags/serviços do up]"
+    echo "              Projeto e perfis por COMPOSE_PROJECT_NAME e COMPOSE_PROFILES (-p/-f não vão nos args)"
     echo "  help      Mostra esta mensagem"
     echo ""
 }
@@ -232,6 +235,75 @@ cmd_health() {
 }
 
 # =============================================================================
+# Docker Compose (demonstração no computador do grupo). O `up -d` não espera o rabbitmq-setup:
+# desde o #148 ele só exige o broker "iniciado" e espera a API sozinho, até 3 min. Se ele falhar
+# (senha errada, broker lento demais), o `up` termina com sucesso mesmo assim, o analytics fica sem
+# usuário e sem fila, e os Indicadores aparecem zerados. Aqui a falha volta a aparecer na hora.
+COMPOSE_SETUP_TIMEOUT="${COMPOSE_SETUP_TIMEOUT:-240}"   # folga sobre os 3 min do script
+
+# Estado do contêiner one-shot: "exited 0" quando terminou bem; vazio enquanto nem foi criado.
+compose_setup_state() {
+    docker compose ps -a --format '{{.State}} {{.ExitCode}}' rabbitmq-setup 2>/dev/null | head -n1
+}
+
+wait_rabbitmq_setup() {
+    local deadline=$((SECONDS + COMPOSE_SETUP_TIMEOUT)) state
+    info "Aguardando o rabbitmq-setup criar filas e usuários (até ${COMPOSE_SETUP_TIMEOUT}s)..."
+    while :; do
+        # `ps` falhando (docker fora, compose antigo) não pode matar o script em silêncio sob
+        # `set -e`: vira um estado lido e o laço segue até o prazo (🟡-1 do qa-redteam).
+        state=$(compose_setup_state) || state="? (docker compose ps falhou)"
+        case "$state" in
+            "exited 0") log "rabbitmq-setup terminou bem: filas e usuários do core e do analytics criados."; return 0 ;;
+            exited*|dead*)
+                docker compose logs --tail=30 rabbitmq-setup || true
+                err "rabbitmq-setup falhou ($state). Sem ele o analytics não consome e os Indicadores ficam zerados. Confira no .env o RABBITMQ_DEFAULT_PASS (o broker guarda a senha do 1º boot no volume: mudou depois, só com down -v) e as senhas do core e do analytics; depois rode de novo ./start.sh compose-up." ;;
+        esac
+        [ "$SECONDS" -lt "$deadline" ] || {
+            docker compose logs --tail=30 rabbitmq-setup || true
+            err "rabbitmq-setup não terminou em ${COMPOSE_SETUP_TIMEOUT}s (estado: ${state:-não criado}). Ele pode ainda estar rodando: confira com docker compose ps -a rabbitmq-setup antes de subir de novo."
+        }
+        sleep 3
+    done
+}
+
+# O setup faz parte deste `up`? Sem nome de serviço nos argumentos, sobe tudo e faz. Com nomes
+# (ex.: `compose-up backend`), só se o rabbitmq-setup estiver entre eles: nada depende dele, e
+# esperar por ele daria falso negativo, ou leria o resultado de um `up` anterior (🟡-2).
+# Limite: só flags sem valor separado (--build, --force-recreate); `--timeout 10` seria lido como serviço.
+compose_up_includes_setup() {
+    local arg names=0
+    for arg in "$@"; do
+        case "$arg" in
+            -*) ;;
+            rabbitmq-setup) return 0 ;;
+            *) names=1 ;;
+        esac
+    done
+    [ "$names" -eq 0 ]
+}
+
+cmd_compose_up() {
+    command -v docker &>/dev/null || err "docker não encontrado."
+    [[ "$COMPOSE_SETUP_TIMEOUT" =~ ^[0-9]+$ ]] || err "COMPOSE_SETUP_TIMEOUT deve ser um número de segundos (veio: $COMPOSE_SETUP_TIMEOUT)."
+    docker compose config -q || err "docker compose config falhou: confira as variáveis obrigatórias do .env (README, Subir tudo)."
+    local check_setup=0
+    if compose_up_includes_setup "$@"; then
+        check_setup=1
+        # Apaga o resultado do setup anterior: o estado lido depois tem de ser o DESTE `up`.
+        docker compose rm -fsv rabbitmq-setup >/dev/null 2>&1 || true
+    fi
+    info "docker compose up -d $*"
+    docker compose up -d "$@"
+    if [ "$check_setup" -eq 1 ]; then
+        wait_rabbitmq_setup
+    else
+        info "rabbitmq-setup fora deste up (serviços nomeados): sem checagem."
+    fi
+    docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+}
+
+# =============================================================================
 case "${1:-help}" in
     up)      cmd_up ;;
     down)    cmd_down ;;
@@ -243,5 +315,6 @@ case "${1:-help}" in
     test)    cmd_test ;;
     tunnel)  cmd_tunnel ;;
     health)  cmd_health ;;
+    compose-up) shift; cmd_compose_up "$@" ;;
     help|*)  usage ;;
 esac
