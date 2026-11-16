@@ -8,7 +8,7 @@ import { queue, useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { footerTotals } from './accountTotals.js';
 import { ACCOUNT_TYPE_LABEL } from './accountFilter.js';
-import { Notice } from './components/Notice.js';
+import { InfoNotice } from './components/InfoNotice.js';
 import { ItemList } from './components/ItemList.js';
 import { MenuGrid } from './components/MenuGrid.js';
 import { StaffActions } from './components/StaffActions.js';
@@ -90,10 +90,10 @@ export function AccountPage() {
       )}
 
       {othersHere > 0 && (
-        <Notice>
+        <InfoNotice>
           {othersHere === 1 ? 'Há 1 lançamento' : `Há ${othersHere} lançamentos`} de outro usuário nesta conta
           esperando neste aparelho. Eles só são enviados quando essa pessoa entrar de novo.
-        </Notice>
+        </InfoNotice>
       )}
 
       <ItemList
