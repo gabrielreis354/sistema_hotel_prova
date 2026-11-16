@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ErrorState, Spinner } from '@hotel/ui';
+import { ErrorState, PageHeader, Spinner } from '@hotel/ui';
 import { formatBRL } from '@hotel/domain';
 import { useAuthStore } from '../../stores/auth.js';
 import { useAccount } from './queries.js';
@@ -81,11 +81,8 @@ export function AccountPage() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <BackLink />
-        <span className="text-xs text-gray-500">{account.type ? ACCOUNT_TYPE_LABEL[account.type] : ''}</span>
-      </div>
-      <h1 className="text-title">{account.label}</h1>
+      <BackLink />
+      <PageHeader title={account.label} context={account.type ? ACCOUNT_TYPE_LABEL[account.type] : undefined} />
       {stale && (
         <p role="status" className="text-xs text-gray-600">
           Sem conexão com o sistema: mostrando a última versão da conta. Os lançamentos ficam na fila.

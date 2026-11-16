@@ -107,7 +107,12 @@ export function ReservationsListPage() {
         <EmptyState
           title="Nenhuma reserva neste período"
           description="Amplie o período nos atalhos acima ou crie uma reserva para o hóspede no balcão."
-          action={<ButtonLink to="/reservas/nova">Nova reserva</ButtonLink>}
+          // Secundária: o "Nova reserva" do cabeçalho já é a ação principal (CA-08.e).
+          action={
+            <ButtonLink to="/reservas/nova" variant="secondary">
+              Nova reserva
+            </ButtonLink>
+          }
         />
       )}
 

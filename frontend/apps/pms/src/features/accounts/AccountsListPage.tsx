@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Button, EmptyState, ErrorState, Input, Spinner } from '@hotel/ui';
+import { Button, EmptyState, ErrorState, Input, PageHeader, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { useQueueEntries, useQueueRunner } from './queueStore.js';
@@ -58,7 +58,7 @@ export function AccountsListPage() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3">
-      <h1 className="text-title">Comanda</h1>
+      <PageHeader title="Comanda" />
 
       {notice && (
         <Notice focus>

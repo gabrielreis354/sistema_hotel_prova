@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { cn } from '@hotel/ui';
+import { PageHeader, cn } from '@hotel/ui';
 
 const TABS = [
   { to: '/quartos', label: 'Quartos', end: true },
@@ -14,10 +14,7 @@ const TABS = [
 export function RoomsHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-title">{title}</h1>
-        {action}
-      </div>
+      <PageHeader title={title} action={action} />
       <nav aria-label="Quartos e categorias" className="flex gap-1 border-b border-gray-200">
         {TABS.map((t) => (
           <NavLink

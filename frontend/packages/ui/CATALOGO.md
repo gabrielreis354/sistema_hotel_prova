@@ -37,6 +37,8 @@ ter uma pessoa aprovando componente dos outros.
 | `Notice` | Aviso de resultado de uma ação (`success` → `role="status"`, `error` → `role="alert"`), focável para o leitor de tela anunciar. Promovido na T-05.3 | Erro de carregamento com "tentar de novo" — isso é o `ErrorState` |
 | `ActionSlot` | Ação + o **motivo** quando está desabilitada, ligado por `aria-describedby` (RNF-026). Promovido na T-05.3 | Ação que o papel nunca terá — essa não aparece; o slot é para "agora não dá" |
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
+| `PageHeader` | Topo de toda página (T-08.5): título de 20 px, contexto curto embaixo (data, contagem) e a ação principal à direita; no celular a ação desce, na largura toda | Título de seção dentro da página — use `Section`. E não ponha duas ações `primary` nele: a segunda é `secondary` (GUIA, regra 1) |
+| `Section` | Bloco só de leitura: título de seção e um fio em cima, sem cartão (ficha do hóspede, resumo da reserva) | O que pede atenção ou recebe dado — formulário, confirmação, pagamento: isso é `Card` |
 
 ---
 

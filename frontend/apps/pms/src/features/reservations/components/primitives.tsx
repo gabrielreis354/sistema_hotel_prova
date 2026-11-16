@@ -39,15 +39,8 @@ export function ButtonLink({
 // Reexportados aqui para as telas de reservas não mudarem de import.
 export { Money, Notice } from '@hotel/ui';
 
-/** Cabeçalho de página: título à esquerda, ação à direita (quebra no celular). */
-export function PageHeader({ title, action }: { title: string; action?: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-title">{title}</h1>
-      {action}
-    </div>
-  );
-}
+// `PageHeader` subiu para o @hotel/ui na T-08.5 (SPEC-08): reexportado para os imports não mudarem.
+export { PageHeader } from '@hotel/ui';
 
 /** Link de volta, discreto, acima do conteúdo. */
 export function BackLink({ to, children }: { to: string; children: ReactNode }) {
@@ -56,11 +49,6 @@ export function BackLink({ to, children }: { to: string; children: ReactNode }) 
       {children}
     </Link>
   );
-}
-
-/** Título de bloco dentro de um cartão. */
-export function CardHeading({ children }: { children: ReactNode }) {
-  return <h2 className="mb-3 text-section text-gray-800">{children}</h2>;
 }
 
 /** Rótulo pequeno + valor, para fichas de dados. */

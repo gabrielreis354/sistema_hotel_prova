@@ -1,12 +1,16 @@
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Spinner } from '@hotel/ui';
-import { formatCpf, formatDateBR, RESERVATION_STATUS_LABEL, type ReservationStatus } from '@hotel/domain';
+import { ActionSlot, Button, Card, Notice, PageHeader, Section, Spinner } from '@hotel/ui';
+import { formatCpf, formatDateBR } from '@hotel/domain';
 import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import { useGuest, useDeleteGuest } from './queries.js';
+import { GuestLoadError } from './GuestLoadError.js';
+import { DELETE_GUEST_REASON, canDeleteGuest } from './guestRules.js';
+import { useAuthStore } from '../../stores/auth.js';
+import { BackLink, ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
 
 // GET /reservations devolve ReservationListItem (Reservation + guest/room/user resumidos),
 // não o Reservation puro — usar o schema errado aqui é o mesmo erro de tipagem que os casts
@@ -31,10 +35,23 @@ async function fetchGuestStays(guestId: string): Promise<Reservation[]> {
 export function GuestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: guest, isLoading, isError } = useGuest(id);
+  const guestQuery = useGuest(id);
+  const { data: guest, isLoading, isError } = guestQuery;
+  const canDelete = useAuthStore((s) => canDeleteGuest(s.user?.role));
   const del = useDeleteGuest();
   const [confirming, setConfirming] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const deleteRef = useRef<HTMLButtonElement>(null);
+  const wasConfirming = useRef(false);
+  // Antes de qualquer return antecipado (regra dos hooks). Ao abrir, o foco vai para a
+  // confirmação; ao fechar sem excluir, volta para o Excluir, que reaparece — senão caía no body e
+  // o Tab seguinte pulava Editar e Excluir (🟡-3 do qa-explorador de 16/11).
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+    else if (wasConfirming.current) deleteRef.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
 
   const stays = useQuery({
     queryKey: ['guest-stays', id],
@@ -42,81 +59,117 @@ export function GuestDetailPage() {
     enabled: !!id,
   });
 
-  if (isLoading) return <Spinner />;
-  if (isError || !guest) return <p className="text-sm text-status-maintenance">Hóspede não encontrado.</p>;
+  if (isLoading) return <Spinner label="Carregando hóspede…" />;
+  if (isError || !guest) return <GuestLoadError error={guestQuery.error} onRetry={() => guestQuery.refetch()} />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-title">{guest.full_name}</h1>
-        <div className="flex gap-2">
-          <Link to={`/hospedes/${id}/editar`}>
-            <Button variant="secondary">Editar</Button>
-          </Link>
-          {!confirming ? (
-            <Button variant="danger" onClick={() => setConfirming(true)}>
-              Excluir
+      <PageHeader
+        title={guest.full_name}
+        context="Hóspede"
+        action={
+          <>
+            {/* sm:self-start: o cabeçalho estica os filhos, e o motivo do Excluir embaixo deixava o
+                Editar com a altura do bloco inteiro no desktop. */}
+            <ButtonLink to={`/hospedes/${id}/editar`} variant="secondary" className="sm:self-start">
+              Editar
+            </ButtonLink>
+            {/* Excluir é irreversível e não é a ação da tela: fica discreto, e a confirmação diz o que
+                vai acontecer (GUIA_UI_CORPORATIVA, regra 7). */}
+            {/* Sem permissão o Excluir fica na tela, desabilitado e com o motivo em texto embaixo
+                (CA-08.f, ActionSlot como na reserva) — title não abre em botão desabilitado nem no
+                celular. Antes a recepção confirmava e levava 403 (qa-explorador e redteam de 16/11). */}
+            {!confirming && (
+              <ActionSlot id="hospede-excluir" state={{ enabled: canDelete, reason: DELETE_GUEST_REASON }}>
+                {(describedBy) => (
+                  <Button
+                    ref={deleteRef}
+                    variant="ghost"
+                    className="text-status-maintenance"
+                    disabled={!canDelete}
+                    aria-describedby={describedBy}
+                    onClick={() => setConfirming(true)}
+                  >
+                    Excluir
+                  </Button>
+                )}
+              </ActionSlot>
+            )}
+          </>
+        }
+      />
+
+      {confirming && (
+        // O "Excluir" sai da tela ao abrir: o foco vem para a confirmação, senão cairia no body
+        // (🟡-2 do qa-redteam da T-08.5), como no cancelamento da reserva.
+        <div ref={confirmRef} tabIndex={-1} role="alertdialog" aria-label="Confirmar exclusão do hóspede" className="focus:outline-none">
+        <Card className="space-y-3 border-status-maintenance/40 bg-status-maintenance/5 p-4">
+          <p className="text-sm text-gray-800">
+            Excluir o cadastro de <strong>{guest.full_name}</strong>? As reservas dele continuam, mas passam a aparecer
+            como "Hóspede removido". Não dá para desfazer por aqui.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="danger"
+              disabled={del.isPending}
+              onClick={() => {
+                setDelError(null);
+                del.mutate(id as string, {
+                  onSuccess: () => navigate('/hospedes'),
+                  onError: (e) => setDelError(e instanceof ApiError ? e.message : 'Erro ao excluir.'),
+                });
+              }}
+            >
+              {del.isPending ? 'Excluindo…' : 'Sim, excluir hóspede'}
             </Button>
-          ) : (
-            <>
-              <Button
-                variant="danger"
-                disabled={del.isPending}
-                onClick={() => {
-                  setDelError(null);
-                  del.mutate(id as string, {
-                    onSuccess: () => navigate('/hospedes'),
-                    onError: (e) =>
-                      setDelError(e instanceof ApiError ? e.message : 'Erro ao excluir.'),
-                  });
-                }}
-              >
-                Confirmar
-              </Button>
-              <Button variant="ghost" onClick={() => setConfirming(false)}>
-                Cancelar
-              </Button>
-            </>
-          )}
+            <Button variant="ghost" disabled={del.isPending} onClick={() => setConfirming(false)}>
+              Manter hóspede
+            </Button>
+          </div>
+        </Card>
         </div>
-      </div>
+      )}
 
-      {delError && <p className="text-sm text-status-maintenance">{delError}</p>}
+      {delError && <Notice tone="error">{delError}</Notice>}
 
-      <Card className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-        <Info label="CPF" value={formatCpf(guest.cpf)} />
-        <Info label="Telefone" value={guest.phone} />
-        <Info label="E-mail" value={guest.email} />
-      </Card>
+      <Section title="Contato">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Info label="CPF" value={formatCpf(guest.cpf)} />
+          <Info label="Telefone" value={guest.phone} />
+          <Info label="E-mail" value={guest.email} />
+        </div>
+      </Section>
 
-      <section className="space-y-2">
-        <h2 className="text-section text-gray-700">Histórico de estadias</h2>
+      <Section title="Histórico de estadias">
         {stays.isLoading && <Spinner />}
         {stays.isError && <p className="text-sm text-status-maintenance">Falha ao carregar estadias.</p>}
         {stays.data && stays.data.length === 0 && (
           <p className="text-sm text-gray-500">Nenhuma reserva para este hóspede.</p>
         )}
         {stays.data && stays.data.length > 0 && (
-          <Card className="overflow-hidden">
+          // overflow-x-auto, não hidden: a 375 px o status saía cortado ("● Hospedad"); se a
+          // tabela não couber, rola dentro do cartão, nunca a página (🟡-2 do qa-explorador de 16/11).
+          <Card className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Entrada</th>
-                  <th className="px-4 py-2 font-medium">Saída</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-2 py-2 font-medium sm:px-4">Entrada</th>
+                  <th className="px-2 py-2 font-medium sm:px-4">Saída</th>
+                  <th className="px-2 py-2 font-medium sm:px-4">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {stays.data.map((r) => (
                   <tr key={r.id} className="border-b border-gray-100 last:border-0">
-                    <td className="px-4 py-2 tabular-nums">
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums sm:px-4">
                       {r.check_in_date ? formatDateBR(r.check_in_date) : '—'}
                     </td>
-                    <td className="px-4 py-2 tabular-nums">
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums sm:px-4">
                       {r.check_out_date ? formatDateBR(r.check_out_date) : '—'}
                     </td>
-                    <td className="px-4 py-2">
-                      {r.status ? RESERVATION_STATUS_LABEL[r.status as ReservationStatus] : '—'}
+                    <td className="whitespace-nowrap px-2 py-2 sm:px-4">
+                      {/* Ponto e palavra (GUIA, regra 3), como no resto do app. */}
+                      {r.status ? <ReservationStatusBadge status={r.status} /> : '—'}
                     </td>
                   </tr>
                 ))}
@@ -124,11 +177,9 @@ export function GuestDetailPage() {
             </table>
           </Card>
         )}
-      </section>
+      </Section>
 
-      <Link to="/hospedes" className="inline-block text-sm text-brand hover:underline">
-        ← Voltar para hóspedes
-      </Link>
+      <BackLink to="/hospedes">← Voltar para hóspedes</BackLink>
     </div>
   );
 }
@@ -136,7 +187,8 @@ export function GuestDetailPage() {
 function Info({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-gray-400">{label}</p>
+      {/* gray-600: o gray-400 dava 2,5:1 sobre o branco, abaixo dos 4,5:1 (CA-08.d). */}
+      <p className="text-xs uppercase tracking-wide text-gray-600">{label}</p>
       <p className="text-sm">{value || '—'}</p>
     </div>
   );

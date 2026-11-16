@@ -37,3 +37,15 @@ Origem: red team da branch `fix/reserva-id-invalido-404` (`docs/qa/redteam_reser
 **Regra violada:** um recurso inexistente deve responder 404, mesmo critério da correção de `/reservations`. O 500 também infla a métrica de erro do Prometheus.
 
 **Correção sugerida:** o mesmo `router.param(id, …)` de `reservationRouter.js:32-35` em cada router, com a mensagem de 404 do controller correspondente. Para controllers que usam `findInTenant` (`app/utils/findInTenant.js:31`), o caminho já existe.
+
+---
+
+Origem: qa-redteam da T-08.5 (`feature/t085-cabecalho-cartoes`). A área `GuestApi` não aparece no §7 de `docs/DIVISAO_TRABALHO_TIME_09set2026.md`.
+
+### 🟡 [Integridade operacional] Excluir hóspede com estadia em andamento ou reserva futura
+**Onde:** `services/core-service/app/Controllers/GuestApi/DeleteGuestController.js:7-9`
+**Cenário:** um hóspede tem uma reserva CHECKED_IN, e um `DELETE /guests/:id` responde 204 (soft delete, `paranoid`). A partir daí, `GET /reservations` e `GET /reservations/:id` devolvem `guest: null`, porque o `include` não usa `paranoid: false` (`ListReservationController.js:35`, `GetReservationController.js:14`). A recepção passa a ver "Hóspede removido" numa estadia ativa, no check-out e no recibo.
+**Regra violada:** nenhuma regra escrita. É um risco operacional: a estadia fica sem nome visível, e isso não pode ser desfeito pela UI.
+**Correção sugerida:** escolher uma das duas opções (é decisão de produto):
+- recusar com 409 quando houver reserva PENDING, CONFIRMED ou CHECKED_IN;
+- ou incluir o hóspede com `paranoid: false` nas leituras de reserva, como já se faz com quarto e categoria em `calculateStayTotal.js:25`.
