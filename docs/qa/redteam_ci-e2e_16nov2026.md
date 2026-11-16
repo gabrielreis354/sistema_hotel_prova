@@ -165,3 +165,22 @@ Nenhum. CI, `start.sh` e `infra/k8s` são da trilha do Weslley (DIVISAO_TRABALHO
 - **Reenvio de blobs do cache depois do merge** (🟡-2): o `develop` ainda não tem cache do MinIO.
 - **`cmd_up` contra cluster real** (minikube/kind/Docker Desktop): não foi executado. A análise de
   🟡-3 é pela leitura do código.
+
+## Desfecho (16/11/2026)
+
+Corrigidos no PR #176. O Weslley pediu os 🟡-1 e 🟡-2 e os 🟢 de baixo custo.
+
+- **🟡-1, corrigido.** O `continue-on-error` saiu. Para conferir, um commit temporário com `exit 1` foi enviado e depois revertido. Com ele, o run 43970739873 deu `failure` e o check ficou vermelho no PR, mas o PR seguiu `MERGEABLE` (estado `UNSTABLE`). O job avisa sem bloquear, porque não está entre os checks obrigatórios.
+- **🟡-2, corrigido.** O `cache-to` só grava quando `github.ref == refs/heads/develop`. No run 43970960860, o PR leu o cache, sem exportar nada.
+- **🟢 corrigidos:**
+  - comentário sobre como o cache do MinIO é reaproveitado;
+  - `paths-ignore` para `docs/**` e `**/*.md`;
+  - o passo falha se a tag do MinIO sair vazia;
+  - README com os gatilhos certos.
+- **Pendências:**
+  - 🟡-3: o `start.sh` no minikube sem `minikube docker-env`;
+  - 🟢: actions `docker/*` pinadas por SHA;
+  - 🟢: nenhuma folga no limite de login;
+  - 🟢: timeout de 45 min sem logs;
+  - 🟢: grep da tag no `minio.yaml`.
+- **Verificação final:** run 43970960860, com 7 passed (54,5 s), MinIO todo `CACHED`, job em 2 min 35 s e PR em `CLEAN`.
