@@ -54,12 +54,16 @@ cmd_up() {
     # MinIO compilado do fonte (o pull do quay.io dá 401 num nó limpo). O manifest usa
     # imagePullPolicy: Never, então a imagem precisa existir no daemon do cluster antes do apply.
     # Com cache, o build leva segundos; o 1º leva vários minutos (compila minio e mc).
-    # Minikube: rode `eval $(minikube docker-env)` antes, como no build do backend.
+    # No minikube, o daemon do cluster não é o do host: sem `eval $(minikube docker-env)`, a
+    # imagem iria para o host e o pod ficaria em ErrImageNeverPull, com só um timeout genérico
+    # no `kubectl wait` (🟡-3 do red team de 16/11). Kind/k3d: carregue a imagem à mão.
+    if [ "$(kubectl config current-context 2>/dev/null)" = "minikube" ] && [ -z "${MINIKUBE_ACTIVE_DOCKERD:-}" ]; then
+        err "Cluster minikube sem o Docker dele: rode 'eval \$(minikube docker-env)' neste terminal e repita './start.sh up'."
+    fi
     local minio_image
-    minio_image=$(grep -m1 -o 'gesway/minio:RELEASE[^[:space:]]*' infra/k8s/minio.yaml)
-    [ -n "$minio_image" ] || err "Imagem gesway/minio não encontrada em infra/k8s/minio.yaml."
-    info "Construindo $minio_image (docker/minio/Dockerfile)..."
-    docker build -q -t "$minio_image" docker/minio >/dev/null || err "Falhou o build da imagem do MinIO."
+    minio_image=$(bash scripts/verificar_imagem_minio.sh) || err "Tag do MinIO divergente (mensagem acima)."
+    info "Construindo $minio_image (docker/minio/Dockerfile; o 1º build leva minutos)..."
+    docker build -t "$minio_image" docker/minio || err "Falhou o build da imagem do MinIO."
     kubectl apply -k infra/k8s/
     echo ""
     info "Aguardando todos os pods ficarem prontos (timeout: 120s)..."
