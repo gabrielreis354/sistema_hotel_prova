@@ -67,3 +67,13 @@
 - Dono do namespace `gesway` no Docker Hub (🔴-1): não consultei serviço externo com o nome do produto.
 - Pico de memória e tempo do build do MinIO numa máquina de 8 GB. A contingência T-06.4 agora depende de GitHub e de `proxy.golang.org` no primeiro `up`, com compilação de vários minutos. Recomendo `docker save` da imagem pronta como plano B para o dia da banca.
 - O comportamento de `docker compose up` sem `--build` com a imagem já em cache e o Dockerfile alterado foi deduzido da semântica do Compose, não reproduzido (🟡-3).
+
+## Desfecho (16/11/2026)
+
+- **🔴-1, corrigido** com `pull_policy: never` no serviço `minio` (`82545af`). O `docker compose pull` dá `Skipped`.
+- **🟡-1, corrigido** (`635c6e2`). `golang:1.27-alpine` e `alpine:3.24` estão fixadas por digest. A troca para a 1.27 é porque a linha 1.24 já não recebe correção de segurança. O minio de 2025 compilou com o Go 1.27 no run 43973382450 do PR #176.
+- **🟡-2, corrigido** (`635c6e2`). Depois do clone, o build confere `MINIO_COMMIT` e `MC_COMMIT`, e para se a tag tiver sido movida.
+- **🟡-3, corrigido** (`c9ffd7b`). A fonte única é o `ARG MINIO_RELEASE`. O `scripts/verificar_imagem_minio.sh` confere as 4 linhas `image:` (2 do compose, 2 do k8s). Ele roda no `./start.sh compose-up`, no `./start.sh up` e no CI. Foi testado com o ARG trocado, o sidecar com outra imagem e um comentário com tag velha.
+- **Repassado (k8s), corrigido** na `b41995c` e na `0a26178`. O `minio.yaml` usa a imagem nova com `imagePullPolicy: Never`. O `./start.sh up` constrói a imagem e para com erro claro no minikube sem `docker-env`. O apply num cluster real **não** foi testado, porque não havia `kubectl` no ambiente.
+- **🟢:** sem mudança. O `curl` fica por clareza do healthcheck, e o root segue igual à imagem oficial.
+- **Verificação:** run 43973382450, com o MinIO compilado sem cache, 7 passed (56,0 s) e job de 5 min 37 s.
