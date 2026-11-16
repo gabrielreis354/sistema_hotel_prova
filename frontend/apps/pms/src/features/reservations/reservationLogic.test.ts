@@ -413,6 +413,16 @@ describe('primaryAction — uma ação principal na reserva (T-08.3, CA-08.e e C
     expect(primary('QUALQUER')).toBeNull();
   });
 
+  it('CHECKED_IN com saldo a receber: o pagamento é a principal, o check-out desce (decisão de 16/11, CA-08.e)', () => {
+    const a = reservationActions('CHECKED_IN', naJanela, today);
+    expect(primaryAction(a, { paymentDue: true })).toBeNull();
+    expect(primaryAction(a, { paymentDue: false })).toBe('check-out');
+  });
+
+  it('saldo a receber não muda o check-in (PENDING e CONFIRMED não recebem pela conta)', () => {
+    expect(primaryAction(reservationActions('CONFIRMED', naJanela, today), { paymentDue: true })).toBe('check-in');
+  });
+
   it('cancelar nunca é a principal, mesmo sendo a única ação possível', () => {
     const a = reservationActions('CONFIRMED', futura, today);
     expect(a.cancel.enabled).toBe(true);
