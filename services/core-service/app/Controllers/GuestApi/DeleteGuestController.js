@@ -10,9 +10,13 @@ import { ACTIVE_RESERVATION_STATUSES } from '../../utils/reservationStatuses.js'
  * tela (decisão do Sirlande de 16/11, repasse do red team da T-08.5). Mesmo molde do
  * DeleteRoomController.
  *
- * O hóspede fica travado (FOR UPDATE) entre a checagem e a exclusão. Limitação conhecida: quem cria
- * reserva ainda lê o hóspede sem trava, então uma reserva criada no mesmo instante da exclusão pode
- * escapar — num hotel pequeno, improvável; fica para quando a criação ler com KEY SHARE.
+ * O hóspede fica travado (FOR UPDATE) entre a checagem e a exclusão. Limitação conhecida: quem grava
+ * uma referência ao hóspede ainda o lê sem KEY SHARE — criar reserva (CreateReservation), trocar o
+ * hóspede da reserva (UpdateReservation:47), assinar contrato B2B (SignContract:101) e a reserva
+ * pública (CreateBooking:189). Se a exclusão chega primeiro, uma reserva gravada no mesmo instante
+ * escapa; na ordem inversa a checagem já a vê e responde 409. Num hotel pequeno, improvável.
+ * Contas DAY_USE/DIRECT abertas com o hóspede (accounts.guest_id) não bloqueiam: fora da decisão de
+ * 16/11 (red team de 16/11, 🟢).
  */
 export default async function DeleteGuestController(request, response) {
     let transaction;
