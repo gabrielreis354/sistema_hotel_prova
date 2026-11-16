@@ -1,3 +1,5 @@
+import { ACTIVE_RESERVATION_STATUSES } from './reservationStatuses.js';
+
 /**
  * Regras de cadastro de quarto (R-2, R-3 e R-6 do qa-redteam de 21/10).
  *
@@ -23,8 +25,9 @@ export const MANUAL_ROOM_TRANSITIONS = {
     OCCUPIED:    []
 };
 
-// Reserva que ainda segura o quarto: excluir o quarto deixaria a reserva sem onde hospedar.
-export const ROOM_HOLDING_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CHECKED_IN'];
+// Reserva que ainda segura o quarto: excluir o quarto deixaria a reserva sem onde hospedar. A lista
+// é a mesma do hóspede (reservationStatuses.js).
+export const ROOM_HOLDING_RESERVATION_STATUSES = ACTIVE_RESERVATION_STATUSES;
 
 /**
  * A edição manual pode levar o quarto de `from` para `to`? Reenviar o status atual não é

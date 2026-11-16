@@ -4,6 +4,12 @@
 export const RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED'];
 
 /**
+ * Reserva que ainda segura a estadia (allowlist, fail-safe): o quarto não pode ser excluído e o
+ * hóspede também não (decisão de 16/11). Encerrada e cancelada ficam de fora.
+ */
+export const ACTIVE_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CHECKED_IN'];
+
+/**
  * Lê o filtro `?status=A,B` da listagem (T-05.3). Allowlist, fail-safe: qualquer item fora da
  * lista, vazio, em minúsculas ou repetido como array (`?status=A&status=B`) é recusado inteiro —
  * nunca ignorado em silêncio, o que devolveria mais reservas do que a tela pediu.
