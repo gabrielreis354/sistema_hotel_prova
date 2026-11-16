@@ -14,7 +14,7 @@
 #   start.sh e o CI rodam o script). Ao trocar a RELEASE, troque o commit também e rode o script.
 # - Trocar SÓ o mc, um digest ou o Go mantém a tag: o compose recompila com `--build`, mas o
 #   k8s não vê mudança no manifest e o pod segue com a imagem velha. Depois do build, rode
-#   `kubectl -n hotel-system rollout restart statefulset/minio` (ou suba a RELEASE).
+#   `kubectl -n hotel-system rollout restart statefulset/minio`.
 # - Tags do GitHub podem ser movidas: o build confere o commit esperado depois do clone.
 # - Imagens base por digest. Go 1.27: a linha 1.24 do go.mod já não recebe correção de
 #   segurança, e a imagem do Go roda com GOTOOLCHAIN=local (ignora o `toolchain` do go.mod).

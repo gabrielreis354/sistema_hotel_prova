@@ -79,6 +79,8 @@ antes e depois.
 | `0a26178` | `fix(start): ./start.sh up para com erro claro no minikube sem docker-env` |
 | `103bb86` | `docs(qa): desfecho do red team da imagem do MinIO` |
 | `d6d65ec` | `ci(e2e): actions docker/* por SHA e prazo próprio no passo do roteiro` |
+| `3b82aec` | `fix(start): trava do minikube reconhece qualquer perfil e tem saída para containerd` |
+| `013c579` | `docs(infra): comentários do MinIO e do prazo do roteiro descrevem o que acontece` |
 | `968a927` | `fix(start): ./start.sh seed também aplica o seed_hoje.sql no k8s` (PR #177) |
 
 ## Pendências
@@ -86,7 +88,7 @@ antes e depois.
 | # | Pendência | Prioridade | Observação |
 |---|---|---|---|
 | 1 | Merge dos PRs #176 e #177 na `develop` | 🟡 | Os dois estão prontos para revisão. Mexem no `start.sh` em funções diferentes |
-| 2 | Testar `./start.sh up` e `ALLOW_SEED=1 ./start.sh seed` num cluster k8s real | 🟡 | Na máquina do ensaio de 24/11. No minikube, rode `eval $(minikube docker-env)` antes. O 1º build do MinIO leva minutos |
+| 2 | Testar `./start.sh up` e `ALLOW_SEED=1 ./start.sh seed` num cluster k8s real | 🟡 | Na máquina do ensaio de 24/11. No minikube, rode `eval $(minikube -p <perfil> docker-env)` antes; com containerd, kind ou k3d, carregue a imagem à mão e use `MINIO_IMAGEM_NO_CLUSTER=1` (`docs/infra/KUBERNETES.md`). O 1º build do MinIO leva minutos |
 | 3 | **Não** marcar o job "Roteiro da demonstração (Playwright)" como check obrigatório | 🟡 | O que mantém o job sem bloquear o merge é ele não ser obrigatório |
 | 4 | Passo 8 do roteiro no Grafana e uma execução verde do Actions aberta para a banca | 🟡 | Até 24/11, com o Weslley. O run verde do e2e já serve de evidência do CI |
 | 5 | Folga no limite de login do e2e | 🟢 | O roteiro faz 4 logins, exatamente o burst do nginx (5r/m, burst 3). O caminho é o e2e reaproveitar sessões (código do Gabriel), não afrouxar o nginx |

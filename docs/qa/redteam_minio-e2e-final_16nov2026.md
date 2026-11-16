@@ -93,3 +93,81 @@ O resto bate com o repositório. Os 17 hashes da tabela existem com as mensagens
 - **Conclusão de passo que estoura o `timeout-minutes`:** que `failure()` dá verdadeiro (e não `cancelled`) vem da documentação do Actions. Não foi provocado num run.
 - **"7 passed em 5 runs"** (relatório, linha 24): a branch tem 8 runs verdes. Não dá para saber quais 5 o texto considera.
 - **A chave do Asaas "trocada e válida até julho de 2027"** (relatório, linha 14): não há como conferir pelo repositório.
+
+---
+
+## Rodada 2 (correções)
+**Escopo:** `git diff 3033f21..feature/ci-e2e` sem `docs/qa` (`3b82aec`, `013c579`, `70ef0ac`: `start.sh`, `docs/infra/KUBERNETES.md`, `docker/minio/Dockerfile`, `.github/workflows/ci-e2e.yml` e o relatório de sessão) e `git diff 968a927..fix/start-seed-hoje` (`start.sh`, `usage`) · **Data:** 16/11/2026
+**Achados:** 4 (🔴 0 · 🟡 0 · 🟢 4) · **Repassados:** nenhum
+
+### Veredito final
+- **PR #176 (`feature/ci-e2e`): APROVADO COM RESSALVAS.** O 🟡-1 está fechado: a trava reconhece o minikube em qualquer perfil, e o jsonpath foi conferido num `kubectl` real (detalhes abaixo). Sobram 4 🟢 e duas ressalvas que não dependem de código: `./start.sh up` nunca rodou num cluster real, e o `ci-e2e` ainda não rodou no head `70ef0ac` (veja "Não foi possível verificar").
+- **PR #177 (`fix/start-seed-hoje`): APROVADO.** O 🟢-7 está fechado. `start.sh:30` agora diz "(hotéis + comanda + cenário de hoje)", em linha com o `info` da linha 197.
+
+### Como a trava foi conferida (evidência)
+- **kubectl real:** baixei o `kubectl v1.37.2` de `dl.k8s.io`, conferi o sha256 e rodei num scratchpad fora do repo. Montei um kubeconfig no formato que o minikube grava, com o perfil `gesway` e um contexto `docker-desktop`.
+  - `kubectl config view --minify -o jsonpath='{.contexts[0].context.extensions[?(@.name=="context_info")].extension.provider}'` devolve `minikube.sigs.k8s.io` (rc=0) no `gesway`. No `docker-desktop` devolve vazio (rc=0).
+  - Sem `current-context` ou sem kubeconfig, o kubectl dá rc=1 com "current-context must exist in order to minify". O `|| true` absorve, e a função retorna 0 (não é minikube).
+  - A extensão sobrevive a um `kubectl config set-context --current --namespace=…` (o kubectl regrava o arquivo).
+- **Formato do minikube, conferido no código-fonte (`kubernetes/minikube@master`):**
+  - `pkg/minikube/kubeconfig/settings.go:121-130`: o nome do contexto é `cfg.ClusterName`, e a extensão é `map{"context_info": Extension}`.
+  - `extension.go`: `Provider: "minikube.sigs.k8s.io"`, com a tag json `provider`.
+  - `pkg/minikube/kubeconfig/context.go:575-629`: o `docker-env` exporta `MINIKUBE_ACTIVE_DOCKERD=<profile>`.
+  - O `ClusterName` é o nome do perfil. Logo, contexto = perfil = `MINIKUBE_ACTIVE_DOCKERD`, enquanto ninguém renomear o contexto (🟢-R1).
+- **`set -euo pipefail`:** extraí a função real do `start.sh` da branch e a rodei com o kubectl real.
+  - Env vazio, não definida (`env -u`) ou de outro perfil: `err` e rc=1, com a mensagem de 4 linhas correta. O `\$(` sai como `$(`, e o `echo -e` não estraga nada.
+  - Env certo: rc=0.
+  - O `local image=$1 ctx provider` não mascara rc, porque as atribuições estão em linhas separadas.
+  - O `[ ] || [ ] || return 0` e o `[ ] && return 0` no meio da função não disparam o `errexit`, porque são listas `&&`/`||` que não ficam na última posição.
+
+### 🟢-R1 [falso positivo] Contexto do minikube renomeado trava o `up`, e a mensagem manda rodar um comando que falha
+**Onde:** `start.sh:54-63` (feature/ci-e2e)
+**Cenário:** `minikube start -p gesway`, depois `kubectl config rename-context gesway hotel` e `eval $(minikube -p gesway docker-env)`. Testado com o kubectl real:
+- o provider continua `minikube.sigs.k8s.io`, mas `ctx=hotel` ≠ `MINIKUBE_ACTIVE_DOCKERD=gesway`;
+- o `up` para com "eval $(minikube -p hotel docker-env)", que falha porque o perfil `hotel` não existe.
+
+A trava falha de forma segura, e há saída: build à mão e `MINIO_IMAGEM_NO_CLUSTER=1`. Só que nem a mensagem nem o KUBERNETES.md dizem isso. Renomear o contexto é raro, e o próximo `minikube start` recria o contexto com o nome do perfil.
+**Correção sugerida:** acrescentar à mensagem "(contexto renomeado? use o nome do perfil do `minikube profile list`)". Também dá para ler o perfil do cluster do contexto (`.contexts[0].context.cluster`), que o rename não muda.
+
+### 🟢-R2 [saída sem rede] `MINIO_IMAGEM_NO_CLUSTER=1` desliga a trava inteira e não confere nada
+**Onde:** `start.sh:79-82` · `docs/infra/KUBERNETES.md:63-66`
+**Cenário (a), imagem que falta:** quem copiou `MINIO_IMAGEM_NO_CLUSTER=1 ./start.sh up` do KUBERNETES.md, ou deixou a variável exportada no terminal, sobe sem a imagem no runtime. Volta exatamente o sintoma que a trava fechou: `ErrImageNeverPull` e o timeout genérico de 120 s do `kubectl wait` (`start.sh:91`). Isso vale também para minikube com runtime docker, porque o atalho pula o `garantir_docker_do_minikube`.
+**Cenário (b), imagem velha:** se já existe uma imagem com a mesma tag, de um build anterior ao último Dockerfile, ela é usada sem aviso. É o caso do 🟢-2 e da pendência 6, sem nenhum `docker build` no caminho que pudesse lembrar.
+**Cenário (c), passo que falta na doc:** para kind e k3d, o KUBERNETES.md manda `kind load docker-image` e `k3d image import`. Os dois exigem a imagem já construída no Docker do host, e com a variável o `start.sh` não constrói. Falta na doc o `docker build -t <tag> docker/minio`, e falta dizer onde achar a tag (`bash scripts/verificar_imagem_minio.sh`).
+**Brecha de segurança:** nenhuma. O `imagePullPolicy: Never` continua impedindo pull de registro externo. O dano é diagnóstico ruim, não imagem de terceiro.
+**Correção sugerida:** no ramo da variável, um `warn` com "se o pod do minio ficar em ErrImageNeverPull, a imagem não está no runtime". No KUBERNETES.md, o passo `docker build -t $(bash scripts/verificar_imagem_minio.sh) docker/minio` antes do `kind load`/`k3d image import`.
+
+### 🟢-R3 [comentário] "(ou suba a RELEASE)" não é alternativa para quem trocou só o mc, um digest ou o Go
+**Onde:** `docker/minio/Dockerfile:15-17`
+**Cenário:** o comentário cobre a troca de "SÓ o mc, um digest ou o Go" e oferece "suba a RELEASE" como saída. Subir o `MINIO_RELEASE` é trocar a versão do servidor minio, com outro `MINIO_COMMIT`. Não serve como truque para mudar a tag.
+O resto do comentário confere:
+- a tag usa só `MINIO_RELEASE`;
+- os pacotes do apk são `git` no estágio de build e `curl` e `ca-certificates` no final (linhas 28 e 51);
+- o `rollout restart statefulset/minio` no `hotel-system` recria o pod, e o kubelet resolve a tag de novo no runtime local (`Never`);
+- o compose recompila com `--build`.
+
+Isso fecha o 🟢-2 (pela correção mínima) e o 🟢-3(a).
+**Correção sugerida:** tirar "(ou suba a RELEASE)", ou escrever "(o rollout só é dispensável quando a RELEASE do minio muda)".
+
+### 🟢-R4 [relatório] Duas partes do relatório ficaram para trás da correção
+**Onde:** `docs/historico_sessao/weslley/minio_do_fonte_e_e2e_no_ci_16nov2026.md:65-82,89`
+**Cenário (a):** a pendência 2 (linha 89) ainda manda "No minikube, rode `eval $(minikube docker-env)` antes". Isso não tem `-p <perfil>` e não cita a saída de containerd. É exatamente a instrução que leva ao 🟡-1(a) com um perfil de outro nome, e é a linha que quem conduz o ensaio de 24/11 vai ler.
+**Cenário (b):** a tabela de commits termina em `d6d65ec` e `968a927`. Faltam `3b82aec` (a trava nova, que muda comportamento) e `013c579`.
+**O que confere:**
+- A linha 22 está precisa. A ressalva do contexto renomeado (🟢-R1) é marginal.
+- Linha 24: há 8 runs verdes do `ci-e2e` na branch até o `3033f21`. O "7 passed" aparece nos logs de 7 deles. O run `43967917601` (`39d1fb1`) não devolveu mais o log, mas o job está `success`.
+- Fecham o 🟢-6 e a lacuna "7 passed em 5 runs" da rodada anterior.
+
+**Correção sugerida:** na linha 89, "`eval $(minikube -p <perfil> docker-env)` (containerd: ver docs/infra/KUBERNETES.md)". Na tabela, acrescentar os 2 commits.
+
+### Itens da rodada anterior: situação
+- **🟡-1:** fechado. Os cenários (a) perfil com outro nome, (b) env de outro perfil e (c) containerd/none, com saída por `minikube image build` + variável, foram conferidos com o kubectl real e o código do minikube.
+- **🟢-1:** o comentário do `ci-e2e.yml:135-138` agora diz que o HTML não sai e que os logs saem. O `globalTimeout` sugerido não entrou, o que é aceitável por ser só 🟢. Veja a SUSPEITA abaixo.
+- **🟢-2 e 🟢-3(a):** fechados pelo comentário do Dockerfile, com o ajuste do 🟢-R3. O 🟢-3(b), sobre o patch do Go congelado pelo digest, segue sem pendência registrada.
+- **🟢-4 e 🟢-5:** sem mudança. Não eram para esta rodada.
+- **🟢-6 e 🟢-7:** fechados.
+
+### Não foi possível verificar (rodada 2)
+- **`ci-e2e` no head `70ef0ac`:** às 23:25 UTC, o commit tinha só o run `CI` (evento `push`). Não havia nenhum run de `pull_request`, nem do `ci-e2e`, embora o PR já aponte para `70ef0ac` e o diff toque em `start.sh` e no `.yml`, que o `paths-ignore` não exclui. Provavelmente é atraso do GitHub. As mudanças do `.yml` e do Dockerfile são só comentário, então o risco é baixo. Mesmo assim, confirme um run verde no head antes de tirar o #176 do rascunho.
+- **Minikube real:** não há minikube no ambiente. O formato veio do código-fonte, e o jsonpath foi conferido com o kubectl real sobre um kubeconfig sintético. Nada disso substitui a pendência 2 do relatório, o `./start.sh up` na máquina do ensaio.
+- **SUSPEITA, sem impacto em código:** "O relatório HTML NÃO sai: o processo é morto antes de escrevê-lo" (`ci-e2e.yml:137-138`) pode ser forte demais. No timeout de passo, o runner manda SIGINT antes do SIGTERM/SIGKILL, e o Playwright, ao receber SIGINT, encerra como `interrupted` e chama o `onEnd` dos reporters. Se o `pnpm` repassar o sinal, um relatório parcial pode sair. Para confirmar, é preciso um run com o `globalSetup` travado de propósito. Se sair, o comentário só fica pessimista: o upload já cobre a pasta.
