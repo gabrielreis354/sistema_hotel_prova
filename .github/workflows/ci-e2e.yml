@@ -2,18 +2,21 @@ name: CI — roteiro e2e (não bloqueia)
 
 # Os 7 passos do roteiro da banca (frontend/e2e, PR #166) contra o compose inteiro, num runner
 # descartável. Avisa, mas não impede o merge (proposta 7 do encontro de 03/11; plano de
-# fechamento de 15/11, §5): `continue-on-error` no job, e o job NÃO entra nos checks
-# obrigatórios da branch. A ideia é a quebra do roteiro aparecer no dia em que acontece, e não
-# no ensaio.
+# fechamento de 15/11, §5). O que libera o merge é este job NÃO entrar nos checks obrigatórios
+# da branch — não marque como obrigatório. Sem `continue-on-error` de propósito: com ele o run
+# ficava verde com o roteiro quebrado e o aviso sumia (🟡-1 do red team de 16/11). A ideia é a
+# quebra do roteiro aparecer, em vermelho, no dia em que acontece, e não no ensaio.
 #
-# Sem filtro de paths: o roteiro quebra por mudança em qualquer serviço (core, analytics, nginx,
-# frontend, compose). Nenhum segredo real: .env com senhas aleatórias geradas aqui, chaves JWT
-# geradas aqui e PIX_PROVIDER=fake.
+# Filtro só para docs: o roteiro quebra por mudança em qualquer serviço (core, analytics, nginx,
+# frontend, compose), mas não por texto. Nenhum segredo real: .env com senhas aleatórias geradas
+# aqui, chaves JWT geradas aqui e PIX_PROVIDER=fake.
 on:
   pull_request:
     branches: [main, develop]
+    paths-ignore: ['docs/**', '**/*.md']
   push:
     branches: [develop]
+    paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 
 permissions:
@@ -32,7 +35,6 @@ jobs:
   e2e:
     name: Roteiro da demonstração (Playwright)
     runs-on: ubuntu-latest
-    continue-on-error: true
     # A 1ª execução compila o MinIO do fonte (sem cache); as seguintes reaproveitam o cache.
     timeout-minutes: 45
 
@@ -83,11 +85,15 @@ jobs:
           sudo chown 1000:1000 services/core-service/keys/jwt-private.pem
 
       # MinIO compilado do fonte (docker/minio/Dockerfile): o pull das imagens oficiais dá 401.
-      # Com cache do Actions, só a 1ª execução compila. A tag vem do compose, onde o serviço
-      # minio usa pull_policy: never — o compose acha a imagem já carregada no daemon.
+      # Este passo traz as camadas do cache do Actions para o builder do buildx; o
+      # `compose-up --build` logo depois compila de novo pelo mesmo builder e acha tudo em cache
+      # (por isso é rápido — não é a imagem carregada que o compose reaproveita).
       - name: Tag da imagem do MinIO
         id: minio
-        run: echo "image=$(grep -m1 -o 'gesway/minio:RELEASE[^[:space:]]*' docker-compose.yml)" >> "$GITHUB_OUTPUT"
+        run: |
+          image=$(grep -m1 -o 'gesway/minio:RELEASE[^[:space:]]*' docker-compose.yml || true)
+          [ -n "$image" ] || { echo "::error::tag gesway/minio:RELEASE... não achada no docker-compose.yml"; exit 1; }
+          echo "image=$image" >> "$GITHUB_OUTPUT"
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
@@ -100,7 +106,10 @@ jobs:
           load: true
           push: false
           cache-from: type=gha,scope=minio
-          cache-to: type=gha,scope=minio,mode=max
+          # Grava só na develop (~1 GB com mode=max); os PRs só leem. Gravar em todo PR despejava
+          # os caches de pnpm/npm do teto de 10 GB do repositório (🟡-2 do red team de 16/11).
+          # Até o 1º push na develop, o PR compila o MinIO sem cache.
+          cache-to: ${{ github.ref == 'refs/heads/develop' && 'type=gha,scope=minio,mode=max' || '' }}
 
       - name: Subir o compose
         run: ./start.sh compose-up --build

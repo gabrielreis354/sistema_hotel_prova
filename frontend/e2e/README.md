@@ -59,8 +59,10 @@ retenção curta (poucos dias), e só de rodadas contra o ambiente descartável.
 
 O workflow `.github/workflows/ci-e2e.yml` segue essa regra: o artefato `e2e-playwright` sai só em
 falha, com retenção de 3 dias. O job sobe o compose num runner descartável, com `.env` de senhas
-aleatórias, chaves JWT geradas na hora e `PIX_PROVIDER=fake`. Ele roda em todo PR para `develop` e
-`main` e avisa sem bloquear (`continue-on-error`, fora dos checks obrigatórios).
+aleatórias, chaves JWT geradas na hora e `PIX_PROVIDER=fake`. Ele roda nos PRs para `develop` e
+`main` e no push para `develop` (menos quando só mudam `docs/` ou arquivos `.md`). Quando o roteiro
+quebra, o job fica vermelho, mas não impede o merge, porque não está entre os checks obrigatórios.
+Não o marque como obrigatório.
 
 ## Variáveis
 
