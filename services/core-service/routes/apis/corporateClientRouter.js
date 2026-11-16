@@ -7,9 +7,12 @@ import ListCorporateClientController from '../../app/Controllers/CorporateClient
 import GetCorporateClientController from '../../app/Controllers/CorporateClientApi/GetCorporateClientController.js';
 import UpdateCorporateClientController from '../../app/Controllers/CorporateClientApi/UpdateCorporateClientController.js';
 import DeleteCorporateClientController from '../../app/Controllers/CorporateClientApi/DeleteCorporateClientController.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 const router = Router();
 router.use(authMiddleware, tenantMiddleware);
+// :id que não é UUID responde 404, não 500 (repasse de 15/11; mesmo molde do reservationRouter).
+router.param('id', notFoundUnlessUuid('Cliente não encontrado'));
 router.get('/', ListCorporateClientController);
 router.get('/:id', GetCorporateClientController);
 router.post('/', CreateCorporateClientController);

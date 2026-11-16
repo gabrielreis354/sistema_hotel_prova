@@ -8,11 +8,15 @@ import GetUserController from '../../app/Controllers/UserApi/GetUserController.j
 import CreateUserController from '../../app/Controllers/UserApi/CreateUserController.js';
 import UpdateUserController from '../../app/Controllers/UserApi/UpdateUserController.js';
 import DeleteUserController from '../../app/Controllers/UserApi/DeleteUserController.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 export default (() => {
     const router = Router();
 
     router.use(authMiddleware, tenantMiddleware);
+
+    // :id que não é UUID responde 404, não 500 (repasse de 15/11; mesmo molde do reservationRouter).
+    router.param('id', notFoundUnlessUuid('Usuário não encontrado'));
 
     router.get('/', requireRole('ADMIN'), ListUserController);
     router.get('/:id', requireRole('ADMIN'), GetUserController);
