@@ -1,6 +1,6 @@
 import { ErrorState, Notice } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
-import { BackLink } from '../reservations/index.js';
+import { BackLink } from '../../components/links.js';
 
 /**
  * Hóspede que não carregou, na ficha e na edição (mesmo useGuest). 404 não tem "tentar de novo",

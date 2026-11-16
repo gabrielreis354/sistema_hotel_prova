@@ -10,7 +10,8 @@ import { useGuest, useDeleteGuest } from './queries.js';
 import { GuestLoadError } from './GuestLoadError.js';
 import { DELETE_GUEST_REASON, canDeleteGuest } from './guestRules.js';
 import { useAuthStore } from '../../stores/auth.js';
-import { BackLink, ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
+import { ReservationStatusBadge } from '../reservations/index.js';
+import { BackLink, ButtonLink } from '../../components/links.js';
 
 // GET /reservations devolve ReservationListItem (Reservation + guest/room/user resumidos),
 // não o Reservation puro — usar o schema errado aqui é o mesmo erro de tipagem que os casts

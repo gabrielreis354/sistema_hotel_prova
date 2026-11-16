@@ -1,5 +1,5 @@
 export { cn } from './cn.js';
-export { Button, type ButtonProps } from './Button.js';
+export { Button, buttonClasses, type ButtonProps, type ButtonVariants } from './Button.js';
 export { StatusBadge, type StatusBadgeProps } from './StatusBadge.js';
 export { Input, type InputProps } from './Input.js';
 export { Field, type FieldProps } from './Field.js';

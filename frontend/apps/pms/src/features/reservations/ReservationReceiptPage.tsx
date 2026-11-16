@@ -5,7 +5,8 @@ import { Button, ErrorState, Spinner } from '@hotel/ui';
 import { receiptIssuer, useMyTenant } from '../tenant/index.js';
 import { useBill, useReservation } from './queries.js';
 import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, receiptEntries, safeNights } from './reservationLogic.js';
-import { BackLink, Money } from './components/primitives.js';
+import { Money } from './components/primitives.js';
+import { BackLink } from '../../components/links.js';
 
 /**
  * Comprovante da conta para entregar no check-out (CA-05.2.k). Rota fora do AppShell, de

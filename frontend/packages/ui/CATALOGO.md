@@ -25,7 +25,8 @@ ter uma pessoa aprovando componente dos outros.
 
 | Componente | Para quê | Quando **não** usar |
 |---|---|---|
-| `Button` | Ação. Variantes `primary`, `secondary`, `ghost`, `danger`; tamanhos `comfortable` (mobile, alvo ≥ 48px) e `compact` (tabela e rack no desktop) | Navegação — use `Link` do router. Um `Button` que só navega quebra abrir em nova aba |
+| `Button` | Ação. Variantes `primary`, `secondary`, `ghost`, `danger`; tamanhos `comfortable` (mobile, alvo ≥ 48px) e `compact` (tabela e rack no desktop) | Navegação — use `Link` do router. Um `Button` que só navega quebra abrir em nova aba. Link com cara de botão: `ButtonLink` do app (`apps/pms/src/components/links.tsx`) |
+| `buttonClasses` | As classes do `Button` (mesmas variantes) para outro elemento. Existe para o `ButtonLink` do app, que é `<a>` do roteador — o `@hotel/ui` não depende de react-router (T-08.6) | Para recriar um botão com `<div>` ou `<span>`: use o `Button` |
 | `Input` | Campo de texto. Foco visível, estado de erro por `aria-invalid` | Sozinho num formulário — envolva em `Field`, senão o campo fica sem rótulo |
 | `Field` | Rótulo + controle + mensagem de erro, com `htmlFor` ligado | Texto de ajuda que não é erro; isso ainda não existe e precisa de variante nova |
 | `StatusBadge` | Status com ponto colorido **e** rótulo textual sempre juntos. Quarto: `status={room.status}`. Outro status (reserva, parcela): `tone` (`StatusTone` de `@hotel/domain`) + `label`, escolhidos pelo módulo dono do status | Para *escolher* status num formulário — selo é leitura, não controle. Nem com cor fora dos `StatusTone`: tom novo entra primeiro no preset e no `STATUS_TONES` |

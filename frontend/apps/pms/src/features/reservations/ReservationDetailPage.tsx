@@ -21,7 +21,8 @@ import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { BillTimeline } from './components/BillTimeline.js';
 import { PaymentForm, type PaymentResult } from './components/PaymentForm.js';
 import { canReceivePayment } from './paymentLogic.js';
-import { BackLink, ButtonLink, InfoItem, Money, Notice } from './components/primitives.js';
+import { InfoItem, Money, Notice } from './components/primitives.js';
+import { BackLink, ButtonLink } from '../../components/links.js';
 
 type Tab = ReservationTab;
 type Confirming = null | 'check-out' | 'cancel';

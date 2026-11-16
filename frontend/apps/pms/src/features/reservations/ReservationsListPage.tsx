@@ -5,7 +5,8 @@ import { Button, Card, EmptyState, ErrorState, Field, Input, Spinner, cn } from 
 import { useReservationList } from './queries.js';
 import { PERIOD_PRESETS, pageCount, presetRange, safeNights, type PeriodPreset } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
-import { ButtonLink, Money, PageHeader } from './components/primitives.js';
+import { Money, PageHeader } from './components/primitives.js';
+import { ButtonLink } from '../../components/links.js';
 
 const PAGE_SIZE = 20;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
