@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, PageHeader, Section, Spinner } from '@hotel/ui';
+import { Button, Card, ErrorState, Notice, PageHeader, Section, Spinner } from '@hotel/ui';
 import { formatCpf, formatDateBR } from '@hotel/domain';
 import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import { useGuest, useDeleteGuest } from './queries.js';
+import { DELETE_GUEST_REASON, canDeleteGuest } from './guestRules.js';
+import { useAuthStore } from '../../stores/auth.js';
 import { ButtonLink, ReservationStatusBadge } from '../reservations/index.js';
 
 // GET /reservations devolve ReservationListItem (Reservation + guest/room/user resumidos),
@@ -32,14 +34,22 @@ async function fetchGuestStays(guestId: string): Promise<Reservation[]> {
 export function GuestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: guest, isLoading, isError } = useGuest(id);
+  const guestQuery = useGuest(id);
+  const { data: guest, isLoading, isError } = guestQuery;
+  const canDelete = useAuthStore((s) => canDeleteGuest(s.user?.role));
   const del = useDeleteGuest();
   const [confirming, setConfirming] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
-  // Antes de qualquer return antecipado (regra dos hooks).
+  const deleteRef = useRef<HTMLButtonElement>(null);
+  const wasConfirming = useRef(false);
+  // Antes de qualquer return antecipado (regra dos hooks). Ao abrir, o foco vai para a
+  // confirmação; ao fechar sem excluir, volta para o Excluir, que reaparece — senão caía no body e
+  // o Tab seguinte pulava Editar e Excluir (🟡-3 do qa-explorador de 16/11).
   useEffect(() => {
     if (confirming) confirmRef.current?.focus();
+    else if (wasConfirming.current) deleteRef.current?.focus();
+    wasConfirming.current = confirming;
   }, [confirming]);
 
   const stays = useQuery({
@@ -48,8 +58,22 @@ export function GuestDetailPage() {
     enabled: !!id,
   });
 
-  if (isLoading) return <Spinner />;
-  if (isError || !guest) return <p className="text-sm text-status-maintenance">Hóspede não encontrado.</p>;
+  if (isLoading) return <Spinner label="Carregando hóspede…" />;
+  if (isError || !guest) {
+    // Mesmo molde da reserva inexistente: 404 não tem "tentar de novo", o caminho é voltar; falha
+    // de servidor ou de rede não é "não encontrado" (🟡-4 do qa-explorador de 16/11).
+    const notFound = guestQuery.error instanceof ApiError && guestQuery.error.status === 404;
+    return (
+      <div className="mx-auto max-w-3xl space-y-3">
+        {notFound ? (
+          <Notice tone="error">Hóspede não encontrado — ele pode ter sido excluído.</Notice>
+        ) : (
+          <ErrorState message="Não foi possível carregar o hóspede." onRetry={() => guestQuery.refetch()} />
+        )}
+        <BackToGuests />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -63,10 +87,25 @@ export function GuestDetailPage() {
             </ButtonLink>
             {/* Excluir é irreversível e não é a ação da tela: fica discreto, e a confirmação diz o que
                 vai acontecer (GUIA_UI_CORPORATIVA, regra 7). */}
+            {/* Sem permissão o Excluir fica na tela, desabilitado e com o motivo — não some
+                (CA-08.f). Antes a recepção confirmava e levava 403 (🟡-1 do qa-explorador de 16/11). */}
             {!confirming && (
-              <Button variant="ghost" className="text-status-maintenance" onClick={() => setConfirming(true)}>
+              <Button
+                ref={deleteRef}
+                variant="ghost"
+                className="text-status-maintenance"
+                disabled={!canDelete}
+                title={canDelete ? undefined : DELETE_GUEST_REASON}
+                aria-describedby={canDelete ? undefined : DELETE_REASON_ID}
+                onClick={() => setConfirming(true)}
+              >
                 Excluir
               </Button>
+            )}
+            {!canDelete && (
+              <span id={DELETE_REASON_ID} className="sr-only">
+                {DELETE_GUEST_REASON}
+              </span>
             )}
           </>
         }
@@ -103,7 +142,7 @@ export function GuestDetailPage() {
         </div>
       )}
 
-      {delError && <p className="text-sm text-status-maintenance">{delError}</p>}
+      {delError && <Notice tone="error">{delError}</Notice>}
 
       <Section title="Contato">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -120,25 +159,27 @@ export function GuestDetailPage() {
           <p className="text-sm text-gray-500">Nenhuma reserva para este hóspede.</p>
         )}
         {stays.data && stays.data.length > 0 && (
-          <Card className="overflow-hidden">
+          // overflow-x-auto, não hidden: a 375 px o status saía cortado ("● Hospedad"); se a
+          // tabela não couber, rola dentro do cartão, nunca a página (🟡-2 do qa-explorador de 16/11).
+          <Card className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Entrada</th>
-                  <th className="px-4 py-2 font-medium">Saída</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-2 py-2 font-medium sm:px-4">Entrada</th>
+                  <th className="px-2 py-2 font-medium sm:px-4">Saída</th>
+                  <th className="px-2 py-2 font-medium sm:px-4">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {stays.data.map((r) => (
                   <tr key={r.id} className="border-b border-gray-100 last:border-0">
-                    <td className="px-4 py-2 tabular-nums">
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums sm:px-4">
                       {r.check_in_date ? formatDateBR(r.check_in_date) : '—'}
                     </td>
-                    <td className="px-4 py-2 tabular-nums">
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums sm:px-4">
                       {r.check_out_date ? formatDateBR(r.check_out_date) : '—'}
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="whitespace-nowrap px-2 py-2 sm:px-4">
                       {/* Ponto e palavra (GUIA, regra 3), como no resto do app. */}
                       {r.status ? <ReservationStatusBadge status={r.status} /> : '—'}
                     </td>
@@ -150,10 +191,18 @@ export function GuestDetailPage() {
         )}
       </Section>
 
-      <Link to="/hospedes" className="inline-block text-sm text-brand hover:underline">
-        ← Voltar para hóspedes
-      </Link>
+      <BackToGuests />
     </div>
+  );
+}
+
+const DELETE_REASON_ID = 'hospede-excluir-motivo';
+
+function BackToGuests() {
+  return (
+    <Link to="/hospedes" className="inline-block text-sm text-brand hover:underline">
+      ← Voltar para hóspedes
+    </Link>
   );
 }
 

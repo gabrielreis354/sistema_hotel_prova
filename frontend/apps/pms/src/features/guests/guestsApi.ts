@@ -1,6 +1,7 @@
 import { api } from '../../lib/api.js';
 import { ApiError } from '../../lib/http.js';
 import type { components } from '@hotel/api-client';
+import { DELETE_GUEST_REASON } from './guestRules.js';
 
 /** Tipo do hóspede vindo do schema do OpenAPI (components.schemas.Guest). */
 export type Guest = components['schemas']['Guest'];
@@ -62,6 +63,8 @@ export async function deleteGuest(id: string): Promise<void> {
   const { error, response } = await api.DELETE('/guests/{id}', {
     params: { path: { id } },
   });
+  // A tela já desabilita para quem não é ADMIN; o 403 cobre papel trocado com a ficha aberta.
+  if (response.status === 403) throw new ApiError(DELETE_GUEST_REASON, 403);
   if (error || !response.ok) {
     // Um hóspede com reservas vinculadas costuma bater em conflito no backend — dá a dica.
     const hint =

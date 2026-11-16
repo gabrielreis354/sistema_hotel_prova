@@ -10,11 +10,16 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 // conferência manual (o app ainda não tem jsdom).
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() }));
 vi.mock('../../lib/api.js', () => ({ api }));
+// No render do servidor o zustand lê o estado inicial (sem usuário), então setState não chega à
+// tela: o papel entra por dublê do store.
+const session = vi.hoisted(() => ({ user: null as { role: string } | null }));
+vi.mock('../../stores/auth.js', () => ({
+  useAuthStore: <T,>(select: (s: typeof session) => T) => select(session),
+}));
 
 import { GuestDetailPage } from './GuestDetailPage.js';
 import { guestKeys } from './queries.js';
 import { getGuest } from './guestsApi.js';
-import { useAuthStore } from '../../stores/auth.js';
 import type { Role } from '../../types.js';
 
 function reply(status: number, body: unknown) {
@@ -25,7 +30,7 @@ function reply(status: number, body: unknown) {
 const GUEST = { id: 'g1', full_name: 'Maria Oliveira', cpf: '12345678901', phone: null, email: null };
 
 async function renderGuest({ role, guestStatus = 200 }: { role: Role; guestStatus?: number }) {
-  useAuthStore.setState({ token: 't', user: { id: 'u1', name: 'U', email: 'u@x', role } });
+  session.user = { role };
   api.GET.mockImplementation(async (path: string) => {
     if (path === '/guests/{id}') return reply(guestStatus, guestStatus === 200 ? GUEST : { error: 'x' });
     if (path === '/reservations') return reply(200, []);
@@ -61,7 +66,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
-  useAuthStore.setState({ token: null, user: null });
+  session.user = null;
 });
 
 describe('GuestDetailPage — Excluir só para o administrador (🟡-1, CA-08.f)', () => {
