@@ -13,7 +13,8 @@ function tsx(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
     if (statSync(p).isDirectory()) return tsx(p);
-    return /\.tsx$/.test(n) && !/\.test\.tsx$/.test(n) ? [p] : [];
+    // .ts também: constantes de classe (rooms/components/touch.ts) moram fora do JSX (redteam da T-08.6, 🟡1).
+    return /\.tsx?$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
   });
 }
 

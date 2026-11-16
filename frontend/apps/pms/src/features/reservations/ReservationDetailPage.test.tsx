@@ -102,6 +102,11 @@ describe('ReservationDetailPage — saldo a receber (decisão de 16/11, CA-08.e)
     expect(html).toContain('Fazer check-out');
   });
 
+  it('aba Resumo (a padrão), com saldo: o check-out segue principal — o pagamento só existe na Conta (redteam da T-08.6, 🟡2)', async () => {
+    session.user = { role: 'RECEPTIONIST' };
+    expect(primaryButtons(await renderDetail('CHECKED_IN'))).toEqual(['Fazer check-out']);
+  });
+
   it('sem quem possa receber (sessão vazia): o check-out continua a principal', async () => {
     expect(primaryButtons(await renderDetail('CHECKED_IN', { aba: 'conta' }))).toEqual(['Fazer check-out']);
   });

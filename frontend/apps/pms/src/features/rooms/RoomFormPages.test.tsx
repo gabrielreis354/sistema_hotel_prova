@@ -47,6 +47,18 @@ describe('RoomEditPage — quarto que não carrega', () => {
     expect(html).not.toContain('Tentar de novo');
   });
 
+  it('quarto 404 e categorias 500: o erro do quarto manda — "não encontrado"', async () => {
+    const html = await renderEdit({ room: 404, categories: 500 });
+    expect(html).toContain('Quarto não encontrado');
+    expect(html).not.toContain('Tentar de novo');
+  });
+
+  it('quarto em dia, categorias 404: não diz que o quarto sumiu (redteam da T-08.6, 🟢4)', async () => {
+    const html = await renderEdit({ room: 200, categories: 404 });
+    expect(html).toContain('Tentar de novo');
+    expect(html).not.toContain('não encontrado');
+  });
+
   it('quarto em dia, categorias com 500: "Tentar de novo", nunca "não encontrado"', async () => {
     const html = await renderEdit({ room: 200, categories: 500 });
     expect(html).toContain('Tentar de novo');
