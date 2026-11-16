@@ -75,8 +75,8 @@ O resto bate com o repositório. Os 17 hashes da tabela existem com as mensagens
 
 | Sev. | Achado | Onde | Dono | Repasse |
 |------|--------|------|------|---------|
-| 🟡 | O `command.js seed` (compose, CI, banca de contingência) descarta o NOTICE e o WARNING do `seed_hoje.sql`. O aviso "cenário não ficou completo" nunca aparece | `services/core-service/command.js:99-103` · `seed/seed_hoje.sql:38-40,208-226` | Sirlande | `docs/qa/repasses/para_sirlande_16112026.md` |
-| 🟢 | O WARNING manda recriar o banco com "docker compose down -v…", e no k8s (agora coberto pelo #177) o caminho é outro | `services/core-service/seed/seed_hoje.sql:224` | Sirlande | `docs/qa/repasses/para_sirlande_16112026.md` |
+| 🟡 | O `command.js seed` (compose, CI, banca de contingência) descarta o NOTICE e o WARNING do `seed_hoje.sql`. O aviso "cenário não ficou completo" nunca aparece | `services/core-service/command.js:99-103` · `seed/seed_hoje.sql:38-40,208-226` | Sirlande | `docs/qa/repasses/para_sirlande_16112026_seed_notice.md` |
+| 🟢 | O WARNING manda recriar o banco com "docker compose down -v…", e no k8s (agora coberto pelo #177) o caminho é outro | `services/core-service/seed/seed_hoje.sql:224` | Sirlande | `docs/qa/repasses/para_sirlande_16112026_seed_notice.md` |
 
 ## O que foi verificado e está correto
 - **Digests:** os dois são **índices OCI** multiarquitetura. Pelo registry, `golang:1.27-alpine` e `alpine:3.24` devolvem `application/vnd.oci.image.index.v1+json` com exatamente os digests do Dockerfile. O índice do golang tem amd64, arm64/v8, arm/v6 e v7, 386 e ppc64le. Não é manifest de uma arquitetura só.
