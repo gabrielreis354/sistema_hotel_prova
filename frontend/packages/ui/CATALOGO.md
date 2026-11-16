@@ -21,6 +21,12 @@ ter uma pessoa aprovando componente dos outros.
 
 ---
 
+## Bibliotecas por baixo
+
+Até 10/12, nenhuma além de `lucide-react` para ícones (com texto ao lado e `aria-hidden`) e da fonte Inter. A partir do 5º semestre, componente com comportamento de teclado e leitor de tela (Tabs, Combobox, Dialog, DropdownMenu) nasce sobre o Radix, no modelo do shadcn, e segue a regra de promoção acima. Decisão de 15/11 na SPEC-08, seção 9.
+
+---
+
 ## Componentes
 
 | Componente | Para quê | Quando **não** usar |
