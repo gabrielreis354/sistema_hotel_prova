@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultPeriod, fillMonths, periodError, monthLabel, monthlyWindow } from './period.js';
+import { defaultPeriod, fillMonths, fillSeasonality, periodError, monthLabel, monthlyWindow } from './period.js';
 
 describe('defaultPeriod', () => {
   it('vai do dia 1º do mês até hoje', () => {
@@ -80,5 +80,43 @@ describe('fillMonths', () => {
   it('ignora linha fora da janela', () => {
     expect(fillMonths({ start: '2026-01-01', end: '2026-01-31' }, [{ month: '2025-12', total: 10 }]))
       .toEqual([{ month: '2026-01', total: 0 }]);
+  });
+});
+
+describe('fillSeasonality', () => {
+  // Mesma janela do backend (GetSeasonalityController): começa no mês de `hoje − months meses` e
+  // não tem fim — reservas futuras entram. Sem o preenchimento, mar/26 e jun/26 viravam barras
+  // vizinhas (achado 3 da revisão de 15/11).
+  const row = (month: string, reservations: number, avg_nights: number) => ({ month, reservations, revenue: '0.00', avg_nights });
+
+  it('começa no mês de hoje − months, como o backend (13 meses com 12)', () => {
+    const months = fillSeasonality('2026-11-16', 12, []).map((m) => m.month);
+    expect(months[0]).toBe('2025-11');
+    expect(months.at(-1)).toBe('2026-11');
+    expect(months).toHaveLength(13);
+  });
+
+  it('preenche o buraco do meio com zero e sem noites médias', () => {
+    expect(fillSeasonality('2026-06-10', 3, [row('2026-03', 4, 2.5), row('2026-06', 2, 1)])).toEqual([
+      { month: '2026-03', reservations: 4, avg_nights: 2.5 },
+      { month: '2026-04', reservations: 0, avg_nights: null },
+      { month: '2026-05', reservations: 0, avg_nights: null },
+      { month: '2026-06', reservations: 2, avg_nights: 1 },
+    ]);
+  });
+
+  it('vai até o último mês futuro que o backend trouxe, preenchendo o caminho', () => {
+    expect(fillSeasonality('2026-11-16', 1, [row('2027-02', 1, 3)]).map((m) => [m.month, m.reservations])).toEqual([
+      ['2026-10', 0], ['2026-11', 0], ['2026-12', 0], ['2027-01', 0], ['2027-02', 1],
+    ]);
+  });
+
+  it('atravessa a virada do ano', () => {
+    expect(fillSeasonality('2026-01-05', 2, []).map((m) => m.month)).toEqual(['2025-11', '2025-12', '2026-01']);
+  });
+
+  it('linha sem mês ou fora da janela não desloca o eixo', () => {
+    expect(fillSeasonality('2026-03-01', 1, [row('2025-12', 9, 1), { reservations: 5 }]).map((m) => m.month))
+      .toEqual(['2026-02', '2026-03']);
   });
 });
