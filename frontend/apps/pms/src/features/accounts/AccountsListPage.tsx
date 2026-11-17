@@ -71,7 +71,7 @@ export function AccountsListPage() {
           {/* Saldo da conta da suíte: o caminho para receber (C-19). */}
           {closed?.receiveAt && (
             <Link to={closed.receiveAt} className="ml-3 inline-flex min-h-touch items-center font-medium text-brand underline">
-              Receber na reserva
+              {closed.receiveAt.startsWith('/reservas/') ? 'Receber na reserva' : 'Receber na conta'}
             </Link>
           )}
         </InfoNotice>

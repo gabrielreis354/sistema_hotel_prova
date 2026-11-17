@@ -99,14 +99,26 @@ export function submitStep({
   reading,
   method,
   confirming,
+  allowOverpay = true,
 }: {
   reading: AmountReading;
   method: PaymentMethod | null;
   confirming: boolean;
+  /**
+   * Valor a maior permitido (com confirmação). Na reserva sim (D3: vira crédito do hóspede). Na
+   * mesa não (decisão de 16/11): não há a quem devolver, e o troco viraria receita no caixa.
+   */
+  allowOverpay?: boolean;
 }): SubmitStep {
   if (confirming) return { kind: 'wait' };
   if (!reading.ok) return { kind: 'error', error: reading.error };
   if (!method) return { kind: 'error', error: 'Escolha como o hóspede pagou.' };
+  if (reading.overpaidCents > 0 && !allowOverpay) {
+    return {
+      kind: 'error',
+      error: `Acima do saldo de ${formatBRL(reading.cents - reading.overpaidCents)}. Registre só o valor da conta: o troco não entra no sistema.`,
+    };
+  }
   if (reading.overpaidCents > 0) return { kind: 'confirm', overpaidCents: reading.overpaidCents };
   return { kind: 'send', cents: reading.cents };
 }

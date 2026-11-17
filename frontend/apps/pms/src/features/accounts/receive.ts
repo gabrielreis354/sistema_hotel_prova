@@ -9,6 +9,17 @@ export const receivePanelId = (accountId: string) => `receber-${accountId}`;
 
 const RECEIVABLE_TYPES = ['TABLE', 'DIRECT', 'DAY_USE'];
 
+/**
+ * Aberta ou já fechada: fechar é o fim do consumo, não do pagamento (decisão de 16/11, 🟡-1 do red
+ * team). A mesa fechada com saldo continua recebendo aqui até quitar; PAID não, já está quitada.
+ */
+const RECEIVABLE_STATUSES = ['OPEN', 'CLOSED'];
+
+/** Tipo de conta que recebe na própria tela (sem olhar status nem reserva). */
+export function isReceivableType(type: string | null | undefined): boolean {
+  return RECEIVABLE_TYPES.includes(type ?? '');
+}
+
 export function canReceive(account: { type?: string | null; status?: string | null; reservation_id?: string | null }): boolean {
-  return RECEIVABLE_TYPES.includes(account.type ?? '') && account.status === 'OPEN' && !account.reservation_id;
+  return isReceivableType(account.type) && RECEIVABLE_STATUSES.includes(account.status ?? '') && !account.reservation_id;
 }

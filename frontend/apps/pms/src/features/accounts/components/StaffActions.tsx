@@ -72,6 +72,9 @@ export function StaffActions({
   const id = account.id ?? '';
   // Mesa, balcão e day-use sem reserva recebem aqui (16/11); a suíte, pela reserva.
   const receivable = canReceive(account) && !!onToggleReceive;
+  // Com a fila deste aparelho descarregando, o saldo muda e o formulário se refaz no meio da
+  // digitação (🟡-2 do red team do pagamento): espera, como no fechamento.
+  const receiveBlocked = pendingCount > 0 ? 'Espere os lançamentos da fila chegarem ao sistema.' : null;
   // O bill carrega para "Ver conta" e para a confirmação, que precisa do saldo.
   const bill = useAccountBill(id, showBill || confirming);
   // A confirmação só usa um bill buscado depois de ela abrir: o cache (staleTime de 30 s) pode
@@ -132,7 +135,12 @@ export function StaffActions({
       )}
 
       {close.error && <p role="alert" className="text-sm text-status-maintenance">{close.error.message}</p>}
-      {blocked && <p id="close-blocked-reason" className="text-xs text-gray-600">{blocked}</p>}
+      {receivable && receiveBlocked && (
+        <p id="receive-blocked-reason" className="text-xs text-gray-600">
+          {receiveBlocked}
+        </p>
+      )}
+      {blocked && blocked !== receiveBlocked && <p id="close-blocked-reason" className="text-xs text-gray-600">{blocked}</p>}
       {!blocked && othersPending > 0 && (
         <p id="close-others-warning" role="alert" className="text-xs text-status-maintenance">
           Fechar agora recusa {othersPending === 1 ? 'o lançamento' : `os ${othersPending} lançamentos`} de outro
@@ -192,6 +200,8 @@ export function StaffActions({
               className="col-span-2"
               aria-expanded={receiving}
               aria-controls={receivePanelId(id)}
+              disabled={!!receiveBlocked}
+              aria-describedby={receiveBlocked ? 'receive-blocked-reason' : undefined}
               onClick={onToggleReceive}
             >
               {receiving ? 'Esconder pagamento' : 'Receber'}

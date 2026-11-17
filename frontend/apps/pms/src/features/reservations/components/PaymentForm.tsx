@@ -36,6 +36,7 @@ export function PaymentForm({
   onResult,
   readFreshBalance: readFreshFromProps,
   payer = 'o hóspede',
+  allowOverpay = true,
 }: {
   /** Reserva (conta da estadia) ou conta sem reserva (mesa, balcão, day-use; 16/11). */
   target: PaymentTarget;
@@ -45,6 +46,8 @@ export function PaymentForm({
   readFreshBalance?: () => Promise<Cents>;
   /** Quem paga, na pergunta da forma de pagamento: "Como o hóspede pagou", "Como o cliente pagou". */
   payer?: string;
+  /** Valor a maior (com confirmação). Na mesa, não: o troco não entra no sistema (16/11). */
+  allowOverpay?: boolean;
 }) {
   const create = useCreatePayment();
   const qc = useQueryClient();
@@ -81,6 +84,7 @@ export function PaymentForm({
       reading: readPaymentAmount(amountText, balanceCents),
       method,
       confirming: overpaid !== null,
+      allowOverpay,
     });
     if (step.kind === 'wait') return;
     if (step.kind === 'error') return setError(step.error);

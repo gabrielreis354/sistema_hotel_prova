@@ -88,7 +88,7 @@ describe('submitStep sem valor a maior (mesa)', () => {
   it('acima do saldo: erro com o saldo e o motivo, sem passo de confirmação', () => {
     expect(submitStep({ reading, method: 'DINHEIRO', confirming: false, allowOverpay: false })).toEqual({
       kind: 'error',
-      error: 'Acima do saldo de R$ 198,00. Registre só o valor da conta: o troco não entra no sistema.',
+      error: `Acima do saldo de ${formatBRL(19800)}. Registre só o valor da conta: o troco não entra no sistema.`,
     });
   });
 
