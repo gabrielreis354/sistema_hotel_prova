@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, LogIn, Mail } from 'lucide-react';
 import { Button, Field, Input, Notice } from '@hotel/ui';
 import { useAuthStore } from '../../stores/auth.js';
-import { login, LoginError } from './loginApi.js';
+import { login } from './loginApi.js';
+import { loginFailure } from './loginFailure.js';
 import { homeForRole } from '../../routes/roleHome.js';
 import { GeswayLogo } from './components/GeswayLogo.js';
 import { PasswordInput } from './components/PasswordInput.js';
@@ -51,12 +52,9 @@ export function LoginPage() {
       setSession(token, user);
       navigate(homeForRole(user.role), { replace: true });
     } catch (err) {
-      if (err instanceof LoginError) {
-        setServerError(err.message);
-        if (err.requiresSubdomain) setNeedsSubdomain(true);
-      } else {
-        setServerError('Não foi possível entrar. Tente novamente.');
-      }
+      const failure = loginFailure(err);
+      setServerError(failure.message);
+      if (failure.requiresSubdomain) setNeedsSubdomain(true);
     }
   }
 
@@ -114,25 +112,33 @@ export function LoginPage() {
               />
             </Field>
 
-            <Field
-              label={
+            {/*
+              Senha sem o Field: ele envolve o controle num <label>, e o olho da senha dentro do
+              label faria o campo ser anunciado "Senha Mostrar senha" (🟡1 do red team). Mesma
+              estrutura do Field, com o label só no texto.
+            */}
+            <div className="space-y-1">
+              <label htmlFor="login-senha" className="block text-sm font-medium">
                 <span className="login-label">
                   <Lock aria-hidden="true" className={LABEL_ICON} strokeWidth={1.8} />
                   Senha
                 </span>
-              }
-              htmlFor="login-senha"
-              error={errors.password?.message}
-            >
+              </label>
               <PasswordInput
                 id="login-senha"
                 autoComplete="current-password"
                 placeholder="Digite sua senha"
                 className="login-input"
                 aria-invalid={!!errors.password}
+                aria-describedby={errors.password ? 'login-senha-erro' : undefined}
                 {...register('password')}
               />
-            </Field>
+              {errors.password && (
+                <span id="login-senha-erro" role="alert" className="login-field-error block text-sm">
+                  {errors.password.message}
+                </span>
+              )}
+            </div>
 
             {needsSubdomain && (
               <Field label={<span className="login-label">Subdomínio do hotel</span>} htmlFor="login-subdominio" error={errors.subdomain?.message}>
@@ -154,7 +160,8 @@ export function LoginPage() {
 /** Faixa verde de canto (decorativa). As cores dos stops vêm do login.css, por token. */
 function Swoosh({ position }: { position: 'top' | 'bottom' }) {
   const top = position === 'top';
-  const id = `login-swoosh-${position}`;
+  // useId: o id do gradiente é global no documento; dois logins montados não podem dividir o mesmo.
+  const id = `login-swoosh-${position}-${useId().replace(/:/g, '')}`;
   return (
     <svg
       aria-hidden="true"

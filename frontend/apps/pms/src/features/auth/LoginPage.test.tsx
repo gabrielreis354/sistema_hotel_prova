@@ -104,7 +104,7 @@ describe('login.css — movimento leve e com função (SPEC-10 §3.1)', () => {
     expect(css).toMatch(/\.login-toggle:focus-visible\s*\{[^}]*--tw-ring-color:\s*rgb\(var\(--login-accent\)\)/);
   });
 
-  // 🟡3 do red team: #dc2626 sobre o vidro de 55% com as manchas ficava entre 4,30 e 4,46:1.
+  // 🟡3 do red team: o vermelho do status-maintenance sobre o vidro de 55% ficava entre 4,30 e 4,46:1.
   it('o erro do campo usa o vermelho escuro do login', () => {
     expect(css).toMatch(/\.login-field-error[^{]*\{[^}]*color:\s*rgb\(var\(--login-danger-ink\)\)/);
   });

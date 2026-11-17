@@ -9,9 +9,12 @@ import { passwordToggle } from '../passwordToggle.js';
  *
  * O ref vai para o <input>, para o `register` do react-hook-form continuar funcionando.
  */
-export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputProps, 'type'> & { id: string }>(
-  ({ className, id, ...props }, ref) => {
-    const [shown, setShown] = useState(false);
+export const PasswordInput = forwardRef<
+  HTMLInputElement,
+  Omit<InputProps, 'type'> & { id: string; /** Começa com a senha visível. */ defaultShown?: boolean }
+>(
+  ({ className, id, defaultShown = false, ...props }, ref) => {
+    const [shown, setShown] = useState(defaultShown);
     const toggle = passwordToggle(shown);
     const Icon = shown ? EyeOff : Eye;
     return (

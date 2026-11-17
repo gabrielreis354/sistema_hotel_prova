@@ -47,4 +47,6 @@
   --login-shadow: 6 78 59;
   /* O mesmo vermelho do status-maintenance (#dc2626), para o campo com erro. */
   --login-danger: 220 38 38;
+  /* Texto de erro sobre o vidro: #b91c1c, acima de 6:1 mesmo sobre as manchas do fundo. */
+  --login-danger-ink: 185 28 28;
 }
