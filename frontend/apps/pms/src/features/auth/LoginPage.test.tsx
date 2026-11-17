@@ -59,6 +59,13 @@ describe('LoginPage — o que não pode mudar do login atual', () => {
     expect(html()).toMatch(/<button(?=[^>]*type="submit")[^>]*>[\s\S]*?Entrar[\s\S]*?<\/button>/);
   });
 
+  it('o olho da senha fica fora do <label>: o nome do campo continua sendo só "Senha"', () => {
+    const label = html().match(/<label[^>]*for="login-senha"[^>]*>([\s\S]*?)<\/label>/)?.[1] ?? '';
+    expect(label).toContain('Senha');
+    expect(label).not.toContain('<button');
+    expect(label).not.toContain('<input');
+  });
+
   it('o olho da senha é um botão próprio, que não envia o formulário, e começa escondendo', () => {
     expect(html()).toMatch(
       /<button(?=[^>]*type="button")(?=[^>]*aria-label="Mostrar senha")(?=[^>]*aria-pressed="false")(?=[^>]*aria-controls="login-senha")[^>]*>/,
@@ -92,6 +99,16 @@ describe('login.css — movimento leve e com função (SPEC-10 §3.1)', () => {
     expect(css).not.toMatch(/backdrop-filter\s*:/);
   });
 
+  // 🟡2 do red team: o ghost traz focus-visible:ring-gray-300 (1,4:1 sobre o vidro).
+  it('o foco do olho usa a cor de destaque do login (≥ 3:1)', () => {
+    expect(css).toMatch(/\.login-toggle:focus-visible\s*\{[^}]*--tw-ring-color:\s*rgb\(var\(--login-accent\)\)/);
+  });
+
+  // 🟡3 do red team: #dc2626 sobre o vidro de 55% com as manchas ficava entre 4,30 e 4,46:1.
+  it('o erro do campo usa o vermelho escuro do login', () => {
+    expect(css).toMatch(/\.login-field-error[^{]*\{[^}]*color:\s*rgb\(var\(--login-danger-ink\)\)/);
+  });
+
   it('com movimento reduzido, a luz e o halo param', () => {
     const reduced = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     expect(reduced).toMatch(/\.login-ring-rotor[^{]*\{[^}]*animation:\s*none/);
@@ -99,6 +116,6 @@ describe('login.css — movimento leve e com função (SPEC-10 §3.1)', () => {
   });
 
   it('nenhuma cor literal: tudo vem dos tokens do login', () => {
-    expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(\s*\d/);
+    expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(\s*\d|hsla?\(/);
   });
 });
