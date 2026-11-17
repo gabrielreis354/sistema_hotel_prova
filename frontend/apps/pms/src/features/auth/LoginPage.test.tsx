@@ -76,14 +76,20 @@ describe('login.css — movimento leve e com função (SPEC-10 §3.1)', () => {
   })();
 
   it('animação só de transform e opacity: a placa de vídeo compõe, nada é redesenhado', () => {
-    const keyframes = [...css.matchAll(/@keyframes[^{]+\{([\s\S]*?)\}\s*\}/g)].map((m) => m[1]);
+    const keyframes = [...css.matchAll(/@keyframes[^{]+\{([\s\S]*?)\}\s*\}/g)].map((m) => m[1] ?? '');
     expect(keyframes.length).toBeGreaterThan(0);
     for (const body of keyframes) {
-      const props = [...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
+      const props = [...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1] ?? '');
       expect(props.every((p) => p === 'transform' || p === 'opacity'), props.join(',')).toBe(true);
     }
     // A primeira versão animava o ângulo por @property: redesenho a cada quadro.
     expect(css).not.toContain('@property');
+  });
+
+  // Medido em 16/11: com o desfoque, a luz e o halo derrubavam a tela para 36 a 45 quadros por
+  // segundo sem placa de vídeo; sem ele, 60 (SPEC-10, CA-10.b).
+  it('o vidro não usa backdrop-filter, que a luz obrigaria a refazer a cada quadro', () => {
+    expect(css).not.toMatch(/backdrop-filter\s*:/);
   });
 
   it('com movimento reduzido, a luz e o halo param', () => {
