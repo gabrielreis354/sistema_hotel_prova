@@ -12,6 +12,7 @@ import {
   readPaymentAmount,
   submitStep,
   type PaymentMethod,
+  type PaymentTarget,
 } from '../paymentLogic.js';
 import { officialBalanceCents } from '../reservationLogic.js';
 import { Money } from './primitives.js';
@@ -30,13 +31,20 @@ export type PaymentResult = { kind: 'ok' | 'error'; text: string };
  * "registrado" precisa continuar na tela.
  */
 export function PaymentForm({
-  reservationId,
+  target,
   balanceCents,
   onResult,
+  readFreshBalance: readFreshFromProps,
+  payer = 'o hóspede',
 }: {
-  reservationId: string;
+  /** Reserva (conta da estadia) ou conta sem reserva (mesa, balcão, day-use; 16/11). */
+  target: PaymentTarget;
   balanceCents: Cents;
   onResult: (result: PaymentResult) => void;
+  /** Saldo direto do servidor (P-8). Na reserva, o formulário já sabe buscar; na conta, quem usa passa. */
+  readFreshBalance?: () => Promise<Cents>;
+  /** Quem paga, na pergunta da forma de pagamento: "Como o hóspede pagou", "Como o cliente pagou". */
+  payer?: string;
 }) {
   const create = useCreatePayment();
   const qc = useQueryClient();
@@ -89,8 +97,10 @@ export function PaymentForm({
    * nova: se o saldo mudou, a página refaz este formulário com ele.
    */
   async function readFreshBalance(): Promise<Cents> {
-    const bill = await getBill(reservationId);
-    qc.setQueryData(reservationKeys.bill(reservationId), bill);
+    if (readFreshFromProps) return readFreshFromProps();
+    if (!('reservationId' in target)) throw new Error('PaymentForm da conta precisa de readFreshBalance');
+    const bill = await getBill(target.reservationId);
+    qc.setQueryData(reservationKeys.bill(target.reservationId), bill);
     return officialBalanceCents(bill);
   }
 
@@ -126,7 +136,7 @@ export function PaymentForm({
 
   function mutatePayment(cents: Cents, chosen: PaymentMethod) {
     const label = PAYMENT_METHOD_OPTIONS.find((m) => m.id === chosen)?.label ?? chosen;
-    create.mutate(paymentBody(reservationId, cents, chosen), {
+    create.mutate(paymentBody(target, cents, chosen), {
       onSettled: () => {
         sending.current = false;
       },
@@ -171,7 +181,7 @@ export function PaymentForm({
 
       {/* Método como radio de verdade: teclado, leitor de tela e um só escolhido. */}
       <fieldset className="space-y-2" disabled={busy}>
-        <legend className="text-sm font-medium text-gray-700">Como o hóspede pagou</legend>
+        <legend className="text-sm font-medium text-gray-700">Como {payer} pagou</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {PAYMENT_METHOD_OPTIONS.map((m) => (
             <label

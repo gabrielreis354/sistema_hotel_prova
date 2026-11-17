@@ -70,8 +70,18 @@ export function readPaymentAmount(text: string, balanceCents: Cents): AmountRead
  * reparte o crédito entre as contas dela (D-42, D-45). Valor em texto (D5). Sem paid_at: o
  * servidor grava a hora do registro.
  */
-export function paymentBody(reservationId: string, cents: Cents, method: PaymentMethod): PaymentInput {
-  return { reservation_id: reservationId, amount: centsToDecimalString(cents), method };
+/**
+ * Para onde vai o pagamento: a reserva (conta da estadia, D1) ou a própria conta, quando ela não
+ * tem reserva — mesa, balcão e day-use (16/11). Dividir por valor é registrar um pagamento por
+ * pagante: o backend aceita vários parciais na mesma conta.
+ */
+export type PaymentTarget = { reservationId: string } | { accountId: string };
+
+export function paymentBody(target: PaymentTarget, cents: Cents, method: PaymentMethod): PaymentInput {
+  const amount = centsToDecimalString(cents);
+  return 'accountId' in target
+    ? { account_id: target.accountId, amount, method }
+    : { reservation_id: target.reservationId, amount, method };
 }
 
 export type SubmitStep =

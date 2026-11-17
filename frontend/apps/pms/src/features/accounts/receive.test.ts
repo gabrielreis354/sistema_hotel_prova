@@ -12,6 +12,10 @@ describe('canReceive — quais contas recebem pagamento na própria tela', () =>
     expect(canReceive({ type: 'ROOM', status: 'OPEN', reservation_id: 'r1' })).toBe(false);
   });
 
+  it('ROOM não recebe aqui nem sem reserva: o tipo, sozinho, já fica fora da lista', () => {
+    expect(canReceive({ type: 'ROOM', status: 'OPEN', reservation_id: null })).toBe(false);
+  });
+
   it('qualquer conta com reserva não: o pagamento vai pela reserva', () => {
     expect(canReceive({ type: 'DAY_USE', status: 'OPEN', reservation_id: 'r1' })).toBe(false);
   });

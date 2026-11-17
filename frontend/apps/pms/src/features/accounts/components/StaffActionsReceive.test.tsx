@@ -10,7 +10,12 @@ function render(account: Partial<AccountDetail>) {
   return renderToString(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
-        <StaffActions account={{ id: 'a1', label: 'Mesa 3', items: [], ...account } as AccountDetail} pendingCount={0} totalCents={18000} />
+        <StaffActions
+          account={{ id: 'a1', label: 'Mesa 3', items: [], ...account } as AccountDetail}
+          pendingCount={0}
+          totalCents={18000}
+          onToggleReceive={() => {}}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   );
