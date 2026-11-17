@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 
 export interface FieldProps {
-  label: string;
+  /** Texto do rótulo; pode vir com um ícone decorativo antes (login, T-10.1). */
+  label: ReactNode;
   error?: string;
   htmlFor?: string;
   children: ReactNode;
