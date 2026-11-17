@@ -82,19 +82,25 @@ describe('readPaymentAmount — o valor digitado no balcão', () => {
 
 describe('paymentBody — o que vai ao POST /payments', () => {
   it('paga pela reserva (D1) com o valor em texto decimal (D5)', () => {
-    expect(paymentBody('res-1', 123456, 'DINHEIRO')).toEqual({
+    expect(paymentBody({ reservationId: 'res-1' }, 123456, 'DINHEIRO')).toEqual({
       reservation_id: 'res-1',
       amount: '1234.56',
       method: 'DINHEIRO',
     });
-    expect(paymentBody('res-1', 5, 'PIX').amount).toBe('0.05');
+    expect(paymentBody({ reservationId: 'res-1' }, 5, 'PIX').amount).toBe('0.05');
     // Sempre duas casas: por float, 100 reais viraria "100" e 10 centavos "0.1" (achado da mutação).
-    expect(paymentBody('res-1', 10000, 'PIX').amount).toBe('100.00');
-    expect(paymentBody('res-1', 10, 'PIX').amount).toBe('0.10');
+    expect(paymentBody({ reservationId: 'res-1' }, 10000, 'PIX').amount).toBe('100.00');
+    expect(paymentBody({ reservationId: 'res-1' }, 10, 'PIX').amount).toBe('0.10');
+  });
+
+  // Mesa e day-use sem reserva (16/11): o pagamento vai para a conta, e cada pagante é um POST.
+  it('paga pela conta quando o alvo é a conta, sem reservation_id', () => {
+    expect(paymentBody({ accountId: 'acc-1' }, 10000, 'PIX')).toEqual({ account_id: 'acc-1', amount: '100.00', method: 'PIX' });
+    expect(paymentBody({ accountId: 'acc-1' }, 10000, 'PIX')).not.toHaveProperty('reservation_id');
   });
 
   it('não manda paid_at: o servidor grava a hora do registro', () => {
-    expect(paymentBody('res-1', 100, 'PIX')).not.toHaveProperty('paid_at');
+    expect(paymentBody({ reservationId: 'res-1' }, 100, 'PIX')).not.toHaveProperty('paid_at');
   });
 });
 
