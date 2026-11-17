@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import type { Role } from '../../types.js';
+import { useAuthStore } from '../../stores/auth.js';
 import { getMyTenant } from './tenantApi.js';
 
 export const tenantKeys = {
@@ -21,6 +23,20 @@ export function myTenantOptions() {
   };
 }
 
+/**
+ * Papéis que podem ler `GET /tenants/me`: o espelho do backend (`roles.js`, ADMIN e RECEPTIONIST
+ * passam; o WAITER só alcança o cardápio e as comandas). Allowlist: papel novo ou ausente não
+ * pergunta. Sem isso o cabeçalho do garçom pedia o hotel a cada tela e recebia 403, com erro
+ * vermelho no console no passo 3 do roteiro (avaliação simulada da banca, 15/11). O cabeçalho do
+ * garçom fica com "Gesway".
+ */
+const TENANT_READERS: readonly Role[] = ['ADMIN', 'RECEPTIONIST'];
+
+export function canReadMyTenant(role: Role | undefined): boolean {
+  return role !== undefined && TENANT_READERS.includes(role);
+}
+
 export function useMyTenant() {
-  return useQuery(myTenantOptions());
+  const role = useAuthStore((s) => s.user?.role);
+  return useQuery({ ...myTenantOptions(), enabled: canReadMyTenant(role) });
 }
