@@ -80,6 +80,30 @@ describe('readPaymentAmount — o valor digitado no balcão', () => {
   });
 });
 
+// Mesa (conta sem hóspede), decisão de 16/11: valor acima do saldo é recusado. Não há a quem
+// devolver o crédito, e o troco entraria no caixa e nos indicadores como receita (🟡-3 do red team).
+describe('submitStep sem valor a maior (mesa)', () => {
+  const reading = readPaymentAmount('200,00', 19800);
+
+  it('acima do saldo: erro com o saldo e o motivo, sem passo de confirmação', () => {
+    expect(submitStep({ reading, method: 'DINHEIRO', confirming: false, allowOverpay: false })).toEqual({
+      kind: 'error',
+      error: 'Acima do saldo de R$ 198,00. Registre só o valor da conta: o troco não entra no sistema.',
+    });
+  });
+
+  it('até o saldo, envia normalmente', () => {
+    expect(submitStep({ reading: readPaymentAmount('198,00', 19800), method: 'PIX', confirming: false, allowOverpay: false })).toEqual({
+      kind: 'send',
+      cents: 19800,
+    });
+  });
+
+  it('na reserva (padrão), a maior continua pedindo confirmação', () => {
+    expect(submitStep({ reading, method: 'DINHEIRO', confirming: false })).toEqual({ kind: 'confirm', overpaidCents: 200 });
+  });
+});
+
 describe('paymentBody — o que vai ao POST /payments', () => {
   it('paga pela reserva (D1) com o valor em texto decimal (D5)', () => {
     expect(paymentBody({ reservationId: 'res-1' }, 123456, 'DINHEIRO')).toEqual({

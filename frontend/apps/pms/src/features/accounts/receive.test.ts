@@ -24,8 +24,13 @@ describe('canReceive — quais contas recebem pagamento na própria tela', () =>
     expect(canReceive({ type: 'INTERNAL', status: 'OPEN', reservation_id: null })).toBe(false);
   });
 
-  it.each(['CLOSED', 'PAID'])('conta %s não recebe por esta tela', (status) => {
-    expect(canReceive({ type: 'TABLE', status, reservation_id: null })).toBe(false);
+  // 🟡-1 do red team (decisão de 16/11): fechar é fim do consumo, não do pagamento.
+  it('mesa FECHADA com saldo continua recebendo aqui', () => {
+    expect(canReceive({ type: 'TABLE', status: 'CLOSED', reservation_id: null })).toBe(true);
+  });
+
+  it('conta PAID não recebe: já está quitada (o backend recusa)', () => {
+    expect(canReceive({ type: 'TABLE', status: 'PAID', reservation_id: null })).toBe(false);
   });
 
   it('tipo desconhecido fica de fora (allowlist)', () => {

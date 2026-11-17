@@ -116,9 +116,16 @@ describe('receiveAt — onde receber o saldo depois de fechar (C-19, D6 do M5-b)
     expect(receiveAt({ reservation_id: 'res-1' }, { balance: '-5.00' })).toBeNull();
   });
 
-  it('mesa ou day-use (sem reserva): sem link — o pagamento de conta avulsa fica para depois', () => {
-    expect(receiveAt({ reservation_id: null }, { balance: '40.00' })).toBeNull();
+  // Mesa fechada com saldo (🟡-1 do red team do pagamento, decisão de 16/11): recebe na própria mesa.
+  it('mesa, balcão ou day-use sem reserva, com saldo: a própria conta, que continua recebendo fechada', () => {
+    expect(receiveAt({ id: 'a1', type: 'TABLE', reservation_id: null }, { balance: '40.00' })).toBe('/comanda/a1');
+    expect(receiveAt({ id: 'a2', type: 'DAY_USE' }, { balance: '40.00' })).toBe('/comanda/a2');
+  });
+
+  it('sem id, interna ou sem saldo: sem link', () => {
     expect(receiveAt({}, { balance: '40.00' })).toBeNull();
+    expect(receiveAt({ id: 'a3', type: 'INTERNAL' }, { balance: '40.00' })).toBeNull();
+    expect(receiveAt({ id: 'a1', type: 'TABLE' }, { balance: '0.00' })).toBeNull();
   });
 
   it('sem saldo na resposta: sem link, a tela não supõe dívida', () => {
