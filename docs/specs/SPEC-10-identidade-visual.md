@@ -1,10 +1,10 @@
 # SPEC-10 — Identidade visual do Gesway, do login à administração
 
 **Prioridade:** 🟢 Proposta. Bloco opcional, que pode ser implementado ou não
-**Estado:** 🟡 Em desenho. Login prototipado e decidido em 16/11; as outras telas ainda não têm protótipo
+**Estado:** 🟡 T-10.1 (login) implementada em 16/11 (`feature/t101-login-visual`); as outras telas ainda não têm protótipo
 **Responsável:** Sirlande, com agentes de IA. Revisão: Gabriel
 **Criado em:** 16/11/2026
-**Janela prevista:** 5º semestre (decisão do Sirlande de 16/11). A antecipação da T-10.1 está discutida na §9
+**Janela prevista:** 5º semestre (decisão do Sirlande de 16/11). A T-10.1 foi antecipada para antes de 24/11, com a concordância do Gabriel (§9)
 **Protótipo:** https://claude.ai/artifact/BiVJWUscsQhiy3GMP2JTzD (canvas com a V2 clara, a escolhida, e a V1 escura, descartada)
 
 ---
@@ -61,8 +61,25 @@ A primeira versão animava o ângulo do gradiente (`@property`) e desfocava um a
   Girar é composição na placa de vídeo, sem redesenho;
 - o halo é uma `box-shadow` que pulsa por `opacity`, também composta na placa de vídeo;
 - o vidro usa `backdrop-filter: blur(14px)`, sem `saturate()`, que custava uma passada a mais.
+  **Revisto na implementação (§3.2):** o desfoque saiu.
 
 **Troca aceita:** o halo não viaja mais com a luz; só a linha viaja.
+
+### 3.2 O que a implementação mudou do protótipo (T-10.1, 16/11)
+
+Medido no Chromium sem placa de vídeo, com a CPU 4× mais lenta:
+
+| Mudança | Por quê |
+|---|---|
+| **Vidro sem `backdrop-filter`**, com 55% de branco no lugar de 40% com desfoque | Com o desfoque, a luz e o halo obrigavam o navegador a refazê-lo a cada quadro: 36 a 45 quadros por segundo. Sem ele, 60. O fundo é parado e já é suave, então o resultado visual é o mesmo (comparado lado a lado) |
+| Olho da senha com **48 px**, e não 44 | Alvo de toque do projeto (CA-10.g) |
+| Regras do login escopadas em `.login-page` | As utilidades do Tailwind entram depois no bundle e venciam: o botão saía teal e com 48 px |
+
+Resultado:
+- 60 quadros por segundo;
+- pior evento de digitação em 56 ms;
+- 390 px sem rolagem lateral;
+- movimento reduzido parando tudo.
 
 ---
 
@@ -155,7 +172,7 @@ O login usa verdes-esmeralda (`#047857`, `#065f46`); o resto do app usa teal (`#
 |---|---|
 | Visual "bonito" que atrapalha a operação | Cada superfície só entra com protótipo aprovado e conferido contra o `DESIGN_PMS.md` |
 | Animação pesada no computador da recepção | CA-10.b medido, não suposto. Se não passar, a luz vira opcional ou sai |
-| Navegador antigo sem `mask-composite` ou `backdrop-filter` | A caixa continua legível sem eles: a luz some e o vidro vira branco translúcido |
+| Navegador antigo sem `mask-composite` | A luz não aparece (o anel só é mostrado com suporte à máscara); a caixa continua igual |
 | Logo gerado por IA, com direito de uso a confirmar | Registrar a origem e a autorização antes de usar em material da banca |
 | Detalhes do logo somem em tamanho pequeno | A T-10.3 cria o símbolo simplificado para menu e favicon |
 
@@ -191,6 +208,9 @@ Avaliação de 16/11, a pedido do Sirlande.
   demonstração, a menos que a T-10.2 entre junto, o que exige a passada nas 13 telas;
 - é funcionalidade nova perto do congelamento. Precisa da concordância do Gabriel, que mergeia.
 
-**Recomendação:** antecipar **só a T-10.1, com a marca teal no restante (opção 2 da T-10.2)**, se
+**Decisão (16/11):** a T-10.1 foi antecipada com a concordância do Gabriel, depois de os 2 🟡 da
+T-08.4 irem para o PR #178. Marca teal no restante (opção 2).
+
+**Recomendação original:** antecipar **só a T-10.1, com a marca teal no restante (opção 2 da T-10.2)**, se
 o Gabriel concordar e os 2 🟡 da T-08.4 estiverem resolvidos antes. Se qualquer um dos dois
 faltar, fica para o 5º semestre como previsto.
