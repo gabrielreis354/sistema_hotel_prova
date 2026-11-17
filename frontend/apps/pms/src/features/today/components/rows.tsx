@@ -61,8 +61,9 @@ export function RowList<T>({ items, children }: { items: readonly T[]; children:
     if (!target) return;
     if (target.kind === 'item') {
       const item = listRef.current?.children[target.index] as HTMLElement | undefined;
-      // O primeiro link ou botão do item (o nome do hóspede); sem nenhum, o próprio item.
-      const focusable = item?.querySelector<HTMLElement>('a[href], button:not([disabled])');
+      // O link do item (o nome do hóspede). Sem link (bloco Em limpeza), o próprio item: focar o
+      // "Liberar quarto" direto não diria ao leitor de tela de qual quarto é (🟢3 do red team).
+      const focusable = item?.querySelector<HTMLElement>('a[href]');
       if (focusable) focusable.focus();
       else if (item) {
         item.tabIndex = -1;
@@ -84,7 +85,9 @@ export function RowList<T>({ items, children }: { items: readonly T[]; children:
         <Button
           ref={buttonRef}
           variant="ghost"
-          className="w-full text-brand xl:min-h-0 xl:h-9 xl:text-sm"
+          // scroll-mt: ao recolher, o botão sobe até o topo, onde o aviso fixo do painel (sticky
+          // top-2, ≥ 48 px) o cobriria inteiro. A margem o deixa abaixo do aviso (🟡 do red team).
+          className="w-full scroll-mt-28 text-brand xl:min-h-0 xl:h-9 xl:text-sm"
           aria-expanded={expanded}
           aria-controls={listId}
           onClick={() => {
@@ -292,12 +295,13 @@ export function ArrivalItem({
         <StayLine reservation={r} />
         {flags.map((f) => (
           // Cor + rótulo (CA-05.3.f): nunca só o vermelho. O texto completo vai para o leitor de
-          // tela e para a dica do mouse; o curto é o que cabe na linha.
-          <span key={f.tone} title={f.full}>
-            <span aria-hidden="true">
+          // tela e para a dica do mouse; o curto é o que cabe na linha. O `title` fica no trecho
+          // aria-hidden para o leitor não ler o texto duas vezes, e o ". " separa dois selos.
+          <span key={f.label}>
+            <span aria-hidden="true" title={f.full}>
               <StatusBadge tone={f.tone} label={f.label} className={f.tone === 'maintenance' ? 'font-medium' : undefined} />
             </span>
-            <span className="sr-only">{f.full}</span>
+            <span className="sr-only">{`${f.full}. `}</span>
           </span>
         ))}
       </div>
