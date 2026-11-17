@@ -69,7 +69,7 @@ export function undoSecondsLeft(undoUntil: number, now: number): number {
  * não fica repetindo a contagem. O prazo vai por extenso, uma vez.
  */
 export function undoAccessibleName(quantity: number, description: string): string {
-  return `${undoLabel(quantity)}: ${description}, disponível por ${UNDO_MS / 1_000} segundos após o toque`;
+  return `${undoLabel(quantity)}: ${description}, disponível por ${UNDO_MS / 1_000} segundos após o último toque ou edição`;
 }
 
 /**
