@@ -1,4 +1,4 @@
-> **Avaliação simulada, não oficial.** Feita em 15/11/2026 por um subagente de IA no papel de avaliador da banca, a pedido do Gabriel, com contexto restrito (ver o escopo abaixo). Serve para o grupo corrigir antes de 10/12; não é parecer do professor. O encaminhamento de cada achado está no plano de fechamento e na SPEC-10.
+> **Avaliação simulada, não oficial.** Feita em 15/11/2026 por um subagente de IA no papel de avaliador da banca, a pedido do Gabriel, com contexto restrito (ver o escopo abaixo). Serve para o grupo corrigir antes de 10/12; não é parecer do professor. O encaminhamento de cada achado está no plano de fechamento e na SPEC-11.
 
 > Escopo: o sistema rodando num compose descartável (`gesway-ensaio`, `origin/develop` em 15/11, apagado no fim com `down -v`), os documentos oficiais e o roteiro. Sem acesso aos relatórios internos de QA. As capturas ficaram fora do repositório. Conferido depois: o 403 do garçom em `/tenants/me` vem do cabeçalho da T-08.2, e a correção (no app, sem mexer na allowlist do backend) está na branch `fix/garcom-tenants-me`.
 

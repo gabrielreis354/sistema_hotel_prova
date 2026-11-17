@@ -1,4 +1,4 @@
-# SPEC-10 — Robustez do balcão antes do congelamento
+# SPEC-11 — Robustez do balcão antes do congelamento
 
 **Prioridade:** 🟠 Alta. São defeitos que uma banca curiosa acha em minutos
 **Estado:** 🔵 Proposta, aguardando aprovação do Gabriel
@@ -62,24 +62,24 @@ reserva) e uma migração de normalização do CPF.
 
 ## 5. Critérios de aceite
 
-- **CA-10.a** Duplo clique em "Cadastrar categoria", "Cadastrar quarto" e "Confirmar check-in" faz uma requisição só e mostra a mensagem de sucesso.
-- **CA-10.b** Nenhuma mensagem de erro mostra código interno de status (`CHECKED_IN`, `PENDING` etc.).
-- **CA-10.c** `POST /guests` e `PUT /guests/:id` com CPF de dígito inválido → 400; com CPF válido em qualquer formato → grava só os dígitos.
-- **CA-10.d** O mesmo CPF em formatos diferentes no mesmo hotel → 409; em hotéis diferentes → permitido.
-- **CA-10.e** A migração de normalização é idempotente e, se achar duplicata, termina sem alterar nada e lista os ids.
-- **CA-10.f** `POST /reservations` e a troca de datas com entrada antes de hoje (fuso do hotel) → 422; com entrada hoje → 201.
-- **CA-10.g** Depois de check-in, check-out ou liberação no painel Hoje, os cartões do topo batem com os blocos em até 10 s, sem recarregar.
-- **CA-10.h** Sem rede, o painel Hoje mostra a faixa de sem conexão em vez de "Carregando…".
-- **CA-10.i** O que não muda: contratos da API para entradas válidas, a reserva pública, a allowlist do garçom e o roteiro automatizado (`pnpm e2e` verde).
+- **CA-11.a** Duplo clique em "Cadastrar categoria", "Cadastrar quarto" e "Confirmar check-in" faz uma requisição só e mostra a mensagem de sucesso.
+- **CA-11.b** Nenhuma mensagem de erro mostra código interno de status (`CHECKED_IN`, `PENDING` etc.).
+- **CA-11.c** `POST /guests` e `PUT /guests/:id` com CPF de dígito inválido → 400; com CPF válido em qualquer formato → grava só os dígitos.
+- **CA-11.d** O mesmo CPF em formatos diferentes no mesmo hotel → 409; em hotéis diferentes → permitido.
+- **CA-11.e** A migração de normalização é idempotente e, se achar duplicata, termina sem alterar nada e lista os ids.
+- **CA-11.f** `POST /reservations` e a troca de datas com entrada antes de hoje (fuso do hotel) → 422; com entrada hoje → 201.
+- **CA-11.g** Depois de check-in, check-out ou liberação no painel Hoje, os cartões do topo batem com os blocos em até 10 s, sem recarregar.
+- **CA-11.h** Sem rede, o painel Hoje mostra a faixa de sem conexão em vez de "Carregando…".
+- **CA-11.i** O que não muda: contratos da API para entradas válidas, a reserva pública, a allowlist do garçom e o roteiro automatizado (`pnpm e2e` verde).
 
 ## 6. Tarefas
 
 | Tarefa | O quê | CA |
 |---|---|---|
-| T-10.1 | Backend do CPF: validação, gravação só com dígitos, migração com parada em duplicata, testes | c, d, e |
-| T-10.2 | Backend da reserva no passado, na criação e na troca de datas, com testes | f |
-| T-10.3 | Frontend: botões que gravam travados enquanto pendentes (rooms, ConfirmPanel) e mensagem de transição sem código interno | a, b |
-| T-10.4 | Frontend do painel Hoje: refetch dos cartões e faixa de sem conexão (depois do #165) | g, h |
+| T-11.1 | Backend do CPF: validação, gravação só com dígitos, migração com parada em duplicata, testes | c, d, e |
+| T-11.2 | Backend da reserva no passado, na criação e na troca de datas, com testes | f |
+| T-11.3 | Frontend: botões que gravam travados enquanto pendentes (rooms, ConfirmPanel) e mensagem de transição sem código interno | a, b |
+| T-11.4 | Frontend do painel Hoje: refetch dos cartões e faixa de sem conexão (depois do #165) | g, h |
 
 Cada tarefa vai em branch própria, com qa-redteam antes do merge e `pnpm e2e` verde no fim.
 

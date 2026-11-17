@@ -1,4 +1,4 @@
-> **Avaliação simulada, não oficial.** Feita em 15/11/2026 por um subagente de IA no papel de avaliador da banca, a pedido do Gabriel, com contexto restrito (ver o escopo abaixo). Serve para o grupo corrigir antes de 10/12; não é parecer do professor. O encaminhamento de cada achado está no plano de fechamento e na SPEC-10.
+> **Avaliação simulada, não oficial.** Feita em 15/11/2026 por um subagente de IA no papel de avaliador da banca, a pedido do Gabriel, com contexto restrito (ver o escopo abaixo). Serve para o grupo corrigir antes de 10/12; não é parecer do professor. O encaminhamento de cada achado está no plano de fechamento e na SPEC-11.
 
 > Escopo: só a pasta oficial `UniFAAT-projeto-experimental-2027-1` (Termo, critérios C1–C10, templates, os 8 documentos e as fichas), na versão do `main` do fork de 11/11. Conferido depois pelo Gabriel + IA: o 🔴 do RNF-007 procede no texto do Doc 02.
 
