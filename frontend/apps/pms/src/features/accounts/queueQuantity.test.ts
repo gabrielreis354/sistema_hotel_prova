@@ -26,10 +26,10 @@ describe('parseQuantity — o que o garçom digita', () => {
 });
 
 describe('setQuantity — quantidade na linha da janela de desfazer', () => {
-  const [entry] = addTap([], cerveja, T0, 'c1');
+  const entry = addTap([], cerveja, T0, 'c1')[0]!;
 
   it('troca a quantidade e renova a janela a partir da edição', () => {
-    const [e] = setQuantity([entry], 'c1', 6, T0 + 3_000, 'u1');
+    const e = setQuantity([entry], 'c1', 6, T0 + 3_000, 'u1')[0]!;
     expect(e.quantity).toBe(6);
     expect(e.undoUntil).toBe(T0 + 3_000 + UNDO_MS);
   });

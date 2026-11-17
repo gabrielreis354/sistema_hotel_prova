@@ -110,6 +110,7 @@ export function AccountPage() {
         items={account.items ?? []}
         entries={onThisAccount}
         onUndo={(clientItemId) => user && queue.undo(clientItemId, user.id)}
+        onQuantity={(clientItemId, quantity) => user && queue.setQuantity(clientItemId, quantity, user.id)}
         onDismiss={queue.dismiss}
       />
 

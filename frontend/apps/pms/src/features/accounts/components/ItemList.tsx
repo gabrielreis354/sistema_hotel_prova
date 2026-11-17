@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { Button } from '@hotel/ui';
+import { useEffect, useRef, useState } from 'react';
+import { Button, Input } from '@hotel/ui';
 import { decimalToCents, formatBRL, multiplyCents } from '@hotel/domain';
 import type { AccountItem } from '../accountsApi.js';
-import { canUndo, type QueueEntry } from '../queueCore.js';
+import { canUndo, parseQuantity, type QueueEntry } from '../queueCore.js';
 import { useNow } from '../queueStore.js';
 import { itemLine, undoAccessibleName, undoLabel, undoSecondsLeft } from '../accountTotals.js';
 
@@ -15,6 +15,52 @@ const ENTRY_STATE: Record<QueueEntry['status'], { label: string; dot: string }> 
   rejected: { label: 'Recusado', dot: 'bg-status-maintenance' },
   excluded: { label: 'Excluído', dot: 'bg-status-free' },
 };
+
+/**
+ * Quantidade digitada na linha (16/11): o garçom toca em Cerveja e digita 6. O texto é local para
+ * aceitar o campo vazio no meio da digitação; só um número válido (1 a 9999) vai para a fila, e
+ * cada um renova a janela de desfazer. Ao sair do campo, volta a mostrar o que vale.
+ */
+function QuantityField({
+  quantity,
+  description,
+  onChange,
+}: {
+  quantity: number;
+  description: string;
+  onChange: (quantity: number) => void;
+}) {
+  const [text, setText] = useState(String(quantity));
+  const editing = useRef(false);
+  // Outro toque no produto soma na mesma linha: o campo acompanha, menos no meio da digitação.
+  useEffect(() => {
+    if (!editing.current) setText(String(quantity));
+  }, [quantity]);
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      autoComplete="off"
+      aria-label={`Quantidade de ${description}`}
+      className="min-h-touch w-16 shrink-0 px-2 text-center tabular-nums xl:min-h-0"
+      value={text}
+      onFocus={(e) => {
+        editing.current = true;
+        e.currentTarget.select();
+      }}
+      onBlur={() => {
+        editing.current = false;
+        setText(String(quantity));
+      }}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = parseQuantity(e.target.value);
+        if (n !== null) onChange(n);
+      }}
+    />
+  );
+}
 
 /** Estado do lançamento local: ponto colorido e rótulo, nunca só cor (RNF-025). */
 function EntryState({ status }: { status: QueueEntry['status'] }) {
@@ -52,11 +98,14 @@ export function ItemList({
   entries,
   onUndo,
   onDismiss,
+  onQuantity,
 }: {
   items: AccountItem[];
   entries: QueueEntry[];
   onUndo: (clientItemId: string) => void;
   onDismiss: (clientItemId: string) => void;
+  /** Quantidade digitada na linha que ainda está na janela de desfazer. */
+  onQuantity: (clientItemId: string, quantity: number) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   // Relógio só enquanto há janela de desfazer aberta: o botão some quando o prazo vence (🟡-1).
@@ -132,7 +181,11 @@ export function ItemList({
             <Row key={entry.clientItemId} entryId={entry.clientItemId}>
               <div className="min-w-0 flex-1">
                 <p className={`truncate text-sm ${settled ? 'text-gray-500 line-through' : ''}`}>
-                  {entry.quantity !== 1 && <span className="mr-1 font-medium tabular-nums">{entry.quantity}×</span>}
+                  {/* Na janela de desfazer, a quantidade está no campo ao lado: o "6×" repetido só
+                      tirava espaço do nome do produto no celular. */}
+                  {entry.quantity !== 1 && !canUndo(entry, now) && (
+                    <span className="mr-1 font-medium tabular-nums">{entry.quantity}×</span>
+                  )}
                   {entry.description}
                 </p>
                 <EntryState status={entry.status} />
@@ -145,6 +198,13 @@ export function ItemList({
                   </p>
                 )}
               </div>
+              {canUndo(entry, now) && (
+                <QuantityField
+                  quantity={entry.quantity}
+                  description={entry.description}
+                  onChange={(n) => onQuantity(entry.clientItemId, n)}
+                />
+              )}
               {canUndo(entry, now) && (
                 <Button
                   variant="ghost"

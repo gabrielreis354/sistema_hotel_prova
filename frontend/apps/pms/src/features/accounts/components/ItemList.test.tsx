@@ -46,7 +46,7 @@ describe('ItemList — indicador do tempo para desfazer', () => {
   afterEach(() => vi.useRealTimers());
 
   const render = (entries: ReturnType<typeof addTap>) =>
-    renderToString(<ItemList items={[]} entries={entries} onUndo={() => {}} onDismiss={() => {}} />);
+    renderToString(<ItemList items={[]} entries={entries} onUndo={() => {}} onDismiss={() => {}} onQuantity={() => {}} />);
 
   it('mostra os segundos que restam, fora do nome acessível', () => {
     const entries = addTap([], cerveja, T0, 'c1');

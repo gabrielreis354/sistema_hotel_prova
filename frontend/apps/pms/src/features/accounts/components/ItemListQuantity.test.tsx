@@ -8,7 +8,7 @@ const cerveja = { ownerId: 'u1', accountId: 'a1', productId: 'p1', description: 
 const noop = () => {};
 
 function render(undoUntilFromNow: number) {
-  const [entry] = addTap([], cerveja, Date.now() - UNDO_MS + undoUntilFromNow, 'c1');
+  const entry = addTap([], cerveja, Date.now() - UNDO_MS + undoUntilFromNow, 'c1')[0]!;
   return renderToString(<ItemList items={[]} entries={[{ ...entry, quantity: 3 }]} onUndo={noop} onDismiss={noop} onQuantity={noop} />);
 }
 
@@ -25,5 +25,10 @@ describe('ItemList — quantidade digitada', () => {
 
   it('fora da janela não há campo: o item já pode estar no servidor', () => {
     expect(render(-1_000)).not.toContain('Quantidade de Cerveja');
+  });
+
+  it('na janela, o "3×" fica só no campo; depois dela, volta na frente do nome', () => {
+    expect(render(4_000)).not.toMatch(/>3<!-- -->×</);
+    expect(render(-1_000)).toMatch(/>3<!-- -->×</);
   });
 });
