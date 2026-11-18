@@ -56,14 +56,19 @@ describe('runSeed — os avisos do banco chegam a quem rodou o seed', () => {
         expect(resumo(notices)).toHaveLength(2);
     });
 
-    it('o relógio simulado não vaza para a próxima consulta do pool', async () => {
+    // O Sequelize liga toda conexão com client_min_messages = warning, e o banco nem envia o NOTICE.
+    // O runSeed baixa para notice só na conexão dele e devolve o valor antes de soltá-la no pool.
+    it('nem o relógio simulado nem o nível de aviso vazam para o pool', async () => {
         await truncateAll();
         await runSeed(sequelize, { agora: '2026-12-10 15:00-03' });
         const rows = await Promise.all(
             Array.from({ length: 5 }, () =>
-                sequelize.query(`SELECT current_setting('seed.agora', true) AS v`, { plain: true })),
+                sequelize.query(
+                    `SELECT current_setting('seed.agora', true) AS agora, current_setting('client_min_messages') AS nivel`,
+                    { plain: true },
+                )),
         );
-        expect(rows.map((r) => r.v ?? '')).toEqual(['', '', '', '', '']);
+        expect(rows.map((r) => [r.agora ?? '', r.nivel])).toEqual(Array(5).fill(['', 'warning']));
     });
 });
 

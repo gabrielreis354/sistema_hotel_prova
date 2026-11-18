@@ -3,28 +3,20 @@
 // fixam o relógio pela variável de sessão `seed.agora` (a mesma que o arquivo lê) para provar o
 // cenário num dia conhecido, a troca de dia e o corte do fuso. Um bloco final roda com o relógio
 // real e confere pela API, como o painel Hoje do app lê.
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../database/connections/sequelize.js';
+import runSeedFiles from '../database/runSeed.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 
 const app = createApp();
-const seedDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 const TZ = 'America/Sao_Paulo';
 
-// Mesma ordem do `node command.js seed`. `agora` simula o relógio; sem ele, vale o now() do banco.
-async function runSeed(agora) {
-    for (const file of ['seed_hotels.sql', 'seed_consumo.sql', 'seed_hoje.sql']) {
-        const sql = await readFile(path.join(seedDir, file), 'utf-8');
-        // Uma chamada só = uma conexão: o SET vale para o arquivo e o RESET devolve o pool limpo.
-        await sequelize.query(agora ? `SET seed.agora = '${agora}'; ${sql}; RESET seed.agora;` : sql);
-    }
-}
+// O mesmo código do `node command.js seed` (database/runSeed.js). `agora` simula o relógio; sem
+// ele, vale o now() do banco.
+const runSeed = (agora) => runSeedFiles(sequelize, { agora });
 
 const q = (sql, replacements = {}) => sequelize.query(sql, { type: QueryTypes.SELECT, replacements });
 const one = async (sql, replacements) => (await q(sql, replacements))[0];

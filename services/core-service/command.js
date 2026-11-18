@@ -1,7 +1,6 @@
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { readFile } from 'fs/promises';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -87,22 +86,19 @@ async function seed() {
     }
 
     const { default: sequelize } = await import('./database/connections/sequelize.js');
+    const { default: runSeed, seedReport, SEED_FILES } = await import('./database/runSeed.js');
 
     try {
         await sequelize.authenticate();
         console.log('✅ Conexão com o banco de dados estabelecida.');
 
-        // Cada arquivo é idempotente (ON CONFLICT / NOT EXISTS) e traz seu próprio
-        // BEGIN/COMMIT — uma única chamada via o client pg por trás do Sequelize
-        // (protocolo simples, sem bind de parâmetros) roda o arquivo inteiro.
-        // A ordem importa: a comanda (T-04.7) usa hotéis, quartos e reservas do primeiro.
-        for (const file of ['seed_hotels.sql', 'seed_consumo.sql', 'seed_hoje.sql']) {
-            const sql = await readFile(path.join(__dirname, 'seed', file), 'utf-8');
-            await sequelize.query(sql);
-            console.log(`   ${file} aplicado.`);
-        }
-
-        console.log('✅ Seed executado com sucesso.');
+        // O runSeed devolve os avisos do banco (NOTICE e WARNING do seed_hoje.sql), que o
+        // sequelize.query descartava (repasse do red team do #176).
+        const { notices } = await runSeed(sequelize);
+        console.log(`   ${SEED_FILES.join(', ')} aplicados.`);
+        const report = seedReport(notices);
+        for (const line of report.lines) console.log(line);
+        console.log(report.final);
     } catch (error) {
         console.error('❌ Erro ao executar o seed:', error.message);
         process.exit(1);
