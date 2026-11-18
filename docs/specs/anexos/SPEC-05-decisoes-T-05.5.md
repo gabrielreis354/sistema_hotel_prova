@@ -154,3 +154,37 @@ Escopo escolhido pelo Sirlande depois do critique: só os 2 P1. Decisão de prod
 - 🟢-4: mensagem sem rede e mutação pausada;
 - 🟢-5: regra do "Crédito do hóspede" duplicada no "Ver conta";
 - 🟢-7: falta teste de componente do `StaffActions`.
+
+---
+
+## 7. Receber na mesa, no balcão e no day-use, dividido por valor (16 e 17/11/2026)
+
+Combinado entre o Sirlande e o Gabriel em 16/11, para antes do congelamento de 24/11: dois amigos dividem a conta da mesa, cada um paga a sua parte. A conta sem reserva não tinha tela de pagamento; ela só existia na API (`POST /payments` com `account_id`, T-04.4). Isso fecha a **pendência de produto da 6.1**. Branch `feature/comanda-pagamento`; nenhum endpoint novo, o backend não muda.
+
+| # | Decisão | Alternativa descartada | Por quê |
+|---|---|---|---|
+| **C-21** | Recebe na própria tela: mesa, balcão e day-use **sem reserva**, em lista do que pode (`canReceive`, fail-safe). A conta da suíte e qualquer conta com reserva pagam pela reserva | Receber em qualquer conta pela comanda | Na reserva, o crédito cobre as contas na ordem da D-45; um segundo caminho espalharia o mesmo saldo em duas telas. `INTERNAL` nunca é receita (o backend recusa) |
+| **C-22** | Dividir **por valor**: um pagamento por pagante. O formulário vem com o saldo, a recepção troca pela parte da pessoa e ele volta com o que falta | Divisão automática em partes iguais ou por item | Não há arredondamento a errar (a parte é digitada em centavos), e cabe no prazo. Divisão por item pediria saber de quem é cada item, o que a comanda não registra |
+| **C-23** | Quem recebe: recepção e admin. O garçom não vê o botão | Garçom recebendo na mesa | Dinheiro passa pelo caixa da recepção. O backend já recusa: `/payments` está fora da `WAITER_ALLOWLIST` |
+| **C-24** | Valor **acima do saldo é recusado** na mesa: "Registre só o valor da conta: o troco não entra no sistema." (`allowOverpay={false}`) | Aceitar com confirmação, como na reserva (D3, vira crédito do hóspede) | Numa mesa não há check-out nem hóspede a quem devolver o crédito, e só o ADMIN estorna. Gravar 200,00 de uma nota para uma conta de 198,00 inflaria o caixa e o `payment-mix` com o troco (🟡-3) |
+| **C-25** | Mesa **fechada continua recebendo** até quitar. O aviso do fechamento ganha "Receber na conta", e o painel fica aberto quando o último pagamento leva a conta a `PAID`, dizendo "Conta quitada." (`receivePanelOpen` não olha o status) | Impedir fechar com saldo | Fechar é fim do consumo, não do pagamento (decisão da 6.1). O backend já aceita pagamento em `CLOSED` e o `settleAccount` leva a `PAID` (🟡-1) |
+| **C-26** | O painel "Receber" fica no fluxo da página, no lugar do cardápio, e não no rodapé fixo. Com lançamento na fila deste aparelho, "Receber" fica desabilitado com o motivo | Painel dentro do rodapé; receber com a fila descarregando | No rodapé, o painel ocupava dois terços do celular. Com a fila descarregando, o saldo mudava e o formulário se refazia no meio da digitação (🟡-2). O lançamento de outro aparelho é barrado pela P-8 no envio |
+
+**Verificação:**
+- **Testes:**
+  - TDD: RED em `deeb439`, `bcc5b4f`, `e4fc745` e `a91d36d`;
+  - 472 testes do pms e typecheck limpos;
+  - `qa_checks` sem aviso novo.
+- **Mutação manual:** 18 mutantes, 16 mortos. Os 2 vivos são ligações de página que o `renderToString` não alcança (o projeto não tem jsdom), e os dois foram conferidos no navegador.
+- **Chromium a 390 px:** mesa de R$ 198,00:
+  1. 200,00 recusado;
+  2. 120,00 em PIX;
+  3. fechar, com o saldo de 78,00 na confirmação;
+  4. "Receber na conta";
+  5. 78,00 no débito leva a `PAID` no servidor, com o painel aberto e "Conta quitada.".
+
+**Auditoria:** `docs/qa/redteam_comanda-pagamento_16112026.md` encontrou 0 🔴, 4 🟡 e 3 🟢, todos tratados (a tabela está no relatório).
+
+**Pontos em aberto:**
+- **Dois balcões ao mesmo tempo** (SUSPEITA do red team, backend): a P-8 lê o saldo e depois envia, com uma janela de milissegundos entre as duas coisas. A janela já existia na reserva. Proposta para o 5º semestre: `expected_balance` opcional no POST, com 409 dentro da trava.
+- 🟢: no aviso do fechamento, "Ver conta fechada" e "Receber na conta" levam à mesma URL. O segundo poderia já abrir o painel, o que economiza um toque.

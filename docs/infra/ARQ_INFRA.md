@@ -112,3 +112,22 @@ docs/infra/KUBERNETES.md
 ```
 
 ---
+
+# Estimativa de Custo na AWS
+
+O alvo de nuvem (5º semestre) está descrito no **Doc. 05 — Arquitetura em Nuvem**, no repositório da faculdade (`Projetos/gesway/05-arquitetura-nuvem.md`). A estimativa de custo está registrada no AWS Pricing Calculator:
+
+**<https://calculator.aws/#/estimate?id=f99d8d693468d8c0f53c77c4693409c81a4f06e8>** (link público, válido até 14/11/2027)
+
+Cenário: teto de planejamento do Doc. 05, com 30 sessões de 4 horas por mês (120 horas), em `sa-east-1`. Todo recurso efêmero é destruído ao fim de cada sessão.
+
+| Serviço | Configuração | US$/mês |
+|---|---|---|
+| Amazon EC2 | `t3.small` On-Demand, 120 h; EBS gp3 de 20 GB | 4,52 |
+| Amazon RDS for PostgreSQL | `db.t3.micro` Single-AZ, 120 h; gp3 de 20 GB | 8,94 |
+| Amazon VPC | 1 IPv4 público por 120 h | 0,60 |
+| Amazon ECR | 1 GB, permanente | 0,10 |
+| Amazon S3 | 1 GB Standard | 0,05 |
+| **Total** | | **14,21** |
+
+A calculadora cobra o disco do RDS pelo mês inteiro e não aceita menos de 20 GB. No ciclo efêmero, o custo real desse disco é cerca de US$ 0,72, e o total fica em cerca de US$ 10,55 por mês. O consumo é descontado do plano gratuito de créditos da AWS (US$ 100 na criação da conta). Os detalhes estão na §6 do Doc. 05.

@@ -34,8 +34,8 @@ describe('undoSecondsLeft — contagem regressiva do desfazer', () => {
   });
 
   it('nome acessível fixo, sem os segundos', () => {
-    expect(undoAccessibleName(1, 'Cerveja')).toBe('Desfazer: Cerveja, disponível por 5 segundos após o toque');
-    expect(undoAccessibleName(3, 'Cerveja')).toBe('Desfazer 1: Cerveja, disponível por 5 segundos após o toque');
+    expect(undoAccessibleName(1, 'Cerveja')).toBe('Desfazer: Cerveja, disponível por 5 segundos após o último toque ou edição');
+    expect(undoAccessibleName(3, 'Cerveja')).toBe('Desfazer 1: Cerveja, disponível por 5 segundos após o último toque ou edição');
   });
 });
 
@@ -46,14 +46,14 @@ describe('ItemList — indicador do tempo para desfazer', () => {
   afterEach(() => vi.useRealTimers());
 
   const render = (entries: ReturnType<typeof addTap>) =>
-    renderToString(<ItemList items={[]} entries={entries} onUndo={() => {}} onDismiss={() => {}} />);
+    renderToString(<ItemList items={[]} entries={entries} onUndo={() => {}} onDismiss={() => {}} onQuantity={() => {}} />);
 
   it('mostra os segundos que restam, fora do nome acessível', () => {
     const entries = addTap([], cerveja, T0, 'c1');
     vi.setSystemTime(T0 + 2_000);
     const html = render(entries);
     expect(html).toMatch(/Desfazer<span aria-hidden="true"[^>]*>\(<!-- -->3<!-- --> s\)<\/span>/);
-    expect(html).toContain('aria-label="Desfazer: Cerveja, disponível por 5 segundos após o toque"');
+    expect(html).toContain('aria-label="Desfazer: Cerveja, disponível por 5 segundos após o último toque ou edição"');
   });
 
   it('com mais de um lançamento recente, cada linha tem o próprio prazo (comportamento atual)', () => {

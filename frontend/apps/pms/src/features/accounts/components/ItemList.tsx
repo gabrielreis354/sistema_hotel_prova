@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { Button } from '@hotel/ui';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Input } from '@hotel/ui';
 import { decimalToCents, formatBRL, multiplyCents } from '@hotel/domain';
 import type { AccountItem } from '../accountsApi.js';
-import { canUndo, type QueueEntry } from '../queueCore.js';
+import { canUndo, parseQuantity, type QueueEntry } from '../queueCore.js';
+import { fieldText, lastTapAt } from '../quantityField.js';
 import { useNow } from '../queueStore.js';
 import { itemLine, undoAccessibleName, undoLabel, undoSecondsLeft } from '../accountTotals.js';
 
@@ -15,6 +16,96 @@ const ENTRY_STATE: Record<QueueEntry['status'], { label: string; dot: string }> 
   rejected: { label: 'Recusado', dot: 'bg-status-maintenance' },
   excluded: { label: 'Excluído', dot: 'bg-status-free' },
 };
+
+/** Enquanto o campo tem o foco, a janela é renovada neste intervalo: ela não fecha no meio da conversa. */
+const HOLD_MS = 1_000;
+
+/**
+ * Quantidade digitada na linha (16/11): o garçom toca em Cerveja e digita 6. O texto é local para
+ * aceitar o campo vazio no meio da digitação; só um número válido (1 a 9999) muda a fila.
+ *
+ * Ressalvas do qa-redteam: enquanto o campo tem o foco, a janela não fecha (ele pergunta "quantas?"
+ * à mesa com o campo aberto, 🟡-1); a seleção do texto espera o foco assentar, porque o iOS desfaz
+ * o select() feito no próprio foco e "3" + "6" virava 36 (🟡-2); e se o campo sair com o foco dentro,
+ * o foco vai para a lista, não para o body (🟡-3).
+ */
+function QuantityField({
+  quantity,
+  description,
+  onChange,
+  onEditing,
+  onLostFocus,
+}: {
+  quantity: number;
+  description: string;
+  onChange: (quantity: number) => void;
+  onEditing: (editing: boolean) => void;
+  onLostFocus: () => void;
+}) {
+  const [text, setText] = useState(String(quantity));
+  const [editing, setEditing] = useState(false);
+  const lastSent = useRef(quantity);
+  const input = useRef<HTMLInputElement>(null);
+  const keep = useRef({ quantity, onChange });
+  keep.current = { quantity, onChange };
+
+  useEffect(() => {
+    setText((t) => fieldText({ text: t, quantity, lastSent: lastSent.current, editing }));
+    lastSent.current = quantity;
+  }, [quantity, editing]);
+
+  // Com o foco no campo, a janela é renovada a cada segundo com a quantidade atual.
+  useEffect(() => {
+    if (!editing) return;
+    const timer = window.setInterval(() => keep.current.onChange(keep.current.quantity), HOLD_MS);
+    return () => window.clearInterval(timer);
+  }, [editing]);
+
+  // Saindo da tela com o foco dentro (janela vencida), o foco vai para a lista.
+  useEffect(() => {
+    const el = input.current;
+    return () => {
+      if (el && document.activeElement === el) onLostFocus();
+    };
+  }, [onLostFocus]);
+
+  return (
+    <Input
+      ref={input}
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      autoComplete="off"
+      enterKeyHint="done"
+      aria-label={`Quantidade de ${description}`}
+      className="min-h-touch w-16 shrink-0 px-2 text-center tabular-nums xl:min-h-0"
+      value={text}
+      onFocus={(e) => {
+        setEditing(true);
+        onEditing(true);
+        onChange(quantity);
+        const el = e.currentTarget;
+        window.requestAnimationFrame(() => el.setSelectionRange(0, el.value.length));
+      }}
+      onBlur={() => {
+        setEditing(false);
+        onEditing(false);
+        setText(String(quantity));
+        onChange(quantity);
+      }}
+      onKeyDown={(e) => {
+        // Enter conclui: o foco vai para a lista (não para o body), e a janela corre os 5 s.
+        if (e.key === 'Enter') onLostFocus();
+      }}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = parseQuantity(e.target.value);
+        if (n !== null) lastSent.current = n;
+        onChange(n ?? quantity);
+      }}
+    />
+  );
+}
 
 /** Estado do lançamento local: ponto colorido e rótulo, nunca só cor (RNF-025). */
 function EntryState({ status }: { status: QueueEntry['status'] }) {
@@ -52,11 +143,14 @@ export function ItemList({
   entries,
   onUndo,
   onDismiss,
+  onQuantity,
 }: {
   items: AccountItem[];
   entries: QueueEntry[];
   onUndo: (clientItemId: string) => void;
   onDismiss: (clientItemId: string) => void;
+  /** Quantidade digitada na linha que ainda está na janela de desfazer. */
+  onQuantity: (clientItemId: string, quantity: number) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   // Relógio só enquanto há janela de desfazer aberta: o botão some quando o prazo vence (🟡-1).
@@ -64,7 +158,9 @@ export function ItemList({
   // Rola até o fim ao abrir a conta e a cada toque deste aparelho — e só aí (🟡-2 do qa-redteam).
   // Cada toque renova o undoUntil; envio, item de outro aparelho e refetch não, e por isso não
   // puxam a lista de quem subiu para conferir um item antigo.
-  const lastTap = entries.reduce((max, e) => Math.max(max, e.undoUntil), 0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const lastTap = lastTapAt(entries, editingId);
+  const focusList = useCallback(() => box.current?.focus(), []);
   const seenTap = useRef(-1);
   useEffect(() => {
     if (lastTap > seenTap.current && box.current) box.current.scrollTop = box.current.scrollHeight;
@@ -132,7 +228,11 @@ export function ItemList({
             <Row key={entry.clientItemId} entryId={entry.clientItemId}>
               <div className="min-w-0 flex-1">
                 <p className={`truncate text-sm ${settled ? 'text-gray-500 line-through' : ''}`}>
-                  {entry.quantity !== 1 && <span className="mr-1 font-medium tabular-nums">{entry.quantity}×</span>}
+                  {/* Na janela de desfazer, a quantidade está no campo ao lado: o "6×" repetido só
+                      tirava espaço do nome do produto no celular. */}
+                  {entry.quantity !== 1 && !canUndo(entry, now) && (
+                    <span className="mr-1 font-medium tabular-nums">{entry.quantity}×</span>
+                  )}
                   {entry.description}
                 </p>
                 <EntryState status={entry.status} />
@@ -145,6 +245,15 @@ export function ItemList({
                   </p>
                 )}
               </div>
+              {canUndo(entry, now) && (
+                <QuantityField
+                  quantity={entry.quantity}
+                  description={entry.description}
+                  onChange={(n) => onQuantity(entry.clientItemId, n)}
+                  onEditing={(on) => setEditingId(on ? entry.clientItemId : null)}
+                  onLostFocus={focusList}
+                />
+              )}
               {canUndo(entry, now) && (
                 <Button
                   variant="ghost"
