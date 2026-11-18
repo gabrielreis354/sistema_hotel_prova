@@ -290,8 +290,13 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
               FROM guests g, users u
              WHERE g.cpf = '30000000030' AND u.email = 'admin@aurora.example'`);
         const antes = await counts();
-        await expect(runSeed('2026-12-11 15:00-03')).resolves.not.toThrow();
+        const { notices } = await runSeed('2026-12-11 15:00-03');
         expect(await counts()).toEqual(antes);
+        // 🟢-3 do red team de 18/11: o aviso da linha pulada chega a quem rodou o seed.
+        expect(notices).toContainEqual({
+            severity: 'NOTICE',
+            message: expect.stringMatching(/^seed_hoje: aurora quarto 201 já reservado de .* linha do cenário pulada$/),
+        });
         // O resto do cenário foi para o novo dia; o 201 do cenário ficou onde estava.
         const sc = await scenario('aurora', '2026-12-11', '2026-12-11 15:00-03');
         expect({ inHouse: sc.inHouse, departures: sc.departures, noShow: sc.noShow }).toEqual({ inHouse: 4, departures: 1, noShow: 1 });

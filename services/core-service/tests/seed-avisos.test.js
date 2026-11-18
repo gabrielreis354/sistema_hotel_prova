@@ -71,6 +71,42 @@ describe('runSeed — os avisos do banco chegam a quem rodou o seed', () => {
         expect(usada.listenerCount('notice')).toBe(0);
     });
 
+    // 🟡-1 do red team de 18/11: o caminho de erro não tinha teste. Um arquivo que falha depois do
+    // próprio BEGIN deixaria a transação abortada na conexão, e a próxima consulta do pool herdaria
+    // o erro (25P02). O seed_consumo é trocado por um BEGIN que divide por zero.
+    it('um arquivo que falha no meio: o erro sobe, traz os avisos de antes e a conexão volta limpa', async () => {
+        await truncateAll();
+        const real = sequelize.connectionManager;
+        let usada;
+        let original;
+        const espiao = {
+            connectionManager: {
+                getConnection: async () => {
+                    usada = await real.getConnection();
+                    original = usada.query;
+                    usada.query = function (text, ...rest) {
+                        const falha = typeof text === 'string' && text.includes('seed_consumo');
+                        return original.call(this, falha ? 'BEGIN; SELECT 1/0;' : text, ...rest);
+                    };
+                    return usada;
+                },
+                releaseConnection: (c) => {
+                    c.query = original;
+                    real.releaseConnection(c);
+                },
+            },
+        };
+        const erro = await runSeed(espiao, { agora: '2026-12-10 15:00-03' }).catch((e) => e);
+        expect(erro).toBeInstanceOf(Error);
+        expect(erro.message).toMatch(/division by zero/);
+        // 🟢-2: os avisos que chegaram antes da falha não se perdem (o seed_hotels já tinha rodado).
+        expect(erro.notices.map((n) => n.message)).toContain('extension "uuid-ossp" already exists, skipping');
+        const r = await usada.query(`SELECT 1 AS ok, current_setting('client_min_messages') AS nivel,
+            current_setting('seed.agora', true) AS agora`);
+        expect(r.rows[0]).toEqual({ ok: 1, nivel: 'warning', agora: '' });
+        expect(usada.listenerCount('notice')).toBe(0);
+    });
+
     // O Sequelize liga toda conexão com client_min_messages = warning, e o banco nem envia o NOTICE.
     // O runSeed baixa para notice só na conexão dele e devolve o valor antes de soltá-la no pool.
     it('nem o relógio simulado nem o nível de aviso vazam para o pool', async () => {
