@@ -18,13 +18,13 @@ aviso genérico que essas regras querem tirar. O aviso já se distingue pelo fun
 | Onde | Dono |
 |---|---|
 | `frontend/packages/ui/src/Notice.tsx:24` (todo `Notice`, inclusive o do pagamento da reserva e o da mesa) | sem dono (`packages/ui`, DIVISAO §7) |
-| `frontend/apps/pms/src/features/accounts/components/OfflineBanner.tsx:15` (faixa de sem conexão da comanda) | Sirlande |
+| `frontend/apps/pms/src/features/accounts/components/OfflineBanner.tsx:15` (faixa de sem conexão da comanda) | Sirlande: **já trocado** pelo ícone `WifiOff` no #185 (17/11) |
 | `frontend/apps/pms/src/components/AppShell.tsx:197` (`border-l-2` do item ativo do menu) | indicador de navegação, não é aviso; pode ficar |
 
 **Sugestão:** decidir uma vez para o sistema todo, em vez de corrigir só o `rows.tsx`. Um bom momento é a passada visual
 nas 13 telas, que a SPEC-10 prevê junto com a T-10.2 (marca no `tokens.css`). Uma saída é trocar a faixa por um ícone de status antes do texto (como o ponto verde do
-"Conta quitada.", logo abaixo, no mesmo arquivo) e manter o fundo tonal. Se você decidir pela troca, o Sirlande ajusta o
-`OfflineBanner`. O `Notice` fica com quem pegar o `packages/ui`.
+"Conta quitada.", logo abaixo, no mesmo arquivo) e manter o fundo tonal. O Sirlande já fez essa troca no `OfflineBanner` (#185).
+Ela pode servir de referência para o `rows.tsx`. O `Notice` fica com quem pegar o `packages/ui`.
 
 ### 🟢 [DRY] `formatDayMonth` no `@hotel/domain`
 **Onde:** `frontend/apps/pms/src/features/today/todayLogic.ts:201-205`. O selo "Atrasada · dd/MM" monta a data com
