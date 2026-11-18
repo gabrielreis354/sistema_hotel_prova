@@ -6,7 +6,7 @@ import { StaffActions } from './StaffActions.js';
 import type { AccountDetail } from '../accountsApi.js';
 
 // "Receber" na conta da mesa (16/11): a recepção registra um pagamento por pagante, dividindo por valor.
-function render(account: Partial<AccountDetail>, pendingCount = 0) {
+function render(account: Partial<AccountDetail>, pendingCount = 0, receiving = false) {
   return renderToString(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
@@ -14,6 +14,7 @@ function render(account: Partial<AccountDetail>, pendingCount = 0) {
           account={{ id: 'a1', label: 'Mesa 3', items: [], ...account } as AccountDetail}
           pendingCount={pendingCount}
           totalCents={18000}
+          receiving={receiving}
           onToggleReceive={() => {}}
         />
       </MemoryRouter>
@@ -37,6 +38,17 @@ describe('StaffActions — receber na conta sem reserva', () => {
 
   it('mesa fechada: Receber continua (decisão de 16/11)', () => {
     expect(render({ type: 'TABLE', status: 'CLOSED', reservation_id: null })).toMatch(/>Receber<\/button>/);
+  });
+
+  // A mesa quitada vira PAID com o painel aberto: o botão que o esconde não pode sumir junto.
+  it('conta PAID com o painel aberto: "Esconder pagamento" continua', () => {
+    expect(render({ type: 'TABLE', status: 'PAID', reservation_id: null }, 0, true)).toMatch(
+      /<button(?=[^>]*aria-expanded="true")[^>]*>Esconder pagamento<\/button>/,
+    );
+  });
+
+  it('conta PAID com o painel fechado: sem Receber, já está quitada', () => {
+    expect(render({ type: 'TABLE', status: 'PAID', reservation_id: null })).not.toContain('>Receber<');
   });
 
   it('conta da suíte: sem Receber (paga pela reserva)', () => {

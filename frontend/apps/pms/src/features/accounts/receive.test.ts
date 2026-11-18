@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canReceive } from './receive.js';
+import { canReceive, receivePanelOpen } from './receive.js';
 
 // Pagamento da mesa e do day-use (combinado com o Gabriel em 16/11): a conta sem reserva não tinha
 // tela de pagamento. Lista do que PODE receber (fail-safe): tipo novo fica de fora até alguém decidir.
@@ -36,5 +36,32 @@ describe('canReceive — quais contas recebem pagamento na própria tela', () =>
   it('tipo desconhecido fica de fora (allowlist)', () => {
     expect(canReceive({ type: 'NOVO', status: 'OPEN', reservation_id: null })).toBe(false);
     expect(canReceive({})).toBe(false);
+  });
+});
+
+// Quando o último pagamento quita a mesa fechada, ela vira PAID: o painel não pode sumir junto, senão
+// o aviso "Pagamento registrado" desaparece no momento em que a recepção precisa lê-lo (16/11).
+describe('receivePanelOpen — o painel "Receber" na página da conta', () => {
+  const mesa = { type: 'TABLE', status: 'OPEN', reservation_id: null };
+
+  it('aberto pela recepção, mesa sem reserva e sem fila: mostra', () => {
+    expect(receivePanelOpen(mesa, { receiving: true, pendingCount: 0 })).toBe(true);
+  });
+
+  it('continua aberto depois que a conta vira PAID', () => {
+    expect(receivePanelOpen({ ...mesa, status: 'PAID' }, { receiving: true, pendingCount: 0 })).toBe(true);
+  });
+
+  it('fechado pela recepção: não mostra', () => {
+    expect(receivePanelOpen(mesa, { receiving: false, pendingCount: 0 })).toBe(false);
+  });
+
+  it('com lançamento na fila deste aparelho: sai, o saldo ainda vai mudar (🟡-2)', () => {
+    expect(receivePanelOpen(mesa, { receiving: true, pendingCount: 1 })).toBe(false);
+  });
+
+  it('conta com reserva ou da suíte: nunca, o pagamento vai pela reserva', () => {
+    expect(receivePanelOpen({ ...mesa, reservation_id: 'r1' }, { receiving: true, pendingCount: 0 })).toBe(false);
+    expect(receivePanelOpen({ ...mesa, type: 'ROOM' }, { receiving: true, pendingCount: 0 })).toBe(false);
   });
 });
