@@ -387,7 +387,7 @@ export function ReservationDetailPage() {
             <Card className="space-y-3 p-4">
               <h2 className="text-section text-gray-800">Registrar pagamento</h2>
               {/* key: o valor preenchido acompanha o saldo depois de cada pagamento. */}
-              <PaymentForm key={balance} reservationId={r.id} balanceCents={balance} onResult={setPaymentResult} />
+              <PaymentForm key={balance} target={{ reservationId: r.id }} balanceCents={balance} onResult={setPaymentResult} />
             </Card>
           )}
 
