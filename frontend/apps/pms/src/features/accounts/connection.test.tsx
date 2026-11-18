@@ -87,11 +87,12 @@ describe('OfflineBanner — renderização', () => {
     expect(html).toBe('<div role="status" aria-live="polite"></div>');
   });
 
-  // Repasse de 17/11 (docs/qa/repasses/para_gabriel_17112026.md): a skill de design do projeto
-  // recusa borda lateral colorida em aviso. O sinal passa a ser um ícone antes do texto.
+  // A skill de design do projeto (Impeccable, reference/craft-floor.md) recusa borda lateral
+  // colorida em aviso (repasse de 17/11, PR #184). O sinal passa a ser um ícone antes do texto.
+  // Nenhuma classe de borda: pega também border-s-4, border-l-[3px] e border-x-4 (🟢-1 do red team).
   it('o aviso não usa faixa lateral: o sinal é o ícone, decorativo, antes do texto', () => {
     const html = renderToString(<OfflineNotice waiting={2} />);
-    expect(html).not.toMatch(/border-[lr]-\d/);
+    expect(html).not.toMatch(/class="[^"]*\bborder/);
     expect(html).toMatch(/^<p[^>]*><svg[^>]*aria-hidden="true"/);
   });
 
