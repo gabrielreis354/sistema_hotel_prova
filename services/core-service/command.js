@@ -100,6 +100,8 @@ async function seed() {
         for (const line of report.lines) console.log(line);
         console.log(report.final);
     } catch (error) {
+        // O que o banco avisou antes da falha ajuda a achar a causa (🟢-2 do red team de 18/11).
+        for (const line of seedReport(error.notices ?? []).lines) console.error(line);
         console.error('❌ Erro ao executar o seed:', error.message);
         process.exit(1);
     } finally {

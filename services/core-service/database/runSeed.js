@@ -23,6 +23,8 @@ export const SEED_FILES = ['seed_hotels.sql', 'seed_consumo.sql', 'seed_hoje.sql
  * que o seed_hoje.sql lê, com `set_config` parametrizado, e é desfeito antes de a conexão voltar
  * ao pool.
  *
+ * Na falha, o erro sobe com `error.notices`: os avisos recolhidos até ali.
+ *
  * @returns {Promise<{ notices: { severity: string, message: string }[] }>}
  */
 export default async function runSeed(sequelize, { agora } = {}) {
@@ -47,6 +49,8 @@ export default async function runSeed(sequelize, { agora } = {}) {
         return { notices };
     } catch (error) {
         failed = true;
+        // Os avisos que chegaram antes da falha vão junto com o erro (🟢-2 do red team de 18/11).
+        error.notices = notices;
         throw error;
     } finally {
         // Um arquivo que falhou no meio deixa a transação dele aberta e abortada: a conexão não pode
