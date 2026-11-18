@@ -117,8 +117,9 @@ export function AccountPage() {
         onDismiss={queue.dismiss}
       />
 
-      {/* Receber (16/11) no fluxo da página, não no rodapé fixo. Enquanto recebe, o cardápio sai:
-          lançar consumo no meio da divisão mudaria o saldo que a recepção está cobrando. */}
+      {/* Receber (16/11) no fluxo da página, não no rodapé fixo. Enquanto recebe, o cardápio sai
+          para não lançar consumo, por engano, no meio da divisão. Isso só vale neste aparelho: o
+          lançamento do garçom em outro aparelho é barrado no envio, pela conferência do saldo (P-8). */}
       {/* O painel fica aberto depois de quitar (a conta vira PAID): o aviso do pagamento continua. */}
       {receivePanelOpen(account, { receiving, pendingCount }) ? (
         <ReceivePanel
