@@ -71,7 +71,9 @@ export async function session(
   page.on('pageerror', (e) => errors.push(`${email}: ${e.message}`));
   await page.goto('/login');
   await page.getByLabel(/e-mail/i).fill(email);
-  await page.getByLabel(/senha/i).fill(PASSWORD);
+  // Nome exato: o login da T-10.1 (#181) tem o botão "Mostrar senha", e /senha/i acha os dois
+  // (o campo e o botão), o que quebra o fill no modo estrito do Playwright.
+  await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
   const [login] = await Promise.all([
     page.waitForResponse((r) => r.url().endsWith('/auth/login') && r.request().method() === 'POST'),
     page.getByRole('button', { name: 'Entrar' }).click(),
