@@ -8,7 +8,7 @@ import { offlineBannerText } from '../connection.js';
  *
  * Fundo tingido no tom âmbar da fila e texto gray-900, bem acima de 4,5:1. O sinal visual é o
  * ícone de sem rede antes do texto, não uma faixa lateral, que a skill de design do projeto
- * recusa em aviso (Impeccable, reference/craft-floor.md; repasse de 17/11, PR #184). O ícone é
+ * recusa em aviso (Impeccable, reference/craft-floor.md; repasse de 17/11, PR 184). O ícone é
  * decorativo, com 2,9:1 no âmbar do token: o sinal é o texto, que começa com "Sem conexão".
  * Compacta (text-sm, py-1.5) para não empurrar o cardápio para fora da tela no celular.
  */

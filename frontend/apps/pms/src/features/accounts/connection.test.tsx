@@ -88,7 +88,7 @@ describe('OfflineBanner — renderização', () => {
   });
 
   // A skill de design do projeto (Impeccable, reference/craft-floor.md) recusa borda lateral
-  // colorida em aviso (repasse de 17/11, PR #184). O sinal passa a ser um ícone antes do texto.
+  // colorida em aviso (repasse de 17/11, PR 184). O sinal passa a ser um ícone antes do texto.
   // Nenhuma classe de borda: pega também border-s-4, border-l-[3px] e border-x-4 (🟢-1 do red team).
   it('o aviso não usa faixa lateral: o sinal é o ícone, decorativo, antes do texto', () => {
     const html = renderToString(<OfflineNotice waiting={2} />);
