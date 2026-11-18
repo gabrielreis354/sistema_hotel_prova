@@ -103,6 +103,39 @@ export function undoTap(entries: QueueEntry[], clientItemId: string, now: number
   return entries.filter((e) => e !== entry);
 }
 
+/** Teto da quantidade por item: o mesmo MAX_QUANTITY do CreateAccountItemController. */
+export const MAX_QUANTITY = 9999;
+
+/**
+ * O que o garçom digitou no campo de quantidade (16/11): só inteiro de 1 a MAX_QUANTITY. Vírgula,
+ * ponto, sinal ou letra não valem — "1,5" de cerveja não existe, e o backend recusaria.
+ */
+export function parseQuantity(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n >= 1 && n <= MAX_QUANTITY ? n : null;
+}
+
+/**
+ * Quantidade digitada na linha (combinado com o Gabriel em 16/11): o garçom toca em Cerveja e
+ * digita 6, em vez de tocar 6 vezes. Só dentro da janela de desfazer e só para quem lançou, como
+ * o Desfazer. Cada edição renova a janela: a linha não sai enquanto ele está digitando.
+ */
+export function setQuantity(
+  entries: QueueEntry[],
+  clientItemId: string,
+  quantity: number,
+  now: number,
+  ownerId?: string,
+): QueueEntry[] {
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) return entries;
+  const entry = entries.find((e) => e.clientItemId === clientItemId);
+  if (!entry || !canUndo(entry, now)) return entries;
+  if (ownerId !== undefined && entry.ownerId !== ownerId) return entries;
+  return entries.map((e) => (e === entry ? { ...e, quantity, undoUntil: now + UNDO_MS } : e));
+}
+
 /** Entradas do usuário logado que já podem ir ao servidor, na ordem em que foram lançadas. */
 export function readyToSend(entries: QueueEntry[], ownerId: string, now: number): QueueEntry[] {
   return entries.filter(
