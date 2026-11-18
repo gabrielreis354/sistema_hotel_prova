@@ -29,6 +29,22 @@ export function monthlyWindow(today: string, months: number): Period {
   return { start: `${startYear}-${startMonth}-01`, end: today };
 }
 
+/** Mês 'yyyy-MM' ↔ índice contínuo (ano × 12 + mês − 1), para andar mês a mês sem `Date`. */
+function monthIndex(month: string): number {
+  return Number(month.slice(0, 4)) * 12 + Number(month.slice(5, 7)) - 1;
+}
+
+function monthFromIndex(i: number): string {
+  return `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
+}
+
+/** Todos os meses de `first` a `last` ('yyyy-MM'), inclusive e em ordem. */
+function monthRange(first: string, last: string): string[] {
+  const months: string[] = [];
+  for (let i = monthIndex(first); i <= monthIndex(last); i += 1) months.push(monthFromIndex(i));
+  return months;
+}
+
 /**
  * Todos os meses da janela, em ordem. O backend só devolve mês que teve pagamento; sem isto,
  * jan e mar viram barras vizinhas e o gerente lê fev como se não existisse. Mês sem linha
@@ -36,14 +52,38 @@ export function monthlyWindow(today: string, months: number): Period {
  */
 export function fillMonths(window: Period, rows: { month: string; total: number }[]): { month: string; total: number }[] {
   const byMonth = new Map(rows.map((r) => [r.month, r.total]));
-  const first = Number(window.start.slice(0, 4)) * 12 + Number(window.start.slice(5, 7)) - 1;
-  const last = Number(window.end.slice(0, 4)) * 12 + Number(window.end.slice(5, 7)) - 1;
-  const months: { month: string; total: number }[] = [];
-  for (let i = first; i <= last; i += 1) {
-    const month = `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
-    months.push({ month, total: byMonth.get(month) ?? 0 });
-  }
-  return months;
+  return monthRange(window.start.slice(0, 7), window.end.slice(0, 7)).map((month) => ({ month, total: byMonth.get(month) ?? 0 }));
+}
+
+export interface SeasonMonth {
+  month: string;
+  reservations: number;
+  /** `null` no mês sem reserva: média de nada não é zero noite. */
+  avg_nights: number | null;
+}
+
+/**
+ * Sazonalidade com todos os meses, em ordem (achado 3 da revisão de 15/11: o eixo pulava de mar
+ * para jun). A janela é a do backend (GetSeasonalityController): começa no mês de
+ * `today − months meses` — 13 meses com 12 — e NÃO tem fim, porque reservas futuras entram. Vai
+ * até o mais tarde entre o mês de hoje e o último mês devolvido. Linha sem mês ou anterior ao
+ * início é ignorada. `today` vem no fuso do hotel, como o do backend (D-68).
+ */
+export function fillSeasonality(
+  today: string,
+  months: number,
+  rows: { month?: string; reservations?: number; avg_nights?: number }[],
+): SeasonMonth[] {
+  const first = monthFromIndex(monthIndex(today.slice(0, 7)) - months);
+  const valid = rows.filter((r): r is typeof r & { month: string } => typeof r.month === 'string' && r.month >= first);
+  const byMonth = new Map(valid.map((r) => [r.month, r]));
+  const lastReturned = valid.reduce((max, r) => (r.month > max ? r.month : max), today.slice(0, 7));
+  return monthRange(first, lastReturned).map((month) => {
+    const r = byMonth.get(month);
+    return r
+      ? { month, reservations: r.reservations ?? 0, avg_nights: r.avg_nights ?? null }
+      : { month, reservations: 0, avg_nights: null };
+  });
 }
 
 /** Mensagem de erro do período, ou `null` se ele pode ser consultado. */
