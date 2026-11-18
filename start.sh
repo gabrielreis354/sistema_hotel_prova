@@ -44,6 +44,26 @@ check_kubectl() {
 }
 
 # =============================================================================
+# No minikube, o daemon do cluster não é o do host: sem `minikube docker-env` NESTE terminal e
+# PARA ESTE perfil, o `docker build` iria para o host e o pod do MinIO ficaria em
+# ErrImageNeverPull, só com um timeout genérico no `kubectl wait` (🟡 dos red teams de 16/11).
+# O minikube é reconhecido pelo provider gravado no contexto (vale para `-p <perfil>`, cujo
+# contexto tem o nome do perfil), com o nome "minikube" de reserva para versões antigas.
+garantir_docker_do_minikube() {
+    local image=$1 ctx provider
+    ctx=$(kubectl config current-context 2>/dev/null || true)
+    provider=$(kubectl config view --minify -o jsonpath='{.contexts[0].context.extensions[?(@.name=="context_info")].extension.provider}' 2>/dev/null || true)
+    [ "$provider" = "minikube.sigs.k8s.io" ] || [ "$ctx" = "minikube" ] || return 0
+    # O docker-env exporta MINIKUBE_ACTIVE_DOCKERD com o nome do perfil: outro perfil (terminal
+    # reaproveitado) também não serve.
+    [ "${MINIKUBE_ACTIVE_DOCKERD:-}" = "$ctx" ] && return 0
+    err "Cluster minikube '$ctx' sem o Docker dele neste terminal (MINIKUBE_ACTIVE_DOCKERD='${MINIKUBE_ACTIVE_DOCKERD:-}').
+    Runtime docker:          eval \$(minikube -p $ctx docker-env)   e repita ./start.sh up
+    Runtime containerd/cri-o: minikube -p $ctx image build -t $image docker/minio
+                              e depois MINIO_IMAGEM_NO_CLUSTER=1 ./start.sh up"
+}
+
+# =============================================================================
 cmd_up() {
     check_kubectl
     info "Aplicando manifests Kubernetes (namespace: $NS)..."
@@ -51,6 +71,20 @@ cmd_up() {
     bash scripts/k8s_garantir_secret_jwt.sh
     # [revisão do Weslley] Secret analytics-db (T-01.4/H.3) — ver scripts/k8s_garantir_secret_analytics.sh.
     bash scripts/k8s_garantir_secret_analytics.sh
+    # MinIO compilado do fonte (o pull do quay.io dá 401 num nó limpo). O manifest usa
+    # imagePullPolicy: Never, então a imagem precisa existir no runtime do cluster antes do apply.
+    # Com cache, o build leva segundos; o 1º leva vários minutos (compila minio e mc).
+    local minio_image
+    minio_image=$(bash scripts/verificar_imagem_minio.sh) || err "Tag do MinIO divergente (mensagem acima)."
+    if [ "${MINIO_IMAGEM_NO_CLUSTER:-}" = "1" ]; then
+        # Saída para runtimes em que o `docker build` do host não chega ao cluster (minikube com
+        # containerd/cri-o, kind, k3d): a imagem foi carregada à mão antes.
+        info "MINIO_IMAGEM_NO_CLUSTER=1: sem build; $minio_image já deve estar no runtime do cluster."
+    else
+        garantir_docker_do_minikube "$minio_image"
+        info "Construindo $minio_image (docker/minio/Dockerfile; o 1º build leva minutos)..."
+        docker build -t "$minio_image" docker/minio || err "Falhou o build da imagem do MinIO."
+    fi
     kubectl apply -k infra/k8s/
     echo ""
     info "Aguardando todos os pods ficarem prontos (timeout: 120s)..."
@@ -290,6 +324,9 @@ cmd_compose_up() {
     command -v docker &>/dev/null || err "docker não encontrado."
     [[ "$COMPOSE_SETUP_TIMEOUT" =~ ^[0-9]+$ ]] || err "COMPOSE_SETUP_TIMEOUT deve ser um número de segundos (veio: $COMPOSE_SETUP_TIMEOUT)."
     docker compose config -q || err "docker compose config falhou: confira as variáveis obrigatórias do .env (README, Subir tudo)."
+    # A tag do MinIO no compose tem de bater com o ARG do Dockerfile: com a tag velha, o compose
+    # reaproveitaria a imagem velha em cache sem recompilar.
+    bash scripts/verificar_imagem_minio.sh >/dev/null || err "Tag do MinIO divergente (mensagem acima)."
     local check_setup=0
     if compose_up_includes_setup "$@"; then
         check_setup=1
