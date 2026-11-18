@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { balanceLine, billableCents, closedNotice, footerTotals, itemLine, receiveAt, undoLabel } from './accountTotals.js';
+import { balanceLine, billableCents, closedNotice, footerTotals, itemLine, receiveAt, receiveLabel, undoLabel } from './accountTotals.js';
 import { addTap, markSending, applyOutcome } from './queueCore.js';
 
 const item = (total: string, billable = true, quantity = 1, reason: string | null = null) => ({
@@ -131,5 +131,16 @@ describe('receiveAt — onde receber o saldo depois de fechar (C-19, D6 do M5-b)
   it('sem saldo na resposta: sem link, a tela não supõe dívida', () => {
     expect(receiveAt({ reservation_id: 'res-1' }, undefined)).toBeNull();
     expect(receiveAt({ reservation_id: 'res-1' }, { total: '40.00' })).toBeNull();
+  });
+});
+
+// O link do aviso de fechamento diz para onde leva: a reserva (suíte) ou a própria conta (mesa, 16/11).
+describe('receiveLabel — o texto do link para receber o saldo', () => {
+  it('saldo da suíte: na reserva', () => {
+    expect(receiveLabel('/reservas/res-1?aba=conta')).toBe('Receber na reserva');
+  });
+
+  it('saldo da mesa, do balcão ou do day-use: na conta', () => {
+    expect(receiveLabel('/comanda/a1')).toBe('Receber na conta');
   });
 });
