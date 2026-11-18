@@ -1,6 +1,7 @@
 import { decimalToCents, formatBRL, multiplyCents, sumCents, type Cents } from '@hotel/domain';
 import type { AccountBill } from './accountsApi.js';
 import { UNDO_MS, pendingFor, type QueueEntry } from './queueCore.js';
+import { isReceivableType } from './receive.js';
 
 /** O mínimo de um item de conta que a tela precisa (subconjunto de AccountItem). */
 export interface ItemLike {
@@ -94,12 +95,19 @@ export function closedNotice(label: string, bill: Partial<AccountBill> | undefin
 /**
  * Onde receber o saldo de uma conta que acabou de fechar (C-19, D6 do M5-b). Conta com reserva:
  * a aba Conta da reserva, onde a recepção registra o pagamento — o crédito da reserva cobre as
- * contas fechadas primeiro (D-45). Mesa e day-use ainda não têm tela de pagamento: sem link.
+ * contas fechadas primeiro (D-45). Mesa, balcão e day-use sem reserva: a própria conta, que
+ * continua recebendo depois de fechada (decisão de 16/11).
  */
 export function receiveAt(
-  account: { reservation_id?: string | null },
+  account: { id?: string | null; type?: string | null; reservation_id?: string | null },
   bill: Partial<AccountBill> | undefined,
 ): string | null {
-  if (!account.reservation_id || !bill?.balance) return null;
-  return decimalToCents(bill.balance) > 0 ? `/reservas/${account.reservation_id}?aba=conta` : null;
+  if (!bill?.balance || decimalToCents(bill.balance) <= 0) return null;
+  if (account.reservation_id) return `/reservas/${account.reservation_id}?aba=conta`;
+  return account.id && isReceivableType(account.type) ? `/comanda/${account.id}` : null;
+}
+
+/** O texto do link do `receiveAt`: diz para onde ele leva, a reserva (suíte) ou a própria conta (16/11). */
+export function receiveLabel(path: string): string {
+  return path.startsWith('/reservas/') ? 'Receber na reserva' : 'Receber na conta';
 }

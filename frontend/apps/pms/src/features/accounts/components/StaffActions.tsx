@@ -6,6 +6,7 @@ import type { AccountDetail } from '../accountsApi.js';
 import { useAccountBill, useCloseAccount } from '../queries.js';
 import { confirmArmed } from '../closeGuard.js';
 import { balanceLine, closedNotice, receiveAt } from '../accountTotals.js';
+import { canReceive, receivePanelId, receivePanelOpen } from '../receive.js';
 
 /**
  * Por que a conta não pode ser fechada agora. Mesma regra do backend, para o botão nascer
@@ -46,6 +47,8 @@ export function StaffActions({
   pendingCount,
   othersPending = 0,
   totalCents,
+  receiving = false,
+  onToggleReceive,
 }: {
   account: AccountDetail;
   pendingCount: number;
@@ -53,6 +56,12 @@ export function StaffActions({
   totalCents: number;
   /** Lançamentos de outro usuário nesta conta, parados neste aparelho (D-1). Avisa, não bloqueia. */
   othersPending?: number;
+  /**
+   * Painel "Receber" aberto (16/11). Ele mora na página, fora deste rodapé fixo: dentro dele,
+   * ocupava dois terços do celular e cobria a lista de itens.
+   */
+  receiving?: boolean;
+  onToggleReceive?: () => void;
 }) {
   const [showBill, setShowBill] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -61,6 +70,12 @@ export function StaffActions({
   const wasConfirming = useRef(false);
   const navigate = useNavigate();
   const id = account.id ?? '';
+  // Mesa, balcão e day-use sem reserva recebem aqui (16/11); a suíte, pela reserva. Com o painel
+  // aberto, o botão fica mesmo depois de a conta virar PAID: é ele que esconde o painel.
+  const receivable = (canReceive(account) || receivePanelOpen(account, { receiving, pendingCount })) && !!onToggleReceive;
+  // Com a fila deste aparelho descarregando, o saldo muda e o formulário se refaz no meio da
+  // digitação (🟡-2 do red team do pagamento): espera, como no fechamento.
+  const receiveBlocked = pendingCount > 0 ? 'Espere os lançamentos da fila chegarem ao sistema.' : null;
   // O bill carrega para "Ver conta" e para a confirmação, que precisa do saldo.
   const bill = useAccountBill(id, showBill || confirming);
   // A confirmação só usa um bill buscado depois de ela abrir: o cache (staleTime de 30 s) pode
@@ -121,7 +136,12 @@ export function StaffActions({
       )}
 
       {close.error && <p role="alert" className="text-sm text-status-maintenance">{close.error.message}</p>}
-      {blocked && <p id="close-blocked-reason" className="text-xs text-gray-600">{blocked}</p>}
+      {receivable && receiveBlocked && (
+        <p id="receive-blocked-reason" className="text-xs text-gray-600">
+          {receiveBlocked}
+        </p>
+      )}
+      {blocked && blocked !== receiveBlocked && <p id="close-blocked-reason" className="text-xs text-gray-600">{blocked}</p>}
       {!blocked && othersPending > 0 && (
         <p id="close-others-warning" role="alert" className="text-xs text-status-maintenance">
           Fechar agora recusa {othersPending === 1 ? 'o lançamento' : `os ${othersPending} lançamentos`} de outro
@@ -174,6 +194,20 @@ export function StaffActions({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
+          {receivable && (
+            // Linha inteira no celular: três botões lado a lado em 375 px cortavam os rótulos.
+            <Button
+              variant="secondary"
+              className="col-span-2"
+              aria-expanded={receiving}
+              aria-controls={receivePanelId(id)}
+              disabled={!!receiveBlocked}
+              aria-describedby={receiveBlocked ? 'receive-blocked-reason' : undefined}
+              onClick={onToggleReceive}
+            >
+              {receiving ? 'Esconder pagamento' : 'Receber'}
+            </Button>
+          )}
           <Button variant="secondary" onClick={() => setShowBill((v) => !v)} aria-expanded={showBill}>
             {showBill ? 'Esconder conta' : 'Ver conta'}
           </Button>
