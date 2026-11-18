@@ -56,6 +56,21 @@ describe('runSeed — os avisos do banco chegam a quem rodou o seed', () => {
         expect(resumo(notices)).toHaveLength(2);
     });
 
+    // A conexão volta ao pool: o ouvinte preso nela acumularia a cada seed (mutante M5 de 18/11).
+    it('a conexão volta ao pool sem o ouvinte de notice', async () => {
+        await truncateAll();
+        const real = sequelize.connectionManager;
+        let usada;
+        const espiao = {
+            connectionManager: {
+                getConnection: async () => (usada = await real.getConnection()),
+                releaseConnection: (c) => real.releaseConnection(c),
+            },
+        };
+        await runSeed(espiao, { agora: '2026-12-10 15:00-03' });
+        expect(usada.listenerCount('notice')).toBe(0);
+    });
+
     // O Sequelize liga toda conexão com client_min_messages = warning, e o banco nem envia o NOTICE.
     // O runSeed baixa para notice só na conexão dele e devolve o valor antes de soltá-la no pool.
     it('nem o relógio simulado nem o nível de aviso vazam para o pool', async () => {
