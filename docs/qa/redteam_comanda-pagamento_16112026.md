@@ -74,3 +74,30 @@ nenhum (o backend tocado acima é da SPEC-04/T-04.4, do mesmo dev).
 - O anúncio real do `Notice role="status"` em NVDA/VoiceOver/TalkBack (🟡-4, cenário 1).
 - A corrida de dois balcões contra o PostgreSQL (fora do diff; ficou como SUSPEITA).
 - Não rodei o fluxo no navegador (o dev informa que conferiu no Chromium a 390 px); a auditoria foi por leitura do código mais os testes unitários.
+
+## Tratamento (16 e 17/11, Sirlande com Claude Code)
+
+Decisões do Sirlande em 16/11: quem recebe é a recepção e o admin; o valor acima do saldo na mesa é **recusado**; a mesa **fechada** continua recebendo.
+
+| Achado | O que foi feito |
+|---|---|
+| 🟡-1 Mesa fechada com saldo sem tela | `canReceive` aceita `OPEN` e `CLOSED`, e `PAID` continua fora. O aviso do fechamento ganhou o link **"Receber na conta"** (`receiveAt` → `/comanda/:id`; rótulo em `receiveLabel`). Quando o último pagamento quita, a mesa vira `PAID` e o painel **continua aberto** com o aviso e "Conta quitada." (`receivePanelOpen` não olha o status), e o "Esconder pagamento" fica enquanto o painel está aberto |
+| 🟡-2 Formulário refeito pela fila local | "Receber" fica desabilitado com lançamento na fila deste aparelho, com o mesmo motivo do fechamento. Se o painel já estiver aberto, ele sai (`receivePanelOpen` exige `pendingCount === 0`) |
+| 🟡-3 Valor a maior vira "a devolver" | **Recusado na mesa** (`allowOverpay={false}` → `submitStep`): "Acima do saldo de R$ X. Registre só o valor da conta: o troco não entra no sistema." O texto "a devolver ao hóspede" ficou só na reserva, onde só se chega com `allowOverpay` |
+| 🟡-4 Foco e anúncio | Ao abrir, o foco vai para o título do painel (`tabIndex={-1}`). Depois de registrar, vai para o `Notice`, como na `ReservationDetailPage` |
+| 🟢-1 `ReceivePanel` sem teste | `ReceivePanel.test.tsx` (saldo > 0, parcial, = 0 aberta, = 0 PAID, < 0) e `ReceivePanelProps.test.tsx` (props passadas ao `PaymentForm`: `allowOverpay` falso, alvo, saldo, pagante). O `StaffActions` ganhou os testes com o painel aberto e PAID |
+| 🟢-2 Esconder o cardápio só protege este aparelho | **Mantido**, com o comentário corrigido: a proteção contra o garçom em outro aparelho é a P-8 no envio. Ao reabrir, o "já pago" mostra o que entrou |
+| 🟢-3 Bill do cache ao abrir | O painel faz `refetch` do bill quando abre |
+| Fora do diff: dois balcões ao mesmo tempo | **Pendência** (backend, SUSPEITA). A janela já existia na reserva. Proposta para o 5º semestre: `expected_balance` no POST /payments, com 409 dentro da trava |
+
+**Mutação manual (17/11):** 18 mutantes, 16 mortos pelos testes. Os 2 vivos são ligações de página que o `renderToString` não alcança (o projeto não tem jsdom): o `PaymentForm` repassar `allowOverpay` ao `submitStep` (M13) e a lista usar o `receiveLabel` (M18). Os dois foram conferidos no navegador.
+
+**Navegador (17/11, Chromium a 390 px, recepção, banco `gestao_hotel_qa`):** mesa de R$ 198,00:
+1. 200,00 em dinheiro é recusado com a mensagem do troco, e o servidor continua com 0,00 pago;
+2. 120,00 em PIX é registrado, o foco vai para o aviso e o formulário volta com 78,00;
+3. "Fechar conta" mostra o saldo de R$ 78,00 na confirmação, e "Sim, fechar" leva à lista com o aviso e o link "Receber na conta";
+4. o link abre a conta fechada, onde "Receber" está disponível;
+5. 78,00 no cartão de débito leva a conta a `PAID` no servidor (198,00 pagos, saldo 0,00), com o painel aberto mostrando "Pagamento de R$ 78,00 em Cartão de débito registrado." e "Nada a receber. Conta quitada.";
+6. "Esconder pagamento" fecha o painel, e o "Receber" não volta.
+
+Depois do tratamento: 472 testes do pms e typecheck limpos.
