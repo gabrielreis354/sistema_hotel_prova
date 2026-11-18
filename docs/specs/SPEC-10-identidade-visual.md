@@ -223,15 +223,16 @@ faltar, fica para o 5º semestre como previsto.
 
 ---
 
-## 10. Plano das outras telas (proposta de 18/11, aguardando o Sirlande)
+## 10. Plano das outras telas (aprovado pelo Sirlande em 18/11)
 
 O login entrou sozinho. Este plano leva a mesma identidade ao resto do `apps/pms` sem ferir o
-`DESIGN_PMS.md`. Cada decisão abaixo traz uma recomendação; nada vira código antes de o Sirlande
-aprovar as decisões e o protótipo de cada fase.
+`DESIGN_PMS.md`. O Sirlande aprovou as recomendações em 18/11 (§10.7). Cada fase só vira código
+depois de o protótipo dela ser aprovado.
 
 ### 10.1 Quando
 
-**Recomendação: nenhuma tela nova antes de 10/12.** Protótipo pode ser feito antes, porque não
+**Decisão (18/11): nada do visual novo entra na `develop` antes de 10/12. O trabalho pode ser
+adiantado numa branch separada (§10.8).** Protótipo pode ser feito a qualquer momento, porque não
 toca no repositório.
 
 - 24/11 é o congelamento (`PLANO_FECHAMENTO_MVP_15NOV2026.md`): depois dele, só correção. Trocar
@@ -305,10 +306,41 @@ Os mesmos critérios do login (§6), adaptados à tela:
 
 ### 10.7 Decisões que o Sirlande precisa tomar
 
-| # | Decisão | Recomendação |
+Todas aprovadas pelo Sirlande em 18/11, como recomendado. A P-1 ganhou a branch separada.
+
+| # | Decisão | Decidido em 18/11 |
 |---|---|---|
-| P-1 | Quando começar | Protótipos quando quiser; código só depois de 10/12 (§10.1) |
+| P-1 | Quando começar | Protótipos e código podem começar já, numa branch separada; nada entra na `develop` antes de 10/12 (§10.1, §10.8) |
 | P-2 | O que do login vai para o app | Cor, símbolo e Inter; o fundo só na faixa do topo, se o protótipo aprovar; vidro e luz ficam só no login (§10.2) |
 | P-3 | Verde da marca contra o verde de "Ocupado" | Manter os status e, se precisar, escurecer a marca (§10.3) |
 | P-4 | Ordem das fases | Casca e marca → Hoje → reserva e conta → listas → comanda → administração (§10.4) |
 | P-5 | Quem implementa | O Sirlande implementa, o dono da tela revisa (§10.5) |
+
+### 10.8 Branch separada
+
+Pedido do Sirlande em 18/11: adiantar as fases sem esperar 10/12.
+
+```
+develop ──┬────────────────────────────────────────────── (merge depois de 10/12) ──►
+          │                                                        ▲
+          └─► feature/spec-10-identidade ──────────────────────────┘
+                 ├─► feature/t10-fase1-casca-marca  → PR para feature/spec-10-identidade
+                 ├─► feature/t10-fase2-hoje         → PR para feature/spec-10-identidade
+                 └─► …
+```
+
+- **Branch de integração:** `feature/spec-10-identidade`, a partir da `develop`. Cada fase nasce
+  dela e volta para ela por PR, com o mesmo fluxo de sempre (TDD, mutação, qa-redteam) e revisão do
+  dono da tela (§10.5).
+- **A `develop` entra nela toda semana** e depois de cada merge que toque em `frontend/apps/pms` ou
+  `frontend/packages/ui`. Até 10/12 a `develop` ainda recebe correções nas mesmas telas, e o conflito
+  aparece cedo e pequeno, não todo no fim.
+- **CI:** o gatilho `pull_request` dos workflows só vale para PR com base `main` ou `develop`, então o
+  PR de uma fase para a branch de integração não dispara o CI. O `push` dispara em `feature/**`
+  (`ci-frontend.yml`), e cada push da branch da fase e da de integração roda typecheck, testes e
+  build. Não é preciso mudar workflow (área do Weslley).
+- **Depois de 10/12:** um PR `feature/spec-10-identidade → develop`, com o roteiro e2e verde e as
+  capturas de cada fase.
+- **Se o prazo do 5º semestre apertar,** a fase que estiver pronta pode ir sozinha para a `develop`.
+  Cada fase continua mergeável sozinha, desde que a Fase 1 (marca e casca) vá antes.
+
