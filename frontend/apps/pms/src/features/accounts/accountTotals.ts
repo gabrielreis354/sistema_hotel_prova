@@ -106,3 +106,8 @@ export function receiveAt(
   if (account.reservation_id) return `/reservas/${account.reservation_id}?aba=conta`;
   return account.id && isReceivableType(account.type) ? `/comanda/${account.id}` : null;
 }
+
+/** O texto do link do `receiveAt`: diz para onde ele leva, a reserva (suíte) ou a própria conta (16/11). */
+export function receiveLabel(path: string): string {
+  return path.startsWith('/reservas/') ? 'Receber na reserva' : 'Receber na conta';
+}
