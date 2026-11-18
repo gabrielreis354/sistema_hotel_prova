@@ -23,3 +23,16 @@ export function isReceivableType(type: string | null | undefined): boolean {
 export function canReceive(account: { type?: string | null; status?: string | null; reservation_id?: string | null }): boolean {
   return isReceivableType(account.type) && RECEIVABLE_STATUSES.includes(account.status ?? '') && !account.reservation_id;
 }
+
+/**
+ * O painel "Receber" na página da conta. Ele não depende do status: quando o último pagamento quita
+ * a mesa fechada, ela vira PAID, e o painel continua aberto com o aviso do pagamento e "Conta
+ * quitada." (16/11). Quem abre é o botão, que segue o `canReceive`. Com lançamento na fila deste
+ * aparelho ele sai, porque o saldo ainda vai mudar (🟡-2 do red team).
+ */
+export function receivePanelOpen(
+  account: { type?: string | null; status?: string | null; reservation_id?: string | null },
+  { receiving, pendingCount }: { receiving: boolean; pendingCount: number },
+): boolean {
+  return receiving && pendingCount === 0 && isReceivableType(account.type) && !account.reservation_id;
+}

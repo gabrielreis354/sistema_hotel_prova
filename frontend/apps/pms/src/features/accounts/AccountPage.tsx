@@ -15,7 +15,7 @@ import { ItemList } from './components/ItemList.js';
 import { MenuGrid } from './components/MenuGrid.js';
 import { StaffActions } from './components/StaffActions.js';
 import { ReceivePanel } from './components/ReceivePanel.js';
-import { isReceivableType, receivePanelId } from './receive.js';
+import { receivePanelId, receivePanelOpen } from './receive.js';
 import type { Product } from './accountsApi.js';
 
 const BackLink = () => (
@@ -120,7 +120,7 @@ export function AccountPage() {
       {/* Receber (16/11) no fluxo da página, não no rodapé fixo. Enquanto recebe, o cardápio sai:
           lançar consumo no meio da divisão mudaria o saldo que a recepção está cobrando. */}
       {/* O painel fica aberto depois de quitar (a conta vira PAID): o aviso do pagamento continua. */}
-      {receiving && pendingCount === 0 && isReceivableType(account.type) && !account.reservation_id ? (
+      {receivePanelOpen(account, { receiving, pendingCount }) ? (
         <ReceivePanel
           accountId={account.id ?? ''}
           panelId={receivePanelId(account.id ?? '')}

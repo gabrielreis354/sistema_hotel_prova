@@ -6,7 +6,7 @@ import type { AccountDetail } from '../accountsApi.js';
 import { useAccountBill, useCloseAccount } from '../queries.js';
 import { confirmArmed } from '../closeGuard.js';
 import { balanceLine, closedNotice, receiveAt } from '../accountTotals.js';
-import { canReceive, receivePanelId } from '../receive.js';
+import { canReceive, receivePanelId, receivePanelOpen } from '../receive.js';
 
 /**
  * Por que a conta não pode ser fechada agora. Mesma regra do backend, para o botão nascer
@@ -70,8 +70,9 @@ export function StaffActions({
   const wasConfirming = useRef(false);
   const navigate = useNavigate();
   const id = account.id ?? '';
-  // Mesa, balcão e day-use sem reserva recebem aqui (16/11); a suíte, pela reserva.
-  const receivable = canReceive(account) && !!onToggleReceive;
+  // Mesa, balcão e day-use sem reserva recebem aqui (16/11); a suíte, pela reserva. Com o painel
+  // aberto, o botão fica mesmo depois de a conta virar PAID: é ele que esconde o painel.
+  const receivable = (canReceive(account) || receivePanelOpen(account, { receiving, pendingCount })) && !!onToggleReceive;
   // Com a fila deste aparelho descarregando, o saldo muda e o formulário se refaz no meio da
   // digitação (🟡-2 do red team do pagamento): espera, como no fechamento.
   const receiveBlocked = pendingCount > 0 ? 'Espere os lançamentos da fila chegarem ao sistema.' : null;
