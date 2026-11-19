@@ -36,7 +36,12 @@ export function canReadMyTenant(role: Role | undefined): boolean {
   return role !== undefined && TENANT_READERS.includes(role);
 }
 
+/** As opções da consulta já com o papel aplicado: só pergunta quem pode ler o hotel. */
+export function myTenantQuery(role: Role | undefined) {
+  return { ...myTenantOptions(), enabled: canReadMyTenant(role) };
+}
+
 export function useMyTenant() {
   const role = useAuthStore((s) => s.user?.role);
-  return useQuery({ ...myTenantOptions(), enabled: canReadMyTenant(role) });
+  return useQuery(myTenantQuery(role));
 }

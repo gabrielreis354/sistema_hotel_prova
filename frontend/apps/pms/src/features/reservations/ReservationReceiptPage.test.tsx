@@ -8,6 +8,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 // provar o que entra no comprovante — sem trazer jsdom só para isso.
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn() }));
 vi.mock('../../lib/api.js', () => ({ api }));
+// Dublê da sessão: no render de servidor o zustand v5 lê o estado INICIAL da store (sem usuário),
+// então um setState no teste não chega à tela. O papel controla se o hotel é buscado.
+const session = vi.hoisted(() => ({ user: null as null | { id: string; name: string; email: string; role: string } }));
+vi.mock('../../stores/auth.js', () => ({
+  useAuthStore: (select: (s: typeof session) => unknown) => select(session),
+}));
 
 import { myTenantOptions } from '../tenant/index.js';
 import { ReservationReceiptPage } from './ReservationReceiptPage.js';
@@ -71,8 +77,15 @@ async function renderReceipt({ prefetchTenant = true } = {}) {
 // O Link do react-router usa useLayoutEffect, que o React avisa não rodar no servidor. Esperado
 // neste tipo de teste; só esse aviso é calado, qualquer outro erro continua aparecendo.
 const consoleError = console.error.bind(console);
+const asRole = (role: 'ADMIN' | 'RECEPTIONIST' | 'WAITER') => {
+  session.user = { id: `u-${role}`, name: 'Ana', email: 'ana@x.test', role };
+};
+
 beforeEach(() => {
   api.GET.mockReset();
+  // Recepção logada: a consulta do hotel só liga para quem pode lê-lo (sem isso o teste de
+  // "carregando" passava com a consulta desligada — 🟡 do qa-redteam de 16/11).
+  asRole('RECEPTIONIST');
   vi.spyOn(console, 'error').mockImplementation((msg: unknown, ...rest: unknown[]) => {
     if (typeof msg === 'string' && msg.includes('useLayoutEffect does nothing on the server')) return;
     consoleError(msg, ...rest);
@@ -81,6 +94,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  session.user = null;
 });
 
 describe('ReservationReceiptPage — emissor no topo (T-09.1)', () => {
@@ -119,5 +133,14 @@ describe('ReservationReceiptPage — emissor no topo (T-09.1)', () => {
     expect(html).toContain('Imprimir');
     expect(html).toContain('Buscando o nome do hotel');
     expect(html).not.toContain('Pousada Aurora');
+  });
+
+  it('papel sem acesso ao hotel: não pergunta e não fica em "Buscando…" para sempre', async () => {
+    asRole('WAITER');
+    backend({ status: 200, body: { id: 't1', name: 'Pousada Aurora', legal_id: null } });
+    const html = await renderReceipt({ prefetchTenant: false });
+    expect(html).toContain('Comprovante de conta');
+    expect(html).not.toContain('Buscando o nome do hotel');
+    expect(api.GET).not.toHaveBeenCalledWith('/tenants/me');
   });
 });
