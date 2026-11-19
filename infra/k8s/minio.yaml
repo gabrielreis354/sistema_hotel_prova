@@ -30,10 +30,12 @@ spec:
     spec:
       containers:
         - name: minio
-          # minio/minio saiu do Docker Hub em set/2026 (pulls anônimos passaram a dar 401/"denied")
-          # — a distribuição oficial migrou para quay.io, mesmas tags. Bug real encontrado ao
-          # validar o docker-compose.yml (T-06.4) — corrigido aqui também.
-          image: quay.io/minio/minio:latest
+          # Compilada do código-fonte (docker/minio/Dockerfile): minio/minio e quay.io/minio/minio
+          # dão 401 no pull anônimo num nó limpo. O `./start.sh up` constrói a imagem antes do
+          # apply. Never, e não IfNotPresent: sem a imagem local o kubelet tentaria baixar
+          # docker.io/gesway/minio, um namespace que não é nosso (🔴-1 do red team de 16/11).
+          image: gesway/minio:RELEASE.2025-10-15T17-29-55Z
+          imagePullPolicy: Never
           args:
             - server
             - /data
@@ -81,7 +83,9 @@ spec:
         # indisponível (best-effort, CA-D.2) — o PMS não depende disto para subir. Tenta até
         # dar certo e fica parado (o script é idempotente). Recebe só as credenciais do MinIO.
         - name: setup
-          image: quay.io/minio/minio:latest
+          # Mesma imagem do contêiner minio (traz o mc e o /bin/sh).
+          image: gesway/minio:RELEASE.2025-10-15T17-29-55Z
+          imagePullPolicy: Never
           # Falha (senha do leitor com menos de 8 caracteres, root errado, MinIO fora) é logada a
           # cada tentativa: `kubectl -n hotel-system logs minio-0 -c setup`. O pod fica Ready mesmo
           # assim — o upload não depende do setup —, mas os downloads de PDF dão 403 até resolver.

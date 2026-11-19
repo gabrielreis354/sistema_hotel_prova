@@ -13,3 +13,40 @@
   --color-brand: 17 94 89;
   --color-brand-fg: 255 255 255;
 }
+
+/*
+ * Tela de login (SPEC-10, T-10.1). Família esmeralda da identidade nova; o resto do app continua
+ * na marca teal acima até a T-10.2 decidir a cor (decisão de 16/11). Canais RGB, como a marca:
+ * o login.css compõe a transparência (`rgb(var(--login-glass) / 0.4)`).
+ *
+ * Contraste conferido sobre o vidro claro (≈ branco):
+ * - texto 11 31 23 = 16:1; apoio 47 74 63 = 9:1; placeholder 91 114 104 = 4,8:1;
+ * - borda do campo 107 133 121 = 3,7:1 (≥ 3:1, WCAG 1.4.11);
+ * - botão 4 120 87 com texto branco = 5,5:1 (CA-08.d pede 4,5:1).
+ */
+:root {
+  --login-ink: 11 31 23;
+  --login-ink-soft: 47 74 63;
+  --login-label: 31 58 47;
+  --login-accent: 4 120 87;
+  --login-accent-fg: 255 255 255;
+  --login-logo: 6 95 70;
+  --login-light: 16 185 129;
+  --login-light-tip: 167 243 208;
+  --login-glass: 255 255 255;
+  --login-field-border: 107 133 121;
+  --login-field-placeholder: 91 114 104;
+  --login-ground-top: 245 248 246;
+  --login-ground-bottom: 233 241 237;
+  --login-tint-green: 52 211 153;
+  --login-tint-sand: 250 204 150;
+  --login-tint-teal: 45 212 191;
+  --login-swoosh-deep: 4 120 87;
+  --login-swoosh-mid: 16 185 129;
+  --login-swoosh-tip: 110 231 183;
+  --login-shadow: 6 78 59;
+  /* O mesmo vermelho do status-maintenance (#dc2626), para o campo com erro. */
+  --login-danger: 220 38 38;
+  /* Texto de erro sobre o vidro: #b91c1c, acima de 6:1 mesmo sobre as manchas do fundo. */
+  --login-danger-ink: 185 28 28;
+}

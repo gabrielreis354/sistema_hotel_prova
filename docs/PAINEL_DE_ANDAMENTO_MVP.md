@@ -195,7 +195,7 @@ AWS/Terraform (regra absoluta de free-tier; nuvem é do 5º semestre).
 | 02 Requisitos | v1.4 | #32 | reentrega |
 | 03 DFD | v1.3 | #33 | reentrega (revisão do grupo sobre a v1.2 do Sirlande) |
 | 04 MER | v1.4 | #39 | revisão (conferida coluna a coluna contra o schema) |
-| 05 Arquitetura em nuvem | v1.2 | #34 | entrega nova (1× `t3.small`, plano de créditos; a auditoria de 19/10 foi aplicada) |
+| 05 Arquitetura em nuvem | v1.2 | #34 | entrega nova (1× `t3.small`, plano de créditos; a auditoria de 19/10 foi aplicada). **v1.4 (14/11):** §6.5 com a estimativa no AWS Pricing Calculator, US$ 14,21/mês no cenário de 120 h, em revisão no PR #9 do fork; resumo em `docs/infra/ARQ_INFRA.md` |
 | 06 C4 Model | v1.2 | #35 | entrega nova |
 | 07 ADR | v1.1 | #36 | entrega nova (11 ADRs, ADR-004 revista) |
 | 08 Sprints | v1.1 | #37 | entrega nova. Atualizar a nota "a confirmar até 04/11" depois do encontro de 03/11, na mesma branch |

@@ -6,6 +6,7 @@ import { accountKeys } from './queries.js';
 import {
   addTap,
   undoTap,
+  setQuantity,
   dismiss as dismissEntry,
   readyToSend,
   markSending,
@@ -94,6 +95,8 @@ export const queue = {
   tap: (tap: Tap) => commit(addTap(entries, tap, Date.now(), newClientItemId())),
   undo: (clientItemId: string, ownerId: string) => commit(undoTap(entries, clientItemId, Date.now(), ownerId)),
   dismiss: (clientItemId: string) => commit(dismissEntry(entries, clientItemId)),
+  setQuantity: (clientItemId: string, quantity: number, ownerId: string) =>
+    commit(setQuantity(entries, clientItemId, quantity, Date.now(), ownerId)),
 };
 
 /**

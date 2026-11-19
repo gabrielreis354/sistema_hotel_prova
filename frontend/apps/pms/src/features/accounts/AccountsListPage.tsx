@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { useQueueEntries, useQueueRunner } from './queueStore.js';
 import { pendingFor } from './queueCore.js';
 import { filterAccounts, openedAtLabel, sortAccounts } from './accountFilter.js';
+import { receiveLabel } from './accountTotals.js';
 import { InfoNotice } from './components/InfoNotice.js';
 import { OpenAccountForm } from './components/OpenAccountForm.js';
 
@@ -68,10 +69,10 @@ export function AccountsListPage() {
               Ver conta fechada
             </Link>
           )}
-          {/* Saldo da conta da suíte: o caminho para receber (C-19). */}
+          {/* Saldo em aberto: o caminho para receber, na reserva (C-19) ou na própria mesa (16/11). */}
           {closed?.receiveAt && (
             <Link to={closed.receiveAt} className="ml-3 inline-flex min-h-touch items-center font-medium text-brand underline">
-              Receber na reserva
+              {receiveLabel(closed.receiveAt)}
             </Link>
           )}
         </InfoNotice>

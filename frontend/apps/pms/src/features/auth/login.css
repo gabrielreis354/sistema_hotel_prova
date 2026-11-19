@@ -1,0 +1,299 @@
+/*
+ * Tela de login (SPEC-10, T-10.1): vidro claro, luz que percorre a borda e fundo parado.
+ * Protótipo aprovado pelo Sirlande em 16/11 (V2 clara). Cores só por token (`--login-*` em
+ * @hotel/ui/tokens.css); a regra 9b do qa_checks não lê .css, então a guarda é o LoginPage.test.
+ *
+ * Desempenho (SPEC-10 §3.1): só `transform` e `opacity` animam, que a placa de vídeo compõe sem
+ * redesenhar. A luz é um quadrado com o gradiente FIXO que gira atrás de uma máscara em anel;
+ * * animar o ângulo do gradiente (propriedade CSS registrada) redesenhava a borda a cada quadro.
+ */
+
+.login-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  box-sizing: border-box;
+  color: rgb(var(--login-ink));
+  background: linear-gradient(180deg, rgb(var(--login-ground-top)) 0%, rgb(var(--login-ground-bottom)) 100%);
+}
+
+/* Fundo parado: manchas suaves para o vidro ter o que desfocar. Decorativo. */
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 45% 50% at 18% 22%, rgb(var(--login-tint-green) / 0.28), transparent 70%),
+    radial-gradient(ellipse 45% 55% at 85% 35%, rgb(var(--login-tint-sand) / 0.38), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 55% 95%, rgb(var(--login-tint-teal) / 0.2), transparent 70%),
+    radial-gradient(circle 130px at 45% 42%, rgb(var(--login-light) / 0.18), transparent 70%),
+    radial-gradient(circle 110px at 58% 56%, rgb(var(--login-tint-sand) / 0.26), transparent 70%);
+}
+
+/* Faixas verdes dos cantos (SVG); a cor dos stops vem daqui, não de atributo. */
+.login-swoosh {
+  position: absolute;
+  width: min(46vw, 600px);
+  height: auto;
+  pointer-events: none;
+}
+.login-swoosh--top {
+  top: 0;
+  left: 0;
+}
+.login-swoosh--bottom {
+  right: 0;
+  bottom: 0;
+}
+.login-swoosh-stop-deep {
+  stop-color: rgb(var(--login-swoosh-deep));
+  stop-opacity: 0.75;
+}
+.login-swoosh-stop-mid {
+  stop-color: rgb(var(--login-swoosh-mid));
+  stop-opacity: 0.55;
+}
+.login-swoosh-stop-tip {
+  stop-color: rgb(var(--login-swoosh-tip));
+  stop-opacity: 0;
+}
+
+.login-card-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+}
+
+/* Halo fixo em volta da caixa: pulsa só por opacity. */
+.login-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  pointer-events: none;
+  box-shadow:
+    0 0 24px 2px rgb(var(--login-light) / 0.4),
+    0 0 4px 0 rgb(var(--login-light) / 0.35);
+  animation: login-pulse 5s ease-in-out infinite;
+  will-change: opacity;
+}
+
+/*
+ * Anel da luz. Escondido por padrão: sem máscara (navegador antigo), o quadrado que gira apareceria
+ * inteiro atrás do vidro. Com máscara, o anel mostra só a faixa de 2 px da borda.
+ */
+.login-ring {
+  display: none;
+  position: absolute;
+  inset: -2px;
+  z-index: 2;
+  border-radius: 24px;
+  padding: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  /* Na máscara só o alfa conta; `black` é "opaco", não uma cor da tela. */
+  -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(black 0 0) content-box exclude, linear-gradient(black 0 0);
+}
+@supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
+  .login-ring {
+    display: block;
+  }
+}
+
+.login-ring-rotor {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1000px;
+  height: 1000px;
+  background: conic-gradient(
+    transparent 0deg,
+    transparent 220deg,
+    rgb(var(--login-light)) 305deg,
+    rgb(var(--login-light-tip)) 340deg,
+    transparent 360deg
+  );
+  transform: translate(-50%, -50%);
+  /* 11 s por volta: "um pouco mais lento" que os 7 s da V1 (decisão de 16/11). */
+  animation: login-spin 11s linear infinite;
+  will-change: transform;
+}
+
+/*
+ * Vidro claro, SEM backdrop-filter (medido em 16/11, Chromium sem placa de vídeo, CPU 4x mais
+ * lenta): com o desfoque, a luz e o halo obrigavam o navegador a refazê-lo a cada quadro, e a tela
+ * caía para 36 a 45 quadros por segundo; sem ele, 60. Como o fundo é parado e já é feito de
+ * manchas suaves, desfocá-lo não muda nada visível: 55% de branco dá o mesmo resultado que os
+ * 40% com desfoque do protótipo (comparado lado a lado).
+ */
+.login-card {
+  position: relative;
+  z-index: 1;
+  border-radius: 22px;
+  border: 1px solid rgb(var(--login-glass) / 0.75);
+  background: rgb(var(--login-glass) / 0.55);
+  box-shadow:
+    0 24px 60px rgb(var(--login-shadow) / 0.14),
+    inset 0 1px 0 rgb(var(--login-glass) / 0.8);
+  padding: 36px 40px;
+}
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px;
+  }
+}
+
+.login-logo {
+  width: 134px;
+  height: 112px;
+  color: rgb(var(--login-logo));
+}
+.login-wordmark {
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: rgb(var(--login-ink));
+}
+.login-wordmark-accent {
+  color: rgb(var(--login-accent));
+}
+.login-tagline {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.26em;
+  color: rgb(var(--login-ink-soft));
+}
+.login-title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+  color: rgb(var(--login-ink));
+}
+.login-subtitle {
+  font-size: 14px;
+  line-height: 20px;
+  color: rgb(var(--login-ink-soft));
+}
+.login-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: rgb(var(--login-label));
+}
+
+/*
+ * Campos e botões: Input e Button do @hotel/ui com o visual do login por cima. As utilidades do
+ * Tailwind (`bg-brand`, `rounded-md`, `min-h-touch`, `focus:border-brand`) entram DEPOIS deste
+ * arquivo no bundle e venceriam no empate; o escopo `.login-page` dá uma classe a mais de
+ * especificidade (medido em 16/11: sem ele, o botão saía teal e com 48 px).
+ */
+.login-page .login-input {
+  height: 48px;
+  border-radius: 12px;
+  border-color: rgb(var(--login-field-border));
+  background-color: rgb(var(--login-glass) / 0.72);
+  color: rgb(var(--login-ink));
+}
+.login-page .login-input::placeholder {
+  color: rgb(var(--login-field-placeholder));
+}
+.login-page .login-input:focus {
+  border-color: rgb(var(--login-accent));
+  --tw-ring-color: rgb(var(--login-accent));
+  background-color: rgb(var(--login-glass));
+}
+.login-page .login-input[aria-invalid='true'],
+.login-page .login-input[aria-invalid='true']:focus {
+  border-color: rgb(var(--login-danger));
+  --tw-ring-color: rgb(var(--login-danger));
+}
+.login-page .login-input--with-toggle {
+  padding-right: 56px;
+}
+
+/* Alvo de 48 px (CA-10.g), da altura do próprio campo; o protótipo tinha 44. */
+.login-page .login-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 48px;
+  min-height: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 10px;
+  color: rgb(var(--login-ink-soft));
+}
+.login-page .login-toggle:focus-visible {
+  /* O ghost traz ring-gray-300: 1,4:1 sobre o vidro (🟡2 do red team). */
+  --tw-ring-color: rgb(var(--login-accent));
+}
+.login-page .login-toggle:hover {
+  color: rgb(var(--login-ink));
+  background-color: rgb(var(--login-logo) / 0.08);
+}
+
+/*
+ * Erro do campo: o vermelho do status-maintenance sobre o vidro de 55% com as manchas ficava entre 4,30 e 4,46:1 (🟡3 do red
+ * team). O vermelho escuro do login passa de 6:1. Vale para o erro do Field (e-mail) e o da senha.
+ */
+.login-page label > [role='alert'],
+.login-page .login-field-error {
+  color: rgb(var(--login-danger-ink));
+}
+
+.login-page .login-submit {
+  min-height: 52px;
+  border-radius: 12px;
+  gap: 10px;
+  font-weight: 700;
+  background-color: rgb(var(--login-accent));
+  color: rgb(var(--login-accent-fg));
+  box-shadow: 0 10px 28px rgb(var(--login-accent) / 0.28);
+}
+.login-page .login-submit:hover {
+  background-color: rgb(var(--login-accent));
+  filter: brightness(1.1);
+}
+.login-page .login-submit:focus-visible {
+  --tw-ring-color: rgb(var(--login-accent));
+}
+
+@keyframes login-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+@keyframes login-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* Movimento reduzido: a luz fica parada no ponto de partida e o halo não pulsa. */
+@media (prefers-reduced-motion: reduce) {
+  .login-ring-rotor {
+    animation: none;
+  }
+  .login-halo {
+    animation: none;
+  }
+  /* Com o escopo, para vencer o .transition-colors do Button (🟢 do red team). */
+  .login-page .login-submit {
+    transition: none;
+  }
+}
