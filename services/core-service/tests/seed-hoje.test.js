@@ -3,28 +3,20 @@
 // fixam o relógio pela variável de sessão `seed.agora` (a mesma que o arquivo lê) para provar o
 // cenário num dia conhecido, a troca de dia e o corte do fuso. Um bloco final roda com o relógio
 // real e confere pela API, como o painel Hoje do app lê.
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../database/connections/sequelize.js';
+import runSeedFiles from '../database/runSeed.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 
 const app = createApp();
-const seedDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 const TZ = 'America/Sao_Paulo';
 
-// Mesma ordem do `node command.js seed`. `agora` simula o relógio; sem ele, vale o now() do banco.
-async function runSeed(agora) {
-    for (const file of ['seed_hotels.sql', 'seed_consumo.sql', 'seed_hoje.sql']) {
-        const sql = await readFile(path.join(seedDir, file), 'utf-8');
-        // Uma chamada só = uma conexão: o SET vale para o arquivo e o RESET devolve o pool limpo.
-        await sequelize.query(agora ? `SET seed.agora = '${agora}'; ${sql}; RESET seed.agora;` : sql);
-    }
-}
+// O mesmo código do `node command.js seed` (database/runSeed.js). `agora` simula o relógio; sem
+// ele, vale o now() do banco.
+const runSeed = (agora) => runSeedFiles(sequelize, { agora });
 
 const q = (sql, replacements = {}) => sequelize.query(sql, { type: QueryTypes.SELECT, replacements });
 const one = async (sql, replacements) => (await q(sql, replacements))[0];
@@ -298,8 +290,13 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
               FROM guests g, users u
              WHERE g.cpf = '30000000030' AND u.email = 'admin@aurora.example'`);
         const antes = await counts();
-        await expect(runSeed('2026-12-11 15:00-03')).resolves.not.toThrow();
+        const { notices } = await runSeed('2026-12-11 15:00-03');
         expect(await counts()).toEqual(antes);
+        // 🟢-3 do red team de 18/11: o aviso da linha pulada chega a quem rodou o seed.
+        expect(notices).toContainEqual({
+            severity: 'NOTICE',
+            message: expect.stringMatching(/^seed_hoje: aurora quarto 201 já reservado de .* linha do cenário pulada$/),
+        });
         // O resto do cenário foi para o novo dia; o 201 do cenário ficou onde estava.
         const sc = await scenario('aurora', '2026-12-11', '2026-12-11 15:00-03');
         expect({ inHouse: sc.inHouse, departures: sc.departures, noShow: sc.noShow }).toEqual({ inHouse: 4, departures: 1, noShow: 1 });

@@ -164,3 +164,46 @@ export function visibleRows<T>(rows: readonly T[], expanded: boolean, limit = BL
   if (expanded || rows.length <= limit) return { shown: [...rows], hidden: 0 };
   return { shown: rows.slice(0, limit), hidden: rows.length - limit };
 }
+
+/**
+ * Para onde vai o foco depois de "Ver todas" ou "Mostrar menos" (ressalva 🟡2 da T-08.4).
+ * - Expandir: os itens novos entram ANTES do botão, então o próximo Tab pulava para o bloco
+ *   seguinte. O foco vai para o primeiro item novo, o do corte.
+ * - Recolher: a lista encolhe e o botão sobe para fora da vista (o iOS não ancora a rolagem).
+ *   O foco fica no botão, e quem chama o traz de volta para a vista.
+ */
+export type ToggleFocusTarget = { kind: 'item'; index: number } | { kind: 'button' };
+
+export function toggleFocusTarget(expanding: boolean, total: number, limit = BLOCK_LIMIT): ToggleFocusTarget {
+  return expanding && total > limit ? { kind: 'item', index: limit } : { kind: 'button' };
+}
+
+/** Selo de alerta da chegada: `label` na tela, `full` para o leitor de tela e a dica do mouse. */
+export interface ArrivalFlag {
+  tone: 'maintenance' | 'cleaning';
+  label: string;
+  full: string;
+}
+
+/**
+ * Selos da chegada, curtos para caber ao lado de "Quarto 101 · 3 diárias" no celular (ressalva
+ * 🟡1 da T-08.4, decisão do Sirlande de 16/11). Na linha própria, cada chegada com selo ganhava
+ * uma linha a mais, e o painel passava dos 3.000 px do CA-08.i em 375 px. O texto completo não
+ * se perde: vai em `full`, e o "risco de no-show" também está no bloco Atenção.
+ */
+export function arrivalFlags(row: ArrivalRow): ArrivalFlag[] {
+  const flags: ArrivalFlag[] = [];
+  if (row.noShowRisk) {
+    flags.push({ tone: 'maintenance', label: 'Sem pagamento', full: 'Sem pagamento · risco de no-show' });
+  }
+  const entrada = row.reservation.check_in_date;
+  if (row.late && entrada) {
+    const [ano, mes, dia] = entrada.split('-');
+    flags.push({
+      tone: 'cleaning',
+      label: `Atrasada · ${dia}/${mes}`,
+      full: `Chegada atrasada · entrada era ${dia}/${mes}/${ano}`,
+    });
+  }
+  return flags;
+}

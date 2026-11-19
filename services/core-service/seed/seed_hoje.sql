@@ -35,7 +35,9 @@
 --   A identidade de cada reserva do cenário é (hotel, CPF do hóspede, quarto): os hóspedes
 --   novos (30000000022 a 24, 40000000014 e 15) não têm outra reserva no seed.
 --
--- DEPOIS DE UM ENSAIO, RECRIE O BANCO antes da banca (docker compose down -v; up; migrate; seed).
+-- DEPOIS DE UM ENSAIO, RECRIE O BANCO antes da banca. No compose: docker compose down -v; up; migrate;
+-- seed com ALLOW_SEED=1 (o compose sobe com NODE_ENV=production). No k8s: ./start.sh down;
+-- ./start.sh up; ./start.sh migrate; ALLOW_SEED=1 ./start.sh seed.
 -- Rodar por cima de um banco usado não desfaz o ensaio: o check-in feito ontem continua feito, e
 -- o painel de hoje sai incompleto. O resumo no fim do arquivo avisa (WARNING) quando isso acontece.
 --
@@ -221,7 +223,7 @@ BEGIN
     IF (a.subdomain = 'aurora' AND (a.chegadas, a.na_casa, a.saidas) <> (2::bigint, 4::bigint, 1::bigint))
        OR (a.subdomain = 'sol' AND (a.chegadas, a.na_casa, a.saidas) <> (1::bigint, 2::bigint, 1::bigint))
        OR a.fora_da_janela > 0 THEN
-      RAISE WARNING 'seed_hoje: o cenário de % não ficou completo (banco já usado em ensaio?). Para a banca, recrie o banco: docker compose down -v, up, migrate e seed.', a.subdomain;
+      RAISE WARNING 'seed_hoje: o cenário de % não ficou completo (banco já usado em ensaio?). Para a banca, recrie o banco. Compose: docker compose down -v, up, migrate e seed com ALLOW_SEED=1. K8s: ./start.sh down, ./start.sh up, ./start.sh migrate e ALLOW_SEED=1 ./start.sh seed.', a.subdomain;
     END IF;
   END LOOP;
 END $$;

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ErrorState, PageHeader, Spinner } from '@hotel/ui';
 import { formatBRL } from '@hotel/domain';
@@ -14,6 +14,8 @@ import { InfoNotice } from './components/InfoNotice.js';
 import { ItemList } from './components/ItemList.js';
 import { MenuGrid } from './components/MenuGrid.js';
 import { StaffActions } from './components/StaffActions.js';
+import { ReceivePanel } from './components/ReceivePanel.js';
+import { receivePanelId, receivePanelOpen } from './receive.js';
 import type { Product } from './accountsApi.js';
 
 const BackLink = () => (
@@ -50,6 +52,8 @@ export function AccountPage() {
   const waiting = mine.filter(awaitsServer).length;
   // Quantos deles são de outras contas: a faixa diz, para o número bater com a lista desta conta.
   const elsewhere = waiting - pendingCount;
+  // Painel "Receber" da mesa/balcão/day-use (16/11). Antes de qualquer return: ordem dos hooks.
+  const [receiving, setReceiving] = useState(false);
 
   if (!account) {
     if (fetchStatus === 'paused') {
@@ -110,10 +114,23 @@ export function AccountPage() {
         items={account.items ?? []}
         entries={onThisAccount}
         onUndo={(clientItemId) => user && queue.undo(clientItemId, user.id)}
+        onQuantity={(clientItemId, quantity) => user && queue.setQuantity(clientItemId, quantity, user.id)}
         onDismiss={queue.dismiss}
       />
 
-      <MenuGrid onTap={tap} disabledReason={closedReason} />
+      {/* Receber (16/11) no fluxo da página, não no rodapé fixo. Enquanto recebe, o cardápio sai
+          para não lançar consumo, por engano, no meio da divisão. Isso só vale neste aparelho: o
+          lançamento do garçom em outro aparelho é barrado no envio, pela conferência do saldo (P-8). */}
+      {/* O painel fica aberto depois de quitar (a conta vira PAID): o aviso do pagamento continua. */}
+      {receivePanelOpen(account, { receiving, pendingCount }) ? (
+        <ReceivePanel
+          accountId={account.id ?? ''}
+          panelId={receivePanelId(account.id ?? '')}
+          accountStatus={account.status ?? ''}
+        />
+      ) : (
+        <MenuGrid onTap={tap} disabledReason={closedReason} />
+      )}
 
       {/* Rodapé fixo com o total (CA-05.5.d), acima da barra de navegação do celular. */}
       <div className="sticky bottom-12 z-10 -mx-4 space-y-2 border-t border-gray-200 bg-white px-4 py-3 md:bottom-0">
@@ -130,6 +147,8 @@ export function AccountPage() {
             pendingCount={pendingCount}
             othersPending={othersHere}
             totalCents={totals.totalCents}
+            receiving={receiving}
+            onToggleReceive={() => setReceiving((v) => !v)}
           />
         )}
       </div>

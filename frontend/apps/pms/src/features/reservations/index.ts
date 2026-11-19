@@ -9,3 +9,4 @@ export { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 export { useBill, useFreshBill, useTransitionReservation, reservationKeys } from './queries.js';
 export { listReservations, type ReservationListItem, type ReservationPage, type ReservationTransition } from './reservationsApi.js';
 export { officialBalanceCents, reservationActions, safeNights } from './reservationLogic.js';
+export { PaymentForm, type PaymentResult } from './components/PaymentForm.js';

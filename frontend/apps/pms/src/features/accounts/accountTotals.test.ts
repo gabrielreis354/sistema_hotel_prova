@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { balanceLine, billableCents, closedNotice, footerTotals, itemLine, receiveAt, undoLabel } from './accountTotals.js';
+import { balanceLine, billableCents, closedNotice, footerTotals, itemLine, receiveAt, receiveLabel, undoLabel } from './accountTotals.js';
 import { addTap, markSending, applyOutcome } from './queueCore.js';
 
 const item = (total: string, billable = true, quantity = 1, reason: string | null = null) => ({
@@ -116,13 +116,31 @@ describe('receiveAt — onde receber o saldo depois de fechar (C-19, D6 do M5-b)
     expect(receiveAt({ reservation_id: 'res-1' }, { balance: '-5.00' })).toBeNull();
   });
 
-  it('mesa ou day-use (sem reserva): sem link — o pagamento de conta avulsa fica para depois', () => {
-    expect(receiveAt({ reservation_id: null }, { balance: '40.00' })).toBeNull();
+  // Mesa fechada com saldo (🟡-1 do red team do pagamento, decisão de 16/11): recebe na própria mesa.
+  it('mesa, balcão ou day-use sem reserva, com saldo: a própria conta, que continua recebendo fechada', () => {
+    expect(receiveAt({ id: 'a1', type: 'TABLE', reservation_id: null }, { balance: '40.00' })).toBe('/comanda/a1');
+    expect(receiveAt({ id: 'a2', type: 'DAY_USE' }, { balance: '40.00' })).toBe('/comanda/a2');
+  });
+
+  it('sem id, interna ou sem saldo: sem link', () => {
     expect(receiveAt({}, { balance: '40.00' })).toBeNull();
+    expect(receiveAt({ id: 'a3', type: 'INTERNAL' }, { balance: '40.00' })).toBeNull();
+    expect(receiveAt({ id: 'a1', type: 'TABLE' }, { balance: '0.00' })).toBeNull();
   });
 
   it('sem saldo na resposta: sem link, a tela não supõe dívida', () => {
     expect(receiveAt({ reservation_id: 'res-1' }, undefined)).toBeNull();
     expect(receiveAt({ reservation_id: 'res-1' }, { total: '40.00' })).toBeNull();
+  });
+});
+
+// O link do aviso de fechamento diz para onde leva: a reserva (suíte) ou a própria conta (mesa, 16/11).
+describe('receiveLabel — o texto do link para receber o saldo', () => {
+  it('saldo da suíte: na reserva', () => {
+    expect(receiveLabel('/reservas/res-1?aba=conta')).toBe('Receber na reserva');
+  });
+
+  it('saldo da mesa, do balcão ou do day-use: na conta', () => {
+    expect(receiveLabel('/comanda/a1')).toBe('Receber na conta');
   });
 });

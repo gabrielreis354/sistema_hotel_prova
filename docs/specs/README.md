@@ -40,6 +40,7 @@ Substituem as pendências espalhadas em relatórios de sessão, que não eram ex
 | [SPEC-07](SPEC-07-tarifas-por-periodo.md) | Tarifas por Período | 🟠 Alta para o produto | 🔲 | — |
 | [SPEC-08](SPEC-08-acabamento-corporativo.md) | Acabamento corporativo do app-pms | 🟠 Alta | 🔲 | — |
 | [SPEC-09](SPEC-09-acabamento-telas-mvp.md) | Correções das telas do MVP (revisão de 15/11) | 🟠 Alta | 🟡 Aprovada 15/11 | Congelamento de 24/11 |
+| [SPEC-10](SPEC-10-identidade-visual.md) | Identidade visual, do login à administração | 🟢 Proposta (opcional) | 🟡 Login decidido em 16/11; demais telas sem protótipo | — |
 | [SPEC-11](SPEC-11-robustez-balcao-mvp.md) | Robustez do balcão: duplo clique, CPF, reserva no passado, painel sem rede (banca simulada de 15/11) | 🟠 Alta | 🔵 Proposta 16/11 | Congelamento de 24/11 |
 | [SPEC_DOC](../SPEC_DOCUMENTACAO_OFICIAL_23ago2026.md) | Documentação Acadêmica | 🟠 Alta | 🟡 Fase A completa | — |
 
