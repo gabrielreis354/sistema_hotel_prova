@@ -27,7 +27,7 @@ Na ordem:
 1. docs/historico_sessao/<seu-dev>/ultimo_relatorio.md  → o que ficou pendente
 2. docs/CODING_STANDARDS.md                             → padrões de código e Git
 3. Este arquivo (CLAUDE.md)                             → regras de orquestração
-4. docs/PRODUCT_ROADMAP.md                              → fase atual do produto
+4. docs/PLANO_FECHAMENTO_MVP_15NOV2026.md               → fase atual (o PRODUCT_ROADMAP.md é legado)
 5. docs/FERRAMENTAL.md                                  → que skill/plugin entra em cada tarefa
 ```
 
@@ -48,13 +48,13 @@ disponível durante todo o tempo em que duas falhas de segurança ficaram aberta
 | Campo | Valor |
 |---|---|
 | Produto | Sistema de Gestão de Hotel — SaaS multi-tenant |
-| Fase atual | CorePMS (operações básicas: reservas, check-in/out, pagamentos) |
+| Fase atual | Fechamento do MVP do 4º semestre: roteiro de demonstração no Docker Compose (congelamento 24/11, entrega 10/12) |
 | Stack | Node.js 24, Express 4, Sequelize 6, PostgreSQL 17, JWT, Docker, K8s |
 | Módulos ESM | Sempre `import`/`export` — **nunca `require()`** |
 | PKs | UUID em todas as tabelas |
 | Multi-tenancy | `tenant_id` obrigatório em TODAS as tabelas e queries |
 | Auth JWT | Payload: `{ userId, role, tenantId }` — extraído via `authMiddleware` |
-| Infra | Docker Compose (dev) · Docker Swarm (staging) · Kubernetes (produção) |
+| Infra | Docker Compose (dev e demonstração do 4º sem.) · Kubernetes local (`infra/k8s/`) · nuvem AWS no 5º sem. (ADR-004/005; o Swarm foi descartado) |
 
 ### Máquina de estados — Reservas
 
@@ -117,7 +117,7 @@ services/
     db/ · seed/         → schema.sql e carga inicial
     tests/              → Vitest + Supertest
     _web.js · command.js → entrypoint HTTP e CLI (migrate, seed)
-  analytics-service/    → 🔷 nasce na T-01.4
+  analytics-service/    → indicadores do gerente, banco próprio, eventos pelo RabbitMQ (T-01.4, desde 31/10)
   b2b-service/          → 🔷 nasce na T-01.6 (5º semestre)
 infra/
   k8s/                  → manifests Kubernetes completos
@@ -125,7 +125,7 @@ frontend/               → monorepo pnpm (apps/pms, packages/ui, api-client...)
 scripts/                → qa_checks.sh, estado.sh, setup_db.sh, infra_up.sh
 docs/
   CODING_STANDARDS.md
-  specs/                → SPEC-01 a SPEC-07
+  specs/                → SPEC-01 em diante (índice em specs/README.md)
   legado/               → material superado (docker/, modelagem/, queries/...)
   historico_sessao/gabriel/
   historico_sessao/sirlande/
@@ -477,8 +477,8 @@ indexes: [{
 | `docs/CODING_STANDARDS.md` | SOLID, DRY, KISS com exemplos de código + template de relatório |
 | `docs/FERRAMENTAL.md` | Registro do ferramental — skill, plugin e subagente, com "quando **não** usar". O `estado.sh` diz qual entra na tarefa; este arquivo diz o que cada um faz |
 | `frontend/DESIGN_PMS.md` | **Leitura obrigatória antes de mexer no `frontend/`.** Contexto de domínio para as skills de design instaladas em `.claude/skills/`, qual delas manda em cada superfície, e as regras de PMS que nenhuma delas conhece |
-| `docs/PRODUCT_ROADMAP.md` | Fases do produto, o que está previsto |
-| `docs/db/ARQ_DATABASE.md` | Schema do banco, relações, decisões de modelagem |
+| `docs/PRODUCT_ROADMAP.md` | **Legado.** Visão de fases de junho; o plano vigente é o Documento 08 e o `PLANO_FECHAMENTO_MVP_15NOV2026.md` |
+| `docs/db/ARQ_DATABASE.md` | **Legado** (8 tabelas do 3º semestre). O modelo vigente é o Documento 04 (MER) e o `db/schema.sql` |
 | `docs/infra/KUBERNETES.md` | Infra K8s, como aplicar os manifests |
 | `docs/historico_sessao/` | Histórico de sessões por dev |
 | `infra/k8s/` | Manifests completos (namespace, backend, nginx, postgres) |

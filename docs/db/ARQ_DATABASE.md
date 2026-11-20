@@ -1,5 +1,10 @@
 # Banco de Dados — Arquitetura e Decisões
 
+> **⚠️ Documento legado (3º semestre).** Descreve o banco de 8 tabelas e os papéis `ADMIN` e
+> `RECEPTIONIST`. O modelo vigente é o **Documento 04 (MER)** dos documentos oficiais e o
+> `services/core-service/db/schema.sql` (17 tabelas, mais o *outbox*, e o papel `WAITER`).
+> Mantido só como histórico; não use como referência.
+
 > **Fonte de verdade:** `db/schema.sql`
 > **ORM:** Sequelize 6 (`sequelize.sync({ alter: true })` via `node command.js migrate`)
 > **Provedor:** PostgreSQL 17
