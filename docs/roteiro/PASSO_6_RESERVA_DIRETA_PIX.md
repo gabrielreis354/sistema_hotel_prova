@@ -1,9 +1,12 @@
 # Passo 6 do roteiro — hóspede reserva direto e paga o sinal por PIX
 
-> Roteiro de demonstração do `docs/PLANO_MVP_ATE_10DEZ2026.md` §2, passo 6. Pela decisão 5, o
-> passo é mostrado **pelo Swagger, sem tela**: não existe app do hóspede no 4º semestre.
+> Roteiro de demonstração do `docs/PLANO_MVP_ATE_10DEZ2026.md` §2, passo 6. O passo é mostrado
+> **pela API, sem tela do hóspede**: as chamadas saem do Swagger, o QR do sinal aparece na resposta
+> e a reserva confirma sozinha no app da recepção. Não existe app do hóspede no 4º semestre.
+> Decisão de 15/11 (`docs/PLANO_FECHAMENTO_MVP_15NOV2026.md` §7): **plano A, sandbox real do
+> Asaas**; o plano B só se a rede cair.
 > Dono: Weslley (M6). Versão de 04/11/2026, revisada pelo qa-redteam
-> (`docs/qa/redteam_passo6-swagger_04112026.md`).
+> (`docs/qa/redteam_passo6-swagger_04112026.md`); situação atualizada em 19/11/2026.
 
 **O que a banca precisa ver:** a reserva nasce `PENDING` com o QR do sinal. Depois do pagamento,
 o **webhook** do PSP confirma a reserva sozinho, e ela aparece confirmada no PMS da recepção. Ninguém
@@ -49,10 +52,16 @@ Na raiz do repositório, como no cabeçalho do `docker-compose.yml`:
    ```
    Abra `http://localhost:5173`. O login é `admin@aurora.example` / `senha123`, subdomínio `aurora`.
 5. **Plano A:**
-   - Confira se a chave do sandbox ainda vale. A atual vence em **15/11/2026**.
+   - Confira se a chave do sandbox ainda vale antes de cada ensaio. A chave usada em 12/11 foi
+     colada num chat e precisa ser trocada; a confirmação da troca está com o Weslley
+     (`docs/delegacoes/estado_fechamento_mvp_19nov2026.md`, 🟡 5).
    - No `.env`, use `PIX_PROVIDER=asaas`, a chave e o `ASAAS_WEBHOOK_TOKEN`, como em
      `docs/pagamentos/ASAAS_SANDBOX.md` §4.
-   - Suba o túnel e cadastre o webhook apontando para `https://<túnel>/webhooks/pix` (§5).
+   - Suba o túnel e cadastre o webhook apontando para `https://<túnel>/webhooks/pix` (§5). No
+     ensaio de 12/11 o túnel foi o `cloudflared tunnel --url http://localhost:3000`, que dispensa
+     conta; o ngrok do §5 também serve.
+   - No painel do sandbox, o botão de confirmar o pagamento fica nos **detalhes da cobrança**, não
+     na lista.
    - Rode `docker compose up -d backend` para o backend ler o `.env` novo.
 
 ## Durante a demonstração
@@ -106,8 +115,11 @@ aceita a autenticação do provider ativo. Para trocar:
 
 ## Pendências conhecidas
 
-- **Ensaio no compose ainda não feito.** Este roteiro foi escrito em 04/11 a partir do código, sem
-  Docker. Ensaiar os dois planos e registrar o resultado aqui.
+- **Plano A ensaiado em 12/11/2026** contra o sandbox real
+  (`docs/historico_sessao/weslley/ensaio_pix_asaas_sandbox_m6_12nov2026.md`, #143): o Asaas chamou
+  o webhook pelo túnel e a reserva foi a `CONFIRMED` com o sinal `PAID`, e cancelar a reserva
+  removeu a cobrança no Asaas. O ensaio foi com o backend fora do compose; o roteiro inteiro no
+  compose fica para o 2º ensaio, em 24/11.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
 - **A reserva pública aceita data no passado.** O `CreateBookingController` e o
