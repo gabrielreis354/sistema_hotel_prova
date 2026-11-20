@@ -76,7 +76,7 @@ Não deixe para escolher na hora: um push novo pode estar rodando e mostrar a bo
 | Painel vazio ("No data") | o profile subiu depois dos passos, ou o intervalo está curto | aumente o intervalo para **Last 3 hours**; sem dados, mostre só os três "no ar" e a DLQ |
 | **Eventos aplicados** = 0 | consumidor do analytics sem broker | painel do RabbitMQ: **Consumidores do analytics**. Se for 0, `docker compose restart analytics-service` |
 | Grafana não abre | porta 3002 ocupada | `GRAFANA_HOST_PORT` no `.env` |
-| Título "Backend **sem** ar" ou unidade "requisito/s" | tradutor automático do Edge: o Grafana declara a página em inglês (`lang="en-US"`), e o Edge traduz "no ar" como o "no" do inglês | no ícone de tradução da barra de endereço, escolha **Nunca traduzir este site** para `localhost`. Faça isso na véspera |
+| Título "Backend **sem** ar" ou unidade "requisito/s" | tradutor automático do Edge: o Grafana declara a página em inglês (`lang="en-US"`), e o Edge traduz "no ar" como o "no" do inglês | desde 20/11 o compose e o k8s sobem o Grafana com `GF_USERS_DEFAULT_LANGUAGE=pt-BR`, e a página se declara em português. Se ainda aparecer, escolha **Nunca traduzir este site** no ícone de tradução da barra de endereço |
 | Painéis em "Carregando o painel de plugin…", URL com `chunkNotFound`, ou log `lstat /var/lib/grafana/dashboards/gesway-dashboard.json: no such file or directory` | troca de branch (`git checkout`) com o Grafana rodando: o arquivo do painel é montado do repositório e a montagem se perde | `docker compose restart grafana` e recarregar a página. No dia, não troque de branch depois de subir o compose |
 
 **Plano B (Grafana não sobe de jeito nenhum):** mostrar o texto do `/metrics` do analytics pelo

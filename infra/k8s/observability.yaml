@@ -223,6 +223,9 @@ spec:
               value: "false"
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
+            # Interface em pt-BR: com lang="en-US" o tradutor do Edge trocava "No ar" por "Sem ar".
+            - name: GF_USERS_DEFAULT_LANGUAGE
+              value: pt-BR
           readinessProbe:
             httpGet:
               path: /api/health
