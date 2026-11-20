@@ -247,6 +247,8 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_ANALYTICS_USER: ${RABBITMQ_ANALYTICS_USER:-hotel_analytics_consumer}
       RABBITMQ_ANALYTICS_PASSWORD: ${RABBITMQ_ANALYTICS_PASSWORD:?defina RABBITMQ_ANALYTICS_PASSWORD no .env antes de subir o compose}
+      # Mesmo token do backend (RNF-029): sem ele o analytics sobe normal e só o /metrics responde 503.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ./services/core-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     # Sem porta no host: o navegador chega pelo nginx (location /analytics/).
@@ -324,6 +326,9 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # Interface em português e página declarada como pt-BR: com lang="en-US" o tradutor do Edge
+      # "traduzia" o "No ar" dos painéis para "Sem ar" (passo 8, 20/11).
+      GF_USERS_DEFAULT_LANGUAGE: pt-BR
     # Sem senha definida o Grafana cairia no padrão admin/admin — recusa subir (CA-02.4.b).
     entrypoint: ["/bin/sh", "-c"]
     command:

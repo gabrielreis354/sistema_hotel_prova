@@ -1,13 +1,13 @@
 {
   "uid": "gesway-saude",
-  "title": "Gesway — Saúde do core-service",
+  "title": "Gesway — Saúde do core e do analytics",
   "tags": [
     "gesway",
     "core-service"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": {
     "from": "now-30m",
@@ -54,7 +54,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Fração das respostas com status 5xx nos últimos 5 minutos",
+      "description": "Fração das respostas com status 5xx nos últimos 5 minutos Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 6,
         "y": 0,
@@ -68,7 +68,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(rate(http_request_duration_seconds_count{status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_request_duration_seconds_count[5m])), 1e-9)",
+          "expr": "(sum(rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\",status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m])), 1e-9)",
           "legendFormat": "5xx"
         }
       ],
@@ -88,7 +88,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 12,
         "y": 0,
@@ -102,7 +102,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_request_duration_seconds_count[5m]))",
+          "expr": "sum(rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m]))",
           "legendFormat": "req/s"
         }
       ],
@@ -122,7 +122,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 18,
         "y": 0,
@@ -136,7 +136,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"core-service\",route!=\"/health\"}[5m])))) > 0 or vector(0)",
           "legendFormat": "p95"
         }
       ],
@@ -156,7 +156,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 0,
         "y": 4,
@@ -170,7 +170,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (route) (rate(http_request_duration_seconds_count[5m]))",
+          "expr": "sum by (route) (rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m]))",
           "legendFormat": "{{route}}"
         }
       ],
@@ -190,7 +190,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 12,
         "y": 4,
@@ -204,7 +204,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"core-service\",route!=\"/health\"}[5m])))",
           "legendFormat": "{{route}}"
         }
       ],
@@ -224,7 +224,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 0,
         "y": 13,
@@ -238,7 +238,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (status_code) (rate(http_request_duration_seconds_count[5m]))",
+          "expr": "sum by (status_code) (rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m]))",
           "legendFormat": "{{status_code}}"
         }
       ],
@@ -272,7 +272,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (tenant_id) (rate(http_requests_by_tenant_total[5m]))",
+          "expr": "sum by (tenant_id) (rate(http_requests_by_tenant_total{job=\"core-service\"}[5m]))",
           "legendFormat": "{{tenant_id}}"
         }
       ],
@@ -347,6 +347,222 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "analytics-service — indicadores do gerente, banco próprio, eventos pelo RabbitMQ",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 12,
+      "title": "Analytics no ar",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "1 = o Prometheus alcança o /metrics do analytics-service",
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "up{job=\"analytics-service\"}",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 13,
+      "title": "Eventos aplicados (última hora)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Eventos do core (reserva, hóspede, quarto, pagamento) gravados nas projeções do analytics na última hora. Sobe quando a recepção opera no PMS.",
+      "gridPos": {
+        "x": 6,
+        "y": 29,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(analytics_events_total{outcome=\"applied\"}[1h]))) or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 14,
+      "title": "Analytics — requisições por segundo",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Consultas da tela Indicadores atendidas pelo analytics (sem o healthcheck do contêiner)",
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(http_request_duration_seconds_count{job=\"analytics-service\",route!=\"/health\"}[5m]))",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 15,
+      "title": "Analytics — latência p95",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Sem o healthcheck do contêiner",
+      "gridPos": {
+        "x": 18,
+        "y": 29,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"analytics-service\",route!=\"/health\"}[5m])))) > 0 or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 16,
+      "title": "Eventos do core por resultado",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "applied = gravado; duplicate = reentrega ignorada (idempotência); stale = versão antiga; retry = nova tentativa; dead_letter = foi para a fila de mensagens mortas",
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (outcome) (rate(analytics_events_total[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 17,
+      "title": "Vazão por rota (analytics)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Sem o healthcheck do contêiner",
+      "gridPos": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (route) (rate(http_request_duration_seconds_count{job=\"analytics-service\",route!=\"/health\"}[5m]))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
         },
         "overrides": []
       },
