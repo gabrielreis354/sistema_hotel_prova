@@ -53,8 +53,8 @@ Na raiz do repositório, como no cabeçalho do `docker-compose.yml`:
    Abra `http://localhost:5173`. O login é `admin@aurora.example` / `senha123`, subdomínio `aurora`.
 5. **Plano A:**
    - Confira se a chave do sandbox ainda vale antes de cada ensaio. A chave usada em 12/11 foi
-     colada num chat e precisa ser trocada; a confirmação da troca está com o Weslley
-     (`docs/delegacoes/estado_fechamento_mvp_19nov2026.md`, 🟡 5).
+     colada num chat e foi trocada depois do M6 (confirmação do Weslley em 16/11). A chave nova
+     vence em **31/07/2027 às 00:00**. O primeiro ensaio com ela no compose é o de 24/11.
    - No `.env`, use `PIX_PROVIDER=asaas`, a chave e o `ASAAS_WEBHOOK_TOKEN`, como em
      `docs/pagamentos/ASAAS_SANDBOX.md` §4.
    - Suba o túnel e cadastre o webhook apontando para `https://<túnel>/webhooks/pix` (§5). No

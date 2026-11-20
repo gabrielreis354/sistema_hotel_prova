@@ -375,8 +375,10 @@ docker compose --profile observability up -d
 ```
 
 Grafana em http://localhost:3002 (login `admin` + `GRAFANA_ADMIN_PASSWORD`), pasta **Gesway** →
-*Saúde do core-service*. O `/metrics` do backend exige `Authorization: Bearer $METRICS_TOKEN` e
-não sai pelo nginx (404) — o contador por tenant revela o volume de cada hotel. No k8s, o mesmo
+*Saúde do core e do analytics* e *Mensageria (RabbitMQ)*. O `/metrics` do backend e o do
+`analytics-service` exigem `Authorization: Bearer $METRICS_TOKEN` (o mesmo token) e não saem pelo
+nginx (404) — o contador por tenant revela o volume de cada hotel. Roteiro de 30 s para a banca:
+`docs/roteiro/PASSO_8_GRAFANA.md`. No k8s, o mesmo
 conjunto está em `infra/k8s/observability.yaml`; acesso com
 `kubectl -n hotel-system port-forward svc/grafana 3002:3000`.
 
