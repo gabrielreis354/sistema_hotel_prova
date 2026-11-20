@@ -170,7 +170,7 @@ describe('GET /metrics — eventos consumidos', () => {
         vi.stubEnv('METRICS_TOKEN', METRICS_TOKEN);
         const antes = await scrape();
         const transitorio = Object.assign(new Error('deadlock'), { original: { code: '40P01' } });
-        const conteudo = toBuffer(envelope('guest.created', { tenantId }));
+        const conteudo = toBuffer(envelope('guest.created', { tenantId, payload: { full_name: 'Hóspede Retry' } }));
 
         await createMessageHandler({ channel: canalFalso(), apply: async () => { throw transitorio; }, logger: silencioso })(mensagem(conteudo));
         await createMessageHandler({ channel: canalFalso(), apply: async () => { throw new PermanentEventError('inválido'); }, logger: silencioso })(mensagem(conteudo));
@@ -182,7 +182,7 @@ describe('GET /metrics — eventos consumidos', () => {
 
     it('resultado fora da lista não cria série nova', async () => {
         vi.stubEnv('METRICS_TOKEN', METRICS_TOKEN);
-        const conteudo = toBuffer(envelope('guest.created', { tenantId }));
+        const conteudo = toBuffer(envelope('guest.created', { tenantId, payload: { full_name: 'Hóspede Outro' } }));
         await createMessageHandler({ channel: canalFalso(), apply: async () => 'resultado-inesperado', logger: silencioso })(mensagem(conteudo));
 
         const text = await scrape();
