@@ -2,6 +2,8 @@
 
 **Prioridade:** 🟠 Alta — é a primeira impressão da banca e do hotel, mas vem depois do que faz o roteiro funcionar
 **Estado:** 🔲 Não iniciado — aguarda revisão do Sirlande
+
+> **Situação em 19/11/2026:** ✅ concluída. T-08.1 a T-08.4 nos #159 a #162 (15/11), T-08.5 no #167 e T-08.6 no #170 (16/11); ressalvas da T-08.4 no #178.
 **Responsável:** Sirlande
 **Criado em:** 09/11/2026
 **Depende de:** merge da T-05.3 (`feature/t053-painel-hoje`), que altera `AppShell`, navegação e o painel Hoje

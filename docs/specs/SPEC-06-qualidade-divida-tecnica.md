@@ -2,6 +2,8 @@
 
 **Prioridade:** 🟡 Média — mas contém item que **quebra o portão do CI**
 **Estado:** 🟡 Em andamento — T-06.2, T-06.3, T-06.4, T-06.5, T-06.6, T-06.8 e T-06.9 concluídas; abertas T-06.1, T-06.7, T-06.10, T-06.11 e T-06.12
+
+> **Situação em 19/11/2026:** a T-06.13 (estorno no lugar da exclusão) foi mergeada no #100, em 24/10. A T-06.12 (dado pessoal fora do log), prevista no Documento 08 para a S9, segue aberta.
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 

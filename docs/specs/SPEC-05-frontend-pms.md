@@ -2,6 +2,8 @@
 
 **Prioridade:** 🟠 Alta — é o que a banca vê funcionando
 **Estado:** 🟡 Parcialmente implementado — Fase 0 completa, Fase 1 ~20%
+
+> **Situação em 19/11/2026:** as telas do roteiro do MVP estão na `develop`: T-05.1 (#106, 02/11), T-05.2 (#108, 03/11), T-05.3 (#125, 09/11), T-05.5 com pagamento no check-out e estorno (#124, #123) e os indicadores da T-05.6 servidos pelo `analytics-service`. A tela "Financeiro", o rack (T-05.4) e as T-05.7 a T-05.12 ficaram fora do MVP pela decisão de 21/10. Os marcadores das tarefas abaixo são históricos.
 **Criado em:** 26/08/2026
 **Depende de:** SPEC-04 (para a Fase 2)
 
