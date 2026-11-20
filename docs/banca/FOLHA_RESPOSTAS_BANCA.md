@@ -30,7 +30,7 @@ Fontes:
 | E se a rede da apresentação cair no passo 6? | O mesmo fluxo roda com o provedor simulado (`PIX_PROVIDER=fake`). O contrato é o mesmo e só muda a origem da confirmação | `docs/roteiro/PASSO_6_RESERVA_DIRETA_PIX.md` |
 | Onde está a nuvem e o Terraform? | O Termo pede, no 4º semestre, os 8 documentos e o MVP com a integração inicial dos microsserviços. O deploy em nuvem com Terraform é do 5º semestre (replanejamento de 21/10), sempre no free-tier. O Doc 05 descreve o alvo | Doc 08, replanejamento de 21/10; Doc 05 |
 | Como vocês monitoram? | Prometheus e Grafana locais, no compose, com as métricas do core e a fila do RabbitMQ (passo 8) | Passo 8 (Grafana) |
-| Têm CI/CD? | Cinco workflows: as checagens determinísticas (`ci`), um por serviço (`ci-core-service` e `ci-analytics-service`), o do frontend (`ci-frontend`) e o roteiro da demonstração no navegador (`ci-e2e`, que avisa mas não bloqueia o merge), com testes e checagens a cada PR. O deploy automatizado na nuvem é do 5º semestre | Execução verde do GitHub Actions aberta na apresentação |
+| Têm CI/CD? | Cinco workflows: as checagens determinísticas (`ci`), que rodam em todo PR, e quatro que rodam quando o PR mexe no seu serviço: `ci-core-service`, `ci-analytics-service`, `ci-frontend` e o roteiro da demonstração no navegador (`ci-e2e`, que avisa mas não bloqueia o merge). O deploy automatizado na nuvem é do 5º semestre | Execução verde do GitHub Actions aberta na apresentação |
 | E a cobertura de testes? | **Conferir o número no CI antes da apresentação e escrever aqui.** Não citar de memória | Relatório de cobertura do job do core |
 
 ## LGPD e segurança

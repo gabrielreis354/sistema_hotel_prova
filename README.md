@@ -573,7 +573,7 @@ curl -s http://localhost/reservations \
 
 ### Tabela de endpoints
 
-> **A referência completa é o Swagger** (`/api-docs`), que também cobre comanda, produtos, contas, B2B, reserva direta pública, webhook do PIX e endereço. A tabela abaixo resume o núcleo de reservas.
+> **A referência completa é o Swagger** (`/api-docs`), que também cobre comanda, produtos, contas, reserva direta pública, webhook do PIX e endereço. As rotas B2B (`/corporate-clients`, `/event-quotes`, `/contracts`) ainda não estão no Swagger; estão em `services/core-service/routes/apis/`. A tabela abaixo resume o núcleo de reservas.
 
 | Recurso | Método | Rota | Função |
 |---|---|---|---|
@@ -616,7 +616,7 @@ curl -s http://localhost/reservations \
 | | POST | `/payments` | Registra pagamento |
 | | PUT | `/payments/:id` | Atualiza pagamento (admin) |
 | | POST | `/payments/:id/void` | Estorna pagamento (admin) |
-| | DELETE | `/payments/:id` | Responde 405: pagamento não se apaga, se estorna |
+| | DELETE | `/payments/:id` | Responde 405 ao admin (pagamento não se apaga, se estorna); 403 aos demais papéis |
 
 ### Máquina de estados — Reservas
 
@@ -633,7 +633,7 @@ PENDING ──► CONFIRMED ──► CHECKED_IN ──► CHECKED_OUT
 ```
 AVAILABLE ──► OCCUPIED  (no check-in)
 OCCUPIED  ──► CLEANING  (no check-out)
-CLEANING  ──► AVAILABLE   (limpeza concluída — via PUT /rooms/:id/release)
+CLEANING  ──► AVAILABLE   (limpeza concluída — PUT /rooms/:id/release, admin ou recepção; o admin também pela edição)
 CLEANING  ──► MAINTENANCE (defeito achado na limpeza — admin)
 AVAILABLE ◄─► MAINTENANCE (bloqueio manual — admin)
 ```
@@ -747,7 +747,7 @@ sistema_gestao_hotel/
 
 ### Estrutura do banco
 
-> **A referência é o Documento 04 (MER)** dos documentos oficiais. O `services/core-service/db/schema.sql` tem 17 tabelas, mais a do *outbox* criada pelo `migrate`; o `analytics-service` tem banco próprio, só com projeções. A tabela abaixo lista o núcleo de reservas; comanda (`products`, `accounts`, `account_items`, `consumptions`) e B2B (`corporate_clients`, `event_quotes`, `quote_services`, `contracts`, `contract_installments`) estão no Doc 04.
+> **A referência é o Documento 04 (MER)** dos documentos oficiais. O `services/core-service/db/schema.sql` tem 17 tabelas, mais a do *outbox* criada pelo `migrate`; o `analytics-service` tem banco próprio, com as projeções e o controle de eventos já processados (`processed_events`). A tabela abaixo lista o núcleo de reservas; comanda (`products`, `accounts`, `account_items`, `consumptions`) e B2B (`corporate_clients`, `event_quotes`, `quote_services`, `contracts`, `contract_installments`) estão no Doc 04.
 
 | Tabela | Descrição | Chave primária |
 |---|---|---|
@@ -1203,7 +1203,7 @@ kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
 
 # Pipeline CI/CD
 
-Cinco workflows do GitHub Actions rodam a cada PR:
+Cinco workflows do GitHub Actions. O `ci.yml` roda em todo PR; os outros quatro só quando o PR mexe nos caminhos do seu serviço (filtro de `paths`):
 
 | Workflow | O que faz |
 |---|---|

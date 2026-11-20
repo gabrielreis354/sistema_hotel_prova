@@ -150,7 +150,7 @@ Perguntas obrigatórias a responder antes de planejar:
 1. **O que já existe?** — Leia os controllers, models e routes relacionados
 2. **Existe código similar que posso reutilizar?** — `services/core-service/app/utils/`, controllers parecidos
 3. **Qual o impacto nos outros módulos?** — state machine, tenant isolation, transações
-4. **Existe documentação que define o comportamento esperado?** — `docs/`, `PRODUCT_ROADMAP.md`
+4. **Existe documentação que define o comportamento esperado?** — `docs/`, documentos oficiais e `PLANO_FECHAMENTO_MVP_15NOV2026.md`
 5. **O que os outros devs já fizeram nessa área?** — `git log --follow -- <arquivo>`
 
 Ferramentas de research:

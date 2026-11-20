@@ -118,8 +118,10 @@ aceita a autenticação do provider ativo. Para trocar:
 - **Plano A ensaiado em 12/11/2026** contra o sandbox real
   (`docs/historico_sessao/weslley/ensaio_pix_asaas_sandbox_m6_12nov2026.md`, #143): o Asaas chamou
   o webhook pelo túnel e a reserva foi a `CONFIRMED` com o sinal `PAID`, e cancelar a reserva
-  removeu a cobrança no Asaas. O ensaio foi com o backend fora do compose; o roteiro inteiro no
-  compose fica para o 2º ensaio, em 24/11.
+  removeu a cobrança no Asaas. O ensaio foi com o backend fora do compose.
+- **Plano B ensaiado em 14/11/2026** no compose, dentro do roteiro inteiro
+  (`docs/qa/ensaio_roteiro_14112026.md`): o webhook simulado confirmou a reserva em 2 s. O plano A
+  no compose fica para o 2º ensaio, em 24/11, com a chave nova.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
 - **A reserva pública aceita data no passado.** O `CreateBookingController` e o

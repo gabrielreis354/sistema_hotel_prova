@@ -33,7 +33,7 @@ Substituem as pendências espalhadas em relatórios de sessão, que não eram ex
 |------|--------|-----------|--------|----------|
 | [SPEC-01](SPEC-01-microsservicos.md) | Arquitetura de Microsserviços | 🔴 **Crítica** | 🟡 T-01.0, T-01.1 e T-01.4 ✅ (analytics separado: #105, cutover #109); T-01.5 parcial; T-01.6 no 5º sem. | SPEC-02, docs C4/DFD, MER v1.2 |
 | [SPEC-02](SPEC-02-cloud-iac-observabilidade.md) | Cloud, IaC e Observabilidade | 🔴 **Crítica** | 🔲 | Defesa do 5º semestre |
-| [SPEC-03](SPEC-03-integracoes-externas.md) | Integrações com APIs Externas | 🔴 **Crítica** | ✅ para o 4º sem.: ViaCEP e PIX do Asaas com webhook real no sandbox (12/11, #143); Mercado Pago sem validação | — |
+| [SPEC-03](SPEC-03-integracoes-externas.md) | Integrações com APIs Externas | 🔴 **Crítica** | 🟡 Integrações prontas: ViaCEP e PIX do Asaas com webhook real no sandbox (12/11, #143); Mercado Pago sem validação; falta a comparação Asaas × Mercado Pago na ADR-008 (CA-03.3.a) | — |
 | [SPEC-04](SPEC-04-modulo-consumo.md) | Módulo de Consumo (Comanda) | 🟠 Alta | 🟡 7 de 9 fatias + T-04.6 parcial (a, c, d), até 26/10 | Frontend Fase 2 |
 | [SPEC-05](SPEC-05-frontend-pms.md) | Frontend — app-pms | 🟠 Alta | 🟡 Telas do MVP entregues: T-05.1 (#106), T-05.2 (#108), T-05.3 (#125), T-05.5 e os indicadores da T-05.6; T-05.4 e T-05.7 a T-05.12 fora do MVP | Demonstração da defesa |
 | [SPEC-06](SPEC-06-qualidade-divida-tecnica.md) | Qualidade e Dívida Técnica | 🟡 Média | 🟡 T-06.2 a T-06.6, T-06.8, T-06.9 e T-06.13 (#100) ✅; abertas T-06.1, T-06.7, T-06.10 a T-06.12 | Portão de cobertura do CI |

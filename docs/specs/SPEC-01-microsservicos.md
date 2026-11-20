@@ -3,7 +3,7 @@
 **Prioridade:** 🔴 Crítica — condição de aprovação do projeto (critério C1: *"Arquitetura de Microsserviços implementada"*)
 **Estado:** 🟡 Em andamento — T-01.1 concluída em 14/09/2026 (ADR-003)
 
-> **Situação em 19/11/2026:** T-01.4 ✅ — o `analytics-service` roda separado, com banco próprio e eventos pelo RabbitMQ (H.2 no #105, 31/10; cutover da H.3 no #109, 09/11). T-01.5 parcial: CI por serviço com testes e cobertura (CA-01.5.a e d) desde 04/11 (#112, #113); publicação de imagem em *registry* e *deploy* (CA-01.5.b e e) ficam no 5º semestre. Pendente no 4º: o analytics ainda não expõe `/metrics` (RNF-029). Os marcadores das tarefas abaixo são históricos.
+> **Situação em 19/11/2026:** T-01.4 ✅ — o `analytics-service` roda separado, com banco próprio e eventos pelo RabbitMQ (H.2 no #105, 31/10; cutover da H.3 no #109, 09/11). T-01.5 parcial: cada serviço tem *workflow* próprio, disparado pelo seu diretório, com testes e portão de cobertura (CA-01.5.a) desde 04/11 (#112, #113). Publicação em *registry* (CA-01.5.b), *deploy* automatizado (CA-01.5.c), teste bloqueando o *deploy* (CA-01.5.d) e cobertura global (CA-01.5.e) ficam no 5º semestre. Pendente no 4º: o analytics ainda não expõe `/metrics` (RNF-029). Os marcadores das tarefas abaixo são históricos.
 **Criado em:** 26/08/2026
 **Bloqueia:** SPEC-02 · documentos 03 (DFD), 04 (MER) e 06 (C4)
 
