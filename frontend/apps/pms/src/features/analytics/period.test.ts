@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultPeriod, fillMonths, fillSeasonality, periodError, monthLabel, monthlyWindow } from './period.js';
+import { defaultPeriod, fillMonths, fillSeasonality, noSeasonReservations, periodError, monthLabel, monthlyWindow } from './period.js';
 
 describe('defaultPeriod', () => {
   it('vai do dia 1º do mês até hoje', () => {
@@ -118,5 +118,17 @@ describe('fillSeasonality', () => {
   it('linha sem mês ou fora da janela não desloca o eixo', () => {
     expect(fillSeasonality('2026-03-01', 1, [row('2025-12', 9, 1), { reservations: 5 }]).map((m) => m.month))
       .toEqual(['2026-02', '2026-03']);
+  });
+});
+
+describe('noSeasonReservations', () => {
+  // Com o preenchimento, a lista nunca vem vazia: o estado "Nenhuma reserva nesses meses." passou a
+  // depender de todos os meses estarem em zero (qa-redteam de 20/11, 🟡 do PR #195).
+  it('hotel sem reserva na janela: verdadeiro, mesmo com 13 meses preenchidos', () => {
+    expect(noSeasonReservations(fillSeasonality('2026-11-16', 12, []))).toBe(true);
+  });
+
+  it('um mês com reserva basta para mostrar o gráfico', () => {
+    expect(noSeasonReservations(fillSeasonality('2026-11-16', 12, [{ month: '2026-05', reservations: 1, avg_nights: 2 }]))).toBe(false);
   });
 });

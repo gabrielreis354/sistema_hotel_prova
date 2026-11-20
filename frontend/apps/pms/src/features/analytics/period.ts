@@ -86,6 +86,11 @@ export function fillSeasonality(
   });
 }
 
+/** Nenhuma reserva na janela: o bloco mostra o estado vazio, não 13 barras em zero. */
+export function noSeasonReservations(months: SeasonMonth[]): boolean {
+  return months.every((m) => m.reservations === 0);
+}
+
 /** Mensagem de erro do período, ou `null` se ele pode ser consultado. */
 export function periodError(period: Period): string | null {
   if (!ISO_DATE_RE.test(period.start) || !ISO_DATE_RE.test(period.end)) {
