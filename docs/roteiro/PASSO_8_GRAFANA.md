@@ -63,7 +63,8 @@ aqui:
 
 | Data | Execução | Commit | Workflows verdes |
 |---|---|---|---|
-| _preencher no ensaio de 24/11_ | | | |
+| 20/11 (**provisória**, do PR #193, antes do merge) | [CI 44814903344](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903344) · [analytics](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903288) · [core](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903175) · [e2e](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903276) | `d66b8f6` | CI, CI — analytics-service, CI — core-service, CI — roteiro e2e |
+| _depois do merge do #193: trocar pela execução da `develop`_ | | | |
 
 Não deixe para escolher na hora: um push novo pode estar rodando e mostrar a bolinha amarela.
 
