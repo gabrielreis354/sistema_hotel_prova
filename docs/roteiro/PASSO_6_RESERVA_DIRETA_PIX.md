@@ -121,7 +121,7 @@ aceita a autenticação do provider ativo. Para trocar:
   removeu a cobrança no Asaas. O ensaio foi com o backend fora do compose.
 - **Plano B ensaiado em 14/11/2026** no compose, dentro do roteiro inteiro
   (`docs/qa/ensaio_roteiro_14112026.md`): o webhook simulado confirmou a reserva em 2 s. O plano A
-  no compose fica para o 2º ensaio, em 24/11, com a chave nova.
+  no compose foi ensaiado em 20/11 (abaixo); o 2º ensaio completo é em 24/11.
 - **Plano B ensaiado de novo em 20/11/2026** no compose, com as imagens do backend e do analytics
   refeitas e `PIX_PROVIDER=fake` passado pelo shell (o `.env` não foi alterado). Os 6 passos deram
   certo: reserva `9268e0bd…` `PENDING` com sinal de R$ 135,00 (30% de R$ 450,00) e QR; o script
@@ -129,6 +129,15 @@ aceita a autenticação do provider ativo. Para trocar:
   confirmada no PMS, com o PIX pago no extrato; e o evento chegou ao `analytics-service`
   (`analytics_events_total{outcome="applied"}` subiu, visível no passo 8). Para repetir sem 409,
   as datas de 15 a 18/12 já têm essa reserva na Standard, mas ainda sobram 7 quartos.
+- **Plano A ensaiado no compose em 20/11/2026**, com a chave nova do sandbox e o webhook entregue
+  pelo próprio Asaas por um quick tunnel do `cloudflared` (`https://<túnel>/webhooks/pix`, eventos
+  `PAYMENT_CREATED`, `CONFIRMED`, `RECEIVED` e `OVERDUE`, token `whsec_` igual ao
+  `ASAAS_WEBHOOK_TOKEN` do `.env`). Reserva `3faba6bc…` `PENDING` com o sinal de R$ 135,00 e a
+  cobrança `pay_0_7o1nggd01q33ie`; depois de "Confirmar pagamento" no painel, `CONFIRMED` com
+  `deposit.status = PAID`, o PIX pago no extrato do PMS e o evento no `analytics-service`. O backend
+  não registra no log o webhook aceito: a prova pelo lado do Asaas fica em Integrações → Webhooks →
+  Logs. Na reserva pública, o hóspede com o mesmo CPF reaproveita o cadastro existente (#142).
+  **Antes do ensaio de 24/11:** o túnel rápido muda de URL a cada subida; atualize a URL no painel.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
 - **A reserva pública aceita data no passado.** O `CreateBookingController` e o
