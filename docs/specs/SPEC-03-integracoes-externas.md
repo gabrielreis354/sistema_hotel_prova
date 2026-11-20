@@ -2,6 +2,8 @@
 
 **Prioridade:** 🔴 Crítica — critério de aprovação
 **Estado:** 🟡 Em andamento — T-03.1 concluída em 16/09/2026; T-03.2 com cobrança real no *sandbox* do Asaas em 16/10/2026, faltando o *webhook* chamado pelo próprio Asaas
+
+> **Situação em 19/11/2026:** integrações concluídas para o 4º semestre (T-03.1 e T-03.2); a T-03.3 segue 🟡, porque o CA-03.3.a pede o parágrafo da ADR-008 comparando Asaas e Mercado Pago, ainda não escrito. Em 12/11 o próprio Asaas chamou o *webhook* pelo túnel e confirmou a reserva, e o cancelamento removeu a cobrança no sandbox (`docs/historico_sessao/weslley/ensaio_pix_asaas_sandbox_m6_12nov2026.md`, #143). O Mercado Pago tem código, mas não foi validado no sandbox. Falta só o job que expire a cobrança `PENDING` abandonada (5º semestre).
 **Criado em:** 26/08/2026
 **Depende de:** nada — **pode começar imediatamente**
 

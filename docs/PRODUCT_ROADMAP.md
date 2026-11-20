@@ -1,4 +1,10 @@
 # 🗺️ Product Roadmap — PMS Hotel
+
+> **⚠️ Documento legado (junho de 2026).** As fases "Demo → TCC → Mercado" foram substituídas pelo
+> **Documento 08** (planejamento do 4º e do 5º semestres) e pelo
+> `docs/PLANO_FECHAMENTO_MVP_15NOV2026.md`. O frontend React, aqui "pós-TCC", já é o `app-pms` do
+> MVP. Mantido só como histórico; não use como referência.
+
 ## Progressão: Demo → TCC → Produto de Mercado
 
 **Público-alvo**: Hotéis e pousadas pequenos/médios (5–80 quartos)

@@ -6,6 +6,11 @@
 > **Atualizado na noite de 15/11** com a resposta do Sirlande (PR #156) e com o estado real do git
 > (§2). A versão HTML (`PLANO_FECHAMENTO_MVP_15NOV2026.html`) é a da tarde de 15/11; quando os dois
 > divergirem, vale este arquivo.
+>
+> **Situação em 19/11:** resolvidos a imagem do MinIO (compilada do fonte, #176), o roteiro no CI
+> sem bloquear o merge (`ci-e2e.yml`, #176) e o `seed_hoje.sql` no `./start.sh seed` do k8s (#177).
+> O que falta até 24/11 está em `docs/delegacoes/estado_fechamento_mvp_19nov2026.md`, e as
+> contradições da documentação na revisão de 19/11 (`docs/banca/CONTRADICOES_DOCUMENTACAO_19NOV2026.md`, PR #179).
 
 ## 1. Por que este plano existe
 
@@ -69,7 +74,7 @@ O frontend é o app `app-pms`: React + TypeScript, um app só para recepção, g
 | 1 | Administrador cadastra categorias e quartos | Quartos / Categorias | ✅ Pronto |
 | 2 | Recepção cria a reserva, vê o valor antes de confirmar e faz o check-in | Nova reserva, Detalhe da reserva | ✅ Pronto. Walk-in vai direto ao check-in; o check-in só abre dentro do período da reserva (#147); uma ação principal por tela (SPEC-08) |
 | 3 | Garçom, pelo celular, lança consumo na conta da suíte e numa mesa, **inclusive sem rede** | Comanda | 🟡 Os 2 acabamentos estão no **#165**, aguardando a revisão do Sirlande |
-| 4 | Recepção abre o painel do dia: chegadas, saídas e risco de *no-show* | Hoje | ✅ Com dados do dia (#157) e mais enxuto (T-08.4). Restam 2 🟡 da T-08.4 (§3, item 7) e 2 🟡 do painel com o Gabriel (§5) |
+| 4 | Recepção abre o painel do dia: chegadas, saídas e risco de *no-show* | Hoje | ✅ Com dados do dia (#157) e mais enxuto (T-08.4). As 2 🟡 da T-08.4 foram resolvidas no #178; restam 2 🟡 do painel com o Gabriel (§5) |
 | 5 | No check-out, a conta aparece em linha do tempo, o pagamento é registrado, e a conta e a estadia fecham | Detalhe da reserva → Pagamento | ✅ Pronto (inclui o estorno) |
 | 6 | Hóspede faz reserva direta e paga o sinal por PIX; o pagamento confirma a reserva | Sem tela: pela API pública | ✅ Decidido: API + sandbox real do Asaas (§7). O provedor simulado fica para queda de rede |
 | 7 | Gerente abre os indicadores, servidos pelo serviço separado de analytics (a parte de microsserviços que a banca avalia) | Indicadores | ✅ O 404 no `pnpm dev` acabou (#145) e os cartões têm números do dia (#157) |
@@ -85,14 +90,14 @@ novo. Veja `frontend/e2e/README.md`.
    caixa que cortava a primeira linha e o rodapé fixo da conta (Sirlande, com o qa-explorador, até 20/11).
 4. ~~**Proxy do ambiente de desenvolvimento**~~: resolvido no #145.
 5. ~~**Passo 6, reserva direta**~~: decidido em 15/11, opção (a) com o sandbox real do Asaas
-   (webhook pelo ngrok, como no ensaio de 12/11).
+   (webhook por um túnel público; no ensaio de 12/11 foi o cloudflared).
 6. **Risco aceito, sem tarefa:** o app ainda não é um PWA. Se o garçom **recarregar a página sem
    rede**, o app não abre. No passo 3, desligar a rede com a comanda já aberta e não recarregar.
    Fica para o 5º semestre.
-7. **Painel Hoje, 2 🟡 da T-08.4** (Sirlande, até 24/11; comentados no #162):
+7. ~~**Painel Hoje, 2 🟡 da T-08.4**~~ resolvidas no #178 (16/11) (eram do Sirlande; comentados no #162):
    - no celular de 375 px, a lista de chegadas ainda passa do limite de 3.000 px no pior caso (3.091 px);
    - "Ver todas" e "Mostrar menos" perdem o lugar na tela e o foco do teclado.
-8. **T-08.5** (#167): revisar antes do congelamento.
+8. ~~**T-08.5** (#167): revisar antes do congelamento.~~ Mergeada no #167 (16/11).
 
 Bibliotecas (decisão de 15/11, #155): **só a Inter e o `lucide-react` entram antes de 10/12**.
 As duas já estão na `develop`.
@@ -145,17 +150,16 @@ grupos e B2B, e o site público completo.
   - **Idempotência com datas relativas.** Rodado de novo, o seed reescreve datas e status, sem criar
     linhas, e respeita a janela do check-in (#147). **Critério: rodar o seed em dois dias diferentes
     mantém o painel Hoje com números diferentes de zero nos dois.**
-  - Pendência (Weslley): o `./start.sh seed` (k8s) ainda não aplica o `seed_hoje.sql`. No compose,
-    o seed já o aplica.
+  - ~~Pendência (Weslley): o `./start.sh seed` (k8s) ainda não aplica o `seed_hoje.sql`.~~
+    Resolvido no #177 (18/11).
 - **O sistema sobe na primeira tentativa** (Weslley):
   - ✅ a espera do RabbitMQ (#148), e o `./start.sh compose-up` avisa se o setup falhar (#154);
-  - 🔴 **em aberto: a imagem do MinIO.** O `docker-compose.yml` (linhas 48 e 67) usa
-    `quay.io/minio/minio:latest`, que deu 401 num computador limpo. **É o maior risco para o ensaio
-    de 24/11.**
+  - ✅ a imagem do MinIO, que dava 401 num computador limpo, passou a ser compilada do fonte
+    (`docker/minio`, #176, 18/11).
 - **Trocar a chave de teste do Asaas** (Weslley, já). A chave apareceu num chat em 12/11. Sem
   registro no git: confirmar.
-- ✅ **Roteiro automatizado no repositório** (#166). Falta **rodar no CI** como verificação que avisa
-  mas não bloqueia (Weslley, até 22/11). Os cuidados com o artefato do trace estão no README do e2e.
+- ✅ **Roteiro automatizado no repositório** (#166) e ✅ **rodando no CI** como verificação que avisa
+  mas não bloqueia (`ci-e2e.yml`, #176, 18/11). Os cuidados com o artefato do trace estão no README do e2e.
 
 ## 5. Divisão do trabalho
 
@@ -182,9 +186,9 @@ Resposta dele em 15/11: PR #156.
 |---|---|---|
 | Dados de demonstração com as datas do dia (§4) | 17/11 | ✅ #157, em 15/11 |
 | Comanda, opção (b): revisar o #165 e conferir os outros 3 acabamentos com o qa-explorador | 20/11 | A fazer (0,5 dia) |
-| SPEC-08 mínima: T-08.1, T-08.2, T-08.3 e T-08.4 | 24/11 | ✅ #159 a #162, em 15/11. Faltam os 2 🟡 da T-08.4 (§3, item 7) |
+| SPEC-08 mínima: T-08.1, T-08.2, T-08.3 e T-08.4 | 24/11 | ✅ #159 a #162, em 15/11; as 2 🟡 da T-08.4 no #178 |
 | Setas do teclado nas abas da reserva e foco da folha "Mais" | 24/11 | ✅ no #161 |
-| T-08.5, cabeçalho e seções | 24/11 | #167 aberto |
+| T-08.5, cabeçalho e seções | 24/11 | ✅ #167, em 16/11 |
 | Revisão do roteiro automatizado | antes de 24/11 | O #166 já entrou; a revisão dele continua bem-vinda e vira correção |
 | Aprovação da versão final `develop → main` | 01/12 | — |
 
@@ -192,13 +196,13 @@ A T-08.6 ("Sair" com 36 px) foi resolvida dentro do #161, com o botão de 48 px 
 
 ### Weslley
 - Já: trocar a chave do Asaas (confirmar).
-- 🔴 Até 17/11: a imagem do MinIO que dá 401 num computador limpo (§4). Conferir com 3 ciclos de
+- ✅ ~~Até 17/11: a imagem do MinIO que dá 401 num computador limpo (§4).~~ Resolvido no #176. Conferir com 3 ciclos de
   `docker compose down -v` seguido de `./start.sh compose-up --build` sem erro.
-- Até 22/11: o roteiro (`pnpm e2e`) no CI, como job separado que não bloqueia o merge. O job de CI do
+- ✅ ~~Até 22/11: o roteiro (`pnpm e2e`) no CI, como job separado que não bloqueia o merge.~~ Feito no #176. O job de CI do
   frontend (tipos, testes e build) já existe (`ci-frontend.yml`).
 - Até 24/11:
   - o passo 8 no Grafana (R2) e uma execução verde do Actions pronta para mostrar (R3);
-  - o `seed_hoje.sql` no `./start.sh seed` (k8s);
+  - ~~o `seed_hoje.sql` no `./start.sh seed` (k8s);~~ feito no #177;
   - o rótulo `CARTAO` em `shares.ts`.
 - Antes de 10/12: Doc 08 v1.3 com o estado real (R4).
 - Documentos acadêmicos: estimativa de custo AWS (#146) e Doc 08, conferidos contra os critérios de
@@ -220,10 +224,10 @@ A T-08.6 ("Sair" com 36 px) foi resolvida dentro do #161, com o botão de 48 px 
 | Data | O que precisa estar pronto | Quem | Situação |
 |---|---|---|---|
 | 15–16/11 | Merge do proxy (#145) e do relatório do ensaio (#144); chave do Asaas trocada | Gabriel · Weslley | ✅ merges · chave a confirmar |
-| 17/11 | Dados do dia; sistema sobe na 1ª tentativa | Sirlande · Weslley | ✅ seed · 🔴 MinIO em aberto |
+| 17/11 | Dados do dia; sistema sobe na 1ª tentativa | Sirlande · Weslley | ✅ seed · ✅ MinIO (#176, 18/11) |
 | 20/11 | Comanda fechada; roteiro automatizado no repositório | Sirlande (+Gabriel) · Gabriel | #165 na revisão · ✅ #166 |
-| 22/11 | Roteiro rodando no CI | Weslley | A fazer |
-| 24/11 | SPEC-08 mínima na `develop` | Sirlande | ✅ em 15/11; 2 🟡 e a T-08.5 em aberto |
+| 22/11 | Roteiro rodando no CI | Weslley | ✅ #176, em 18/11 |
+| 24/11 | SPEC-08 mínima na `develop` | Sirlande | ✅ em 15/11; 🟡 da T-08.4 (#178) e T-08.5 (#167) em 16/11 |
 | 24/11 | Congelamento + 2º ensaio, zero 🔴 | todos | — |
 | 01/12 | Versão final na `main` + ensaio geral | Gabriel, com aprovação do Sirlande | — |
 | 10/12 | Apresentação | todos | — |
