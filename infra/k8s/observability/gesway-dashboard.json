@@ -54,7 +54,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Fração das respostas com status 5xx nos últimos 5 minutos",
+      "description": "Fração das respostas com status 5xx nos últimos 5 minutos Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 6,
         "y": 0,
@@ -68,7 +68,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(rate(http_request_duration_seconds_count{job=\"core-service\",status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_request_duration_seconds_count{job=\"core-service\"}[5m])), 1e-9)",
+          "expr": "(sum(rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\",status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m])), 1e-9)",
           "legendFormat": "5xx"
         }
       ],
@@ -88,7 +88,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 12,
         "y": 0,
@@ -102,7 +102,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_request_duration_seconds_count{job=\"core-service\"}[5m]))",
+          "expr": "sum(rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m]))",
           "legendFormat": "req/s"
         }
       ],
@@ -122,7 +122,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 18,
         "y": 0,
@@ -136,7 +136,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"core-service\"}[5m])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"core-service\",route!=\"/health\"}[5m])))) > 0 or vector(0)",
           "legendFormat": "p95"
         }
       ],
@@ -156,7 +156,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 0,
         "y": 4,
@@ -170,7 +170,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (route) (rate(http_request_duration_seconds_count{job=\"core-service\"}[5m]))",
+          "expr": "sum by (route) (rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m]))",
           "legendFormat": "{{route}}"
         }
       ],
@@ -190,7 +190,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 12,
         "y": 4,
@@ -204,7 +204,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"core-service\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"core-service\",route!=\"/health\"}[5m])))",
           "legendFormat": "{{route}}"
         }
       ],
@@ -224,7 +224,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner (/health).",
       "gridPos": {
         "x": 0,
         "y": 13,
@@ -238,7 +238,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (status_code) (rate(http_request_duration_seconds_count{job=\"core-service\"}[5m]))",
+          "expr": "sum by (status_code) (rate(http_request_duration_seconds_count{job=\"core-service\",route!=\"/health\"}[5m]))",
           "legendFormat": "{{status_code}}"
         }
       ],
@@ -488,7 +488,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"analytics-service\",route!=\"/health\"}[5m])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"analytics-service\",route!=\"/health\"}[5m])))) > 0 or vector(0)",
           "legendFormat": ""
         }
       ],
