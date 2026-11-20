@@ -6,6 +6,11 @@
 > **Atualizado na noite de 15/11** com a resposta do Sirlande (PR #156) e com o estado real do git
 > (§2). A versão HTML (`PLANO_FECHAMENTO_MVP_15NOV2026.html`) é a da tarde de 15/11; quando os dois
 > divergirem, vale este arquivo.
+>
+> **Situação em 19/11:** resolvidos a imagem do MinIO (compilada do fonte, #176), o roteiro no CI
+> sem bloquear o merge (`ci-e2e.yml`, #176) e o `seed_hoje.sql` no `./start.sh seed` do k8s (#177).
+> O que falta até 24/11 está em `docs/delegacoes/estado_fechamento_mvp_19nov2026.md`, e as
+> contradições da documentação em `docs/banca/CONTRADICOES_DOCUMENTACAO_19NOV2026.md`.
 
 ## 1. Por que este plano existe
 
@@ -145,13 +150,12 @@ grupos e B2B, e o site público completo.
   - **Idempotência com datas relativas.** Rodado de novo, o seed reescreve datas e status, sem criar
     linhas, e respeita a janela do check-in (#147). **Critério: rodar o seed em dois dias diferentes
     mantém o painel Hoje com números diferentes de zero nos dois.**
-  - Pendência (Weslley): o `./start.sh seed` (k8s) ainda não aplica o `seed_hoje.sql`. No compose,
-    o seed já o aplica.
+  - ~~Pendência (Weslley): o `./start.sh seed` (k8s) ainda não aplica o `seed_hoje.sql`.~~
+    Resolvido no #177 (18/11).
 - **O sistema sobe na primeira tentativa** (Weslley):
   - ✅ a espera do RabbitMQ (#148), e o `./start.sh compose-up` avisa se o setup falhar (#154);
-  - 🔴 **em aberto: a imagem do MinIO.** O `docker-compose.yml` (linhas 48 e 67) usa
-    `quay.io/minio/minio:latest`, que deu 401 num computador limpo. **É o maior risco para o ensaio
-    de 24/11.**
+  - ✅ a imagem do MinIO, que dava 401 num computador limpo, passou a ser compilada do fonte
+    (`docker/minio`, #176, 18/11).
 - **Trocar a chave de teste do Asaas** (Weslley, já). A chave apareceu num chat em 12/11. Sem
   registro no git: confirmar.
 - ✅ **Roteiro automatizado no repositório** (#166). Falta **rodar no CI** como verificação que avisa
@@ -192,13 +196,13 @@ A T-08.6 ("Sair" com 36 px) foi resolvida dentro do #161, com o botão de 48 px 
 
 ### Weslley
 - Já: trocar a chave do Asaas (confirmar).
-- 🔴 Até 17/11: a imagem do MinIO que dá 401 num computador limpo (§4). Conferir com 3 ciclos de
+- ✅ ~~Até 17/11: a imagem do MinIO que dá 401 num computador limpo (§4).~~ Resolvido no #176. Conferir com 3 ciclos de
   `docker compose down -v` seguido de `./start.sh compose-up --build` sem erro.
-- Até 22/11: o roteiro (`pnpm e2e`) no CI, como job separado que não bloqueia o merge. O job de CI do
+- ✅ ~~Até 22/11: o roteiro (`pnpm e2e`) no CI, como job separado que não bloqueia o merge.~~ Feito no #176. O job de CI do
   frontend (tipos, testes e build) já existe (`ci-frontend.yml`).
 - Até 24/11:
   - o passo 8 no Grafana (R2) e uma execução verde do Actions pronta para mostrar (R3);
-  - o `seed_hoje.sql` no `./start.sh seed` (k8s);
+  - ~~o `seed_hoje.sql` no `./start.sh seed` (k8s);~~ feito no #177;
   - o rótulo `CARTAO` em `shares.ts`.
 - Antes de 10/12: Doc 08 v1.3 com o estado real (R4).
 - Documentos acadêmicos: estimativa de custo AWS (#146) e Doc 08, conferidos contra os critérios de
@@ -220,7 +224,7 @@ A T-08.6 ("Sair" com 36 px) foi resolvida dentro do #161, com o botão de 48 px 
 | Data | O que precisa estar pronto | Quem | Situação |
 |---|---|---|---|
 | 15–16/11 | Merge do proxy (#145) e do relatório do ensaio (#144); chave do Asaas trocada | Gabriel · Weslley | ✅ merges · chave a confirmar |
-| 17/11 | Dados do dia; sistema sobe na 1ª tentativa | Sirlande · Weslley | ✅ seed · 🔴 MinIO em aberto |
+| 17/11 | Dados do dia; sistema sobe na 1ª tentativa | Sirlande · Weslley | ✅ seed · ✅ MinIO (#176, 18/11) |
 | 20/11 | Comanda fechada; roteiro automatizado no repositório | Sirlande (+Gabriel) · Gabriel | #165 na revisão · ✅ #166 |
 | 22/11 | Roteiro rodando no CI | Weslley | A fazer |
 | 24/11 | SPEC-08 mínima na `develop` | Sirlande | ✅ em 15/11; 2 🟡 e a T-08.5 em aberto |
