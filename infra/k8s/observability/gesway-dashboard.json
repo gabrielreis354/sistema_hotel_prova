@@ -419,13 +419,14 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(analytics_events_total{outcome=\"applied\"}[1h])) or vector(0)",
+          "expr": "round(sum(increase(analytics_events_total{outcome=\"applied\"}[1h]))) or vector(0)",
           "legendFormat": ""
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
@@ -433,13 +434,13 @@
     },
     {
       "id": 14,
-      "title": "Requisições por segundo",
+      "title": "Analytics — requisições por segundo",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Consultas da tela Indicadores atendidas pelo analytics",
+      "description": "Consultas da tela Indicadores atendidas pelo analytics (sem o healthcheck do contêiner)",
       "gridPos": {
         "x": 12,
         "y": 29,
@@ -453,7 +454,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_request_duration_seconds_count{job=\"analytics-service\"}[5m]))",
+          "expr": "sum(rate(http_request_duration_seconds_count{job=\"analytics-service\",route!=\"/health\"}[5m]))",
           "legendFormat": ""
         }
       ],
@@ -467,13 +468,13 @@
     },
     {
       "id": 15,
-      "title": "Latência p95",
+      "title": "Analytics — latência p95",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner",
       "gridPos": {
         "x": 18,
         "y": 29,
@@ -487,7 +488,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"analytics-service\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"analytics-service\",route!=\"/health\"}[5m])))",
           "legendFormat": ""
         }
       ],
@@ -541,7 +542,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Sem o healthcheck do contêiner",
       "gridPos": {
         "x": 12,
         "y": 33,
@@ -555,7 +556,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (route) (rate(http_request_duration_seconds_count{job=\"analytics-service\"}[5m]))",
+          "expr": "sum by (route) (rate(http_request_duration_seconds_count{job=\"analytics-service\",route!=\"/health\"}[5m]))",
           "legendFormat": "{{route}}"
         }
       ],

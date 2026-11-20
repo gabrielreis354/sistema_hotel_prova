@@ -72,7 +72,7 @@ Não deixe para escolher na hora: um push novo pode estar rodando e mostrar a bo
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
 | Prometheus ou Grafana não sobem | falta `METRICS_TOKEN` ou `GRAFANA_ADMIN_PASSWORD` no `.env` | `docker compose logs prometheus grafana` mostra qual falta |
-| **Backend no ar** ou **Analytics no ar** = 0 | serviço fora, ou token diferente entre o serviço e o Prometheus | `docker compose ps`; depois `docker compose up -d backend analytics-service` para relerem o `.env` |
+| **Backend no ar** ou **Analytics no ar** = 0 | serviço fora, ou token diferente entre o serviço e o Prometheus | `docker compose ps`; depois `docker compose --profile observability up -d` para todos relerem o `.env` (o Prometheus só grava o token quando sobe) |
 | Painel vazio ("No data") | o profile subiu depois dos passos, ou o intervalo está curto | aumente o intervalo para **Last 3 hours**; sem dados, mostre só os três "no ar" e a DLQ |
 | **Eventos aplicados** = 0 | consumidor do analytics sem broker | painel do RabbitMQ: **Consumidores do analytics**. Se for 0, `docker compose restart analytics-service` |
 | Grafana não abre | porta 3002 ocupada | `GRAFANA_HOST_PORT` no `.env` |
