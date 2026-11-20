@@ -179,6 +179,12 @@ spec:
                 secretKeyRef:
                   name: hotel-secret
                   key: RABBITMQ_ANALYTICS_PASSWORD
+            # Token do scrape de /metrics (RNF-029) — o mesmo do backend e do Prometheus.
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hotel-secret
+                  key: METRICS_TOKEN
           # [revisão do Weslley] /health é READINESS, não liveness (docs/infra/KUBERNETES.md, 🟢-D da H.2).
           # Desde o 🟡-4 do qa-redteam da H.3: 503 só com o banco do analytics fora (o pod sai do
           # Service, sem reiniciar em laço). Broker fora → 200 DEGRADED: o pod segue no Service e os

@@ -247,6 +247,8 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_ANALYTICS_USER: ${RABBITMQ_ANALYTICS_USER:-hotel_analytics_consumer}
       RABBITMQ_ANALYTICS_PASSWORD: ${RABBITMQ_ANALYTICS_PASSWORD:?defina RABBITMQ_ANALYTICS_PASSWORD no .env antes de subir o compose}
+      # Mesmo token do backend (RNF-029): sem ele o analytics sobe normal e só o /metrics responde 503.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ./services/core-service/keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     # Sem porta no host: o navegador chega pelo nginx (location /analytics/).
