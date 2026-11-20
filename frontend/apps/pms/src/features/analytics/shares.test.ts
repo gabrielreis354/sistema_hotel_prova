@@ -9,6 +9,11 @@ describe('methodLabel', () => {
     expect(methodLabel('PIX')).toBe('PIX');
   });
 
+  it('o meio antigo CARTAO, que o seed ainda grava, aparece como "Cartão", igual à conta da reserva', () => {
+    // Exploratório de 15/11 (m8-seed-painel-hoje): os Indicadores mostravam "CARTAO" cru no passo 7.
+    expect(methodLabel('CARTAO')).toBe('Cartão');
+  });
+
   it('meio desconhecido aparece com o código; ausente tem rótulo próprio', () => {
     expect(methodLabel('BOLETO')).toBe('BOLETO');
     expect(methodLabel(undefined)).toBe('Sem meio informado');
