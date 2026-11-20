@@ -31,6 +31,14 @@
 - O qa-redteam (`docs/qa/redteam_indicadores-cartao-sazonalidade_20nov2026.md`) achou uma regressão: o estado vazio nunca aparecia. Corrigida no `e137cba`, junto com "1 reserva" e "—". 36 testes verdes; `tsc` limpo.
 - O rótulo do meio de pagamento está repetido em `shares.ts`, `reservationLogic.ts` e `paymentLogic.ts`. Juntar num mapa só fica para depois do congelamento.
 
+## Fim da tarde: painéis, `.env` e ensaio do plano B
+
+- Prints no Edge: o tradutor automático trocava "No ar" por "Sem ar", porque o Grafana se declarava `lang="en-US"`. Agora o Grafana sobe em pt-BR (`GF_USERS_DEFAULT_LANGUAGE`, compose e k8s, `6a2bed6`).
+- Painéis do core sem o `/health` do healthcheck, e p95 sem tráfego mostrando 0 em vez de NaN (`d66b8f6`). Conferido no Edge: core, analytics e RabbitMQ aparecem no Grafana.
+- `.env` da raiz: `METRICS_TOKEN` e `GRAFANA_ADMIN_PASSWORD` acrescentados ao fim do arquivo, sem ler o resto. Senha do admin do Grafana resetada no volume (`grafana cli admin reset-admin-password`), porque a variável só vale na primeira subida.
+- `PASSO_8_GRAFANA.md`: execução provisória do Actions do PR #193 (`d66b8f6`, CI 44814903344). Trocar pela da `develop` depois do merge.
+- Plano B do passo 6 ensaiado no compose: os 6 passos deram certo, e o evento chegou ao analytics (registro no `PASSO_6_RESERVA_DIRETA_PIX.md`). O plano A segue para 24/11: precisa da chave do Asaas no `.env`, do túnel autorizado e do webhook cadastrado no painel.
+
 ## Armadilhas do ambiente
 
 - O `docker compose build` falhou duas vezes no credential helper do Docker Desktop pelo WSL (`error getting credentials`). Contorno: `DOCKER_CONFIG` temporário com `{}` (imagens públicas).

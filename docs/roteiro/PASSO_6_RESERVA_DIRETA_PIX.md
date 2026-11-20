@@ -6,7 +6,7 @@
 > Decisão de 15/11 (`docs/PLANO_FECHAMENTO_MVP_15NOV2026.md` §7): **plano A, sandbox real do
 > Asaas**; o plano B só se a rede cair.
 > Dono: Weslley (M6). Versão de 04/11/2026, revisada pelo qa-redteam
-> (`docs/qa/redteam_passo6-swagger_04112026.md`); situação atualizada em 19/11/2026.
+> (`docs/qa/redteam_passo6-swagger_04112026.md`); situação atualizada em 20/11/2026.
 
 **O que a banca precisa ver:** a reserva nasce `PENDING` com o QR do sinal. Depois do pagamento,
 o **webhook** do PSP confirma a reserva sozinho, e ela aparece confirmada no PMS da recepção. Ninguém
@@ -122,6 +122,13 @@ aceita a autenticação do provider ativo. Para trocar:
 - **Plano B ensaiado em 14/11/2026** no compose, dentro do roteiro inteiro
   (`docs/qa/ensaio_roteiro_14112026.md`): o webhook simulado confirmou a reserva em 2 s. O plano A
   no compose fica para o 2º ensaio, em 24/11, com a chave nova.
+- **Plano B ensaiado de novo em 20/11/2026** no compose, com as imagens do backend e do analytics
+  refeitas e `PIX_PROVIDER=fake` passado pelo shell (o `.env` não foi alterado). Os 6 passos deram
+  certo: reserva `9268e0bd…` `PENDING` com sinal de R$ 135,00 (30% de R$ 450,00) e QR; o script
+  confirmou o pagamento; o status voltou `CONFIRMED` com `deposit.status = PAID`; a reserva aparece
+  confirmada no PMS, com o PIX pago no extrato; e o evento chegou ao `analytics-service`
+  (`analytics_events_total{outcome="applied"}` subiu, visível no passo 8). Para repetir sem 409,
+  as datas de 15 a 18/12 já têm essa reserva na Standard, mas ainda sobram 7 quartos.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
 - **A reserva pública aceita data no passado.** O `CreateBookingController` e o
