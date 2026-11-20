@@ -152,6 +152,16 @@ describe('GET /metrics — requisições HTTP', () => {
 
 // O que prova os microsserviços no painel: os eventos do core chegando e sendo aplicados aqui.
 describe('GET /metrics — eventos consumidos', () => {
+    // Sem a série em 0 desde a subida, o primeiro lote de eventos some do painel: increase() e rate()
+    // não enxergam o salto de "série inexistente" para N (achado no compose, 20/11: 196 aplicados, painel 0).
+    it('expõe todos os resultados desde a subida, mesmo antes do primeiro evento', async () => {
+        vi.stubEnv('METRICS_TOKEN', METRICS_TOKEN);
+        const text = await scrape();
+        for (const outcome of ['applied', 'stale', 'duplicate', 'retry', 'dead_letter']) {
+            expect(text).toMatch(new RegExp(`analytics_events_total\\{[^}]*outcome="${outcome}"`));
+        }
+    });
+
     it('conta o evento aplicado e o repetido (idempotência)', async () => {
         vi.stubEnv('METRICS_TOKEN', METRICS_TOKEN);
         const antes = await scrape();

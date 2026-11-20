@@ -50,6 +50,10 @@ export const eventsTotal = new client.Counter({
     registers: [registry]
 });
 
+// Cada série nasce em 0 na subida. Sem isso, o primeiro lote de eventos sumia do painel: increase() e
+// rate() não enxergam o salto de "série inexistente" para N (achado no compose em 20/11).
+for (const outcome of EVENT_OUTCOMES) eventsTotal.inc({ outcome }, 0);
+
 export function countEvent(outcome) {
     eventsTotal.inc({ outcome: EVENT_OUTCOMES.includes(outcome) ? outcome : 'other' });
 }
