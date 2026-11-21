@@ -1,7 +1,7 @@
 # SPEC-10 — Identidade visual do Gesway, do login à administração
 
 **Prioridade:** 🟢 Proposta. Bloco opcional, que pode ser implementado ou não
-**Estado:** 🟡 T-10.1 (login) implementada em 16/11 (`feature/t101-login-visual`); as outras telas ainda não têm protótipo
+**Estado:** 🟡 T-10.1 (login) na `develop` desde 18/11 (#181). As outras telas têm plano proposto em 18/11 (§10), sem protótipo e sem código
 **Responsável:** Sirlande, com agentes de IA. Revisão: Gabriel
 **Criado em:** 16/11/2026
 **Janela prevista:** 5º semestre (decisão do Sirlande de 16/11). A T-10.1 foi antecipada para antes de 24/11, com a concordância do Gabriel (§9)
@@ -89,13 +89,16 @@ Resultado:
 
 | Superfície | Estado |
 |---|---|
-| Login | ✅ Decidido (§3) |
+| Login | ✅ Implementado (#181, 18/11) |
 | Casca: menu lateral, cabeçalho, barra inferior do celular | 🔲 Sem protótipo |
 | Painel Hoje | 🔲 Sem protótipo |
 | Listas: Reservas, Hóspedes, Quartos, Contas | 🔲 Sem protótipo |
 | Detalhe da reserva e conta | 🔲 Sem protótipo |
 | Comanda (celular, garçom) | 🔲 Sem protótipo |
 | Administração: Categorias, Indicadores | 🔲 Sem protótipo |
+| Formulários: novo e editar hóspede, quarto e categoria; nova reserva | 🔲 Sem protótipo. Faltava nesta tabela (levantamento de 18/11) |
+| Comprovante imprimível (`reservas/:id/comprovante`, fora da casca) | 🔲 Sem protótipo. Faltava nesta tabela (levantamento de 18/11) |
+| Usuários (`config/usuarios`) | Fora: hoje é só um espaço reservado (`Placeholder`); entra quando a tela existir |
 
 **Fora:**
 - `apps/booking` (público), que tem regras próprias de conversão (`DESIGN_PMS.md` §3);
@@ -110,10 +113,10 @@ Cada tarefa numa branch própria a partir da `develop`, mergeável sozinha.
 
 | Tarefa | Entrega | Branch | Estimativa | Estado |
 |---|---|---|---|---|
-| **T-10.1** | Login novo (§3) | `feature/t101-login-visual` | 2 a 3 dias | 🔲 |
+| **T-10.1** | Login novo (§3) | `feature/t101-login-visual` | 2 a 3 dias | ✅ #181, na `develop` em 18/11 |
 | **T-10.2** | Marca: decidir o verde e levar ao `tokens.css` | `feature/t102-marca-verde` | 1 dia + passada visual nas 13 telas | 🔲 |
 | **T-10.3** | Símbolo simplificado (GSW com o círculo) no menu e no favicon | `feature/t103-simbolo` | 0,5 dia | 🔲 Depende do arquivo |
-| **T-10.4 em diante** | Uma tarefa por superfície da §4, cada uma com protótipo aprovado antes | — | A estimar | 🔲 |
+| **T-10.4 em diante** | Uma tarefa por superfície da §4, cada uma com protótipo aprovado antes. Ordem, escopo e estimativa no plano da §10 | — | §10 | 🔲 |
 
 ### T-10.1 — Login novo
 
@@ -195,8 +198,11 @@ Avaliação de 16/11, a pedido do Sirlande.
 **Tecnicamente, o sistema aguenta.** O login é a tela mais isolada do app:
 
 - só o `App.tsx` importa o `LoginPage`. Nenhuma outra tela depende dele;
-- o roteiro automatizado (`pnpm e2e`) **não passa pela tela de login**: o `global-setup.ts` entra
-  pela API e grava o token direto. Mudar o visual não quebra o roteiro;
+- ~~o roteiro automatizado (`pnpm e2e`) não passa pela tela de login: o `global-setup.ts` entra
+  pela API e grava o token direto. Mudar o visual não quebra o roteiro;~~
+  **Errado (corrigido em 18/11).** O `global-setup.ts` entra pela API, mas o `session()` de
+  `frontend/e2e/src/helpers.ts` entra **pela tela**. O botão "Mostrar senha" fez o seletor
+  `getByLabel(/senha/i)` achar dois elementos, e o roteiro parava no login. Consertado no #186;
 - o login só usa `Field`, `Input` e `Button`, que não mudam;
 - a SPEC-09 do Gabriel não toca no login. Não há conflito de arquivo.
 
@@ -214,3 +220,127 @@ T-08.4 irem para o PR #178. Marca teal no restante (opção 2).
 **Recomendação original:** antecipar **só a T-10.1, com a marca teal no restante (opção 2 da T-10.2)**, se
 o Gabriel concordar e os 2 🟡 da T-08.4 estiverem resolvidos antes. Se qualquer um dos dois
 faltar, fica para o 5º semestre como previsto.
+
+---
+
+## 10. Plano das outras telas (aprovado pelo Sirlande em 18/11)
+
+O login entrou sozinho. Este plano leva a mesma identidade ao resto do `apps/pms` sem ferir o
+`DESIGN_PMS.md`. O Sirlande aprovou as recomendações em 18/11 (§10.7). Cada fase só vira código
+depois de o protótipo dela ser aprovado.
+
+### 10.1 Quando
+
+**Decisão (18/11): nada do visual novo entra na `develop` antes de 10/12. O trabalho pode ser
+adiantado numa branch separada (§10.8).** Protótipo pode ser feito a qualquer momento, porque não
+toca no repositório.
+
+- 24/11 é o congelamento (`PLANO_FECHAMENTO_MVP_15NOV2026.md`): depois dele, só correção. Trocar
+  a cor da marca e a casca muda todas as telas do roteiro da banca a 6 dias do ensaio.
+- O Sirlande ainda tem pendências antes de 24/11. A principal é o 🟡 do seed: o
+  `node command.js seed` esconde o aviso de cenário incompleto
+  (`docs/qa/repasses/para_sirlande_16112026_seed_notice.md`).
+- **Custo aceito:** na banca, o login é verde e o app é teal (opção 2 da T-10.2, decisão de 16/11).
+
+### 10.2 O que do login vai para o resto do app
+
+| Elemento do login | Nas outras telas? | Por quê |
+|---|---|---|
+| Cor esmeralda | **Sim**, como marca (T-10.2) | É a identidade, e o token da marca já é um só (`--color-brand`) |
+| Logo e o nome GESWAY | **Sim**, o símbolo simplificado no menu e no favicon (T-10.3) | O logo completo tem detalhe que some em tamanho pequeno (§7) |
+| Inter | Já é a fonte do app | — |
+| Fundo verde e areia | **Só num ponto**, a faixa do topo da casca, se o protótipo aprovar | Nas telas de trabalho, o fundo precisa ficar neutro para a tabela e o status lerem rápido (`DESIGN_PMS.md` §2) |
+| Vidro claro | **Não** | Num PMS, cartão translúcido sobre tabela densa piora a leitura |
+| Luz percorrendo a borda e o halo | **Não**, ficam só no login | Nas telas de operação, movimento precisa ter função (`DESIGN_PMS.md` §4). Animação decorativa é recusada |
+
+### 10.3 A cor da marca e o verde de "Ocupado"
+
+Com a marca em `#047857`, o botão principal e o selo "Ocupado" (`status-occupied`, `#16a34a`)
+ficam na mesma família de verde, lado a lado no painel Hoje e na lista de quartos. A regra 2 do
+`GUIA_UI_CORPORATIVA.md` diz que a marca significa "faça isto", e a regra 3 diz que status é ponto
+e palavra.
+
+**Recomendação:** manter os tons de status, que são a linguagem do rack, e conferir no protótipo
+da Fase 1 com o painel Hoje cheio. Se o botão e o selo se confundirem de relance, o ajuste vai no
+**tom da marca** (mais escuro, como o `#065f46` do logo), nunca no status. O texto branco dá
+5,5:1 sobre `#047857` e 7,7:1 sobre `#065f46` (a regra pede 4,5:1).
+
+### 10.4 Fases
+
+Ordem pelo que a recepção mais usa e pelo que a banca vê primeiro. Cada fase tem protótipo
+aprovado, branch própria a partir da `develop` e PR mergeável sozinho.
+
+| Fase | Tarefa | Superfície | Dono da tela (DIVISAO §4) | Estimativa |
+|---|---|---|---|---|
+| 1 | **T-10.2 + T-10.3 + T-10.4** | Marca no `tokens.css`, símbolo no menu e no favicon, casca (menu lateral, cabeçalho, barra do celular) | Casca: sem dono na DIVISAO (Gabriel e Sirlande já mexeram) | 2 a 3 dias, com a passada visual nas telas |
+| 2 | T-10.5 | Painel Hoje | Gabriel | 1 a 2 dias |
+| 3 | T-10.6 | Detalhe da reserva e conta, comprovante imprimível | Gabriel | 2 dias |
+| 4 | T-10.7 | Listas (Reservas, Hóspedes, Quartos, Contas) e formulários | Gabriel, Sirlande e "quem terminar primeiro" (quartos) | 2 dias |
+| 5 | T-10.8 | Comanda no celular (garçom) | Sirlande | 1 a 2 dias |
+| 6 | T-10.9 | Administração: Categorias e Indicadores | Indicadores: Gabriel; Categorias: "quem terminar primeiro" | 1 dia |
+
+As estimativas são grosseiras e contam com protótipo aprovado. Total: 9 a 12 dias.
+
+**Por que a Fase 1 junta três tarefas:** a troca da marca muda todo botão principal e item ativo
+do menu (28 arquivos do `apps/pms` e do `packages/ui` usam `brand`). Feita junto com a casca, a mudança de cor aparece uma
+vez só, como a §5 já recomendava.
+
+### 10.5 Quem implementa
+
+**Recomendação:** o Sirlande implementa todas as fases, porque é o responsável pela SPEC-10 e um
+autor só mantém o visual coerente. O **dono de cada tela revisa o PR** dela. A tela não muda de
+dono, e regra de negócio continua fora do escopo (§2: nada muda em regra, rota ou contrato).
+
+### 10.6 Como verificar cada fase
+
+Os mesmos critérios do login (§6), adaptados à tela:
+
+- **captura antes e depois** a 390, 768 e 1366 px, em `docs/qa/evidencias/`;
+- **a densidade não cai:** o número de linhas visíveis sem rolar fica igual ou maior. No painel
+  Hoje vale o limite de 3.000 px em 375 px (CA-08.i);
+- **contraste:** texto ≥ 4,5:1 e borda, foco e ícone com função ≥ 3:1, medidos com as cores reais;
+- `qa_checks.sh` sem aviso novo nas regras 9a, 9b e 9c;
+- **roteiro e2e verde.** Ele passa pelas telas do roteiro, inclusive pelo login (§9);
+- `/impeccable audit` e `/impeccable critique` antes do polimento (`DESIGN_PMS.md` §6), depois o
+  qa-redteam, sem 🔴 nem 🟡 aberto.
+
+### 10.7 Decisões que o Sirlande precisa tomar
+
+Todas aprovadas pelo Sirlande em 18/11, como recomendado. A P-1 ganhou a branch separada.
+
+| # | Decisão | Decidido em 18/11 |
+|---|---|---|
+| P-1 | Quando começar | Protótipos e código podem começar já, numa branch separada; nada entra na `develop` antes de 10/12 (§10.1, §10.8) |
+| P-2 | O que do login vai para o app | Cor, símbolo e Inter; o fundo só na faixa do topo, se o protótipo aprovar; vidro e luz ficam só no login (§10.2) |
+| P-3 | Verde da marca contra o verde de "Ocupado" | Manter os status e, se precisar, escurecer a marca (§10.3) |
+| P-4 | Ordem das fases | Casca e marca → Hoje → reserva e conta → listas → comanda → administração (§10.4) |
+| P-5 | Quem implementa | O Sirlande implementa, o dono da tela revisa (§10.5) |
+
+### 10.8 Branch separada
+
+Pedido do Sirlande em 18/11: adiantar as fases sem esperar 10/12.
+
+```
+develop ──┬────────────────────────────────────────────── (merge depois de 10/12) ──►
+          │                                                        ▲
+          └─► feature/spec-10-identidade ──────────────────────────┘
+                 ├─► feature/t10-fase1-casca-marca  → PR para feature/spec-10-identidade
+                 ├─► feature/t10-fase2-hoje         → PR para feature/spec-10-identidade
+                 └─► …
+```
+
+- **Branch de integração:** `feature/spec-10-identidade`, a partir da `develop`. Cada fase nasce
+  dela e volta para ela por PR, com o mesmo fluxo de sempre (TDD, mutação, qa-redteam) e revisão do
+  dono da tela (§10.5).
+- **A `develop` entra nela toda semana** e depois de cada merge que toque em `frontend/apps/pms` ou
+  `frontend/packages/ui`. Até 10/12 a `develop` ainda recebe correções nas mesmas telas, e o conflito
+  aparece cedo e pequeno, não todo no fim.
+- **CI:** o gatilho `pull_request` dos workflows só vale para PR com base `main` ou `develop`, então o
+  PR de uma fase para a branch de integração não dispara o CI. O `push` dispara em `feature/**`
+  (`ci-frontend.yml`), e cada push da branch da fase e da de integração roda typecheck, testes e
+  build. Não é preciso mudar workflow (área do Weslley).
+- **Depois de 10/12:** um PR `feature/spec-10-identidade → develop`, com o roteiro e2e verde e as
+  capturas de cada fase.
+- **Se o prazo do 5º semestre apertar,** a fase que estiver pronta pode ir sozinha para a `develop`.
+  Cada fase continua mergeável sozinha, desde que a Fase 1 (marca e casca) vá antes.
+
