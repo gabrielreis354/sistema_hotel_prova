@@ -121,3 +121,32 @@ describe('PUT /reservations/:id — troca de datas', () => {
         expect((await alterar(id, { check_in_date: HOJE })).status).toBe(200);
     });
 });
+
+// 🔴-1 do qa-redteam de 22/11: a comparação de texto só vale para 'YYYY-MM-DD'. '2026-11-3' é
+// maior que '2026-11-22' como texto, passava pela regra e o Sequelize gravava 03/11 com 27 noites.
+// Data fora do formato canônico é 400, antes de qualquer regra de data.
+describe('datas fora do formato YYYY-MM-DD → 400 (🔴-1 e 🟢-1 do qa-redteam)', () => {
+    const RUINS = ['2026-11-3', '2026-11-21T10:00:00', '21/11/2026', '2026-02-30', 20261121, ['2026-11-01'], ''];
+
+    it.each(RUINS)('POST com check_in_date %j → 400, sem gravar', async (ruim) => {
+        const room = await novoQuarto();
+        const res = await criar({ guest_id: guestId, room_id: room, check_in_date: ruim, check_out_date: addDays(HOJE, 2) });
+        expect(res.status).toBe(400);
+        const [rows] = await sequelize.query('SELECT count(*)::int AS n FROM reservations WHERE room_id = :room', { replacements: { room } });
+        expect(rows[0].n).toBe(0);
+    });
+
+    it.each([...RUINS, null])('PUT com check_in_date %j → 400 e a reserva fica como estava', async (ruim) => {
+        const id = (await criar({ guest_id: guestId, room_id: await novoQuarto(), check_in_date: addDays(HOJE, 3), check_out_date: addDays(HOJE, 8) })).body.id;
+        const res = await alterar(id, { check_in_date: ruim });
+        expect(res.status).toBe(400);
+        const atual = (await request(app).get(`/reservations/${id}`).set(auth())).body;
+        expect(atual.check_in_date).toBe(addDays(HOJE, 3));
+        expect(Number(atual.total_amount)).toBe(500);
+    });
+
+    it('PUT com check_out_date fora do formato → 400', async () => {
+        const id = (await criar({ guest_id: guestId, room_id: await novoQuarto(), check_in_date: addDays(HOJE, 3), check_out_date: addDays(HOJE, 5) })).body.id;
+        expect((await alterar(id, { check_out_date: '2026-12-1' })).status).toBe(400);
+    });
+});
