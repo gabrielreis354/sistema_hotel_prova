@@ -77,6 +77,8 @@ export function OpenAccountForm({
       <Field label="Nome na comanda" htmlFor="account-label" error={open.error?.message}>
         <Input
           id="account-label"
+          // Alvo de 48 px no celular, como a busca da mesma tela (🟡-4 do qa-explorador de 22/11).
+          className="min-h-touch"
           value={label}
           maxLength={100}
           placeholder={current.placeholder}
