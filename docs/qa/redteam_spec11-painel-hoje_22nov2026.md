@@ -142,3 +142,126 @@ nenhum
 | Fora do diff | Check-in sem rede fica pausado e envia sozinho quando a rede volta | Pendência, para decidir com o Gabriel depois do congelamento | — |
 
 Suíte do pms depois do tratamento: 63 arquivos e 590 testes verdes, typecheck limpo.
+
+---
+
+## Revisão do aviso de dado velho (22/11)
+**Delta auditado:** `git diff 0438ea6..191ee43` (commits `b2462d6` RED, `191ee43` fix) · 5 arquivos
+**Achados no delta:** 7 (🔴 0 · 🟡 2 · 🟢 5) · **Repassados:** 0
+
+### Veredito
+**APROVADO COM RESSALVAS**
+
+Nenhum 🔴. A regra `stale = online && data !== undefined && isError` está certa e chega aos seis
+pontos do painel. As duas ressalvas: o botão do aviso tem 36 px no celular, o que fere o CA-08.g
+(🟡-A), e o teste só derruba 1 de 9 mutações (🟡-B).
+
+### (a) Quando o aviso aparece, incluindo as transições
+
+Pontos ligados: cartões (`TodayPage.tsx:97`), Atenção (`:127`), Chegadas (`:150`), Saídas (`:173`), Na casa (`:192`), Em limpeza (`:210`). Saídas e Na casa usam o mesmo `inHouse`, e Atenção e Em limpeza usam o mesmo `alerts`. Por isso o aviso pode aparecer duas vezes para uma mesma consulta. Cada cópia fica no próprio bloco, o que está correto.
+
+| Situação | `online` | `data` | `isError` | Aviso | Conferido em |
+|---|---|---|---|---|---|
+| Primeira carga falha | true | undefined | true | não (o `ErrorState` cobre) | `TodayBlock.tsx:34` |
+| Refetch falha, ainda dentro do `retry: 1` | true | sim | **false** (status segue `success`, só o `failureCount` sobe) | não, por cerca de 1 s | `lib/queryClient.ts:10` |
+| Refetch falha depois do retry | true | sim | true | **sim** | reducer `error` |
+| Refetch em voo depois do erro | true | sim | **true** | sim, continua | `query-core/query.js:411-420`: `fetchState` só zera `error`/`status` quando `data === undefined` |
+| Refetch bem-sucedido | true | sim | false | some | `successState` grava `status: 'success'` e `error: null` |
+| Rede cai com o aviso na tela | false | sim | true | some, e a faixa do topo assume | `TodayPage.tsx:76` |
+| Rede volta | true | sim | true até o `refetchOnReconnect` terminar | reaparece por um instante e some se o refetch der certo | (🟢-5) |
+
+O comportamento durante o refetch em voo é aceitável: o dado continua sendo o velho, então o aviso continua sendo verdade. O defeito é outro: tocar em "Tentar de novo" não muda nada na tela (🟢-1).
+
+### (b) A11y
+- **Contraste:** passa no AA. `text-gray-900` sobre âmbar a 10% em fundo branco dá cerca de 15,6:1. O texto `ghost` (`gray-700`) do botão dá cerca de 9,3:1. O estado não depende só da cor, porque há texto.
+- **Alvo de toque:** não passa (🟡-A).
+- **Anúncio:** o aviso não é anunciado (🟢-3).
+
+### Achados
+
+#### 🟡-A [UI/UX · CA-08.g] "Tentar de novo" do aviso tem 36 px no celular
+**Onde:** `frontend/apps/pms/src/features/today/components/StaleNotice.tsx:15`
+**Cenário:** o gerente abre o painel no celular (375 px) com o Wi-Fi sem internet. Aparecem até seis botões de 36 px de altura (`size="compact"`, ou seja `h-9`, `packages/ui/src/Button.tsx:23`), num painel que o projeto define como usado no celular (`TodayPage.tsx:20-21`).
+**Regra violada:** `frontend/DESIGN_PMS.md` §5 ("`compact` = tabela e rack no desktop"), CA-08.g (48 px em 375 e em 768 px) e o padrão do próprio arquivo, que é tamanho padrão com `xl:h-9 xl:min-h-0 xl:text-sm` (`TodayPage.tsx:108`, `ReservationsListPage.tsx:74`). A varredura `components/touchTargets.test.ts:34` procura só `sm|md|lg:` com `h-N`/`min-h-0`, então não pega `size="compact"`.
+**Correção sugerida:** tirar o `size="compact"` e passar `className="xl:h-9 xl:min-h-0 xl:text-sm"`. Se quiser proteger, incluir na varredura o caso de `size="compact"` fora de arquivo de desktop.
+
+#### 🟡-B [Testes] O teste derruba 1 de 9 mutações
+**Onde:** `frontend/apps/pms/src/features/today/TodayPage.test.tsx:55-74`
+**Cenário:** rodei cada mutação isolada e restaurei o arquivo depois (`git checkout`). A árvore terminou limpa.
+
+| Mutação em `TodayPage.tsx` | Suíte |
+|---|---|
+| tirar `stale` de Na casa (`:192`) | 43 verdes, mutação sobrevive |
+| tirar `stale` de Saídas (`:173`) | sobrevive |
+| tirar `stale` de Chegadas (`:150`) | sobrevive |
+| tirar `stale` dos cartões (`:97`) | sobrevive |
+| tirar `stale` de Em limpeza (`:210`) | sobrevive |
+| tirar o aviso da Atenção (`:127`) | sobrevive |
+| tirar `online &&` (`:76`), o que dá aviso e faixa juntos quando está sem rede | sobrevive |
+| tirar `q.data !== undefined` (`:76`), o que dá aviso e `ErrorState` juntos quando não há dado | sobrevive |
+| tirar `&& q.isError` (`:76`) | **morre** (teste `:68`) |
+
+O teste usa `toContain('Não foi possível atualizar')` e só o `inHouse` falha. Qualquer um dos dois blocos de `inHouse` sozinho já satisfaz a asserção, e os outros quatro pontos não são exercitados.
+**Regra violada:** "teste que passaria mesmo com a regra quebrada" (checklist §8).
+**Correção sugerida:** três casos.
+1. As quatro consultas em erro com dado: contar `'Não foi possível atualizar'` e esperar 6, ou checar por `aria-labelledby` de cada seção.
+2. Sem rede, com dado e erro: sem aviso.
+3. Erro sem dado: `ErrorState` sem aviso.
+
+Uma alternativa é levar a regra para `todayLogic.ts`, ao lado de `loadState` (🟢-4), e testá-la como função pura.
+
+#### 🟢-1 [UX] "Tentar de novo" não dá retorno enquanto o refetch está em voo
+**Onde:** `StaleNotice.tsx:15`, `TodayPage.tsx:76`
+**Cenário:** a recepcionista toca em "Tentar de novo". O `isError` continua true durante o fetch (`query.js:411-420`), então o aviso e o botão ficam iguais até a resposta. Ela toca de novo, e o `refetch()` (com `cancelRefetch: true`) cancela e recomeça. Não causa dano, mas parece botão quebrado.
+**Correção sugerida:** passar `isFetching` e mostrar o botão `disabled` com "Atualizando…".
+
+#### 🟢-2 [Cobertura do aviso] Números derivados de mais de uma consulta só olham uma
+**Onde:** `TodayPage.tsx:53` com `:97`, e `:129-130` com `:127`
+**Cenário:** o refetch de `arrivals` falha (online) e a ocupação volta. "Vendidos hoje" (`occupied + chegadas`) mostra número velho, e os cartões não avisam porque olham só a ocupação. Na Atenção, "chegada sem pagamento" (de `arrivals`) e "saída atrasada" (de `inHouse`) ficam velhas, e o aviso dali olha só `alerts`. O bloco de origem avisa, então o dano é pequeno.
+**Correção sugerida:** nos cartões, `stale(occupancy) || stale(arrivals)`. Na Atenção, `stale(alerts) || stale(arrivals) || stale(inHouse)`. Também dá para aceitar como está e registrar a decisão.
+
+#### 🟢-3 [A11y · KISS] O aviso não é anunciado, e com Wi-Fi sem internet aparecem seis iguais
+**Onde:** `StaleNotice.tsx:13-14`
+**Cenário:** o aviso surge depois de um refetch em segundo plano, sem `role="status"`, e o leitor de tela não informa nada. Pôr `role="status"` em cada cópia geraria até seis anúncios iguais de uma vez. No caso mais comum (Wi-Fi sem internet), todas as consultas falham juntas e a tela fica com seis faixas e seis botões repetidos.
+**Correção sugerida:** uma região viva só, no nível da página (`aria-live="polite"`, com texto do tipo "Parte do painel não foi atualizada"), mantendo o aviso visual por bloco. Outra opção é juntar tudo numa faixa única quando todas as consultas estiverem velhas. Precisa de decisão de UX, não é bloqueio.
+
+#### 🟢-4 [DRY · ruído] A regra está dentro do componente e há reindentação sem motivo
+**Onde:** `TodayPage.tsx:76` e `TodayPage.tsx:245-249`
+**Cenário:** `stale` é uma função pura irmã de `loadState` (`todayLogic.ts:220`), que já tem teste unitário, mas ficou dentro do componente, onde só o render a exercita (ver 🟡-B). O diff também reindenta o fragmento de `AttentionItem` para 8 espaços dentro de `<>` com 4, sem mudança de conteúdo.
+**Correção sugerida:** `loadState(q, online)` passa a devolver também `isStale`, coberto em `todayLogic.test.ts`. Desfazer a reindentação.
+
+#### 🟢-5 [Transição] O aviso pisca por um instante quando a rede volta
+**Onde:** `TodayPage.tsx:76`
+**Cenário:** o aparelho fica sem rede com o aviso na tela, e depois a rede volta. `online` vira true antes de o `refetchOnReconnect` terminar, e o status ainda é `error`, então o aviso reaparece até a resposta. É aceitável, porque o dado ainda é o velho. Fica registrado para ninguém tratar como bug no teste em navegador.
+
+### Repassados a outro dev
+Nenhum.
+
+### O que foi verificado e está correto
+- A regra é avaliada só com `online` (`useOnline`, que usa o mesmo `onlineManager` que pausa as consultas), então o aviso e a faixa do topo nunca aparecem juntos.
+- O aviso não convive com o spinner nem com "Sem conexão": `stale` exige dado, e com dado `isPending` e `isOffline` são falsos (`todayLogic.ts:221`).
+- Bloco vazio e velho ("Nenhuma chegada" com aviso) mostra os dois, o que é correto: o vazio pode estar velho.
+- O `onRetry` de cada aviso chama o `refetch` da consulta certa nos seis pontos.
+- O refetch bem-sucedido limpa o aviso (reducer `success` da query-core 5.101.4).
+- O contraste passa no AA (texto ≈ 15,6:1, botão ≈ 9,3:1), e o estado tem texto, não só cor.
+- O delta não mexe em backend, contrato nem `require()`.
+- Suíte `src/features/today` em `frontend/apps/pms`: 3 arquivos e 43 testes verdes (Node 18 do WSL), com HEAD em `191ee43` e árvore limpa antes e depois das mutações.
+
+### Não foi possível verificar
+- O comportamento no navegador real com Wi-Fi sem internet (captive portal): a tabela de transições vem da leitura do reducer da query-core, não de execução.
+- Leitor de tela (NVDA/TalkBack) para o 🟢-3.
+- A suíte inteira do pms e o typecheck: rodei só `src/features/today`, como pedido.
+
+### Tratamento (Gabriel com Claude, 22/11)
+
+| # | Achado | O que foi feito |
+|---|---|---|
+| 🟡-A | Botão do aviso com 36 px no celular | `StaleNotice` sem `size="compact"`: alvo de 48 px no celular e compacto só no desktop (`xl:h-9 xl:min-h-0 xl:text-sm`), o mesmo padrão do "Fechar" do painel |
+| 🟡-B | Teste fraco: a ligação de cada bloco sobrevivia | A regra virou `isStale(q, online)` em `todayLogic.ts`, com 4 casos puros em `offline.test.tsx`. Em `TodayPage.test.tsx`, com todas as consultas com dado e refetch falhando, a página mostra exatamente 6 avisos; sem rede, 0. Conferido por mutação: tirar `stale` das Chegadas ou dos cartões derruba a suíte |
+| 🟢-1 | "Tentar de novo" sem retorno visual | Sem mudança no MVP: o refetch é rápido e o aviso some quando dá certo |
+| 🟢-2 | Números de mais de uma consulta | Sem mudança: o bloco de cada consulta avisa sozinho, e no Wi-Fi sem internet todas falham juntas |
+| 🟢-3 | Sem anúncio e seis avisos iguais | Decisão de UX para depois do congelamento, junto com a região viva única |
+| 🟢-4 | Regra no componente; reindentação | A regra foi para `todayLogic` (ver 🟡-B). A reindentação fica: o conteúdo entrou num fragmento `<>` e ganhou um nível |
+| 🟢-5 | Aviso pisca quando a rede volta | Aceito, registrado |
+
+Suíte do pms depois do tratamento (Node 24): 63 arquivos e 597 testes verdes, typecheck limpo.
