@@ -225,12 +225,10 @@ export async function transitionReservation(id: string, action: ReservationTrans
   if (response.status === 422 && isCheckInWindowError(error)) {
     throw new ApiError(serverMessage(error) ?? TRANSITION_FAILURE[action], 422);
   }
+  // Sem o motivo do servidor: ele traz o código cru do status ('CHECKED_IN'), que a recepção não
+  // lê (SPEC-11, CA-11.b). A situação nova aparece no selo da tela, que recarrega.
   if (response.status === 422) {
-    const detail = serverMessage(error);
-    throw new ApiError(
-      `A reserva mudou de situação em outro atendimento${detail ? ` (${detail})` : ''}. A tela foi atualizada — confira antes de tentar de novo.`,
-      422,
-    );
+    throw new ApiError('A reserva mudou de situação em outro atendimento. A tela foi atualizada — confira antes de tentar de novo.', 422);
   }
   if (error || !response.ok || !data) {
     throw new ApiError(serverMessage(error) ?? TRANSITION_FAILURE[action], response.status);
