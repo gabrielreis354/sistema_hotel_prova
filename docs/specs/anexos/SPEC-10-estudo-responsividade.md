@@ -31,6 +31,7 @@ ordem exata, então os números servem como tendência, não como medida.
 | R-7 | **Conteúdo do desktop com largura máxima e centralizado**, e o topo alinhado à mesma coluna | Em monitor largo, conteúdo à esquerda deixava uma faixa vazia, e o "Sair" desalinhava dos cartões |
 | R-8 | **No máximo 2 colunas de blocos no painel**, caindo para 1 em tela estreita | Com 3 colunas, a ordem dos blocos se perdia e abria buraco |
 | R-9 | **No celular, informação que ocupa muita altura fica recolhida e abre no toque** (como a grade por andar da fita) | Mantém o resumo à vista sem empurrar a ação para baixo |
+| R-10 | **Bloco do painel decide o layout pela largura da área de conteúdo** (*container query*), não pela largura da janela (*media query*) | A barra lateral come 236 px a partir de 768 px: com 800 px de janela, o conteúdo tem ~560 px. A regra pela janela errou no protótipo; a pela área de conteúdo acertou no tablet e no desktop |
 
 ## 3. Como o app se distribui por largura hoje
 
