@@ -91,14 +91,14 @@ ON CONFLICT (reservation_id, room_id) WHERE charges_lodging = true AND deleted_a
 -- -----------------------------------------------------------------------------
 -- Contas avulsas do Hotel Aurora — sem chave natural: NOT EXISTS por (tipo, rótulo)
 --   Mesa 3           → TABLE, aberta pelo garçom
---   Day-use          → DAY_USE de um cliente sem hospedagem (CPF 30000000010)
+--   Day-use          → DAY_USE de um cliente sem hospedagem (CPF 30000001007)
 --   Equipe e perdas  → INTERNAL: nunca é receita (RN-006)
 -- -----------------------------------------------------------------------------
 INSERT INTO accounts (tenant_id, type, status, guest_id, label, charges_lodging, opened_at)
 SELECT t.id, v.type, 'OPEN', g.id, v.label, false, v.opened_at::timestamptz
 FROM (VALUES
   ('TABLE',    'Mesa 3',                     NULL,          '2026-06-17 12:10-03'),
-  ('DAY_USE',  'Day-use — piscina',          '30000000010', '2026-06-17 10:00-03'),
+  ('DAY_USE',  'Day-use — piscina',          '30000001007', '2026-06-17 10:00-03'),
   ('INTERNAL', 'Equipe e perdas — junho',    NULL,          '2026-06-01 08:00-03')
 ) AS v(type, label, guest_cpf, opened_at)
 JOIN tenants t ON t.subdomain = 'aurora'
@@ -124,7 +124,7 @@ WITH alvo AS (
   JOIN rooms rm       ON rm.id = r.room_id AND rm.number = '106'
   -- A estadia do seed pelo hóspede (a data muda todo dia no seed_hoje.sql): um walk-in que
   -- entrou no 106 depois da demonstração nunca recebe estes consumos.
-  JOIN guests g       ON g.id = r.guest_id AND g.cpf = '30000000006'
+  JOIN guests g       ON g.id = r.guest_id AND g.cpf = '30000000620'
   WHERE a.type = 'ROOM' AND a.charges_lodging = true AND a.status = 'OPEN'
     AND a.deleted_at IS NULL AND r.status = 'CHECKED_IN'
   UNION ALL

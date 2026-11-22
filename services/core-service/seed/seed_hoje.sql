@@ -33,7 +33,7 @@
 --   - quarto do cenário tomado por outra reserva no novo período: a linha é pulada com aviso
 --     (NOTICE), em vez de a EXCLUDE de double-booking derrubar o arquivo inteiro.
 --   A identidade de cada reserva do cenário é (hotel, CPF do hóspede, quarto): os hóspedes
---   novos (30000000022 a 24, 40000000014 e 15) não têm outra reserva no seed.
+--   novos (30000002240 a 24, 40000001449 e 15) não têm outra reserva no seed.
 --
 -- DEPOIS DE UM ENSAIO, RECRIE O BANCO antes da banca. No compose: docker compose down -v; up; migrate;
 -- seed com ALLOW_SEED=1 (o compose sobe com NODE_ENV=production). No k8s: ./start.sh down;
@@ -67,19 +67,19 @@ BEGIN
     SELECT * FROM (VALUES
       -- hotel,   CPF,          quarto, entrada, saída, situação,      pagamento, método,     quando
       -- Estadias na casa: as CHECKED_IN do seed_hotels.sql (pagas na entrada)
-      ('aurora', '30000000006', '106',  -2,  3, 'CHECKED_IN',  750.00, 'PIX',      'entrada'),
-      ('aurora', '30000000007', '107',  -3,  0, 'CHECKED_IN',  150.00, 'PIX',      'entrada'),  -- só o sinal: o check-out cobra 300
-      ('aurora', '30000000008', '203',  -1,  3, 'CHECKED_IN', 1400.00, 'PIX',      'entrada'),
-      ('aurora', '30000000009', '302',  -2,  2, 'CHECKED_IN', 3200.00, 'CARTAO',   'entrada'),
-      ('sol',    '40000000005', '4',    -1,  2, 'CHECKED_IN',  360.00, 'PIX',      'entrada'),
-      ('sol',    '40000000006', '10',   -4,  0, 'CHECKED_IN',  880.00, 'CARTAO',   'entrada'),
+      ('aurora', '30000000620', '106',  -2,  3, 'CHECKED_IN',  750.00, 'PIX',      'entrada'),
+      ('aurora', '30000000701', '107',  -3,  0, 'CHECKED_IN',  150.00, 'PIX',      'entrada'),  -- só o sinal: o check-out cobra 300
+      ('aurora', '30000000892', '203',  -1,  3, 'CHECKED_IN', 1400.00, 'PIX',      'entrada'),
+      ('aurora', '30000000973', '302',  -2,  2, 'CHECKED_IN', 3200.00, 'CARTAO',   'entrada'),
+      ('sol',    '40000000558', '4',    -1,  2, 'CHECKED_IN',  360.00, 'PIX',      'entrada'),
+      ('sol',    '40000000639', '10',   -4,  0, 'CHECKED_IN',  880.00, 'CARTAO',   'entrada'),
       -- Chegadas de hoje: sinal pago hoje (Aurora 30%, Sol 50%) e uma sem sinal (no-show, D-3)
-      ('aurora', '30000000022', '201',   0,  2, 'CONFIRMED',   210.00, 'PIX',      'hoje'),
-      ('aurora', '30000000023', '102',   0,  3, 'CONFIRMED',   NULL,   NULL,       NULL),
-      ('sol',    '40000000014', '5',     0,  2, 'CONFIRMED',   120.00, 'PIX',      'hoje'),
+      ('aurora', '30000002240', '201',   0,  2, 'CONFIRMED',   210.00, 'PIX',      'hoje'),
+      ('aurora', '30000002321', '102',   0,  3, 'CONFIRMED',   NULL,   NULL,       NULL),
+      ('sol',    '40000001449', '5',     0,  2, 'CONFIRMED',   120.00, 'PIX',      'hoje'),
       -- Saída de hoje já feita: pagamento no check-out, quarto fica em limpeza
-      ('aurora', '30000000024', '105',  -2,  0, 'CHECKED_OUT', 300.00, 'CARTAO_CREDITO', 'hoje'),
-      ('sol',    '40000000015', '3',    -3,  0, 'CHECKED_OUT', 360.00, 'DINHEIRO', 'hoje')
+      ('aurora', '30000002402', '105',  -2,  0, 'CHECKED_OUT', 300.00, 'CARTAO_CREDITO', 'hoje'),
+      ('sol',    '40000001520', '3',    -3,  0, 'CHECKED_OUT', 360.00, 'DINHEIRO', 'hoje')
     ) AS v(subdomain, cpf, room, ci_off, co_off, status, pay_amount, pay_method, pay_when)
   LOOP
     SELECT t.id INTO v_tenant FROM tenants t WHERE t.subdomain = s.subdomain;

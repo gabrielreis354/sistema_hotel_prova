@@ -164,7 +164,7 @@ describe('seed do dia — rodar de novo', () => {
               AND check_in_date = '2026-12-10'`);
         await runSeed('2026-12-11 15:00-03');
         const r = await one(`SELECT r.status, r.check_in_date::text AS ci FROM reservations r
-            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000023'`);
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000002321'`);
         expect(r).toEqual({ status: 'CANCELLED', ci: '2026-12-10' });
     });
 
@@ -174,7 +174,7 @@ describe('seed do dia — rodar de novo', () => {
         // A recepção fez o check-in da chegada com sinal (quarto 201), como no passo 2 do roteiro.
         await sequelize.query(`
             UPDATE reservations SET status = 'CHECKED_IN'
-             WHERE guest_id = (SELECT id FROM guests WHERE cpf = '30000000022');
+             WHERE guest_id = (SELECT id FROM guests WHERE cpf = '30000002240');
             UPDATE rooms SET status = 'OCCUPIED'
              WHERE number = '201' AND tenant_id = (SELECT id FROM tenants WHERE subdomain = 'aurora');
             -- o check-in abre a conta da suíte (D-58), como o CheckInController
@@ -182,18 +182,18 @@ describe('seed do dia — rodar de novo', () => {
                                   charges_lodging, opened_at, created_at, updated_at)
             SELECT gen_random_uuid(), r.tenant_id, 'ROOM', 'OPEN', r.id, r.room_id, r.guest_id, 'Suíte 201',
                    true, '2026-12-10 15:30-03', now(), now()
-              FROM reservations r WHERE r.guest_id = (SELECT id FROM guests WHERE cpf = '30000000022');`);
+              FROM reservations r WHERE r.guest_id = (SELECT id FROM guests WHERE cpf = '30000002240');`);
         const antes = await counts();
         const sinal = await q(`SELECT p.reservation_id, p.amount, p.paid_at FROM payments p
             JOIN reservations r ON r.id = p.reservation_id
-            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`);
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000002240'`);
         await runSeed('2026-12-11 15:00-03');
         expect(await counts()).toEqual(antes);
         expect(await q(`SELECT p.reservation_id, p.amount, p.paid_at FROM payments p
             JOIN reservations r ON r.id = p.reservation_id
-            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`)).toEqual(sinal);
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000002240'`)).toEqual(sinal);
         const r = await one(`SELECT r.status, r.check_in_date::text AS ci FROM reservations r
-            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`);
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000002240'`);
         expect(r).toEqual({ status: 'CHECKED_IN', ci: '2026-12-10' });
     });
 
@@ -288,7 +288,7 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
             SELECT gen_random_uuid(), ${aurora}, g.id, ${quarto('201')}, u.id, '2026-12-12', '2026-12-13',
                    'CONFIRMED', 350, now(), now()
               FROM guests g, users u
-             WHERE g.cpf = '30000000030' AND u.email = 'admin@aurora.example'`);
+             WHERE g.cpf = '30000003050' AND u.email = 'admin@aurora.example'`);
         const antes = await counts();
         const { notices } = await runSeed('2026-12-11 15:00-03');
         expect(await counts()).toEqual(antes);
@@ -301,7 +301,7 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
         const sc = await scenario('aurora', '2026-12-11', '2026-12-11 15:00-03');
         expect({ inHouse: sc.inHouse, departures: sc.departures, noShow: sc.noShow }).toEqual({ inHouse: 4, departures: 1, noShow: 1 });
         const r201 = await one(`SELECT r.check_in_date::text AS ci FROM reservations r
-            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000022'`);
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000002240'`);
         expect(r201).toEqual({ ci: '2026-12-10' });
     });
 
@@ -312,24 +312,24 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
         await sequelize.query(`
             UPDATE accounts SET status = 'CLOSED', closed_at = now()
              WHERE reservation_id = (SELECT r.id FROM reservations r JOIN guests g ON g.id = r.guest_id
-                                      WHERE g.cpf = '30000000006');
+                                      WHERE g.cpf = '30000000620');
             UPDATE reservations SET status = 'CHECKED_OUT', check_out_date = '2026-12-10'
-             WHERE guest_id = (SELECT id FROM guests WHERE cpf = '30000000006');
+             WHERE guest_id = (SELECT id FROM guests WHERE cpf = '30000000620');
             INSERT INTO reservations (id, tenant_id, guest_id, room_id, user_id, check_in_date, check_out_date,
                                       status, total_amount, created_at, updated_at)
             SELECT gen_random_uuid(), ${aurora}, g.id, ${quarto('106')}, u.id, '2026-12-10', '2026-12-12',
                    'CHECKED_IN', 300, now(), now()
-              FROM guests g, users u WHERE g.cpf = '30000000031' AND u.email = 'admin@aurora.example';
+              FROM guests g, users u WHERE g.cpf = '30000003131' AND u.email = 'admin@aurora.example';
             INSERT INTO accounts (id, tenant_id, type, status, reservation_id, room_id, guest_id, label,
                                   charges_lodging, opened_at, created_at, updated_at)
             SELECT gen_random_uuid(), r.tenant_id, 'ROOM', 'OPEN', r.id, r.room_id, r.guest_id, 'Suíte 106',
                    true, '2026-12-10 16:00-03', now(), now()
-              FROM reservations r JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000031';`);
+              FROM reservations r JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000003131';`);
         await runSeed('2026-12-10 18:00-03');
         const { n } = await one(`SELECT COUNT(*)::int AS n FROM account_items ai
             JOIN accounts a ON a.id = ai.account_id
             JOIN reservations r ON r.id = a.reservation_id
-            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000031'`);
+            JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000003131'`);
         expect(n).toBe(0);
     });
 
@@ -338,7 +338,7 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
         await runSeed('2026-12-10 15:00-03');
         const rows = await q(`SELECT r.status, p.kind FROM payments p JOIN reservations r ON r.id = p.reservation_id
             JOIN guests g ON g.id = r.guest_id
-            WHERE g.cpf IN ('30000000022', '30000000024', '40000000014', '40000000015') ORDER BY g.cpf`);
+            WHERE g.cpf IN ('30000002240', '30000002402', '40000001449', '40000001520') ORDER BY g.cpf`);
         expect(rows).toEqual([
             { status: 'CONFIRMED', kind: 'DEPOSIT' }, { status: 'CHECKED_OUT', kind: 'FULL' },
             { status: 'CONFIRMED', kind: 'DEPOSIT' }, { status: 'CHECKED_OUT', kind: 'FULL' }
@@ -363,7 +363,7 @@ describe('seed do dia — banco já usado na demonstração (qa-redteam de 15/11
         // Dia no passado: com o now() real, uma reserva criada "agora" nasceria depois da entrada.
         await runSeed('2026-11-01 15:00-03');
         const { n } = await one(`SELECT COUNT(*)::int AS n FROM reservations r
-            JOIN guests g ON g.id = r.guest_id AND g.cpf IN ('30000000022','30000000023','30000000024','40000000014','40000000015')
+            JOIN guests g ON g.id = r.guest_id AND g.cpf IN ('30000002240','30000002321','30000002402','40000001449','40000001520')
             WHERE r.created_at > (r.check_in_date + time '00:00') AT TIME ZONE '${TZ}'
                OR EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.paid_at < r.created_at)`);
         expect(n).toBe(0);
@@ -381,7 +381,7 @@ describe('seed do dia — o roteiro da banca (qa-explorador de 15/11)', () => {
         const r = await one(`SELECT r.total_amount::numeric AS total,
                                     COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'PAID'), 0)::numeric AS pago,
                                     MIN(p.kind) AS kind
-                               FROM reservations r JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000007'
+                               FROM reservations r JOIN guests g ON g.id = r.guest_id AND g.cpf = '30000000701'
                                LEFT JOIN payments p ON p.reservation_id = r.id
                               GROUP BY r.total_amount`);
         expect({ total: Number(r.total), pago: Number(r.pago), kind: r.kind }).toEqual({ total: 450, pago: 150, kind: 'DEPOSIT' });
@@ -390,7 +390,7 @@ describe('seed do dia — o roteiro da banca (qa-explorador de 15/11)', () => {
     it('🟢 pagamento novo do seed usa um meio de pagamento atual (CARTAO_CREDITO, não o CARTAO antigo)', async () => {
         const { n } = await one(`SELECT COUNT(*)::int AS n FROM payments p JOIN reservations r ON r.id = p.reservation_id
             JOIN guests g ON g.id = r.guest_id
-            WHERE g.cpf IN ('30000000022','30000000024','40000000014','40000000015') AND p.method = 'CARTAO'`);
+            WHERE g.cpf IN ('30000002240','30000002402','40000001449','40000001520') AND p.method = 'CARTAO'`);
         expect(n).toBe(0);
     });
 });
