@@ -10,7 +10,7 @@
 
 **Plano de fechamento (15/11):** [`docs/PLANO_FECHAMENTO_MVP_15NOV2026.md`](PLANO_FECHAMENTO_MVP_15NOV2026.md) — o que falta até 10/12, quem faz e como conferir, sem depender de outros documentos.
 
-**Última atualização:** 15/11/2026 (divisão do fechamento). Antes: 14/11/2026, pelo orquestrador (sessão do Gabriel), depois do primeiro ensaio de ponta a ponta (`docs/qa/ensaio_roteiro_14112026.md`). Organizado **por meta (M1 a M10)**, como foi aceito na resposta ao parecer do Sirlande de 28/10.
+**Última atualização:** 22/11/2026, com o estado do git (bloco abaixo). Antes: 15/11/2026 (divisão do fechamento). Antes: 14/11/2026, pelo orquestrador (sessão do Gabriel), depois do primeiro ensaio de ponta a ponta (`docs/qa/ensaio_roteiro_14112026.md`). Organizado **por meta (M1 a M10)**, como foi aceito na resposta ao parecer do Sirlande de 28/10.
 
 ---
 
@@ -69,20 +69,20 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 > Antes de assumir uma meta, confira se a branch ainda está ativa:
 > `git log -1 --format="%ad %s" --date=relative origin/<branch>`.
 
-| Meta | O quê (passo do roteiro) | Dono | Data | Situação em 03/11 | Branch / PR |
+| Meta | O quê (passo do roteiro) | Dono | Data | Situação (03/11, atualizada em 22/11) | Branch / PR |
 |---|---|---|---|---|---|
 | M1 | Quartos e categorias | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #106 (`e4c9ae3`) |
 | M2 | Reservas, check-in e check-out, walk-in | Gabriel | 30/10 | ✅ Na `develop` em 03/11 | #108 (`cb04f85`) |
-| M3 | Comanda P2 | Sirlande | 20/11 | 🟡 Sem commit desde 27/10. Abertos: aviso de sem conexão e tempo restante do desfazer; 3 itens a conferir (ver `docs/delegacoes/fechamento_mvp_sirlande_15nov2026.md`) | — |
+| M3 | Comanda P2 | Sirlande | 20/11 | ✅ Fechada até 22/11: acabamentos, quantidade, aviso de sem conexão e duplo toque em "Abrir mesa". Falta conferir a quantidade num iPhone de verdade (Gabriel) | #165 · #182 · #183 · #185 · #197 |
 | M4 | Painel Hoje (T-05.3) | Gabriel | 10/11 | ✅ Na `develop` em 09/11. Confirmação antes de check-in e de liberar quarto em 11/11 (#140) | #125 · #140 |
 | M5-a | Conta em linha do tempo | Gabriel | 30/10 | ✅ Na `develop`, junto com a M2 | #108 |
 | M5-b | Pagamento no check-out | Sirlande | 07/11 | ✅ Na `develop` em 09/11 (#124). Correções de 09 e 11/11 revisadas pelo Gabriel e aprovadas pelo qa-redteam (`redteam_m5b-pagamento-sem-rede_14nov2026.md`); na `develop` em 14/11 | #124 · #132 · #141 |
 | M5-c | Estorno (backend e tela) | Sirlande (backend), Gabriel (tela) | 10/11 | ✅ Backend em 09/11 (#123); tela em 11/11 (#138) | #123 · #138 |
-| M6 | PIX | Weslley | 17/11 | ✅ Ressalvas do Asaas na `develop` (#128, #135, #139). Ensaiado no sandbox real em 12/11: cancelamento e webhook confirmando a reserva (#143). Exclusão e walk-in cancelam o sinal (#142, na `develop` em 14/11). **Trocar a chave de sandbox**, que foi exposta num chat | #128 · #135 · #139 · #143 · #142 |
+| M6 | PIX | Weslley | 17/11 | ✅ Ressalvas do Asaas na `develop` (#128, #135, #139). Ensaiado no sandbox real em 12/11: cancelamento e webhook confirmando a reserva (#143). Exclusão e walk-in cancelam o sinal (#142, na `develop` em 14/11). Chave de sandbox trocada em 16/11 (Weslley) | #128 · #135 · #139 · #143 · #142 |
 | M7-a | analytics-service (H.2) | Gabriel | 29/10 | ✅ Na `develop` em 31/10 | #105 (`fbe086d`) |
-| M7-b | H.3: indicadores servidos pelo analytics | Gabriel | 14/11 | ✅ Na `develop` em 09/11. **🔴 do ensaio de 14/11:** com o `vite.config.ts` do repositório, o PMS chama o core em vez do nginx e os indicadores dão 404. Corrigido no #145 (aberto) | #109 · #145 |
-| M8 | Seed e compose | Sirlande e Weslley | 17/11 | 🔲 Seed com as datas do dia (Sirlande). 🟡 Ensaio de 14/11: o compose sobe o roteiro inteiro com o analytics, mas o 1º `up` a frio falha por healthcheck do RabbitMQ (🟡-1 do ensaio) | — |
-| M9 | Congelamento e ensaio, zero 🔴 aberto | todos | 24/11 | 🟡 1º ensaio de ponta a ponta em 14/11: 7 de 7 passos, com 1 🔴 aberto (proxy do Vite) | `docs/qa/ensaio_roteiro_14112026.md` |
+| M7-b | H.3: indicadores servidos pelo analytics | Gabriel | 14/11 | ✅ Na `develop` em 09/11. **🔴 do ensaio de 14/11:** com o `vite.config.ts` do repositório, o PMS chama o core em vez do nginx e os indicadores dão 404. Corrigido no #145 (na `develop`). `/metrics` e passo 8 no Grafana em 22/11 | #109 · #145 · #193 · #200 |
+| M8 | Seed e compose | Sirlande e Weslley | 17/11 | ✅ Seed com as datas do dia (#177) e CPFs válidos (#196); 1º `up` a frio (#148); MinIO do fonte (#176). Ensaio técnico a frio em 22/11: sobe na 1ª tentativa | #148 · #176 · #177 · #196 |
+| M9 | Congelamento e ensaio, zero 🔴 aberto | todos | 24/11 | 🟡 SPEC-11 (#202 a #205) e T-06.12 em 22/11; falta o 2º ensaio com o grupo em 24/11 | `docs/qa/ensaio_roteiro_14112026.md` |
 | M10 | Release `develop → main` | Gabriel, com aprovação do Sirlande | 01/12 | Release intermediária aberta em 03/11 | #110 |
 
 **Fora das metas, mas já na `develop`:**
@@ -91,7 +91,9 @@ Leitura de referência quando a tarefa pedir: `CLAUDE.md`, `docs/CODING_STANDARD
 - T-01.5, CI por serviço (Weslley);
 - painel e alertas do RabbitMQ (CA-01.4.f, parcial).
 
-**PRs abertos (15/11):**
+**PRs abertos (22/11):** #205 (T-11.1, CPF), #187 (SPEC-10, Sirlande) e #179 (avaliação da banca e SPEC-11). No fork da UniFAAT, o PR #13 leva os Docs 02, 04 e 08 para a entrega de 26/11.
+
+**PRs abertos (15/11, histórico):**
 - **Repositório do hotel:**
   - #145 (Gabriel): proxy do Vite leva `/api/analytics` ao nginx (🔴 do ensaio);
   - #144 (Gabriel): relatório do ensaio de 14/11, este painel e o plano de fechamento;

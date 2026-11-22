@@ -11,6 +11,21 @@
 > sem bloquear o merge (`ci-e2e.yml`, #176) e o `seed_hoje.sql` no `./start.sh seed` do k8s (#177).
 > O que falta até 24/11 está em `docs/delegacoes/estado_fechamento_mvp_19nov2026.md`, e as
 > contradições da documentação na revisão de 19/11 (`docs/banca/CONTRADICOES_DOCUMENTACAO_19NOV2026.md`, PR #179).
+>
+> **Situação em 22/11:** o que está acima e abaixo é o histórico; o estado vale por este bloco.
+> - ✅ Na `develop`: comanda fechada (aviso de sem conexão, quantidade, duplo toque em "Abrir mesa",
+>   #165, #182, #183, #185, #197); seed com as datas do dia e CPFs válidos (#177, #196); MinIO
+>   compilado do fonte e roteiro no CI (#176); `/metrics` do analytics e passo 8 no Grafana (#193,
+>   #200); indicadores (#194, #195); login e comanda (#201).
+> - ✅ SPEC-11, robustez do balcão: T-11.3 duplo clique (#202), T-11.4 painel sem rede e dado velho
+>   (#203), T-11.2 sem entrada no passado (#204). T-11.1, CPF validado e duplicado pelos dígitos,
+>   está no #205 (CI verde, falta o merge).
+> - 🔄 T-06.12, dado pessoal fora dos logs do core: branch `fix/t0612-log-sem-dado-pessoal`, em
+>   revisão do qa-redteam.
+> - Chave do Asaas: trocada (Weslley, 16/11; registrada no Doc 08).
+> - Falta até 24/11: o segundo ensaio, passos 1 a 8 no Compose a frio, e a quantidade da comanda
+>   num iPhone de verdade (#182, Gabriel). **26/11:** entrega dos documentos atualizados ao
+>   orientador (fork da UniFAAT, PR #13 do fork). As fichas dos encontros são do orientador.
 
 ## 1. Por que este plano existe
 
@@ -49,7 +64,7 @@ Da manhã ao fim da tarde, entregou e respondeu ao plano:
   avisar quando o `rabbitmq-setup` falha.
 - Docs abertos: relatório da suíte com o broker de teste (#153), estimativa AWS (#146) e rascunho do
   Doc 08 (#129).
-- **Nenhum commit** ainda em: imagem do MinIO (🔴, abaixo), roteiro no CI, `seed_hoje.sql` no
+- (15/11; tudo isto entrou até 22/11, ver o topo) **Nenhum commit** ainda em: imagem do MinIO (🔴, abaixo), roteiro no CI, `seed_hoje.sql` no
   `./start.sh seed` (k8s), passo 8 no Grafana e Doc 08 v1.3. A troca da chave do Asaas não tem
   registro no git (é feita no painel do Asaas): confirmar com ele.
 
