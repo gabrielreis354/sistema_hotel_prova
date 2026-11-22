@@ -15,6 +15,7 @@ import {
   listReservations,
   serverMessage,
   transitionReservation,
+  type ReservationTransition,
 } from './reservationsApi.js';
 
 function reply(status: number, body: unknown) {
@@ -113,12 +114,19 @@ describe('createReservation — 409 de corrida', () => {
 });
 
 describe('transitionReservation — 422 da máquina de estados', () => {
-  it('422 explica que outro atendimento mudou a reserva, com o motivo do servidor', async () => {
-    api.PUT.mockResolvedValue(reply(422, { error: "Check-in não permitido no status 'CANCELLED'" }));
-    await expect(transitionReservation('res1', 'check-in')).rejects.toMatchObject({
-      status: 422,
-      message: expect.stringMatching(/mudou de situação em outro atendimento \(Check-in não permitido/),
-    });
+  it('422 explica que outro atendimento mudou a reserva, sem o código interno do status (CA-11.b)', async () => {
+    const cases: [ReservationTransition, string][] = [
+      ['check-in', "Check-in não permitido no status 'CHECKED_IN'"],
+      ['check-out', 'Check-out só possível quando status for CHECKED_IN'],
+      ['cancel', "Cancelamento não permitido no status 'CHECKED_OUT'"],
+    ];
+    for (const [action, error] of cases) {
+      api.PUT.mockResolvedValue(reply(422, { error }));
+      const err = (await transitionReservation('res1', action).catch((e: unknown) => e)) as Error;
+      expect(err).toMatchObject({ status: 422 });
+      expect(err.message).toMatch(/mudou de situação em outro atendimento/);
+      expect(err.message).not.toMatch(/PENDING|CONFIRMED|CHECKED_IN|CHECKED_OUT|CANCELLED|status/);
+    }
   });
 
   it('422 da janela de datas mostra a mensagem do servidor, sem culpar outro atendimento (🟡-2 do qa-redteam de 15/11)', async () => {
