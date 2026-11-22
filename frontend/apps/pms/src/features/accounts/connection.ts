@@ -1,22 +1,7 @@
-import { useSyncExternalStore } from 'react';
-import { onlineManager } from '@tanstack/react-query';
 import { awaitsServer, type QueueEntry } from './queueCore.js';
 
-/**
- * Conexão do aparelho, pelo mesmo detector que pausa as consultas do TanStack Query
- * (`onlineManager`). Antes a comanda só dizia "sem conexão" depois que uma consulta refeita
- * falhava (achado 7 da revisão de 26/10): o garçom lançava sem saber que estava sem rede.
- *
- * O snapshot do servidor também lê o `onlineManager`, para o teste com `renderToString` poder
- * simular a queda com `onlineManager.setOnline(false)`.
- */
-export function useOnline(): boolean {
-  return useSyncExternalStore(
-    (listener) => onlineManager.subscribe(listener),
-    () => onlineManager.isOnline(),
-    () => onlineManager.isOnline(),
-  );
-}
+// O hook saiu para src/lib (SPEC-11, T-11.4): o painel Hoje também avisa quando está sem rede.
+export { useOnline } from '../../lib/online.js';
 
 /**
  * A comanda está sem conexão? Dois sinais:

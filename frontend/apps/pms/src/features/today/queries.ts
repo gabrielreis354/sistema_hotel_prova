@@ -22,7 +22,7 @@ export const todayKeys = {
  * minuto e ao voltar para a aba (padrão do TanStack), para não mostrar chegada que outro
  * recepcionista já atendeu.
  */
-const REFRESH = 60_000;
+export const REFRESH = 60_000;
 
 function useScope(): string {
   return useAuthStore((s) => s.user?.id ?? 'anon');

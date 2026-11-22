@@ -21,6 +21,7 @@ import {
   BLOCK_LIMIT,
   arrivalFlags,
   checkInBlockedReason,
+  invalidateAnalyticsSoon,
   toggleFocusTarget,
   visibleRows,
   type ArrivalRow,
@@ -221,7 +222,7 @@ function useRowTransition(reservation: ReservationListItem, onResult: OnResult) 
       onError: (err) => onResult({ kind: 'error', text: err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.' }),
       onSettled: () => {
         after?.();
-        void qc.invalidateQueries({ queryKey: ['analytics'] });
+        invalidateAnalyticsSoon(qc);
       },
     });
   }
@@ -417,6 +418,7 @@ export function InHouseItem({ reservation }: { reservation: ReservationListItem 
 /** Quarto parado em limpeza com a ação de liberar (CA-05.3.g, D-1). */
 export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult: OnResult }) {
   const release = useReleaseRoom();
+  const qc = useQueryClient();
   const busy = release.isPending;
   const [confirming, setConfirming] = useState(false);
   // A lista vem do analytics-service, que só tira o quarto quando o evento chega: por alguns
@@ -435,6 +437,8 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
       () => {
         setConfirming(false);
         setReleasedFor(room.since ?? '');
+        // O useReleaseRoom já recarrega na hora; o segundo refetch pega a projeção (CA-11.g).
+        invalidateAnalyticsSoon(qc);
         onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` });
       },
       (err: unknown) => {
