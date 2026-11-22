@@ -36,7 +36,9 @@ function trecho(html: string, marca: string, fim: string): string {
 describe('barra lateral (SPEC-10, T-10.4)', () => {
   it('fundo esmeralda por token, com o logo e o nome GESWAY', () => {
     const barra = trecho(render('ADMIN'), '<aside', '</aside>');
-    expect(barra).toContain('bg-nav');
+    // A classe exata na própria <aside>: bg-nav-active (item ativo) não conta (mutante de 22/11).
+    const tag = barra.slice(0, barra.indexOf('>'));
+    expect(tag.split(/[\s"]/)).toContain('bg-nav');
     expect(barra).toContain('data-logo="gesway"');
     expect(barra).toMatch(/GES.*WAY/);
     expect(barra).toContain('GESTÃO HOTELEIRA');
