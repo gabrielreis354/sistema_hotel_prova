@@ -90,8 +90,8 @@ Resultado:
 | Superfície | Estado |
 |---|---|
 | Login | ✅ Implementado (#181, 18/11) |
-| Casca: menu lateral, cabeçalho, barra inferior do celular | 🔲 Sem protótipo |
-| Painel Hoje | 🔲 Sem protótipo |
+| Casca: menu lateral, cabeçalho, barra inferior do celular | 🟡 Protótipo da Fase 1 na Lovable em andamento (`anexos/SPEC-10-prototipos-lovable.md`) |
+| Painel Hoje | 🟡 Entra cheio no protótipo da Fase 1, como prova da marca; o protótipo próprio é a Fase 2 |
 | Listas: Reservas, Hóspedes, Quartos, Contas | 🔲 Sem protótipo |
 | Detalhe da reserva e conta | 🔲 Sem protótipo |
 | Comanda (celular, garçom) | 🔲 Sem protótipo |
