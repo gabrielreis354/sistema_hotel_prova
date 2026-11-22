@@ -1,6 +1,7 @@
 import getAddressProvider from '../../services/address/index.js';
 import { AddressNotFoundError, AddressServiceUnavailableError } from '../../services/address/errors.js';
 import { onlyDigits } from '../../utils/onlyDigits.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function GetAddressController(request, response) {
     const cep = onlyDigits(request.params.cep);
@@ -19,7 +20,7 @@ export default async function GetAddressController(request, response) {
         if (error instanceof AddressServiceUnavailableError) {
             return response.status(503).json({ error: 'Serviço de CEP indisponível no momento' });
         }
-        console.error('GetAddressController:', error);
+        logError('GetAddressController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

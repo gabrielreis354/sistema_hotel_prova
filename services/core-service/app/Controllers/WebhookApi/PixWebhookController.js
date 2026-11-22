@@ -5,6 +5,7 @@ import getPixProvider from '../../services/pix/index.js';
 import { InvalidWebhookSignatureError, PixProviderUnavailableError } from '../../services/pix/errors.js';
 import { CHARGE_STATUS } from '../../services/pix/chargeStatus.js';
 import { settlePaymentAccount } from '../../utils/accountBill.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * POST /webhooks/pix
@@ -181,7 +182,7 @@ export default async function PixWebhookController(request, response) {
             throw txError;
         }
     } catch (error) {
-        console.error('PixWebhookController:', error);
+        logError('PixWebhookController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

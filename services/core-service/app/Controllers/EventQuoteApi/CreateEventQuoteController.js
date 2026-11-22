@@ -4,6 +4,7 @@ import QuoteServiceModel from '../../Models/QuoteServiceModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import generateQuotePdf from '../../utils/generateQuotePdf.js';
 import storeDocumentPdf, { documentPdfKey } from '../../utils/storeDocumentPdf.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function CreateEventQuoteController(request, response) {
     try {
@@ -69,7 +70,7 @@ export default async function CreateEventQuoteController(request, response) {
         );
         return response.status(201).json(result);
     } catch (error) {
-        console.error('CreateEventQuoteController:', error);
+        logError('CreateEventQuoteController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

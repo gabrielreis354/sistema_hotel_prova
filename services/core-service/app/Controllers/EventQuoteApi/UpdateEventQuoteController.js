@@ -4,6 +4,7 @@ import QuoteServiceModel from '../../Models/QuoteServiceModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import generateQuotePdf from '../../utils/generateQuotePdf.js';
 import storeDocumentPdf, { documentPdfKey } from '../../utils/storeDocumentPdf.js';
+import { logError } from '../../utils/logError.js';
 
 // Allowlist explícita: só orçamento enviado e ainda não respondido pode ser editado — fail-safe.
 // Confirmado ou cancelado, o orçamento é registro do que o cliente aceitou ou recusou; editá-lo
@@ -94,7 +95,7 @@ export default async function UpdateEventQuoteController(request, response) {
         );
         return response.json(result);
     } catch (error) {
-        console.error('UpdateEventQuoteController:', error);
+        logError('UpdateEventQuoteController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

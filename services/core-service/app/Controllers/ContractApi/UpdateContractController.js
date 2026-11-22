@@ -7,6 +7,7 @@ import generateContractPdf from '../../utils/generateContractPdf.js';
 import uploadToMinIO from '../../utils/uploadToMinIO.js';
 import { documentPdfKey } from '../../utils/storeDocumentPdf.js';
 import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function UpdateContractController(request, response) {
     try {
@@ -82,7 +83,7 @@ export default async function UpdateContractController(request, response) {
         const result = await ContractModel.findOne({ where: { id: contract.id }, include: [{ model: ContractInstallmentModel, as: 'installments' }] });
         return response.json({ ...result.toJSON(), ...summarizeContractInstallments(result.installments) });
     } catch (error) {
-        console.error('UpdateContractController:', error);
+        logError('UpdateContractController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

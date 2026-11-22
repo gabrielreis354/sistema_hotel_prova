@@ -5,6 +5,7 @@ import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { ROOM_STATUSES, floorError, numberError, parseInteger, isManualRoomTransitionAllowed } from '../../utils/roomRules.js';
 import { ROOM_ERROR_CODES, roomError, invalidInputBody } from '../../utils/roomErrors.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function UpdateRoomController(request, response) {
     // Quarto lido com lock: um check-in ou check-out simultâneo (que muda o status na mesma
@@ -67,7 +68,7 @@ export default async function UpdateRoomController(request, response) {
         // Sem isto o conflito do cliente viraria 500.
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
-        console.error(error);
+        logError('UpdateRoomController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

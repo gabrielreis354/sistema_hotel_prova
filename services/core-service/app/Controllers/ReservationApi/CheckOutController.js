@@ -3,6 +3,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function CheckOutController(request, response) {
     const { id } = request.params;
@@ -55,7 +56,7 @@ export default async function CheckOutController(request, response) {
         return response.json(reservation);
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error(error);
+        logError('CheckOutController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

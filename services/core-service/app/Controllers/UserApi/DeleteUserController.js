@@ -1,4 +1,5 @@
 import UserModel from '../../Models/UserModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DeleteUserController(request, response) {
     try {
@@ -9,7 +10,7 @@ export default async function DeleteUserController(request, response) {
         await user.destroy();
         return response.status(204).send();
     } catch (error) {
-        console.error(error);
+        logError('DeleteUserController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

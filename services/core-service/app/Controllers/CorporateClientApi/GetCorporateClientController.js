@@ -1,4 +1,5 @@
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function GetCorporateClientController(request, response) {
     try {
@@ -7,7 +8,7 @@ export default async function GetCorporateClientController(request, response) {
         if (!client) return response.status(404).json({ error: 'Cliente não encontrado' });
         return response.json(client);
     } catch (error) {
-        console.error('GetCorporateClientController:', error);
+        logError('GetCorporateClientController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

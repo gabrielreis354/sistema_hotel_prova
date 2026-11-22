@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
 import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
+import { logError } from '../../utils/logError.js';
 
 // Allowlist explícita: apenas esses status podem ser cancelados.
 // Qualquer outro status (incluindo futuros) é bloqueado por padrão — fail-safe.
@@ -61,7 +62,7 @@ export default async function CancelReservationController(request, response) {
         return response.json(reservation);
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error(error);
+        logError('CancelReservationController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

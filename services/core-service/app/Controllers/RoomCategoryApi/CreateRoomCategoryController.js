@@ -3,6 +3,7 @@ import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import { validateRoomCategoryFields } from '../../utils/roomCategoryValidation.js';
 import { parseInteger } from '../../utils/roomRules.js';
 import { invalidInputBody } from '../../utils/roomErrors.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function CreateRoomCategoryController(request, response) {
     try {
@@ -28,7 +29,7 @@ export default async function CreateRoomCategoryController(request, response) {
         // Sem isto o conflito do cliente viraria 500.
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
-        console.error(error);
+        logError('CreateRoomCategoryController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

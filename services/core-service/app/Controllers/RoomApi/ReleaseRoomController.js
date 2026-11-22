@@ -5,6 +5,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
+import { logError } from '../../utils/logError.js';
 
 // Única transição deste endpoint (allowlist): a limpeza concluída.
 const RELEASABLE_FROM = ['CLEANING'];
@@ -66,7 +67,7 @@ export default async function ReleaseRoomController(request, response) {
         return response.json(room);
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error('ReleaseRoomController:', error);
+        logError('ReleaseRoomController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

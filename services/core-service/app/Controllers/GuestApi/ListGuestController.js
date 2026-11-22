@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import sequelize from '../../../database/connections/sequelize.js';
 import GuestModel from '../../Models/GuestModel.js';
 import { digitsOf } from '../../utils/digitsOf.js';
+import { logError } from '../../utils/logError.js';
 
 // Busca da nova reserva (T-05.2, adianta a T-05.12): poucos resultados, nunca o cadastro.
 const DEFAULT_LIMIT = 10;
@@ -70,7 +71,7 @@ export default async function ListGuestController(request, response) {
         });
         return response.json(guests);
     } catch (error) {
-        console.error(error);
+        logError('ListGuestController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

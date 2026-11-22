@@ -1,5 +1,6 @@
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function ListEventQuoteController(request, response) {
     try {
@@ -11,7 +12,7 @@ export default async function ListEventQuoteController(request, response) {
         });
         return response.json(quotes);
     } catch (error) {
-        console.error('ListEventQuoteController:', error);
+        logError('ListEventQuoteController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -8,6 +8,7 @@ import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from '../../utils/checkReservationConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
+import { logError } from '../../utils/logError.js';
 
 // Encontra o hóspede que já representa esse cliente corporativo (por CPF) ou cria um novo.
 // Se telefone/e-mail já pertencerem a outro hóspede do tenant (unique constraint), cria
@@ -127,7 +128,7 @@ async function SignContractController(request, response) {
     } catch (error) {
         if (isDeadlockError(error)) throw error; // transação já desfeita; withDeadlockRetry repete
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
-        console.error('SignContractController:', error);
+        logError('SignContractController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

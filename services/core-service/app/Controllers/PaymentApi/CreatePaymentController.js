@@ -6,6 +6,7 @@ import { isValidPaymentAmount, INVALID_AMOUNT_MESSAGE } from '../../utils/paymen
 import { isValidPaymentMethod, isValidPaidAt, INVALID_METHOD_MESSAGE, INVALID_PAID_AT_MESSAGE } from '../../utils/paymentInput.js';
 import { lockAccount, settlePaymentAccount } from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * POST /payments
@@ -93,7 +94,7 @@ export default async function CreatePaymentController(request, response) {
             throw error;
         }
     } catch (error) {
-        console.error('CreatePaymentController error:', error);
+        logError('CreatePaymentController', error);
         return response.status(500).json({ error: 'Erro ao registrar pagamento.' });
     }
 }
