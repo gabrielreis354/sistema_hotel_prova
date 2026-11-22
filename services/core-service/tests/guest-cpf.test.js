@@ -116,6 +116,38 @@ describe('PUT /guests/:id — CPF', () => {
         expect(res.body.cpf).toBe('12345678909');
     });
 
+    it('apagar o CPF antigo sem nenhum dígito ("n/a") com vazio ou null → 200 com cpf null (qa-redteam 🟡)', async () => {
+        const id = await legado('Legado Sem Dígito', 'n/a');
+        const vazio = await put(jwtA, id, { cpf: '' });
+        expect(vazio.status).toBe(200);
+        expect(vazio.body.cpf).toBeNull();
+        const outro = await legado('Legado Sem Dígito 2', 'estrangeiro');
+        expect((await put(jwtA, outro, { cpf: null })).body.cpf).toBeNull();
+    });
+
+    it('legado sem dígito ("n/a") reenviado igual ao trocar o telefone → 200, sem 400', async () => {
+        const id = await legado('Legado NA Telefone', 'n/a');
+        const res = await put(jwtA, id, { cpf: 'n/a', phone: '11944443333' });
+        expect(res.status).toBe(200);
+        expect(res.body.phone).toBe('11944443333');
+    });
+
+    it.each([['abc'], ['   '], [12345678909], [{}], [[]], [false]])(
+        'PUT com CPF %j num hóspede sem CPF → 400, nada gravado em silêncio (qa-redteam 🟢1)',
+        async (ruim) => {
+            const id = (await post(jwtA, { full_name: `Sem CPF ${JSON.stringify(ruim)}` })).body.id;
+            const res = await put(jwtA, id, { cpf: ruim });
+            expect(res.status).toBe(400);
+            expect((await get(jwtA, id)).body.cpf).toBeNull();
+        },
+    );
+
+    it('PUT no hóspede de outro hotel → 404, sem tocar no CPF dele', async () => {
+        const id = (await post(jwtB, { full_name: 'Do Hotel B', cpf: '16899535009' })).body.id;
+        expect((await put(jwtA, id, { cpf: '11144477735' })).status).toBe(404);
+        expect((await get(jwtB, id)).body.cpf).toBe('16899535009');
+    });
+
     it('apagar o CPF (vazio) → 200 com cpf null', async () => {
         const id = (await post(jwtA, { full_name: 'Apaga CPF', cpf: '935.411.347-80' })).body.id;
         const res = await put(jwtA, id, { cpf: '' });
