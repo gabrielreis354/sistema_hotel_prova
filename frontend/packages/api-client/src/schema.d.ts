@@ -1723,7 +1723,7 @@ export interface paths {
                         "application/json": components["schemas"]["Guest"];
                     };
                 };
-                /** @description full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400) */
+                /** @description full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400 nem o reescreve só com dígitos) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -5113,7 +5113,7 @@ export interface components {
             id?: string;
             /** @example Maria Oliveira */
             full_name?: string;
-            /** @example 123.456.789-00 */
+            /** @example 52998224725 */
             cpf?: string;
             /** @example (11) 99999-9999 */
             phone?: string;

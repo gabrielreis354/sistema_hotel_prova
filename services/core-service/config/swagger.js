@@ -208,7 +208,7 @@ const options = {
                     properties: {
                         id:        { type: 'string', format: 'uuid' },
                         full_name: { type: 'string', example: 'Maria Oliveira' },
-                        cpf:       { type: 'string', example: '123.456.789-00' },
+                        cpf:       { type: 'string', example: '52998224725' },
                         phone:     { type: 'string', example: '(11) 99999-9999' },
                         email:     { type: 'string', format: 'email' }
                     }
@@ -967,7 +967,7 @@ const options = {
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
-                        400: { description: 'full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400 nem o reescreve só com dígitos)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'CPF ou e-mail já cadastrado para outro hóspede', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
