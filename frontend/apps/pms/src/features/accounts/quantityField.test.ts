@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanQuantityText, fieldText, lastTapAt, quantityTextInvalid } from './quantityField.js';
+import { cleanQuantityText, fieldText, lastTapAt, nextQuantity, QUANTITY_ZERO_HINT, quantityTextInvalid } from './quantityField.js';
 import { undoAccessibleName } from './accountTotals.js';
 
 // Ressalvas do qa-redteam da quantidade digitada (16/11).
@@ -50,25 +50,62 @@ describe('cleanQuantityText — o campo mostra só o que pode ser lançado', () 
     expect(cleanQuantityText('6a ')).toBe('6');
   });
 
-  it('para em 4 dígitos, o teto de 9999: "10000" não chega a aparecer', () => {
+  it('para no número de dígitos do teto (9999): "10000" não chega a aparecer', () => {
     expect(cleanQuantityText('10000')).toBe('1000');
     expect(cleanQuantityText('9999')).toBe('9999');
   });
 
-  it('vazio continua vazio (meio da digitação)', () => {
+  // 🟢-4 do red team de 22/11: o maxLength cortava o texto cru antes da limpeza.
+  it('colado: limpa antes de cortar, e tira zeros à esquerda', () => {
+    expect(cleanQuantityText('R$ 10')).toBe('10');
+    expect(cleanQuantityText('2.500')).toBe('2500');
+    expect(cleanQuantityText('00010')).toBe('10');
+    expect(cleanQuantityText('007')).toBe('7');
+  });
+
+  it('zero fica um zero só, para o campo poder avisar; vazio continua vazio', () => {
+    expect(cleanQuantityText('000')).toBe('0');
     expect(cleanQuantityText('')).toBe('');
+  });
+});
+
+describe('nextQuantity — o que cada tecla faz com o campo e a fila (ligação do onChange)', () => {
+  it('número válido: o campo e a fila ficam iguais', () => {
+    expect(nextQuantity('6', 1)).toEqual({ text: '6', quantity: 6, invalid: false });
+    expect(nextQuantity('10000', 1)).toEqual({ text: '1000', quantity: 1000, invalid: false });
+    expect(nextQuantity('2,5', 1)).toEqual({ text: '25', quantity: 25, invalid: false });
+  });
+
+  it('zero: a fila fica na quantidade anterior, e o campo fica marcado', () => {
+    expect(nextQuantity('0', 3)).toEqual({ text: '0', quantity: 3, invalid: true });
+  });
+
+  it('vazio no meio da digitação: a fila fica na anterior, sem marca', () => {
+    expect(nextQuantity('', 3)).toEqual({ text: '', quantity: 3, invalid: false });
   });
 });
 
 describe('quantityTextInvalid — quando o campo fica marcado', () => {
   it('zero não lança nada: marcado', () => {
     expect(quantityTextInvalid('0')).toBe(true);
-    expect(quantityTextInvalid('000')).toBe(true);
   });
 
   it('número de 1 a 9999 e vazio no meio da digitação: não marcado', () => {
     expect(quantityTextInvalid('1')).toBe(false);
     expect(quantityTextInvalid('9999')).toBe(false);
     expect(quantityTextInvalid('')).toBe(false);
+  });
+
+  // 🟢-5 do red team: a regra vem do parseQuantity, não de um teto repetido.
+  it('acima do teto também é marcado, se um dia chegar ao campo', () => {
+    expect(quantityTextInvalid('10000')).toBe(true);
+  });
+});
+
+// 🟡-1 do red team de 22/11: o zero era avisado só pela cor (RNF-025, WCAG 1.4.1).
+describe('QUANTITY_ZERO_HINT — o aviso do zero em texto', () => {
+  it('diz o mínimo e como tirar o item', () => {
+    expect(QUANTITY_ZERO_HINT.visible).toBe('Mín. 1');
+    expect(QUANTITY_ZERO_HINT.spoken).toBe('Quantidade mínima 1. Para tirar o item, use Desfazer.');
   });
 });
