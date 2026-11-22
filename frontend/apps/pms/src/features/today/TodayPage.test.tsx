@@ -74,6 +74,38 @@ describe('TodayPage sem rede', () => {
   });
 });
 
+/** Todas as consultas do painel com dado e o último refetch falhando (Wi-Fi sem internet). */
+async function allStale(qc: QueryClient) {
+  const fail = () => Promise.reject(new Error('Falha no refetch.'));
+  const seeded: Array<[readonly unknown[], unknown]> = [
+    [todayKeys.inHouse('u1'), page([ANA])],
+    [todayKeys.arrivals('u1', TODAY), page([])],
+    [todayKeys.alerts('u1'), { noShowIds: new Set<string>(), cleaning: [], pendingTooLong: 0 }],
+    [analyticsKeys.occupancy('u1', TODAY), { occupied: 1, available: 3, cleaning: 0, occupancy_rate: 0.25, total_rooms: 4 }],
+  ];
+  for (const [key, data] of seeded) {
+    qc.setQueryData(key, data);
+    await qc.prefetchQuery({ queryKey: key, queryFn: fail });
+  }
+}
+
+const notices = (html: string) => html.split('Não foi possível atualizar').length - 1;
+
+describe('TodayPage — dado velho com o aparelho online', () => {
+  it('cartões, Atenção, Chegadas, Saídas, Na casa e Em limpeza avisam, cada um no seu bloco', async () => {
+    const qc = client();
+    await allStale(qc);
+    expect(notices(render(qc))).toBe(6);
+  });
+
+  it('sem rede, nenhum bloco repete o aviso: a faixa do topo já explica', async () => {
+    const qc = client();
+    await allStale(qc);
+    onlineManager.setOnline(false);
+    expect(notices(render(qc))).toBe(0);
+  });
+});
+
 describe('TodayPage — cartões acompanham o painel (CA-11.g)', () => {
   it('a ocupação recarrega no mesmo ritmo das outras consultas do painel', () => {
     onlineManager.setOnline(false); // sem rede: nenhuma consulta sai, só as opções ficam no cache

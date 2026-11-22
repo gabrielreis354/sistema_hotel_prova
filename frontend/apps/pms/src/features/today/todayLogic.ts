@@ -222,6 +222,15 @@ export function loadState(q: { isPending: boolean; isPaused: boolean; data?: unk
 }
 
 /**
+ * Dado na tela que pode estar velho: há dado, o último refetch falhou e o aparelho está online
+ * (Wi-Fi sem internet, que o `onlineManager` não percebe). Sem rede, a faixa do topo já avisa,
+ * e o bloco não repete (revisão dos PRs da SPEC-11, 22/11).
+ */
+export function isStale(q: { data?: unknown; isError: boolean }, online: boolean): boolean {
+  return online && q.data !== undefined && q.isError;
+}
+
+/**
  * Atraso do segundo refetch dos indicadores (CA-11.g). O analytics projeta o evento do core
  * alguns instantes depois da resposta (RabbitMQ; consistência eventual, ADR-003): o refetch
  * imediato traz o número velho. 3 s cabem com folga nos 10 s do critério.

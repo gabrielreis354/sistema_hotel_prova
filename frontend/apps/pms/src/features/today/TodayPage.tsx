@@ -5,7 +5,7 @@ import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
 import { useOccupancy } from '../analytics/index.js';
 import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
-import { arrivalRows, departureRows, formatPercent, inHouseRows, loadState, soldToday } from './todayLogic.js';
+import { arrivalRows, departureRows, formatPercent, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { StaleNotice } from './components/StaleNotice.js';
 import { TodayCounters, type Counter } from './components/TodayCounters.js';
@@ -71,9 +71,8 @@ export function TodayPage() {
   const inHouseLoad = loadState(inHouse);
   const alertsLoad = loadState(alerts);
   const occupancyLoad = loadState(occupancy);
-  // A outra metade do 🟡-2: o dado fica, mas o bloco avisa que pode estar velho. Só online, porque
-  // sem rede a faixa do topo já diz isso (revisão dos PRs da SPEC-11, 22/11).
-  const stale = (q: { data?: unknown; isError: boolean }) => online && q.data !== undefined && q.isError;
+  // A outra metade do 🟡-2: o dado fica, mas o bloco avisa que pode estar velho (isStale).
+  const stale = (q: Parameters<typeof isStale>[0]) => isStale(q, online);
 
   const noShowCount = arrivalList.filter((a) => a.noShowRisk).length;
   const lateDepartures = departureList.filter((d) => d.late).length;

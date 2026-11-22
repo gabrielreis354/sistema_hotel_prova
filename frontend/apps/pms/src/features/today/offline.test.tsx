@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { QueryClient } from '@tanstack/react-query';
-import { ANALYTICS_REFETCH_DELAY, invalidateAnalyticsSoon, loadState } from './todayLogic.js';
+import { ANALYTICS_REFETCH_DELAY, invalidateAnalyticsSoon, isStale, loadState } from './todayLogic.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { TodayCounters } from './components/TodayCounters.js';
 
@@ -78,5 +78,21 @@ describe('invalidateAnalyticsSoon', () => {
   it('o segundo refetch cabe nos 10 s do critério', () => {
     expect(ANALYTICS_REFETCH_DELAY).toBeGreaterThan(0);
     expect(ANALYTICS_REFETCH_DELAY).toBeLessThanOrEqual(5000);
+  });
+});
+
+// Wi-Fi sem internet: o onlineManager diz online, o refetch falha e o dado fica (revisão de 22/11).
+describe('isStale — dado que pode estar velho', () => {
+  it('online, com dado e com erro: avisa', () => {
+    expect(isStale({ data: { ok: 1 }, isError: true }, true)).toBe(true);
+  });
+  it('sem rede: não avisa, a faixa do topo já explica', () => {
+    expect(isStale({ data: { ok: 1 }, isError: true }, false)).toBe(false);
+  });
+  it('sem dado: não avisa, o bloco mostra o erro', () => {
+    expect(isStale({ data: undefined, isError: true }, true)).toBe(false);
+  });
+  it('com dado em dia: não avisa', () => {
+    expect(isStale({ data: { ok: 1 }, isError: false }, true)).toBe(false);
   });
 });
