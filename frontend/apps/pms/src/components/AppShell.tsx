@@ -3,8 +3,9 @@ import { NavLink, Outlet, matchPath, useLocation } from 'react-router-dom';
 import { Ellipsis } from 'lucide-react';
 import { Button, cn } from '@hotel/ui';
 import { useAuthStore } from '../stores/auth.js';
-import { mobileNavForRole, navItemsForRole, type NavItem } from '../routes/nav.js';
+import { mobileNavForRole, navGroupsForRole, type NavItem } from '../routes/nav.js';
 import { useMyTenant } from '../features/tenant/index.js';
+import { GeswayLogo } from './GeswayLogo.js';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
@@ -12,15 +13,25 @@ const ROLE_LABEL: Record<string, string> = {
   WAITER: 'Garçom',
 };
 
+/** Iniciais do avatar: as duas primeiras palavras que começam por letra ("Recepção Aurora 1" → "RA"). */
+export function initials(name: string | undefined): string {
+  const words = (name ?? '').split(/\s+/).filter((w) => /^\p{L}/u.test(w));
+  return words.slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
+}
+
 /**
  * Casca do app: navegação lateral no desktop, barra inferior no mobile (§7.1). O menu é
  * filtrado pelo papel do usuário — a mesma fonte (nav.ts) que o RequireRole usa no gate.
  * No celular, no máximo 5 abas; o que não cabe vai para "Mais" (D-3, T-05.3).
+ *
+ * Identidade da SPEC-10 (T-10.4, protótipo aprovado em 22/11): barra lateral esmeralda com o logo,
+ * grupos Operação e Gestão e o usuário no pé; topo com a faixa verde e areia; telas sobre o fundo
+ * areia. O usuário aparece uma vez só: no pé da barra no desktop, no topo no celular.
  */
 export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const items = user ? navItemsForRole(user.role) : [];
+  const groups = user ? navGroupsForRole(user.role) : [];
   const mobile = user ? mobileNavForRole(user.role) : { primary: [], more: [] };
   // Nome do hotel no cabeçalho (T-08.2): a mesma consulta do emissor do comprovante (T-09.1), em
   // cache por uma hora. Sem resposta, o lugar dele fica com "Gesway".
@@ -28,44 +39,94 @@ export function AppShell() {
 
   // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
   // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
+  const role = user ? ROLE_LABEL[user.role] : '';
+
+  // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
+  // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[220px_minmax(0,1fr)]">
-      {/* Sidebar — desktop */}
-      <aside className="hidden border-r border-gray-200 bg-white md:flex md:flex-col">
-        {/* Marca do produto em neutro: brand é "faça isto", não enfeite (GUIA_UI_CORPORATIVA, regra 2). */}
-        <div className="px-4 py-4">
-          <span className="text-lg font-semibold tracking-tight text-gray-900">Gesway</span>
+    <div className="min-h-screen bg-ground md:grid md:grid-cols-[236px_minmax(0,1fr)]">
+      {/* Barra lateral — o fundo vai até o fim da página; o conteúdo dela fica preso no topo ao rolar,
+          com o usuário sempre no pé da tela. */}
+      <aside className="hidden bg-nav text-nav-fg md:block">
+        <div className="sticky top-0 flex h-screen min-h-[560px] flex-col overflow-y-auto">
+          <div className="flex items-center gap-3.5 px-5 pb-[22px] pt-6">
+            <GeswayLogo className="h-[47px] w-14 shrink-0 text-white" />
+            <div className="flex flex-col">
+              <span className="text-[23px] font-extrabold leading-7 tracking-[0.03em] text-white">
+                GES<span className="text-nav-accent">WAY</span>
+              </span>
+              <span className="whitespace-nowrap text-[10.5px] leading-[15px] tracking-[0.08em] text-nav-muted">GESTÃO HOTELEIRA</span>
+            </div>
+          </div>
+          <div className="mx-5 h-px bg-white/15" />
+          <nav aria-label="Menu" className="flex flex-col gap-4 px-3 pt-[18px]">
+            {groups.map((group, index) => (
+              <div
+                key={group.id}
+                role="group"
+                aria-labelledby={`menu-${group.id}`}
+                className={cn('flex flex-col', index > 0 && 'border-t border-white/15 pt-4')}
+              >
+                <span
+                  id={`menu-${group.id}`}
+                  className="px-2.5 pb-2 text-[11px] font-semibold uppercase leading-4 tracking-[0.12em] text-nav-muted"
+                >
+                  {group.title}
+                </span>
+                <div className="flex flex-col gap-1">
+                  {group.items.map((item) => (
+                    <NavItemLink key={item.to} item={item} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
+          {/* Usuário no pé da barra (proposta de 22/11). A engrenagem de configurações da conta fica
+              de fora até a tela existir: botão que não leva a lugar nenhum é pior que nenhum. */}
+          <div data-area="usuario" className="mt-auto flex items-center gap-2.5 border-t border-white/15 px-3 py-3">
+            <span
+              aria-hidden="true"
+              className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-nav-fg text-[13px] font-bold text-brand"
+            >
+              {initials(user?.name)}
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[13px] font-semibold leading-[18px] text-white" title={user?.name}>
+                {user?.name}
+              </span>
+              <span className="truncate text-support text-nav-muted">{role}</span>
+            </div>
+          </div>
         </div>
-        <nav aria-label="Menu" className="flex-1 space-y-1 px-2">
-          {items.map((item) => (
-            <NavItemLink key={item.to} item={item} />
-          ))}
-        </nav>
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-col">
-        <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
-          {/* No celular, quem está logado fica embaixo do hotel: num aparelho compartilhado o garçom
-              precisa ver de quem é a sessão antes de lançar (🟡-3 do qa-redteam de 15/11). */}
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
-            <div className="truncate text-support text-gray-600 sm:hidden">
-              {user?.name} · {user ? ROLE_LABEL[user.role] : ''}
-            </div>
-          </div>
-          <div className="flex min-w-0 shrink-0 items-center gap-3">
-            <div className="hidden min-w-0 truncate text-right text-sm sm:block">
-              <span className="font-medium">{user?.name}</span>
-              <span className="ml-2 text-gray-500">{user ? ROLE_LABEL[user.role] : ''}</span>
+        {/* Topo com a faixa verde e areia. Hotel à esquerda e "Sair" à direita, na mesma coluna de até
+            1440 px do conteúdo (R-7). No celular, quem está logado fica embaixo do hotel: num aparelho
+            compartilhado o garçom precisa ver de quem é a sessão antes de lançar (🟡-3 do qa-redteam de 15/11). */}
+        <header className="border-b border-gray-200 bg-gradient-to-r from-strip-from to-strip-to">
+          <div className="mx-auto flex min-h-14 w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-2 md:px-8">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <GeswayLogo className="h-8 w-[38px] shrink-0 text-brand md:hidden" />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-gray-900">{tenant?.name ?? 'Gesway'}</div>
+                <div data-area="usuario-celular" className="truncate text-support text-gray-600 md:hidden">
+                  {user?.name} · {role}
+                </div>
+              </div>
             </div>
             {/* 48 px até o xl (CA-08.g); compacto só no desktop. */}
-            <Button variant="ghost" className="xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm" onClick={logout}>
+            <Button
+              variant="ghost"
+              className="shrink-0 border border-gray-300 bg-white/70 xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm"
+              onClick={logout}
+            >
               Sair
             </Button>
           </div>
         </header>
 
-        <main className="flex-1 p-4 pb-20 md:pb-4">
+        <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-4">
           <Outlet />
         </main>
 
@@ -76,7 +137,9 @@ export function AppShell() {
 }
 
 // Aba do celular: ícone em cima, rótulo embaixo (12 px, o piso da escala) — o rótulo nunca some.
-const TAB = 'flex min-h-touch min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1 text-center text-support';
+const TAB = 'relative flex min-h-touch min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1 text-center text-support';
+// Aba ativa: cor da marca, fundo levíssimo e fio de 3 px em cima — o fio diz "você está aqui" sem depender da cor.
+const TAB_ACTIVE = 'bg-brand/5 font-medium text-brand before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:bg-brand';
 
 /** Barra inferior do celular: abas diretas + "Mais" com o restante (só se houver restante). */
 function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) {
@@ -124,7 +187,7 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
             ref={sheetRef}
             id="menu-mais"
             aria-label="Mais opções"
-            className="sheet-up fixed inset-x-0 bottom-12 z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
+            className="sheet-up fixed inset-x-0 bottom-[calc(3rem+env(safe-area-inset-bottom))] z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
           >
             <ul>
               {more.map((item) => (
@@ -148,13 +211,17 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
         </>
       )}
 
-      <nav aria-label="Navegação principal" className="fixed inset-x-0 bottom-0 z-40 flex border-t border-gray-200 bg-white">
+      {/* Folga para a barra de gestos do iPhone (estudo de responsividade, R-4). */}
+      <nav
+        aria-label="Navegação principal"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)]"
+      >
         {primary.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/'}
-            className={({ isActive }) => cn(TAB, isActive ? 'font-medium text-brand' : 'text-gray-600')}
+            className={({ isActive }) => cn(TAB, isActive ? TAB_ACTIVE : 'text-gray-600')}
           >
             <item.icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
             <span className="max-w-full truncate">{item.label}</span>
@@ -170,10 +237,10 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
             className={cn(
               TAB,
               'rounded-none font-normal hover:bg-transparent focus-visible:ring-inset focus-visible:ring-brand focus-visible:ring-offset-0',
-              open || inMore ? 'font-medium text-brand' : 'text-gray-600',
+              open || inMore ? TAB_ACTIVE : 'text-gray-600',
             )}
           >
-            <Ellipsis aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
+            <Ellipsis aria-hidden="true" className="size-5 shrink-0" strokeWidth={2.75} />
             <span>Mais</span>
           </Button>
         )}
@@ -183,8 +250,9 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
 }
 
 /**
- * Item do menu lateral (T-08.2): ícone de traço fino + rótulo. Ativo = fundo brand/10, texto
- * brand e fio de 2 px à esquerda — o fio diz "você está aqui" mesmo para quem não distingue a cor.
+ * Item do menu lateral (T-08.2; identidade da SPEC-10). Ativo = fundo nav-active, texto branco e fio
+ * de 3 px nav-accent à esquerda — o fio diz "você está aqui" mesmo para quem não distingue a cor.
+ * Movimento só no hover, curto (proposta de 22/11).
  */
 function NavItemLink({ item }: { item: NavItem }) {
   return (
@@ -194,14 +262,15 @@ function NavItemLink({ item }: { item: NavItem }) {
       className={({ isActive }) =>
         cn(
           // 48 px até o xl: a barra lateral já aparece no tablet (md), onde tinha 36 px (CA-08.g).
-          'flex min-h-touch items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm xl:min-h-0',
+          'relative flex min-h-touch items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm transition-colors duration-150 xl:min-h-0',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-accent',
           isActive
-            ? 'border-brand bg-brand/10 font-medium text-brand'
-            : 'border-transparent text-gray-700 hover:bg-gray-100',
+            ? 'bg-nav-active font-semibold text-white before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-[10px] before:bg-nav-accent'
+            : 'text-nav-fg hover:bg-black/15',
         )
       }
     >
-      <item.icon aria-hidden="true" className="size-[18px] shrink-0" strokeWidth={1.75} />
+      <item.icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
       {item.label}
     </NavLink>
   );

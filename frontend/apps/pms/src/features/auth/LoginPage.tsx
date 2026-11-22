@@ -9,7 +9,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { login } from './loginApi.js';
 import { loginFailure } from './loginFailure.js';
 import { homeForRole } from '../../routes/roleHome.js';
-import { GeswayLogo } from './components/GeswayLogo.js';
+import { GeswayLogo } from '../../components/GeswayLogo.js';
 import { PasswordInput } from './components/PasswordInput.js';
 import './login.css';
 
