@@ -5,7 +5,7 @@ import { Button, Field, Input } from '@hotel/ui';
 import { useOpenAccount } from '../queries.js';
 import type { Account, WaiterAccountType } from '../accountsApi.js';
 import { openWithSameLabel, openedAtLabel } from '../accountFilter.js';
-import { submitOnce } from '../submitLock.js';
+import { mutateOnce } from '../../../lib/submitLock.js';
 
 const TYPES: { type: WaiterAccountType; label: string; placeholder: string }[] = [
   { type: 'TABLE', label: 'Mesa', placeholder: 'Mesa 5' },
@@ -25,7 +25,7 @@ export function openAccountOnce(
   input: OpenInput,
   onOpened: (account: Account) => void,
 ): boolean {
-  return submitOnce(lock, (release) => mutate(input, { onSuccess: onOpened, onSettled: release }));
+  return mutateOnce(lock, mutate, input, { onSuccess: onOpened });
 }
 
 /**
