@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatCpf, formatDateBR } from '@hotel/domain';
 import { ActionSlot, Button, Card, ErrorState, Section, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
+import { mutateOnce } from '../../lib/submitLock.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/auth.js';
 import { canReadMyTenant, myTenantOptions } from '../tenant/index.js';
@@ -78,9 +79,11 @@ export function ReservationDetailPage() {
     setParams(merged, { replace: true });
   }
 
+  // Um envio por vez (SPEC-11): o 2º clique saía antes do isPending e voltava 422.
+  const lock = useRef(false);
   function run(action: ReservationTransition) {
     setFeedback(null);
-    transition.mutate(action, {
+    mutateOnce(lock, transition.mutate, action, {
       onSuccess: () => {
         setConfirming(null);
         setFeedback({ kind: 'ok', text: DONE_MESSAGE[action] });

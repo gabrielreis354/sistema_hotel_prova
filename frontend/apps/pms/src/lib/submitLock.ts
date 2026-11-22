@@ -21,10 +21,12 @@ export function submitOnce(lock: { current: boolean }, send: (release: () => voi
   return true;
 }
 
-/** As opções de `mutate` do TanStack Query que a trava repassa. O `onSettled` é dela. */
+/** As opções de `mutate` do TanStack Query que a trava repassa. */
 export type MutateOnceOptions<TData, TError> = {
   onSuccess?: (data: TData) => void;
   onError?: (error: TError) => void;
+  /** Roda antes de a trava soltar: fechar o painel, recarregar indicadores. */
+  onSettled?: () => void;
 };
 
 /**
@@ -38,5 +40,28 @@ export function mutateOnce<TData, TError, TVariables>(
   variables: TVariables,
   options: MutateOnceOptions<TData, TError> = {},
 ): boolean {
-  return submitOnce(lock, (release) => mutate(variables, { ...options, onSettled: release }));
+  return submitOnce(lock, (release) =>
+    mutate(variables, {
+      ...options,
+      onSettled: () => {
+        try {
+          options.onSettled?.();
+        } finally {
+          release();
+        }
+      },
+    }),
+  );
+}
+
+/**
+ * A mesma trava para quem usa `mutateAsync` (o "Liberar quarto" do painel, cuja linha pode sumir
+ * antes da resposta). Devolve a Promise do envio, ou `null` se o clique foi descartado.
+ */
+export function promiseOnce<T>(lock: { current: boolean }, start: () => Promise<T>): Promise<T> | null {
+  let pending: Promise<T> | null = null;
+  submitOnce(lock, (release) => {
+    pending = start().finally(release);
+  });
+  return pending;
 }
