@@ -15,6 +15,9 @@ const preset = {
       lg: '1024px',
       xl: '1280px',
       '2xl': '1536px',
+      // Compacto só com mouse (estudo de responsividade da SPEC-10, R-3): a partir do xl E com
+      // ponteiro fino. Um tablet de 1280 px deitado é usado com o dedo e fica com os 48 px.
+      desk: { raw: '(min-width: 1280px) and (pointer: fine)' },
     },
     extend: {
       colors: {
@@ -32,6 +35,19 @@ const preset = {
         brand: {
           DEFAULT: 'rgb(var(--color-brand) / <alpha-value>)',
           fg: 'rgb(var(--color-brand-fg) / <alpha-value>)',
+        },
+        // Barra lateral e fundo (SPEC-10, T-10.4): também por token, para cada hotel poder trocar.
+        nav: {
+          DEFAULT: 'rgb(var(--color-nav) / <alpha-value>)',
+          fg: 'rgb(var(--color-nav-fg) / <alpha-value>)',
+          muted: 'rgb(var(--color-nav-muted) / <alpha-value>)',
+          active: 'rgb(var(--color-nav-active) / <alpha-value>)',
+          accent: 'rgb(var(--color-nav-accent) / <alpha-value>)',
+        },
+        ground: 'rgb(var(--color-ground) / <alpha-value>)',
+        strip: {
+          from: 'rgb(var(--color-strip-from) / <alpha-value>)',
+          to: 'rgb(var(--color-strip-to) / <alpha-value>)',
         },
       },
       fontFamily: {

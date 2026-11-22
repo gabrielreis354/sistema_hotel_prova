@@ -6,17 +6,43 @@
  * Canais RGB separados por espaço, sem `rgb()`: o Tailwind precisa compor a transparência
  * (`bg-brand/10` no item ativo do menu).
  *
- * #115e59 (teal escuro): mesma família do #0f766e anterior, mais sóbria. Texto branco sobre ela
- * passa de 5,5:1 para 7,6:1 (CA-08.d).
+ * Marca (SPEC-10, T-10.2, protótipo aprovado em 22/11): #065f46, o verde-escuro do logo. Texto
+ * branco sobre ela dá 7,7:1 (CA-08.d pede 4,5:1). Fica longe do verde de "Ocupado" (#16a34a,
+ * ΔE2000 26,5), que é status e não muda (SPEC-10 §10.3).
  */
 :root {
-  --color-brand: 17 94 89;
+  --color-brand: 6 95 70;
   --color-brand-fg: 255 255 255;
 }
 
 /*
- * Tela de login (SPEC-10, T-10.1). Família esmeralda da identidade nova; o resto do app continua
- * na marca teal acima até a T-10.2 decidir a cor (decisão de 16/11). Canais RGB, como a marca:
+ * Barra lateral (SPEC-10, T-10.4; proposta do Sirlande de 22/11). Fundo esmeralda #047857; a paleta
+ * da proposta foi ajustada para passar contraste sobre ele:
+ * - texto dos itens #ECFDF5 = 5,2:1; ícones e títulos dos grupos #D1FAE5 = 4,8:1;
+ * - item ativo #035E44 com texto branco = 7,8:1; fio do ativo #A7F3D0 = 6,1:1 sobre o ativo.
+ */
+:root {
+  --color-nav: 4 120 87;
+  --color-nav-fg: 236 253 245;
+  --color-nav-muted: 209 250 229;
+  --color-nav-active: 3 94 68;
+  --color-nav-accent: 167 243 208;
+}
+
+/*
+ * Fundo das telas de trabalho e faixa do topo (SPEC-10, T-10.4). Areia muito clara no lugar do
+ * cinza frio; a faixa do topo vai do verde ao areia, a mesma família do login. Texto de apoio
+ * sobre a faixa usa gray-600 (#4b5563, ~6,7:1): o gray-500 ficava em ~4,3:1.
+ */
+:root {
+  --color-ground: 246 244 239;
+  --color-strip-from: 227 242 234;
+  --color-strip-to: 244 239 226;
+}
+
+/*
+ * Tela de login (SPEC-10, T-10.1). Família esmeralda da identidade nova, a mesma da marca acima
+ * desde a T-10.2. Canais RGB, como a marca:
  * o login.css compõe a transparência (`rgb(var(--login-glass) / 0.4)`).
  *
  * Contraste conferido sobre o vidro claro (≈ branco):
