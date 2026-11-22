@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Button, ErrorState, Field, Input, PageHeader } from '@hotel/ui';
 import { decimalToCents, formatBRL, formatDateBR, todayISO } from '@hotel/domain';
 import type { Period } from './analyticsApi.js';
-import { defaultPeriod, fillMonths, monthLabel, monthlyWindow, periodError, SEASONALITY_WINDOWS } from './period.js';
+import { defaultPeriod, fillMonths, fillSeasonality, monthLabel, noSeasonReservations, monthlyWindow, periodError, SEASONALITY_WINDOWS } from './period.js';
 import { buildKpis } from './kpis.js';
 import { methodLabel, toShares } from './shares.js';
 import {
@@ -74,12 +74,14 @@ export function IndicatorsPage() {
     display: formatBRL(m.total),
   }));
 
-  const seasonBars = (seasonality.data ?? []).map((m) => ({
-    key: m.month ?? '',
-    label: monthLabel(m.month ?? ''),
-    value: m.reservations ?? 0,
-    display: `${m.reservations ?? 0} reservas`,
-    detail: `${nights.format(m.avg_nights ?? 0)} noites em média`,
+  // Todos os meses da janela do backend, com o mês sem reserva em zero (achado 3 da revisão de 15/11).
+  const seasonMonths = fillSeasonality(today, months, seasonality.data ?? []);
+  const seasonBars = seasonMonths.map((m) => ({
+    key: m.month,
+    label: monthLabel(m.month),
+    value: m.reservations,
+    display: `${m.reservations} ${m.reservations === 1 ? 'reserva' : 'reservas'}`,
+    detail: m.reservations === 0 || m.avg_nights === null ? '—' : `${nights.format(m.avg_nights)} noites em média`,
   }));
 
   const categoryItems = (byCategory.data ?? []).map((c) => ({
@@ -148,7 +150,7 @@ export function IndicatorsPage() {
             isLoading={seasonality.isLoading}
             error={seasonality.error}
             onRetry={() => seasonality.refetch()}
-            isEmpty={seasonBars.length === 0}
+            isEmpty={noSeasonReservations(seasonMonths)}
             emptyText="Nenhuma reserva nesses meses."
           >
             <BarChart title="Reservas por mês de check-in" valueHeader="Reservas" detailHeader="Noites em média" bars={seasonBars} />
