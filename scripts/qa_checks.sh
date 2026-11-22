@@ -145,11 +145,23 @@ report_warn "Log com objeto de requisição" \
 # 5b. LGPD — erro cru no log (SPEC-06, T-06.12, CA-06.12.d)
 #
 # O erro do Sequelize carrega sql, parameters e parent.detail com o CPF, o nome e o
-# e-mail do hóspede. Log de erro passa pelo logError (app/utils/logError.js), que
-# guarda só nome, mensagem, código, constraint e pilha. `.message` sozinho é seguro.
+# e-mail do hóspede, e a message do erro de conversão de tipo (classe 22) traz o valor
+# enviado. Log de erro passa pelo logError (app/utils/logError.js). Barra, em qualquer
+# console.* do core: o erro como argumento (nomes e, ex, err*, *Error, cause, inclusive
+# dentro de { }), os campos crus (.parent, .original, .errors, .sql, .parameters) e, nos
+# controllers, o error.message (que vem do banco). É uma rede, não prova: a chamada
+# quebrada em várias linhas só é pega na 1ª linha (qa-redteam de 22/11, 🟡-2).
 # ─────────────────────────────────────────────────────────────────────────────
-hits=$(grep -rnE "console\.(error|warn)\(([^()]*,[[:space:]]*)?(error|err|e|dbError)\)" "$CORE/app"         --include='*.js' 2>/dev/null | strip_comments)
-report_error "Erro cru no log do core"     "LGPD art. 46 — o erro do Sequelize leva o dado do hóspede (sql, parameters). Use logError(rótulo, error)"     "$hits"
+ERRVAR='(e|ex|err[A-Za-z0-9_]*|[A-Za-z_]*[Ee]rror|cause)'
+CONSOLE='console\.(log|info|warn|error|debug)\('
+hits=$( {
+    grep -rnE "${CONSOLE}(.*[,{])?[[:space:]]*${ERRVAR}[[:space:]]*[,)}]" "$CORE/app" --include='*.js' 2>/dev/null
+    grep -rnE "${CONSOLE}.*\.(parent|original|errors|sql|parameters)\b" "$CORE/app" --include='*.js' 2>/dev/null
+    grep -rnE "${CONSOLE}.*\b${ERRVAR}\.message\b" "$CORE/app/Controllers" --include='*.js' 2>/dev/null
+} | grep -v 'app/utils/logError.js' | strip_comments | sort -u)
+report_error "Erro cru no log do core" \
+    "LGPD art. 46 — o erro do Sequelize leva o dado do hóspede (sql, parameters, a message da classe 22). Use logError(rótulo, error)" \
+    "$hits"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. LGPD — include sem attributes devolve o model inteiro.
