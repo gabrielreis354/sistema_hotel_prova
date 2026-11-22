@@ -50,6 +50,13 @@ export async function checkNewCpf(tenantId, value, { excludeId } = {}) {
  * trocando o telefone.
  */
 export function cpfChanged(value, stored) {
-    const next = isBlankCpf(value) ? null : onlyDigits(value);
+    // Vazio apaga: muda sempre que há algo gravado, mesmo o legado sem dígito ("n/a") — pelos
+    // dígitos, null === onlyDigits('n/a') e o apagar sumia em silêncio (qa-redteam de 22/11, 🟡).
+    if (isBlankCpf(value)) return stored !== null;
+    // Valor sem dígito nenhum ('abc', {}, false) compara pelo próprio valor: diferente do gravado,
+    // vai para a validação e dá 400 em vez de ser ignorado (🟢1); o legado "n/a" reenviado igual
+    // pela tela continua sem mudança, e o telefone dele ainda se troca (parecer 🟡2).
+    const next = onlyDigits(value);
+    if (next === null) return value !== stored;
     return next !== onlyDigits(stored);
 }
