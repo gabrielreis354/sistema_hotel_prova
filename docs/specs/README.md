@@ -41,6 +41,7 @@ Substituem as pendências espalhadas em relatórios de sessão, que não eram ex
 | [SPEC-08](SPEC-08-acabamento-corporativo.md) | Acabamento corporativo do app-pms | 🟠 Alta | ✅ T-08.1 a T-08.6 (#159 a #162, #167, #170; ressalvas no #178) | — |
 | [SPEC-09](SPEC-09-acabamento-telas-mvp.md) | Correções das telas do MVP (revisão de 15/11) | 🟠 Alta | 🟡 Aprovada 15/11 | Congelamento de 24/11 |
 | [SPEC-10](SPEC-10-identidade-visual.md) | Identidade visual, do login à administração | 🟢 Proposta (opcional) | 🟡 Login decidido em 16/11; demais telas sem protótipo | — |
+| [SPEC-11](SPEC-11-robustez-balcao-mvp.md) | Robustez do balcão: duplo clique, CPF, reserva no passado, painel sem rede (banca simulada de 15/11) | 🟠 Alta | ✅ T-11.1 a T-11.4 (#202 a #205, #209), 22/11; CA-11.e no 5º sem. | — |
 | [SPEC_DOC](../SPEC_DOCUMENTACAO_OFICIAL_23ago2026.md) | Documentação Acadêmica | 🟠 Alta | 🟡 Fase A completa | — |
 
 > **SPEC-07** nasceu em 09/09 do levantamento `docs/frontend/REQUISITOS_TELAS_PMS_09set2026.md`. Não é exigida pelo Termo de Aceite — é exigida pela realidade: a tarifa hoje é um número por categoria, e nenhum hotel opera assim. Ficou fora da SPEC-05 porque a maior parte do trabalho é backend.
