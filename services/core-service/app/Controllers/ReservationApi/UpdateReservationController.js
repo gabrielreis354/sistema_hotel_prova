@@ -9,6 +9,8 @@ import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js'
 import { moveRoomAccounts } from '../../utils/roomChangeAccounts.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
+import { checkInInPast, checkInInPastError } from '../../utils/checkInDateGuard.js';
+import { todayInHotel } from '../../utils/hotelTimezone.js';
 
 export default withDeadlockRetry('UpdateReservationController', UpdateReservationController);
 
@@ -68,6 +70,11 @@ async function UpdateReservationController(request, response) {
             const blocked = reservationChangeBlocked(reservation);
             if (blocked) return await fail(blocked.status, { error: blocked.message });
             if (checkOutDate <= checkInDate) return await fail(400, { error: 'check_out_date deve ser posterior a check_in_date' });
+            // Só a entrada que MUDA para antes de hoje (SPEC-11, CA-11.f; parecer de 22/11): estender a
+            // saída de quem entrou ontem, ou trocar o quarto da chegada atrasada, continua valendo.
+            if (checkInInPast(checkInDate, todayInHotel(), reservation.check_in_date)) {
+                return await fail(422, checkInInPastError(checkInDate));
+            }
 
             const current = await ReservationRoomModel.findAll({ where: { reservation_id: reservation.id }, attributes: ['room_id'], transaction });
             const roomIds = new Set(current.map((r) => r.room_id));
