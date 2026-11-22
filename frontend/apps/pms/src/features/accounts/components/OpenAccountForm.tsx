@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Field, Input } from '@hotel/ui';
 import { useOpenAccount } from '../queries.js';
 import type { Account, WaiterAccountType } from '../accountsApi.js';
 import { openWithSameLabel, openedAtLabel } from '../accountFilter.js';
+import { submitOnce } from '../submitLock.js';
 
 const TYPES: { type: WaiterAccountType; label: string; placeholder: string }[] = [
   { type: 'TABLE', label: 'Mesa', placeholder: 'Mesa 5' },
@@ -30,6 +31,9 @@ export function OpenAccountForm({
   const [type, setType] = useState<WaiterAccountType>('TABLE');
   const [label, setLabel] = useState('');
   const open = useOpenAccount();
+  // Dois toques no mesmo quadro abriam duas mesas (estado de 19/11, 🟡3): o disabled abaixo só
+  // chega depois do isPending. A trava síncrona segura o segundo toque; o disabled fica para o visual.
+  const sending = useRef(false);
   const current = TYPES.find((t) => t.type === type) ?? TYPES[0]!;
   const same = openWithSameLabel(openAccounts, label);
 
@@ -37,7 +41,9 @@ export function OpenAccountForm({
     event.preventDefault();
     const trimmed = label.trim();
     if (!trimmed) return;
-    open.mutate({ type, label: trimmed }, { onSuccess: onOpened });
+    submitOnce(sending, (release) =>
+      open.mutate({ type, label: trimmed }, { onSuccess: onOpened, onSettled: release }),
+    );
   };
 
   return (
