@@ -76,3 +76,61 @@ O caso do número já existia antes da branch. O que é desta branch é a regra 
 | Repasse | B2B com entrada no passado: `para_gabriel_22112026.md` |
 
 Suíte do core depois do tratamento: 67 arquivos e 1335 testes verdes.
+
+---
+
+## 2ª rodada (correção do 🔴-1)
+**Escopo:** `git diff 5e56d5e..b472352`, com os commits `9e68b78` (RED), `c472004` (fix) e `b472352` (swagger e cliente). **Data:** 22/11/2026
+**Arquivos auditados:** 7
+**Achados no escopo:** 1 (🔴 0 · 🟡 0 · 🟢 1) · **Repassados:** 0
+
+### Veredito
+**APROVADO.** O 🔴-1 está fechado. Nenhum valor fora de `YYYY-MM-DD` chega à regra da entrada no passado nem ao `save`, no `POST` e no `PUT`. O 🟡-1, o 🟢-1 e o 🟢-2 da 1ª rodada também estão resolvidos.
+
+### Achados no escopo
+
+#### 🟢-3 [testes] Nenhum teste cobre a `check_out_date` mal formada no `POST`, e a linha que a valida sobrevive à remoção
+**Onde:** `services/core-service/app/Controllers/ReservationApi/CreateReservationController.js:29`; `services/core-service/tests/reservation-past-check-in.test.js:131` (o `POST` só varia a `check_in_date`)
+**Cenário:** se alguém apaga a linha 29, os 27 testes continuam verdes. Na maioria dos casos o dano fica contido, porque o `countNights` (`calculateStayTotal.js:49`) dá NaN para `'2026-12-1'` e a resposta segue 400. A exceção é a data futura que não existe no calendário: o V8 aceita `Date.parse('2027-02-30T00:00:00Z')` e rola para 02/03 (conferido no node). Com isso, `check_out_date: '2027-02-30'` passa pelo cálculo, e o PostgreSQL rejeita no `INSERT` com **500**. Hoje a linha 29 barra esse caso com 400. Ninguém prova isso.
+**Correção sugerida:** um `it.each` no `POST` com `check_out_date` em `['2026-12-1', '2027-02-30', 20261130]` → 400.
+
+### O que foi verificado e está correto
+- **`isIsoDate`** (`app/utils/isIsoDate.js:9-13`), testado no node com os valores pedidos.
+  - Recusa: `'2026-11-03 '`, `'+2026-11-03'`, `'2026-11-03\n'`, `'\n2026-11-03'`, `'20261-11-03'`, `'2026-02-29'`, `'1900-02-29'`, `''`, `{}`, `null`, `[]`, `['2026-11-03']` e dígitos de largura total.
+  - Aceita: `'2024-02-29'` e `'2000-02-29'`.
+  - O `$` do JS sem a flag `m` não casa antes de `\n` final, e o `\d` sem a flag `u` é só ASCII.
+  - A regex limita o ano a 4 dígitos. Com isso, o `toISOString()` nunca recebe data fora do intervalo e não há `RangeError`: de `0000` a `9999`, a data é válida e a serialização volta igual.
+- **`'0000-01-01'`** passa no `isIsoDate`, e o PostgreSQL não tem ano 0. Mesmo assim, o valor nunca chega ao banco.
+  - Como entrada, é menor que hoje e dá 422 (`Create:33`; `Update:82`).
+  - Como saída, é menor ou igual à entrada e dá 400 (`Create:31`; `Update:79`).
+  - Não é achado.
+- **Falso positivo de calendário:** o V8 aceita `'2026-02-30'`, mas a comparação com o `toISOString()` recusa. O teste do `'2026-02-30'` mata o mutante que tira essa comparação, porque a data cairia em 422, e não em 400.
+- **`PUT`** (`UpdateReservationController.js:42-44`).
+  - A validação roda depois do `BEGIN` e antes do primeiro `findOne` com `LOCK.UPDATE` (`:46-50`). O `fail` (`:30-33`) faz rollback de uma transação sem leitura nem escrita, então não fica lock preso.
+  - `''`, `{}`, `null`, array e número dão 400.
+  - O `null`, que antes passava pelo `??` (`:72`) e estourava `notNull` no `save` (`:111`), agora para antes.
+  - Os mutantes mentais `value != null` e "só valida `check_in_date`" morrem nos testes de `:139` e `:148`.
+- **`POST`** (`CreateReservationController.js:24-30`).
+  - `''`, `0` e `false` dão só "obrigatório". O guarda `check_in_date &&` evita a mensagem de formato em dobro.
+  - `{}` e array dão só a mensagem de formato.
+  - As duas validações rodam antes do 400 de ordem e do 422.
+- **Chamadores legítimos:** o PMS não chama `PUT /reservations/{id}`. Só há `GET` em `reservationsApi.ts:100-108`, e o teste de `reservationsApi.test.ts:153` afirma isso. O `test_rotas.sh` só faz `POST`, com datas geradas no formato canônico. Não achei e2e nem seed que mande `null` ou outro formato no `PUT`. A mudança de 500 para 400 não quebra ninguém.
+- **Swagger e cliente.**
+  - O 400 do `POST` usa `ValidationErrors` (`{ errors: [] }`), e o 400 do `PUT` usa `Error` (`{ error }`). Os dois batem com o que cada controller devolve.
+  - O "null incluído" do `PUT` corresponde ao código.
+  - O 422 sem code do `PUT` agora aparece na doc.
+  - O `schema.d.ts` regerado repete as quatro descrições do `swagger.js` e não muda nenhum tipo.
+- A correção não cria query nova, os imports são ESM e não há `require`.
+- Rodei `tests/reservation-past-check-in.test.js` no HEAD local, que contém `b472352` sem diferença em `app/`, `tests/` e `config/`: 27 de 27 verdes.
+
+### Não foi possível verificar
+- A mutação real em disco foi bloqueada pela política do ambiente. Os mutantes acima foram avaliados lendo o código e os testes, não executados. O sobrevivente do 🟢-3 sai dessa leitura.
+- Não confirmei no banco que o PostgreSQL rejeita `'0000-01-01'`, porque o psql local não tinha papel de acesso. Não muda a conclusão: o valor nunca chega ao `INSERT`/`UPDATE`.
+- **Fora do escopo, sem severidade:** uma saída muito distante (`'9999-12-31'`) é formato válido e passa. Com diária alta, o total estoura o `NUMERIC(12,2)` (`db/schema.sql:151`) e dá 500. Já existia antes da SPEC-11, porque não há teto de estadia. Fica registrado como pendência de produto, não desta correção.
+
+### Tratamento da 2ª rodada (Sirlande, 22/11)
+
+| # | O que foi feito |
+|---|---|
+| 🟢-3 | `it.each` no POST com `check_out_date` em `'2026-12-1'`, `'2027-02-30'` e `20261130`, esperando 400 sem gravar. Antes, apagar a linha de validação da saída deixava os 27 testes verdes (rodado); agora o caso `'2027-02-30'` derruba a suíte |
+| Fora do escopo | Saída `'9999-12-31'` estoura o `NUMERIC(12,2)` do total (500). Já existia antes da SPEC-11; teto de estadia é decisão de produto, depois do congelamento |

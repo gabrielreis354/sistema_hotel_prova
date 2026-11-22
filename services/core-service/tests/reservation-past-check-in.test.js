@@ -145,6 +145,16 @@ describe('datas fora do formato YYYY-MM-DD → 400 (🔴-1 e 🟢-1 do qa-redtea
         expect(Number(atual.total_amount)).toBe(500);
     });
 
+    // 🟢-3 da 2ª rodada: sem este caso, apagar a validação da saída no POST deixava a suíte verde.
+    // '2027-02-30' é o que escapa do cálculo de noites (o V8 rola para 02/03) e virava 500 no INSERT.
+    it.each(['2026-12-1', '2027-02-30', 20261130])('POST com check_out_date %j → 400, sem gravar', async (ruim) => {
+        const room = await novoQuarto();
+        const res = await criar({ guest_id: guestId, room_id: room, check_in_date: addDays(HOJE, 3), check_out_date: ruim });
+        expect(res.status).toBe(400);
+        const [rows] = await sequelize.query('SELECT count(*)::int AS n FROM reservations WHERE room_id = :room', { replacements: { room } });
+        expect(rows[0].n).toBe(0);
+    });
+
     it('PUT com check_out_date fora do formato → 400', async () => {
         const id = (await criar({ guest_id: guestId, room_id: await novoQuarto(), check_in_date: addDays(HOJE, 3), check_out_date: addDays(HOJE, 5) })).body.id;
         expect((await alterar(id, { check_out_date: '2026-12-1' })).status).toBe(400);
