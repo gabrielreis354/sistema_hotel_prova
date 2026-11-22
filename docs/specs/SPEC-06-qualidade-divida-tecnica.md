@@ -1,7 +1,7 @@
 # SPEC-06 — Qualidade e Dívida Técnica
 
 **Prioridade:** 🟡 Média — mas contém item que **quebra o portão do CI**
-**Estado:** 🟡 Em andamento — T-06.2, T-06.3, T-06.4, T-06.5, T-06.6, T-06.8 e T-06.9 concluídas; abertas T-06.1, T-06.7, T-06.10, T-06.11 e T-06.12
+**Estado:** 🟡 Em andamento — T-06.2, T-06.3, T-06.4, T-06.5, T-06.6, T-06.8 e T-06.9 concluídas; abertas T-06.1, T-06.7, T-06.10 e T-06.11; T-06.12 concluída em 22/11
 
 > **Situação em 19/11/2026:** a T-06.13 (estorno no lugar da exclusão) foi mergeada no #100, em 24/10. A T-06.12 (dado pessoal fora do log), prevista no Documento 08 para a S9, segue aberta.
 **Criado em:** 26/08/2026
@@ -238,19 +238,21 @@ O índice parcial (correto, e que resolveu um defeito pior) **agravou** o quadro
 
 ---
 
-### T-06.12 — Dado pessoal de hóspede impresso no log via `console.error(error)` 🔲
+### T-06.12 — Dado pessoal de hóspede impresso no log via `console.error(error)` ✅
 
 **Problema:** um erro do Sequelize carrega o `sql` e os `parameters` do INSERT/UPDATE que falhou. Os controllers que fazem `console.error(error)` com o objeto inteiro imprimem nome, CPF e e-mail do hóspede no stdout do container, que vai parar no agregador de logs. Reproduzido na auditoria de 21/09 (`docs/qa/redteam_paranoid-unique_21set2026.md`, pendência 1): o dado sai 3× por erro. A T-06.3 reduziu a frequência (conflito de unicidade virou 409, sem log) e corrigiu o único endpoint público (`CreateBookingController` loga só `error.message`), mas o padrão segue nos demais controllers.
 
 **Regra violada:** LGPD art. 46 (segurança do tratamento) e art. 6º, III (necessidade): log não precisa de CPF para diagnosticar um 500.
 
 **Critérios de aceitação**
-- [ ] **CA-06.12.a** — Nenhum controller loga o objeto de erro do Sequelize inteiro; o log leva mensagem, nome do erro e código, sem `sql`, `parameters` nem `parent.detail`
-- [ ] **CA-06.12.b** — Um utilitário único em `app/utils/` faz essa redução, reaproveitado por todos os controllers (DRY)
-- [ ] **CA-06.12.c** — Teste que provoca um erro com dado pessoal no INSERT e confirma que o CPF não aparece no que foi logado
-- [ ] **CA-06.12.d** — Regra no `qa_checks.sh` barrando `console.error(error)` com o objeto cru em `app/Controllers/`
+- [x] **CA-06.12.a** — Nenhum controller loga o objeto de erro do Sequelize inteiro; o log leva mensagem, nome do erro e código, sem `sql`, `parameters` nem `parent.detail`
+- [x] **CA-06.12.b** — Um utilitário único em `app/utils/` faz essa redução, reaproveitado por todos os controllers (DRY)
+- [x] **CA-06.12.c** — Teste que provoca um erro com dado pessoal no INSERT e confirma que o CPF não aparece no que foi logado
+- [x] **CA-06.12.d** — Regra no `qa_checks.sh` barrando `console.error(error)` com o objeto cru em `app/Controllers/`
 
 > Decisão D-3 da revisão do PR #82 (07/10/2026): o achado é anterior à branch e fica fora do diff dela, por isso virou tarefa própria em vez de ampliar o PR.
+
+> **Concluída em 22/11/2026** (branch `fix/t0612-log-sem-dado-pessoal`): `app/utils/logError.js` (`safeError` guarda nome, mensagem, código do Postgres, constraint, tabela e pilha; nunca `sql`, `parameters`, `errors[].value` nem `parent.detail`) em 70 pontos de log do core; `tests/log-error.test.js` com erro real do Sequelize carregando CPF, nome e e-mail, e um 500 de controller; regra 5b no `scripts/qa_checks.sh`, que barra `console.error(error)` cru em `services/core-service/app/`.
 
 ---
 
