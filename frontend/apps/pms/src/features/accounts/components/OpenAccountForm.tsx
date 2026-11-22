@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
+import type { UseMutateFunction } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button, Field, Input } from '@hotel/ui';
 import { useOpenAccount } from '../queries.js';
@@ -10,6 +11,22 @@ const TYPES: { type: WaiterAccountType; label: string; placeholder: string }[] =
   { type: 'TABLE', label: 'Mesa', placeholder: 'Mesa 5' },
   { type: 'DIRECT', label: 'Balcão', placeholder: 'Balcão — piscina' },
 ];
+
+type OpenInput = { type: WaiterAccountType; label: string };
+
+/**
+ * Um envio por vez (estado de 19/11, 🟡3): dois toques no mesmo quadro abriam duas mesas, porque o
+ * disabled só chega depois do isPending. A trava solta quando a resposta chega, sucesso ou erro;
+ * sem rede, fica presa enquanto a mutação espera, e solta quando ela sai.
+ */
+export function openAccountOnce(
+  lock: { current: boolean },
+  mutate: UseMutateFunction<Account, Error, OpenInput>,
+  input: OpenInput,
+  onOpened: (account: Account) => void,
+): boolean {
+  return submitOnce(lock, (release) => mutate(input, { onSuccess: onOpened, onSettled: release }));
+}
 
 /**
  * Abrir mesa ou balcão (D-8). A conta da suíte não aparece aqui: ela nasce no check-in (D-58).
@@ -31,8 +48,7 @@ export function OpenAccountForm({
   const [type, setType] = useState<WaiterAccountType>('TABLE');
   const [label, setLabel] = useState('');
   const open = useOpenAccount();
-  // Dois toques no mesmo quadro abriam duas mesas (estado de 19/11, 🟡3): o disabled abaixo só
-  // chega depois do isPending. A trava síncrona segura o segundo toque; o disabled fica para o visual.
+  // A trava síncrona segura o segundo toque (openAccountOnce); o disabled fica para o visual.
   const sending = useRef(false);
   const current = TYPES.find((t) => t.type === type) ?? TYPES[0]!;
   const same = openWithSameLabel(openAccounts, label);
@@ -41,9 +57,7 @@ export function OpenAccountForm({
     event.preventDefault();
     const trimmed = label.trim();
     if (!trimmed) return;
-    submitOnce(sending, (release) =>
-      open.mutate({ type, label: trimmed }, { onSuccess: onOpened, onSettled: release }),
-    );
+    openAccountOnce(sending, open.mutate, { type, label: trimmed }, onOpened);
   };
 
   return (
@@ -84,11 +98,13 @@ export function OpenAccountForm({
         )}
       </p>
       <div className="grid grid-cols-2 gap-2">
-        <Button variant="ghost" onClick={onCancel}>
+        {/* Travado durante o envio: sem rede, cancelar e abrir de novo deixava duas mutações na
+            espera, e as duas viravam conta quando a rede voltava (🟡 de fluxo do qa-redteam de 22/11). */}
+        <Button variant="ghost" onClick={onCancel} disabled={open.isPending}>
           Cancelar
         </Button>
         <Button type="submit" disabled={!label.trim() || open.isPending}>
-          {open.isPending ? 'Abrindo…' : `Abrir ${current.label.toLowerCase()}`}
+          {open.isPaused ? 'Sem conexão…' : open.isPending ? 'Abrindo…' : `Abrir ${current.label.toLowerCase()}`}
         </Button>
       </div>
     </form>

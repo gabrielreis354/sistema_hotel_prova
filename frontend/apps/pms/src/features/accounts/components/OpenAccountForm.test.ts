@@ -6,10 +6,15 @@ import { openAccountOnce } from './OpenAccountForm.js';
 // submitOnce sozinho é testado em submitLock.test.ts; aqui, que o formulário solta a trava quando a
 // resposta chega. Sem o onSettled, o botão ficava morto depois de um 500: habilitado e sem envio.
 const tick = () => new Promise((r) => setTimeout(r, 5));
-const input = { type: 'TABLE' as const, label: 'Mesa 5' };
+const input: Parameters<typeof openAccountOnce>[2] = { type: 'TABLE', label: 'Mesa 5' };
+
+type Input = typeof input;
 
 function observer(mutationFn: () => Promise<unknown>) {
-  const obs = new MutationObserver(new QueryClient(), { mutationFn });
+  // mount(): é o que liga o cliente ao onlineManager, para retomar a mutação quando a rede volta.
+  const client = new QueryClient();
+  client.mount();
+  const obs = new MutationObserver<unknown, Error, Input>(client, { mutationFn });
   const unsubscribe = obs.subscribe(() => {});
   const mutate: Parameters<typeof openAccountOnce>[1] = (variables, options) => {
     obs.mutate(variables, options as never).catch(() => {});
