@@ -3,7 +3,7 @@ import { Button, Input } from '@hotel/ui';
 import { decimalToCents, formatBRL, multiplyCents } from '@hotel/domain';
 import type { AccountItem } from '../accountsApi.js';
 import { canUndo, parseQuantity, type QueueEntry } from '../queueCore.js';
-import { fieldText, lastTapAt } from '../quantityField.js';
+import { cleanQuantityText, fieldText, lastTapAt, quantityTextInvalid } from '../quantityField.js';
 import { useNow } from '../queueStore.js';
 import { itemLine, undoAccessibleName, undoLabel, undoSecondsLeft } from '../accountTotals.js';
 
@@ -77,7 +77,9 @@ function QuantityField({
       pattern="[0-9]*"
       autoComplete="off"
       enterKeyHint="done"
+      maxLength={4}
       aria-label={`Quantidade de ${description}`}
+      aria-invalid={quantityTextInvalid(text) || undefined}
       className="min-h-touch w-16 shrink-0 px-2 text-center tabular-nums xl:min-h-0"
       value={text}
       onFocus={(e) => {
@@ -98,8 +100,10 @@ function QuantityField({
         if (e.key === 'Enter') onLostFocus();
       }}
       onChange={(e) => {
-        setText(e.target.value);
-        const n = parseQuantity(e.target.value);
+        // Só dígitos, até 4: o campo nunca mostra um número diferente do que vai para a fila.
+        const clean = cleanQuantityText(e.target.value);
+        setText(clean);
+        const n = parseQuantity(clean);
         if (n !== null) lastSent.current = n;
         onChange(n ?? quantity);
       }}
