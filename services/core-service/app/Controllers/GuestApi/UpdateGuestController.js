@@ -1,6 +1,7 @@
 import GuestModel from '../../Models/GuestModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import isNonBlankString from '../../utils/isNonBlankString.js';
+import { checkNewCpf, cpfChanged, isBlankCpf } from '../../utils/guestCpf.js';
 
 export default async function UpdateGuestController(request, response) {
     try {
@@ -17,7 +18,16 @@ export default async function UpdateGuestController(request, response) {
         if (!guest) return response.status(404).json({ error: 'Hóspede não encontrado' });
 
         if (full_name !== undefined) guest.full_name = full_name;
-        if (cpf !== undefined)       guest.cpf = cpf;
+        // Só o CPF que muda é validado (parecer de 22/11, 🟡2); reenviado igual, fica como está.
+        if (cpf !== undefined && cpfChanged(cpf, guest.cpf)) {
+            if (isBlankCpf(cpf)) {
+                guest.cpf = null;
+            } else {
+                const checked = await checkNewCpf(tenantId, cpf, { excludeId: guest.id });
+                if (checked.error) return response.status(checked.status).json({ error: checked.error });
+                guest.cpf = checked.digits;
+            }
+        }
         if (phone !== undefined)     guest.phone = phone;
         if (email !== undefined)     guest.email = email;
 

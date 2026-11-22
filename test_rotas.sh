@@ -75,7 +75,7 @@ echo "=== T08: Criar hóspede ==="
 GUEST=$(curl -s -X POST "$BASE/guests" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT" \
-  -d '{"full_name":"João da Silva","cpf":"12345678901","email":"joao@teste.com","phone":"11999990000"}')
+  -d '{"full_name":"João da Silva","cpf":"52998224725","email":"joao@teste.com","phone":"11999990000"}')
 echo "$GUEST"
 GUEST_ID=$(echo "$GUEST" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
@@ -142,7 +142,7 @@ echo "=== T19: CPF duplicado (espera 409) ==="
 curl -s -o /dev/null -w "HTTP %{http_code}" -X POST "$BASE/guests" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT" \
-  -d '{"full_name":"Outro João","cpf":"12345678901","email":"outro@teste.com"}'
+  -d '{"full_name":"Outro João","cpf":"52998224725","email":"outro@teste.com"}'
 echo ""
 
 echo ""

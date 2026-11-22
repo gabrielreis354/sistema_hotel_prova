@@ -120,11 +120,11 @@ describe('Quarto — rooms (§4.3)', () => {
 
 describe('Hóspede — guests: minimização (§4.4)', () => {
     it('guest.created leva SÓ o nome — nem CPF, nem e-mail, nem telefone', async () => {
-        const g = await createGuest(app, jwt, { full_name: 'Maria Mínima', cpf: '111.222.333-44', phone: '11999990000' });
+        const g = await createGuest(app, jwt, { full_name: 'Maria Mínima', cpf: '529.982.247-25', phone: '11999990000' });
         const e = await ultimo(g.id);
         expect(e.type).toBe('guest.created');
         expect(e.payload).toEqual({ full_name: 'Maria Mínima' });
-        expect(JSON.stringify(e)).not.toMatch(/111\.222|11999990000|@/);
+        expect(JSON.stringify(e)).not.toMatch(/52998224725|529\.982|11999990000|@/);
     });
 
     it('mudar telefone não gera evento; mudar o nome gera guest.updated; excluir gera guest.deleted', async () => {

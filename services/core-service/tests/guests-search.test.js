@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
+import sequelize from '../database/connections/sequelize.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
@@ -22,8 +23,10 @@ beforeAll(async () => {
     ({ jwt: jwtA } = await registerAndLogin(app, { tenantName: 'Hotel Busca A' }));
     ({ jwt: jwtB } = await registerAndLogin(app, { tenantName: 'Hotel Busca B' }));
 
-    await createGuest(app, jwtA, { full_name: 'Ana Souza', cpf: '123.456.789-00', email: 'ana@a.test', phone: '(11) 98888-1111' });
-    await createGuest(app, jwtA, { full_name: 'Bruno Lima', cpf: '22233344455', email: 'bruno@a.test', phone: '11977772222' });
+    await createGuest(app, jwtA, { full_name: 'Ana Souza', cpf: '529.982.247-25', email: 'ana@a.test', phone: '(11) 98888-1111' });
+    // A API grava só os dígitos (SPEC-11, T-11.1); a máscara simula o hóspede gravado antes da regra.
+    await sequelize.query(`UPDATE guests SET cpf = '529.982.247-25' WHERE email = 'ana@a.test'`);
+    await createGuest(app, jwtA, { full_name: 'Bruno Lima', cpf: '16899535009', email: 'bruno@a.test', phone: '11977772222' });
     // Nomes com os curingas do LIKE: % e _ precisam ser literais na busca.
     await createGuest(app, jwtA, { full_name: 'Desconto 100% Silva', email: 'pct@a.test' });
     await createGuest(app, jwtA, { full_name: 'Joao_Underscore', email: 'under@a.test' });
@@ -33,7 +36,7 @@ beforeAll(async () => {
     }
 
     // Outro hotel, com hóspede que casaria com os mesmos termos.
-    await createGuest(app, jwtB, { full_name: 'Ana Souza do Hotel B', cpf: '12345678900', email: 'ana@b.test' });
+    await createGuest(app, jwtB, { full_name: 'Ana Souza do Hotel B', cpf: '52998224725', email: 'ana@b.test' });
 });
 
 describe('GET /guests?q= — busca no servidor', () => {
@@ -49,10 +52,10 @@ describe('GET /guests?q= — busca no servidor', () => {
     });
 
     it('acha por CPF e telefone digitados com ou sem máscara', async () => {
-        expect((await search(jwtA, { q: '123.456' })).body.map((g) => g.full_name)).toEqual(['Ana Souza']);
-        expect((await search(jwtA, { q: '22233344455' })).body.map((g) => g.full_name)).toEqual(['Bruno Lima']);
+        expect((await search(jwtA, { q: '529.982' })).body.map((g) => g.full_name)).toEqual(['Ana Souza']);
+        expect((await search(jwtA, { q: '16899535009' })).body.map((g) => g.full_name)).toEqual(['Bruno Lima']);
         // CPF guardado com máscara, digitado só com dígitos
-        expect((await search(jwtA, { q: '12345678900' })).body.map((g) => g.full_name)).toEqual(['Ana Souza']);
+        expect((await search(jwtA, { q: '52998224725' })).body.map((g) => g.full_name)).toEqual(['Ana Souza']);
         // telefone guardado com máscara, digitado só com dígitos
         expect((await search(jwtA, { q: '988881111' })).body.map((g) => g.full_name)).toEqual(['Ana Souza']);
     });

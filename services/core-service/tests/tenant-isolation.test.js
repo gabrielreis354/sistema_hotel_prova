@@ -28,7 +28,7 @@ beforeAll(async () => {
     // Criar dados no Tenant A
     const catA   = await createCategory(app, jwtA, { name: 'Suite Alpha' });
     const roomA  = await createRoom(app, jwtA, catA.id, { number: 'A01' });
-    const guestA = await createGuest(app, jwtA, { full_name: 'Hóspede Alpha', cpf: '11111111111' });
+    const guestA = await createGuest(app, jwtA, { full_name: 'Hóspede Alpha', cpf: '52998224725' });
     const resA   = await createReservation(app, jwtA, guestA.id, roomA.id);
 
     roomIdA        = roomA.id;
@@ -38,7 +38,7 @@ beforeAll(async () => {
     // Criar dados no Tenant B (para garantir que existem registros em ambos)
     const catB  = await createCategory(app, jwtB, { name: 'Suite Beta' });
     const roomB = await createRoom(app, jwtB, catB.id, { number: 'B01' });
-    const guestB = await createGuest(app, jwtB, { full_name: 'Hóspede Beta', cpf: '22222222222' });
+    const guestB = await createGuest(app, jwtB, { full_name: 'Hóspede Beta', cpf: '16899535009' });
     await createReservation(app, jwtB, guestB.id, roomB.id, {
         check_in_date:  '2027-05-01',
         check_out_date: '2027-05-05',
@@ -100,9 +100,9 @@ describe('Isolamento de hóspedes', () => {
         const res = await request(app)
             .post('/guests')
             .set('Authorization', `Bearer ${jwtB}`)
-            .send({ full_name: 'Hóspede CPF Compartilhado', cpf: '11111111111' });
+            .send({ full_name: 'Hóspede CPF Compartilhado', cpf: '52998224725' });
 
-        // CPF '11111111111' existe no Tenant A mas não no Tenant B — deve ser permitido
+        // CPF '52998224725' existe no Tenant A mas não no Tenant B — deve ser permitido
         expect(res.status).toBe(201);
     });
 });
