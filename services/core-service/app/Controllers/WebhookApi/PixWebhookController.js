@@ -50,7 +50,7 @@ export default async function PixWebhookController(request, response) {
             if (verifyError instanceof InvalidWebhookSignatureError) {
                 // Logado: um secret divergente do PSP vira 401 em todo callback — sem log,
                 // ninguém descobre por que as reservas pararam de confirmar.
-                console.error('PixWebhookController:', verifyError.message);
+                logError('PixWebhookController', verifyError);
                 return response.status(401).json({ error: 'Assinatura inválida' });
             }
             throw verifyError;
@@ -85,7 +85,7 @@ export default async function PixWebhookController(request, response) {
             chargeStatus = await provider.getChargeStatus(provider_charge_id);
         } catch (statusError) {
             if (statusError instanceof PixProviderUnavailableError) {
-                console.error('PixWebhookController: status da cobrança indisponível', provider_charge_id, statusError.message);
+                logError(`PixWebhookController: status da cobrança indisponível (${provider_charge_id})`, statusError);
                 // Não confirmamos nada sem saber o status real — devolve não-2xx para o
                 // provedor tentar de novo depois, em vez de aceitar a notificação no escuro.
                 return response.status(503).json({ error: 'Não foi possível confirmar o status do pagamento' });

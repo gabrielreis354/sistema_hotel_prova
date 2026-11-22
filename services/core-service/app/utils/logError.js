@@ -7,19 +7,32 @@
  * logs. Para diagnosticar um 500 bastam o nome do erro, a mensagem, o código do Postgres, a
  * constraint e a pilha: é só isso que sai daqui.
  *
- * A mensagem do Postgres não traz os valores (eles ficam no `detail`, que não sai).
+ * A mensagem do Postgres PODE trazer o valor: o erro de conversão de tipo (classe 22) diz
+ * `invalid input syntax for type uuid: "52998224725"`, e a pilha repete a mensagem na 1ª linha
+ * (qa-redteam de 22/11, 🟡-1). Por isso, em todo erro que veio do banco, o literal entre aspas
+ * vira "…" na mensagem e na pilha. Os nomes que as aspas também cercam (constraint, tabela)
+ * saem nos campos próprios. Por isso também `error.message` cru não é seguro para log.
  */
-export function safeError(error) {
+const QUOTED = /"[^"]*"/g;
+const redact = (text) => text.replace(QUOTED, '"…"');
+
+export function safeError(error, depth = 0) {
     if (!(error instanceof Error)) return { message: String(error) };
     const pg = error.parent ?? error.original;
-    const out = { name: error.name, message: error.message };
+    // Erro do banco: o do Sequelize (com parent) ou o do driver pg direto (com severity).
+    const fromDb = Boolean(pg) || error.severity !== undefined;
+    const clean = fromDb ? redact : (text) => text;
+    const out = { name: error.name, message: clean(error.message) };
     const code = pg?.code ?? error.code;
     if (code) out.code = code;
     const constraint = pg?.constraint ?? error.constraint;
     if (constraint) out.constraint = constraint;
     const table = pg?.table ?? error.table;
     if (table) out.table = table;
-    if (error.stack) out.stack = error.stack;
+    if (error.stack) out.stack = clean(error.stack);
+    // A causa raiz ajuda o diagnóstico; sai reduzida do mesmo jeito, um nível só (🟢-1).
+    if (depth === 0 && error.cause !== undefined) out.cause = safeError(error.cause, 1);
+    if (depth === 0 && error instanceof AggregateError) out.errors = error.errors.map((e) => safeError(e, 1));
     return out;
 }
 

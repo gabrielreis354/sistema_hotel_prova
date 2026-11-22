@@ -5,6 +5,7 @@ import { toCents } from '../../utils/calculateStayTotal.js';
 import { isValidPaymentAmount, INVALID_AMOUNT_MESSAGE } from '../../utils/paymentAmount.js';
 import { EDITABLE_STATUSES } from '../../utils/paymentEnums.js';
 import { isValidPaymentMethod, isValidPaidAt, INVALID_METHOD_MESSAGE, INVALID_PAID_AT_MESSAGE } from '../../utils/paymentInput.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * PUT /payments/:id
@@ -77,7 +78,7 @@ export default async function UpdatePaymentController(request, response) {
             throw error;
         }
     } catch (error) {
-        console.error('UpdatePaymentController error:', error.message);
+        logError('UpdatePaymentController', error);
         return response.status(500).json({ error: 'Erro ao atualizar pagamento.' });
     }
 }

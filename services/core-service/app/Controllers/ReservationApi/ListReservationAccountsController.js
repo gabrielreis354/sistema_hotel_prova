@@ -1,6 +1,7 @@
 import ReservationModel from '../../Models/ReservationModel.js';
 import AccountModel from '../../Models/AccountModel.js';
 import isUuid from '../../utils/isUuid.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /reservations/:id/accounts
@@ -27,7 +28,7 @@ export default async function ListReservationAccountsController(request, respons
         });
         return response.json(accounts);
     } catch (error) {
-        console.error('ListReservationAccountsController:', error.message);
+        logError('ListReservationAccountsController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

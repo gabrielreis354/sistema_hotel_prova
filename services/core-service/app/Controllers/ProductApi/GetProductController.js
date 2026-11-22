@@ -1,5 +1,6 @@
 import ProductModel from '../../Models/ProductModel.js';
 import isUuid from '../../utils/isUuid.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /products/:id
@@ -17,7 +18,7 @@ export default async function GetProductController(request, response) {
 
         return response.json(product);
     } catch (error) {
-        console.error('GetProductController:', error.message);
+        logError('GetProductController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

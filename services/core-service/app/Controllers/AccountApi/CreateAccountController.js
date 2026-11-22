@@ -9,6 +9,7 @@ import { realignStaleLodgingAccount } from '../../utils/reservationRoomAccount.j
 import accountRuleViolation from '../../utils/accountRuleViolation.js';
 import isUuid from '../../utils/isUuid.js';
 import findInTenant from '../../utils/findInTenant.js';
+import { logError } from '../../utils/logError.js';
 
 const LINK_FIELDS = ['reservation_id', 'room_id', 'guest_id'];
 
@@ -195,7 +196,7 @@ export default async function CreateAccountController(request, response) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
         const violation = accountRuleViolation(error, response);
         if (violation) return violation;
-        console.error('CreateAccountController:', error.message);
+        logError('CreateAccountController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

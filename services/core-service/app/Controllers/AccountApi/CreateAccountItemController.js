@@ -9,6 +9,7 @@ import accountRuleViolation from '../../utils/accountRuleViolation.js';
 import accountTotal from '../../utils/accountTotal.js';
 import { parsePrice, MAX_PRICE } from '../../utils/productValidation.js';
 import isUuid from '../../utils/isUuid.js';
+import { logError } from '../../utils/logError.js';
 
 // Índice único TOTAL de (tenant_id, client_item_id) — D-6, applyAccountConstraints.
 const CLIENT_ITEM_INDEX = 'account_items_client_item_tenant_unique';
@@ -206,7 +207,7 @@ export default async function CreateAccountItemController(request, response) {
         }
         const violation = accountRuleViolation(error, response);
         if (violation) return violation;
-        console.error('CreateAccountItemController:', error.message);
+        logError('CreateAccountItemController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }
