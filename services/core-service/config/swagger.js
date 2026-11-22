@@ -261,6 +261,15 @@ const options = {
                         code:  { type: 'string', enum: ['CHECK_IN_TOO_EARLY', 'RESERVATION_EXPIRED'] }
                     }
                 },
+                ReservationDateError: {
+                    type: 'object',
+                    description: '422 da criação e da troca de datas. Com code CHECK_IN_IN_PAST: a entrada é anterior a hoje, contado no horário de Brasília (SPEC-11, CA-11.f). Sem code: a categoria do quarto não tem preço definido (só na criação).',
+                    required: ['error'],
+                    properties: {
+                        error: { type: 'string' },
+                        code:  { type: 'string', enum: ['CHECK_IN_IN_PAST'] }
+                    }
+                },
                 RoomOccupied: {
                     type: 'object',
                     description: 'Quarto ocupado no período. room_ids vem quando a checagem da aplicação acha o conflito; numa corrida barrada pelo banco (EXCLUDE), só error.',
@@ -1018,7 +1027,7 @@ const options = {
                         400: { description: 'Campos obrigatórios ausentes ou check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
                         404: { description: 'Hóspede, quarto ou quarto extra não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Algum quarto (principal ou extra) ocupado no período', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } },
-                        422: { description: 'Categoria do quarto sem preço definido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        422: { description: 'Entrada anterior a hoje no horário de Brasília (code CHECK_IN_IN_PAST; hoje vale, é o walk-in), ou categoria do quarto sem preço definido (sem code)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ReservationDateError' } } } }
                     }
                 }
             },
@@ -1037,6 +1046,7 @@ const options = {
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
                         400: { description: 'check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'check_in_date mudou para antes de hoje no horário de Brasília (code CHECK_IN_IN_PAST). Entrada reenviada igual à gravada não é barrada: estender a saída de quem entrou ontem continua 200', content: { 'application/json': { schema: { $ref: '#/components/schemas/ReservationDateError' } } } },
                         404: { description: 'Reserva, hóspede ou quarto não encontrado (no hotel do token)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005, com account_ids — escolha outro quarto ou peça ao administrador para ajustar a conta); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { allOf: [
                             { $ref: '#/components/schemas/RoomOccupied' },

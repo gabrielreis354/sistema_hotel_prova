@@ -1961,13 +1961,13 @@ export interface paths {
                         "application/json": components["schemas"]["RoomOccupied"];
                     };
                 };
-                /** @description Categoria do quarto sem preço definido */
+                /** @description Entrada anterior a hoje no horário de Brasília (code CHECK_IN_IN_PAST; hoje vale, é o walk-in), ou categoria do quarto sem preço definido (sem code) */
                 422: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["ReservationDateError"];
                     };
                 };
             };
@@ -2071,6 +2071,15 @@ export interface paths {
                             /** @description Só no 409 da RN-005: contas de diária desta reserva que já estão no quarto novo */
                             account_ids?: string[];
                         };
+                    };
+                };
+                /** @description check_in_date mudou para antes de hoje no horário de Brasília (code CHECK_IN_IN_PAST). Entrada reenviada igual à gravada não é barrada: estender a saída de quem entrou ontem continua 200 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReservationDateError"];
                     };
                 };
             };
@@ -5164,6 +5173,12 @@ export interface components {
             error: string;
             /** @enum {string} */
             code?: "CHECK_IN_TOO_EARLY" | "RESERVATION_EXPIRED";
+        };
+        /** @description 422 da criação e da troca de datas. Com code CHECK_IN_IN_PAST: a entrada é anterior a hoje, contado no horário de Brasília (SPEC-11, CA-11.f). Sem code: a categoria do quarto não tem preço definido (só na criação). */
+        ReservationDateError: {
+            error: string;
+            /** @enum {string} */
+            code?: "CHECK_IN_IN_PAST";
         };
         /** @description Quarto ocupado no período. room_ids vem quando a checagem da aplicação acha o conflito; numa corrida barrada pelo banco (EXCLUDE), só error. */
         RoomOccupied: {
