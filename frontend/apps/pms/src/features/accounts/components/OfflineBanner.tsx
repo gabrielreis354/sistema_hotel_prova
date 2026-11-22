@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { WifiOff } from 'lucide-react';
 import { offlineBannerText } from '../connection.js';
+import { ConnectionBanner } from '../../../components/ConnectionBanner.js';
 
 /**
  * O texto da faixa de "sem conexão". Separado da região viva para poder ser renderizado e
@@ -27,17 +27,8 @@ export function OfflineNotice({ waiting, elsewhere = 0 }: { waiting: number; els
 
 /**
  * Faixa de "sem conexão" da comanda. Não bloqueia o cardápio: a fila guarda o toque e envia
- * quando a rede volta, a faixa só avisa.
- *
- * Leitor de tela só anuncia o que MUDA dentro de uma região viva que já existia. Por isso a
- * região `status` nasce sempre vazia e o texto só entra depois da montagem (efeito). Assim a
- * faixa é anunciada também quando a conta abre já sem rede (🟡-2 do red team de 15/11), e não
- * só quando a rede cai com a tela aberta.
- *
- * Por que não o `focus` do `InfoNotice` local: mover o foco tiraria o garçom do lugar em que está
- * na tela a cada conta aberta sem rede, e o aviso não pede ação. Ele é informativo, como o
- * `status` do rodapé, e a região viva basta. O custo é a faixa aparecer um quadro depois da
- * conta, só na abertura.
+ * quando a rede volta, a faixa só avisa. A região viva (e por que ela nasce vazia) está no
+ * `ConnectionBanner`, que o painel Hoje também usa.
  */
 export function OfflineBanner({
   offline,
@@ -48,11 +39,9 @@ export function OfflineBanner({
   waiting: number;
   elsewhere?: number;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   return (
-    <div role="status" aria-live="polite">
-      {mounted && offline && <OfflineNotice waiting={waiting} elsewhere={elsewhere} />}
-    </div>
+    <ConnectionBanner offline={offline}>
+      <OfflineNotice waiting={waiting} elsewhere={elsewhere} />
+    </ConnectionBanner>
   );
 }
