@@ -158,7 +158,9 @@ export function RoomEditPage() {
             error={deleteError}
             onConfirm={() => {
               setDeleteError(null);
-              del.mutate(id, {
+              // Mesma trava do salvar (🟡2 do qa-redteam de 22/11): o 2º DELETE voltava 404 e
+              // a tela dizia "excluído por outra pessoa" num quarto que o próprio admin apagou.
+              mutateOnce(lock, del.mutate, id, {
                 onSuccess: () => navigate('/quartos'),
                 onError: (e) => setDeleteError(messageOf(e)),
               });
