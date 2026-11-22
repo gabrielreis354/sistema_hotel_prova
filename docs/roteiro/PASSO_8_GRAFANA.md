@@ -64,7 +64,13 @@ aqui:
 | Data | Execução | Commit | Workflows verdes |
 |---|---|---|---|
 | 20/11 (**provisória**, do PR #193, antes do merge) | [CI 44814903344](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903344) · [analytics](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903288) · [core](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903175) · [e2e](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/44814903276) | `d66b8f6` | CI, CI — analytics-service, CI — core-service, CI — roteiro e2e |
-| _depois do merge do #193: trocar pela execução da `develop`_ | | | |
+| 22/11 (**a da banca**, `develop` depois do merge do #193) | [CI 45045917899](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/45045917899) · [frontend](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/45045918992) · [e2e](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/45045917961) | `4a63408` | CI, CI — frontend, CI — roteiro e2e |
+| 22/11 (mesma `develop`, merge do #193) | [core](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/45045896413) · [analytics](https://github.com/gabrielreis354/sistema_hotel_prova/actions/runs/45045896520) | `27b36e4` | CI — core-service, CI — analytics-service |
+
+Os workflows por serviço só rodam quando o diretório do serviço muda. Do `27b36e4` para o
+`4a63408` (#194 e #195) só mudaram o frontend e um relatório de QA, então o core e o analytics
+não rodaram de novo: as execuções verdes deles são as do merge do #193. O CI e o e2e do `27b36e4`
+aparecem como cancelados porque o push seguinte os substituiu.
 
 Não deixe para escolher na hora: um push novo pode estar rodando e mostrar a bolinha amarela.
 
