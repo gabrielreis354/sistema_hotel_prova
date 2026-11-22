@@ -3396,7 +3396,7 @@
             }
           },
           "400": {
-            "description": "full_name ausente",
+            "description": "full_name ausente, ou CPF preenchido inválido (dígito verificador; gravado só com os dígitos)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3499,6 +3499,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Guest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }

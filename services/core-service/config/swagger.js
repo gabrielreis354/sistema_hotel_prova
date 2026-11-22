@@ -945,7 +945,7 @@ const options = {
                     }}}}},
                     responses: {
                         201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
-                        400: { description: 'full_name ausente', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'full_name ausente, ou CPF preenchido inválido (dígito verificador; gravado só com os dígitos)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'CPF ou e-mail já cadastrado para outro hóspede', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
@@ -967,6 +967,7 @@ const options = {
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
+                        400: { description: 'full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'CPF ou e-mail já cadastrado para outro hóspede', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }

@@ -1625,7 +1625,7 @@ export interface paths {
                         "application/json": components["schemas"]["Guest"];
                     };
                 };
-                /** @description full_name ausente */
+                /** @description full_name ausente, ou CPF preenchido inválido (dígito verificador; gravado só com os dígitos) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1721,6 +1721,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Guest"];
+                    };
+                };
+                /** @description full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description Não encontrado */
