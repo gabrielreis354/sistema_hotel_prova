@@ -48,7 +48,7 @@
   - T-11.2: **reprovado** por um 🔴 (datas fora do formato), corrigido no #204 sem nova rodada do red team.
   - Relatórios em `docs/qa/redteam_spec11-*_22nov2026.md`.
 - **Sem verificar:**
-  - CA-11.g (cartões em até 10 s) e "Liberar quarto" no navegador: o ambiente de QA não sobe o analytics;
+  - ~~CA-11.g (cartões em até 10 s) e "Liberar quarto" no navegador~~: conferidos no compose depois do merge (ver "Conferência no compose", abaixo);
   - `pnpm e2e` local (Docker Desktop fechado); ficou só o CI;
   - leitor de tela de verdade.
 
@@ -62,10 +62,28 @@
 #### Pendências
 | # | Pendência | Prioridade | Observação |
 |---|---|---|---|
-| 1 | Conferir CA-11.g e "Liberar quarto" no compose | 🟡 Média | No ensaio de 24/11: depois de check-in, check-out ou liberação, os cartões batem com os blocos em até 10 s |
-| 2 | Nova rodada do red team na correção do 🔴 da T-11.2 | 🟢 Baixa | 27 casos e mutação cobrem, mas o diff da correção não foi reauditado |
+| 1 | ~~Conferir CA-11.g e "Liberar quarto" no compose~~ | ✅ | Conferido em 22/11 (ver "Conferência no compose") |
+| 2 | ~~Nova rodada do red team na correção do 🔴 da T-11.2~~ | ✅ | Aprovada em 22/11; o 🟢-3 dela virou o teste do #209 |
 | 3 | Reserva-bloco B2B pode nascer no passado | 🟢 Baixa | Repassado ao Gabriel (`docs/qa/repasses/para_gabriel_22112026.md`); pode ser decisão de produto |
 | 4 | 3º clique no detalhe da reserva entre a resposta e o refetch | 🟢 Baixa | Dá 422 e troca o sucesso pelo erro. Já existia antes; depois do congelamento |
 | 5 | Check-in sem rede fica pausado e envia sozinho quando a rede volta | 🟢 Baixa | Decisão de produto com o Gabriel: envio tardio ou aviso imediato |
 | 6 | `DATE_RE` repetido em `ListReservationController` e `GetInternalConsumptionController` | 🟢 Baixa | Trocar pelo `isIsoDate` depois do congelamento (DRY) |
 | 7 | `useOnline` só vê a interface de rede | 🟢 Baixa | Com Wi-Fi sem internet a faixa do painel não aparece; o dado fica e o erro some |
+
+#### Conferência no compose (22/11, depois do merge do #202 ao #204)
+- **Ambiente:**
+  - `./start.sh compose-up --build` a frio, no projeto `gesway_teste` (volumes próprios), com Docker 29.5.3 e `PIX_PROVIDER=fake`;
+  - depois `migrate`, `seed` e `outbox-initial-load`;
+  - Vite do pms apontando para o nginx do compose.
+- **Como:** como `recep1@aurora.example`, uma ação no painel Hoje e leitura dos cartões e dos blocos a cada 500 ms.
+
+| Ação | Antes | Depois | Cartões batem com os blocos em |
+|---|---|---|---|
+| Check-in de uma chegada | 4 ocupados, 4 na casa | 5 e 5 | 3,5 s |
+| Check-out de uma saída | 5 na casa, 1 em limpeza | 4 na casa, 2 em limpeza | 3,5 s |
+| Liberar quarto | 9 livres, 2 em limpeza | 10 livres, 1 em limpeza | 3,5 s |
+
+- **CA-11.g atendido:** os cartões batem com os blocos em até 10 s nas três ações.
+- **O segundo refetch é o que faz isso funcionar.** Nas três ações, a consulta de ocupação na hora (0,1 s) ainda trouxe o número antigo, porque o analytics não tinha projetado o evento. A de 3 s depois trouxe o novo. Sem ela, os cartões só se acertariam no ciclo de 60 s.
+- **"Liberar quarto" com triplo clique no confirmar:** 1 PUT (200) e a mensagem "Quarto 105 liberado — voltou para a venda.". Fecha o caso da T-11.3 que tinha ficado sem teste no navegador.
+- **Depois:** o `gesway_teste` foi derrubado com `down -v`, e os volumes `sistema_hotel_prova_*` ficaram intactos.
