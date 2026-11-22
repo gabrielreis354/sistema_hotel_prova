@@ -39,9 +39,18 @@ function useScope(): string {
   return useAuthStore((s) => s.user?.id ?? 'anon');
 }
 
-export function useOccupancy(date: string) {
+/**
+ * `refetchInterval` opcional: o painel Hoje, aberto o turno inteiro, recarrega os cartões como as
+ * outras consultas dele (SPEC-11, CA-11.g). A tela de Indicadores não passa e não muda.
+ */
+export function useOccupancy(date: string, options: { refetchInterval?: number } = {}) {
   const scope = useScope();
-  return useQuery({ queryKey: analyticsKeys.occupancy(scope, date), queryFn: () => getOccupancy(date), staleTime: STALE });
+  return useQuery({
+    queryKey: analyticsKeys.occupancy(scope, date),
+    queryFn: () => getOccupancy(date),
+    staleTime: STALE,
+    refetchInterval: options.refetchInterval,
+  });
 }
 
 export function useRevenue(period: Period, enabled = true) {

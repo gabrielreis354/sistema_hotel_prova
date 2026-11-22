@@ -4,12 +4,14 @@ import { formatDateBR } from '@hotel/domain';
 import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
 import { useOccupancy } from '../analytics/index.js';
-import { useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
-import { arrivalRows, departureRows, formatPercent, inHouseRows, soldToday } from './todayLogic.js';
+import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
+import { arrivalRows, departureRows, formatPercent, inHouseRows, loadState, soldToday } from './todayLogic.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { TodayCounters, type Counter } from './components/TodayCounters.js';
 import { ArrivalItem, CleaningItem, DepartureItem, InHouseItem, RowList, type Feedback } from './components/rows.js';
 import { ButtonLink } from '../../components/links.js';
+import { ConnectionBanner, OfflineStrip } from '../../components/ConnectionBanner.js';
+import { useOnline } from '../../lib/online.js';
 
 const NO_IDS: ReadonlySet<string> = new Set();
 
@@ -23,7 +25,10 @@ export function TodayPage() {
   const inHouse = useInHouse();
   const arrivals = useArrivals(today);
   const alerts = useTodayAlerts();
-  const occupancy = useOccupancy(today);
+  // Mesmo ritmo das outras consultas do painel (CA-11.g): sem isso, os cartões só mudavam com a
+  // ação feita nesta aba, e o check-in de outro recepcionista não aparecia.
+  const occupancy = useOccupancy(today, { refetchInterval: REFRESH });
+  const online = useOnline();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
   // Sucesso some sozinho (a lista já mostra o novo estado); erro fica até a pessoa fechar.
@@ -58,6 +63,12 @@ export function TodayPage() {
     },
   ];
 
+  // Sem rede (CA-11.h): bloco sem dado diz "sem conexão" em vez de "Carregando…" sem fim.
+  const arrivalsLoad = loadState(arrivals);
+  const inHouseLoad = loadState(inHouse);
+  const alertsLoad = loadState(alerts);
+  const occupancyLoad = loadState(occupancy);
+
   const noShowCount = arrivalList.filter((a) => a.noShowRisk).length;
   const lateDepartures = departureList.filter((d) => d.late).length;
 
@@ -65,9 +76,17 @@ export function TodayPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader title="Hoje" context={formatDateBR(today)} />
 
+      {/* Mesmo tom e ícone da faixa da comanda; o texto é do painel, que não tem fila. */}
+      <ConnectionBanner offline={!online}>
+        <OfflineStrip>
+          <span className="font-semibold">Sem conexão:</span> o painel mostra o último dado carregado e atualiza quando a rede voltar.
+        </OfflineStrip>
+      </ConnectionBanner>
+
       <TodayCounters
         counters={counters}
-        busy={occupancy.isPending || arrivals.isPending}
+        busy={occupancyLoad.isLoading || arrivalsLoad.isLoading}
+        offline={occupancyLoad.isOffline}
         error={occupancy.error}
         onRetry={() => occupancy.refetch()}
       />
@@ -90,7 +109,9 @@ export function TodayPage() {
         <h2 id="atencao-titulo" className="text-section text-gray-900">
           Atenção
         </h2>
-        {alerts.isPending ? (
+        {alertsLoad.isOffline ? (
+          <p className="py-2 text-sm text-gray-700">Sem conexão. Os alertas aparecem quando a rede voltar.</p>
+        ) : alerts.isPending ? (
           <Spinner label="Carregando alertas…" />
         ) : alerts.isError ? (
           <ErrorState message={alerts.error.message} onRetry={() => alerts.refetch()} />
@@ -113,7 +134,8 @@ export function TodayPage() {
           title="Chegadas"
           caption="Entrada hoje, ainda sem check-in — e as atrasadas"
           count={arrivals.data ? arrivalList.length : undefined}
-          isLoading={arrivals.isPending}
+          isLoading={arrivalsLoad.isLoading}
+          isOffline={arrivalsLoad.isOffline}
           error={arrivals.error}
           onRetry={() => arrivals.refetch()}
           isEmpty={arrivalList.length === 0}
@@ -134,7 +156,8 @@ export function TodayPage() {
           title="Saídas"
           caption="Saída hoje — e as atrasadas, que continuam na casa"
           count={inHouse.data ? departureList.length : undefined}
-          isLoading={inHouse.isPending}
+          isLoading={inHouseLoad.isLoading}
+          isOffline={inHouseLoad.isOffline}
           error={inHouse.error}
           onRetry={() => inHouse.refetch()}
           isEmpty={departureList.length === 0}
@@ -151,7 +174,8 @@ export function TodayPage() {
           title="Na casa"
           caption="Hóspedes com check-in feito"
           count={inHouse.data ? inHouseList.length : undefined}
-          isLoading={inHouse.isPending}
+          isLoading={inHouseLoad.isLoading}
+          isOffline={inHouseLoad.isOffline}
           error={inHouse.error}
           onRetry={() => inHouse.refetch()}
           isEmpty={inHouseList.length === 0}
@@ -167,7 +191,8 @@ export function TodayPage() {
           title="Em limpeza"
           caption="Quartos que saíram e ainda não voltaram para a venda"
           count={alerts.data ? cleaning.length : undefined}
-          isLoading={alerts.isPending}
+          isLoading={alertsLoad.isLoading}
+          isOffline={alertsLoad.isOffline}
           error={alerts.error}
           onRetry={() => alerts.refetch()}
           isEmpty={cleaning.length === 0}

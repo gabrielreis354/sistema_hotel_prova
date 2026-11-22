@@ -12,10 +12,24 @@ export interface Counter {
  * Os números do dia no topo (CA-05.3.e, RT-12): vendidos, ocupados, livres, em limpeza e
  * ocupação. No celular é 2 colunas, visível sem rolar — é o que o gerente olha andando.
  */
-export function TodayCounters({ counters, busy, error, onRetry }: { counters: Counter[]; busy: boolean; error: Error | null; onRetry: () => void }) {
+export function TodayCounters({
+  counters,
+  busy,
+  offline = false,
+  error,
+  onRetry,
+}: {
+  counters: Counter[];
+  busy: boolean;
+  /** Sem rede e sem números ainda (CA-11.h): avisa em texto, os cartões ficam com "—". */
+  offline?: boolean;
+  error: Error | null;
+  onRetry: () => void;
+}) {
   return (
     <section aria-label="Números do dia" className="space-y-2">
       {error && <ErrorState message={error.message} onRetry={onRetry} />}
+      {offline && <p className="text-sm text-gray-700">Sem conexão. Os números aparecem quando a rede voltar.</p>}
       <ul aria-busy={busy} className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {counters.map((c) => (
           <li key={c.id} className={c.id === 'sold' ? 'col-span-2 sm:col-span-1' : undefined}>

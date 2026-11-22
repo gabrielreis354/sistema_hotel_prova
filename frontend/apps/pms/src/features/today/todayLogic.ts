@@ -207,3 +207,31 @@ export function arrivalFlags(row: ArrivalRow): ArrivalFlag[] {
   }
   return flags;
 }
+
+// ─── Sem conexão e indicadores atrasados (SPEC-11, T-11.4) ──────────────────────────────
+
+/**
+ * Estado de carga de um bloco (CA-11.h). Sem rede, a consulta sem dado fica pausada com
+ * `isPending` para sempre: mostrar "Carregando…" mente, e cair no vazio também. Com dado já
+ * carregado, o bloco mostra o dado, e a faixa do topo avisa que pode estar velho.
+ */
+export function loadState(q: { isPending: boolean; isPaused: boolean }): { isLoading: boolean; isOffline: boolean } {
+  return { isLoading: q.isPending && !q.isPaused, isOffline: q.isPending && q.isPaused };
+}
+
+/**
+ * Atraso do segundo refetch dos indicadores (CA-11.g). O analytics projeta o evento do core
+ * alguns instantes depois da resposta (RabbitMQ; consistência eventual, ADR-003): o refetch
+ * imediato traz o número velho. 3 s cabem com folga nos 10 s do critério.
+ */
+export const ANALYTICS_REFETCH_DELAY = 3000;
+
+/**
+ * Recarrega os indicadores agora e de novo depois da projeção. Sem otimismo no cache: o cartão só
+ * mostra o número que o analytics confirmou. O timer não depende da tela: o QueryClient é do app,
+ * e a linha que disparou a ação pode já ter sumido.
+ */
+export function invalidateAnalyticsSoon(qc: { invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void> }): void {
+  void qc.invalidateQueries({ queryKey: ['analytics'] });
+  setTimeout(() => void qc.invalidateQueries({ queryKey: ['analytics'] }), ANALYTICS_REFETCH_DELAY);
+}

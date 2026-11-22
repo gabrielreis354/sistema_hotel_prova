@@ -9,6 +9,8 @@ interface TodayBlockProps {
   /** Uma linha sob o título: o que entra no bloco. */
   caption: string;
   isLoading: boolean;
+  /** Sem rede e sem dado: diz isso em vez de "Carregando…" sem fim ou do vazio falso (CA-11.h). */
+  isOffline?: boolean;
   error: Error | null;
   onRetry: () => void;
   isEmpty: boolean;
@@ -22,9 +24,10 @@ interface TodayBlockProps {
  * Moldura de cada bloco do painel com os quatro estados — carregando, erro, vazio e dados.
  * Cada bloco falha sozinho: o `/analytics` fora do ar não tira as chegadas da recepção.
  */
-export function TodayBlock({ id, title, count, caption, isLoading, error, onRetry, isEmpty, empty, truncated, children }: TodayBlockProps) {
+export function TodayBlock({ id, title, count, caption, isLoading, isOffline = false, error, onRetry, isEmpty, empty, truncated, children }: TodayBlockProps) {
   let body: ReactNode;
-  if (isLoading) body = <Spinner label={`Carregando ${title.toLowerCase()}…`} />;
+  if (isOffline) body = <p className="py-2 text-sm text-gray-700">Sem conexão. A lista aparece quando a rede voltar.</p>;
+  else if (isLoading) body = <Spinner label={`Carregando ${title.toLowerCase()}…`} />;
   else if (error) body = <ErrorState message={error.message} onRetry={onRetry} />;
   else if (isEmpty) body = <EmptyState title={empty.title} description={empty.description} action={empty.action} />;
   else body = children;
