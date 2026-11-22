@@ -55,7 +55,7 @@
 |---|---|---|---|
 | 1 | ~~Aprovar e mergear #196 e #197~~ | ✅ | Mergeados em 22/11 (`50806a4`, `65f2089`). Testes das duas mudanças verdes de novo na `develop` |
 | 2 | Conferir o #182 num iPhone de verdade | 🟡 Média | **Com o Gabriel** (combinado em 22/11). Tocar 3 vezes num produto, tocar no campo e digitar 6: tem que dar 6, não 36 |
-| 3 | Aplicar o #198 no fork da UniFAAT | 🟡 Média | O PR #10 do Gabriel no fork já cobre o Doc 03 (F-021) e o 🔴-4 e o 🟡-12 do Doc 04, conferidos contra o código. Faltavam a §6.1 (RNs; não existem RN-001, RN-002 nem RN-004) e a §7.5 (projeções): prontas na branch local `docs/doc04-projecoes-rns`, sem push, aguardando a liberação para publicar no fork |
+| 3 | Aplicar o #198 no fork da UniFAAT | 🟡 Média | O PR #10 do Gabriel no fork já cobre o Doc 03 (F-021) e o 🔴-4 e o 🟡-12 do Doc 04, conferidos contra o código. Faltavam a §6.1 (RNs; não existem RN-001, RN-002 nem RN-004) e a §7.5 (projeções): no PR #12 do fork (`docs/doc04-projecoes-rns`), aberto contra a branch do #10. Falta o Gabriel mergear o #12 no #10 |
 | 4 | Resposta do Gabriel ao parecer da SPEC-11 | 🟡 Média | Se a T-11.1 entrar, a migração mexe no `schema.sql` (dono: Sirlande): revisar antes do merge |
 | 5 | Idempotência do `POST /accounts` | 🟢 Baixa | Depois do congelamento. A trava do cliente não segura dois aparelhos nem a fila sem rede de outra aba |
 | 6 | Levar `submitLock.ts` para `src/lib/` e usar no `PaymentForm` | 🟢 Baixa | Depois do congelamento (🟢 DRY do red team). A T-11.3 pode reaproveitar |
