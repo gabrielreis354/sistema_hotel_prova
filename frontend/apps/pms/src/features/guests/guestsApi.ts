@@ -37,11 +37,21 @@ export async function getGuest(id: string): Promise<Guest> {
   return data;
 }
 
+/**
+ * 400 do cadastro ou da edição: o servidor diz o que corrigir ("CPF inválido", SPEC-11 T-11.1).
+ * Tentar de novo não resolve, então a mensagem não manda tentar.
+ */
+function invalidGuest(error: unknown): ApiError {
+  const reason = (error as { error?: unknown } | undefined)?.error;
+  return new ApiError(typeof reason === 'string' && reason ? reason : 'Confira os dados do hóspede.', 400);
+}
+
 export async function createGuest(input: GuestInput): Promise<Guest> {
   const { data, error, response } = await api.POST('/guests', { body: input });
   if (response.status === 409) {
     throw new ApiError('CPF ou e-mail já cadastrado para outro hóspede.', 409);
   }
+  if (response.status === 400) throw invalidGuest(error);
   if (error || !response.ok) throw new ApiError('Não foi possível salvar o hóspede.', response.status);
   return data;
 }
@@ -55,6 +65,7 @@ export async function updateGuest(id: string, input: GuestInput): Promise<Guest>
   if (response.status === 409) {
     throw new ApiError('CPF ou e-mail já cadastrado para outro hóspede.', 409);
   }
+  if (response.status === 400) throw invalidGuest(error);
   if (error || !response.ok) throw new ApiError('Não foi possível salvar o hóspede.', response.status);
   return data;
 }
