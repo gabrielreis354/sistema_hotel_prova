@@ -184,6 +184,7 @@ spec:
 ---
 # [revisão do Weslley] analytics-service (T-01.4/H.3): só o nginx chega à porta HTTP — é por ele que
 # o navegador consulta /analytics/*. O kubelet faz as probes direto no nó, fora da NetworkPolicy.
+# O Prometheus também entra, só para raspar /metrics (RNF-029), como no backend.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -200,6 +201,9 @@ spec:
         - podSelector:
             matchLabels:
               app: nginx
+        - podSelector:
+            matchLabels:
+              app: prometheus
       ports:
         - protocol: TCP
           port: 3001

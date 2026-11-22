@@ -78,6 +78,27 @@ data:
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
 
+      # analytics-service (RNF-029; 🔴-7 da revisão de 19/11): mesmo token, pods descobertos igual ao core.
+      - job_name: analytics-service
+        metrics_path: /metrics
+        authorization:
+          type: Bearer
+          credentials_file: /etc/prometheus/secrets/METRICS_TOKEN
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [hotel-system]
+        relabel_configs:
+          # Só os pods do analytics, só a porta 3001.
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: analytics-service
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "3001"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
       # RabbitMQ (T-01.4/H.1, CA-01.4.f): plugin rabbitmq_prometheus, já ativo na imagem. O
       # /metrics/per-object traz a profundidade de CADA fila — inclusive a de mensagens mortas.
       - job_name: rabbitmq
@@ -202,6 +223,9 @@ spec:
               value: "false"
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
+            # Interface em pt-BR: com lang="en-US" o tradutor do Edge trocava "No ar" por "Sem ar".
+            - name: GF_USERS_DEFAULT_LANGUAGE
+              value: pt-BR
           readinessProbe:
             httpGet:
               path: /api/health

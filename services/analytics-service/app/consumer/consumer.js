@@ -1,5 +1,6 @@
 import { parseEvent, PermanentEventError } from '../events/catalog.js';
 import applyEvent from '../events/applyEvent.js';
+import { countEvent } from '../utils/metrics.js';
 
 /**
  * Consumidor da fila `analytics.core-events` — política do catálogo v1.0 §5.
@@ -121,9 +122,10 @@ export function createMessageHandler({ channel, apply = applyEvent, parse = pars
         if (msg === null) return;   // consumidor cancelado pelo broker (fila apagada)
         const attempts = previousFailures(msg) + 1;
         let event = null;
+        let outcome;
         try {
             event = parse(msg.content);
-            await apply(event);
+            outcome = await apply(event);
         } catch (error) {
             try {
                 await tratarFalha({ channel, msg, event, error, attempts, logger, onInfrastructureFailure, maxInfraRedeliveries });
@@ -134,6 +136,7 @@ export function createMessageHandler({ channel, apply = applyEvent, parse = pars
         }
         // Depois do commit: canal fechado aqui não é falha do evento — a reentrega cai em 'duplicate'.
         semLancar(() => channel.ack(msg), logger, 'ack');
+        countEvent(outcome);   // applied | stale | duplicate — painel do passo 8
     };
 }
 
@@ -155,6 +158,7 @@ async function tratarFalha({ channel, msg, event, error, attempts, logger, onInf
     if (!permanent && attempts < MAX_ATTEMPTS) {
         logger.warn(`Analytics: ${quem} falhou (tentativa ${attempts}/${MAX_ATTEMPTS}): ${error.message}`);
         semLancar(() => channel.nack(msg, false, false), logger, 'nack');
+        countEvent('retry');
         return;
     }
     try {
@@ -167,6 +171,7 @@ async function tratarFalha({ channel, msg, event, error, attempts, logger, onInf
         return;
     }
     semLancar(() => channel.ack(msg), logger, 'ack');
+    countEvent('dead_letter');
     logger.error(`Analytics: ${quem} → fila de mensagens mortas (${permanent ? 'erro permanente' : `${attempts} tentativas`}): ${error.message}`);
 }
 

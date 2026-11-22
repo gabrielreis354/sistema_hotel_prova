@@ -3,6 +3,8 @@ import sequelize from '../database/connections/sequelize.js';
 import authMiddleware from '../middlewares/auth.middleware.js';
 import tenantMiddleware from '../middlewares/tenant.middleware.js';
 import { requireRole } from '../middlewares/role.middleware.js';
+import metricsMiddleware from '../middlewares/metrics.middleware.js';
+import GetMetricsController from '../app/Controllers/MetricsApi/GetMetricsController.js';
 import GetProjectionStatusController from '../app/Controllers/StatusApi/GetProjectionStatusController.js';
 import GetRevenueController from '../app/Controllers/AnalyticsApi/GetRevenueController.js';
 import GetOccupancyController from '../app/Controllers/AnalyticsApi/GetOccupancyController.js';
@@ -24,6 +26,9 @@ export default function createRouter({
     checkDatabase = () => sequelize.query('SELECT 1')
 } = {}) {
     const router = Router();
+
+    // Mede toda requisição (RNF-029) — antes das rotas, para pegar também os 401 e os 404.
+    router.use(metricsMiddleware);
 
     // Saúde sem autenticação — healthcheck do contêiner e probe de prontidão do k8s. Duas perguntas
     // separadas (🟡-4 do qa-redteam da H.3):
@@ -68,5 +73,13 @@ export default function createRouter({
     analyticsRouter.get('/top-guests',          requireRole('ADMIN'), GetTopGuestsController);
 
     router.use('/analytics', analyticsRouter);
+
+    // Métricas Prometheus — protegido por METRICS_TOKEN (ver controller). Router próprio com
+    // caseSensitive e strict, como no core: o router principal casa sem distinguir caixa e com barra
+    // final opcional, e /METRICS ou /metrics/ responderiam (qa-redteam do core de 12/10, 🔴-1).
+    const metricsRouter = Router({ caseSensitive: true, strict: true });
+    metricsRouter.get('/metrics', GetMetricsController);
+    router.use(metricsRouter);
+
     return router;
 }

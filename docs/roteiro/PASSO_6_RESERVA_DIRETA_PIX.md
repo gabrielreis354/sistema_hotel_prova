@@ -6,7 +6,7 @@
 > Decisão de 15/11 (`docs/PLANO_FECHAMENTO_MVP_15NOV2026.md` §7): **plano A, sandbox real do
 > Asaas**; o plano B só se a rede cair.
 > Dono: Weslley (M6). Versão de 04/11/2026, revisada pelo qa-redteam
-> (`docs/qa/redteam_passo6-swagger_04112026.md`); situação atualizada em 19/11/2026.
+> (`docs/qa/redteam_passo6-swagger_04112026.md`); situação atualizada em 20/11/2026.
 
 **O que a banca precisa ver:** a reserva nasce `PENDING` com o QR do sinal. Depois do pagamento,
 o **webhook** do PSP confirma a reserva sozinho, e ela aparece confirmada no PMS da recepção. Ninguém
@@ -53,8 +53,8 @@ Na raiz do repositório, como no cabeçalho do `docker-compose.yml`:
    Abra `http://localhost:5173`. O login é `admin@aurora.example` / `senha123`, subdomínio `aurora`.
 5. **Plano A:**
    - Confira se a chave do sandbox ainda vale antes de cada ensaio. A chave usada em 12/11 foi
-     colada num chat e precisa ser trocada; a confirmação da troca está com o Weslley
-     (`docs/delegacoes/estado_fechamento_mvp_19nov2026.md`, 🟡 5).
+     colada num chat e foi trocada depois do M6 (confirmação do Weslley em 16/11). A chave nova
+     vence em **31/07/2027 às 00:00**. O primeiro ensaio com ela no compose é o de 24/11.
    - No `.env`, use `PIX_PROVIDER=asaas`, a chave e o `ASAAS_WEBHOOK_TOKEN`, como em
      `docs/pagamentos/ASAAS_SANDBOX.md` §4.
    - Suba o túnel e cadastre o webhook apontando para `https://<túnel>/webhooks/pix` (§5). No
@@ -121,7 +121,23 @@ aceita a autenticação do provider ativo. Para trocar:
   removeu a cobrança no Asaas. O ensaio foi com o backend fora do compose.
 - **Plano B ensaiado em 14/11/2026** no compose, dentro do roteiro inteiro
   (`docs/qa/ensaio_roteiro_14112026.md`): o webhook simulado confirmou a reserva em 2 s. O plano A
-  no compose fica para o 2º ensaio, em 24/11, com a chave nova.
+  no compose foi ensaiado em 20/11 (abaixo); o 2º ensaio completo é em 24/11.
+- **Plano B ensaiado de novo em 20/11/2026** no compose, com as imagens do backend e do analytics
+  refeitas e `PIX_PROVIDER=fake` passado pelo shell (o `.env` não foi alterado). Os 6 passos deram
+  certo: reserva `9268e0bd…` `PENDING` com sinal de R$ 135,00 (30% de R$ 450,00) e QR; o script
+  confirmou o pagamento; o status voltou `CONFIRMED` com `deposit.status = PAID`; a reserva aparece
+  confirmada no PMS, com o PIX pago no extrato; e o evento chegou ao `analytics-service`
+  (`analytics_events_total{outcome="applied"}` subiu, visível no passo 8). Para repetir sem 409,
+  as datas de 15 a 18/12 já têm essa reserva na Standard, mas ainda sobram 7 quartos.
+- **Plano A ensaiado no compose em 20/11/2026**, com a chave nova do sandbox e o webhook entregue
+  pelo próprio Asaas por um quick tunnel do `cloudflared` (`https://<túnel>/webhooks/pix`, eventos
+  `PAYMENT_CREATED`, `CONFIRMED`, `RECEIVED` e `OVERDUE`, token `whsec_` igual ao
+  `ASAAS_WEBHOOK_TOKEN` do `.env`). Reserva `3faba6bc…` `PENDING` com o sinal de R$ 135,00 e a
+  cobrança `pay_0_7o1nggd01q33ie`; depois de "Confirmar pagamento" no painel, `CONFIRMED` com
+  `deposit.status = PAID`, o PIX pago no extrato do PMS e o evento no `analytics-service`. O backend
+  não registra no log o webhook aceito: a prova pelo lado do Asaas fica em Integrações → Webhooks →
+  Logs. Na reserva pública, o hóspede com o mesmo CPF reaproveita o cadastro existente (#142).
+  **Antes do ensaio de 24/11:** o túnel rápido muda de URL a cada subida; atualize a URL no painel.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
 - **A reserva pública aceita data no passado.** O `CreateBookingController` e o
