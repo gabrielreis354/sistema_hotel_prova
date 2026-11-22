@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, EmptyState, ErrorState, Spinner } from '@hotel/ui';
 import { RoomForm } from './RoomForm.js';
@@ -11,6 +11,7 @@ import {
   useUpdateRoom,
 } from './queries.js';
 import { messageOf } from './errorMessages.js';
+import { mutateOnce } from '../../lib/submitLock.js';
 import { changedRoomFields, keepFirstSnapshot, roomDeleteBlockReason, toRoomInput } from './roomRules.js';
 import type { RoomInput } from './roomsApi.js';
 import { DeleteControl } from './components/DeleteControl.js';
@@ -39,6 +40,8 @@ export function RoomNewPage() {
   const categories = useCategories();
   const create = useCreateRoom();
   const [serverError, setServerError] = useState<string | null>(null);
+  // Um envio por vez (SPEC-11, CA-11.a): o 2º clique levava 409 num cadastro que deu certo.
+  const lock = useRef(false);
 
   return (
     <FormShell title="Novo quarto" {...BACK}>
@@ -57,7 +60,7 @@ export function RoomNewPage() {
             cancelTo="/quartos"
             onSubmit={(input) => {
               setServerError(null);
-              create.mutate(input, {
+              mutateOnce(lock, create.mutate, input, {
                 onSuccess: () => navigate('/quartos'),
                 onError: (e) => setServerError(messageOf(e)),
               });
@@ -79,6 +82,7 @@ export function RoomEditPage() {
   const del = useDeleteRoom();
   const [serverError, setServerError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const lock = useRef(false);
 
   const loading = room.isLoading || categories.isLoading;
   const failed = room.isError || categories.isError;
@@ -134,7 +138,9 @@ export function RoomEditPage() {
               setServerError(null);
               const changes = changedRoomFields(original, input);
               if (Object.keys(changes).length === 0) return navigate('/quartos');
-              update.mutate(
+              mutateOnce(
+                lock,
+                update.mutate,
                 { changes, number: input.number },
                 {
                   onSuccess: () => navigate('/quartos'),
@@ -152,7 +158,9 @@ export function RoomEditPage() {
             error={deleteError}
             onConfirm={() => {
               setDeleteError(null);
-              del.mutate(id, {
+              // Mesma trava do salvar (🟡2 do qa-redteam de 22/11): o 2º DELETE voltava 404 e
+              // a tela dizia "excluído por outra pessoa" num quarto que o próprio admin apagou.
+              mutateOnce(lock, del.mutate, id, {
                 onSuccess: () => navigate('/quartos'),
                 onError: (e) => setDeleteError(messageOf(e)),
               });
