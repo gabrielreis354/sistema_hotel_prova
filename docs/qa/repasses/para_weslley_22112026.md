@@ -36,3 +36,18 @@ Origem: `docs/qa/redteam_spec11-cpf-hospede_22nov2026.md`, o QA Red Team da bran
 **Cenário:** o `Create` normaliza com `onlyDigits`, mas o `Update` copia `request.body[f]` cru. Um `PUT {representante_cpf: '529.982.247-25'}` tem 14 caracteres e vai para `VARCHAR(11)` (`schema.sql:438`). O provável é um erro do Postgres virando 500. Se a coluna aceitasse o valor, o resultado seria um CPF mascarado que a busca crua do contrato não acha.
 **Falta para confirmar:** rodar o PUT contra o banco de teste.
 **Correção sugerida:** aplicar `onlyDigits` em `cnpj`, `cpf` e `representante_cpf` no Update, igual ao Create, e acrescentar um teste.
+
+---
+
+Origem: avaliação do protótipo do painel Hoje (SPEC-10, Fase 1) por uma IA de design (`GESWAY_Recomendacoes_de_Melhoria.docx`, recebido pelo Sirlande em 22/11), conferida contra o código. Não é defeito: é uma proposta de rever uma definição que já foi decidida.
+
+### 🟢 [Indicador] Ocupação e RevPAR dividem pelo total de quartos, inclusive os bloqueados em manutenção
+**Onde:** `services/analytics-service/app/Controllers/AnalyticsApi/GetOccupancyController.js:26-49`. O `total_rooms` conta todos os quartos não excluídos, e `occupancy_rate = occupied / total_rooms` e `revpar = adr × occupied / total_rooms`. A fórmula segue o que foi decidido em `docs/planejamento_analytics_27jun2026.md:56` ("(occupied / total) × 100").
+**Cenário:** um hotel com 15 quartos, 4 ocupados e 3 em `MAINTENANCE` mostra ocupação de 26,7% (4 ÷ 15). Como os bloqueados não podem ser vendidos, o padrão do setor dá 33,3% (4 ÷ 12). O RevPAR cai na mesma proporção, e o gerente lê o hotel mais vazio e rendendo menos do que está. Hoje isso não aparece no ensaio porque o seed não tem quarto em manutenção.
+**Referência:** a definição comum do setor é "quartos ocupados ÷ quartos disponíveis para venda", e o RevPAR é a "receita de hospedagem ÷ quartos disponíveis". A recomendação da IA de design vai na mesma linha.
+**Correção sugerida (se o grupo aprovar):**
+- devolver `maintenance` e `rooms_for_sale` (`total_rooms - maintenance`) no `quartos` e dividir a ocupação e o RevPAR por `rooms_for_sale`, com proteção para zero;
+- manter `total_rooms` no contrato, para o painel Hoje continuar mostrando "de N quartos";
+- acrescentar um teste com quarto em manutenção e atualizar o `planejamento_analytics_27jun2026.md` com a definição nova.
+**Impacto:** muda o número dos cartões de Indicadores (T-05.6) e do painel Hoje. É decisão do grupo, depois do congelamento de 24/11, para não mudar número às vésperas do ensaio.
+**Confirmado por:** leitura do SQL. Não executei.
