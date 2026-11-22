@@ -16,7 +16,10 @@ describe('loadState — carregando, sem conexão ou com dado', () => {
     expect(loadState({ isPending: true, isPaused: false })).toEqual({ isLoading: true, isOffline: false });
   });
   it('com dado, mesmo pausada: mostra o dado (nem carregando, nem sem conexão)', () => {
-    expect(loadState({ isPending: false, isPaused: true })).toEqual({ isLoading: false, isOffline: false });
+    expect(loadState({ isPending: false, isPaused: true, data: { ok: 1 } })).toEqual({ isLoading: false, isOffline: false });
+  });
+  it('erro e depois pausada, sem dado: sem conexão, não o erro com um "Tentar de novo" que pausa (🟢-1)', () => {
+    expect(loadState({ isPending: false, isPaused: true })).toEqual({ isLoading: false, isOffline: true });
   });
 });
 
