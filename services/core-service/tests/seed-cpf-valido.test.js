@@ -28,6 +28,14 @@ describe('seed — CPFs válidos (repasse da SPEC-11)', () => {
         expect(reps.length).toBeGreaterThan(0);
         expect(reps.filter((r) => !isValidCpf(r.cpf)).map((r) => r.cpf)).toEqual([]);
     });
+
+    // 🟢-3 do qa-redteam de 22/11: a conta acha o hóspede por LEFT JOIN no CPF. Um CPF que não
+    // casa faria a conta nascer sem hóspede, sem erro.
+    it('a conta de day-use do seed nasce com o hóspede dela', async () => {
+        const [conta] = await q(`SELECT g.full_name FROM accounts a LEFT JOIN guests g ON g.id = a.guest_id
+                                  WHERE a.type = 'DAY_USE' AND a.label = 'Day-use — piscina'`);
+        expect(conta.full_name).toBe('Joao Pereira');
+    });
 });
 
 describe('seed — banco semeado antes da troca dos CPFs', () => {
@@ -54,5 +62,14 @@ describe('seed — banco semeado antes da troca dos CPFs', () => {
     it('e troca o CPF dos representantes corporativos', async () => {
         const reps = await q(`SELECT representante_cpf AS cpf FROM corporate_clients`);
         expect(reps.filter((r) => !isValidCpf(r.cpf)).map((r) => r.cpf)).toEqual([]);
+    });
+
+    // 🟡-1 do qa-redteam de 22/11: o seed só troca o CPF antigo, nunca um corrigido à mão.
+    it('não desfaz o CPF do representante corrigido à mão no ensaio', async () => {
+        await sequelize.query(`UPDATE corporate_clients SET representante_cpf = '52998224725'
+                                WHERE cnpj = '11111111000101'`);
+        await runSeedFiles(sequelize);
+        const [rep] = await q(`SELECT representante_cpf AS cpf FROM corporate_clients WHERE cnpj = '11111111000101'`);
+        expect(rep.cpf).toBe('52998224725');
     });
 });

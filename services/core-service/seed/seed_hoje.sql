@@ -33,7 +33,7 @@
 --   - quarto do cenário tomado por outra reserva no novo período: a linha é pulada com aviso
 --     (NOTICE), em vez de a EXCLUDE de double-booking derrubar o arquivo inteiro.
 --   A identidade de cada reserva do cenário é (hotel, CPF do hóspede, quarto): os hóspedes
---   novos (30000002240 a 24, 40000001449 e 15) não têm outra reserva no seed.
+--   novos (hóspedes 22 a 24 da Aurora e 14 e 15 da Sol) não têm outra reserva no seed.
 --
 -- DEPOIS DE UM ENSAIO, RECRIE O BANCO antes da banca. No compose: docker compose down -v; up; migrate;
 -- seed com ALLOW_SEED=1 (o compose sobe com NODE_ENV=production). No k8s: ./start.sh down;

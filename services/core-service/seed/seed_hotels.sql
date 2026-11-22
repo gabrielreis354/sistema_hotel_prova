@@ -55,8 +55,9 @@ ON CONFLICT (subdomain) DO NOTHING;
 -- verificadores: 300.000.006-20 é o hóspede 6 da Aurora. Num banco semeado antes, o UPDATE
 -- troca o CPF do mesmo hóspede, sem criar outro, e as reservas continuam com ele.
 -- Idempotente: no banco novo, ou na segunda rodada, nenhuma linha casa com o CPF antigo.
--- Se alguém já cadastrou o CPF novo à mão no mesmo hotel, a linha é pulada (o índice único
--- guests_cpf_tenant_unique não deixa duas), e o INSERT abaixo não duplica.
+-- Limite conhecido (🟢-1 do qa-redteam de 22/11): se alguém já cadastrou à mão, no mesmo hotel,
+-- um CPF novo daqui, a linha é pulada (o índice único não deixa dois) e o hóspede do seed fica com
+-- o CPF antigo. Só acontece num banco antigo com um CPF que só existe desde 22/11: recrie o banco.
 -- -----------------------------------------------------------------------------
 UPDATE guests g
    SET cpf = m.novo
@@ -530,17 +531,22 @@ END $$;
 -- CLIENTES CORPORATIVOS — Hotel Aurora (3 organizações)
 -- -----------------------------------------------------------------------------
 -- CPF do representante válido (repasse da SPEC-11, 22/11/2026). Num banco semeado antes, o
--- INSERT abaixo pula a organização (NOT EXISTS pelo CNPJ); este UPDATE troca só o CPF.
+-- INSERT abaixo pula a organização (NOT EXISTS pelo CNPJ); este UPDATE troca só o CPF antigo,
+-- no hotel dono do CNPJ. Um CPF corrigido à mão no ensaio fica como está (🟡-1 do qa-redteam).
 UPDATE corporate_clients cc
    SET representante_cpf = m.novo
-  FROM (VALUES
-         ('11111111000101', '50000000132'), ('22222222000102', '50000000213'),
-         ('33333333000103', '50000000302'), ('44444444000104', '50000000485'),
-         ('55555555000105', '50000000566')
-       ) AS m(cnpj, novo)
- WHERE cc.cnpj = m.cnpj
-   AND cc.tenant_id IN (SELECT id FROM tenants WHERE subdomain IN ('aurora', 'sol'))
-   AND cc.representante_cpf IS DISTINCT FROM m.novo;
+  FROM tenants t,
+       (VALUES
+         ('aurora', '11111111000101', '11111111101', '50000000132'),
+         ('aurora', '22222222000102', '22222222202', '50000000213'),
+         ('aurora', '33333333000103', '33333333303', '50000000302'),
+         ('sol',    '44444444000104', '44444444404', '50000000485'),
+         ('sol',    '55555555000105', '55555555505', '50000000566')
+       ) AS m(subdomain, cnpj, antigo, novo)
+ WHERE cc.tenant_id = t.id
+   AND t.subdomain = m.subdomain
+   AND cc.cnpj = m.cnpj
+   AND cc.representante_cpf = m.antigo;
 
 INSERT INTO corporate_clients (tenant_id, razao_social, cnpj, email, telefone, endereco,
   representante_nome, representante_cpf, representante_rg)
