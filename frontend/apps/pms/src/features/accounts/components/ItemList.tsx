@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Button, Input } from '@hotel/ui';
 import { decimalToCents, formatBRL, multiplyCents } from '@hotel/domain';
 import type { AccountItem } from '../accountsApi.js';
-import { canUndo, parseQuantity, type QueueEntry } from '../queueCore.js';
-import { cleanQuantityText, fieldText, lastTapAt, quantityTextInvalid } from '../quantityField.js';
+import { canUndo, type QueueEntry } from '../queueCore.js';
+import { fieldText, lastTapAt, nextQuantity, QUANTITY_ZERO_HINT, quantityTextInvalid } from '../quantityField.js';
 import { useNow } from '../queueStore.js';
 import { itemLine, undoAccessibleName, undoLabel, undoSecondsLeft } from '../accountTotals.js';
 
@@ -46,6 +46,7 @@ function QuantityField({
   const [editing, setEditing] = useState(false);
   const lastSent = useRef(quantity);
   const input = useRef<HTMLInputElement>(null);
+  const hintId = useId();
   const keep = useRef({ quantity, onChange });
   keep.current = { quantity, onChange };
 
@@ -69,45 +70,54 @@ function QuantityField({
     };
   }, [onLostFocus]);
 
+  const invalid = quantityTextInvalid(text);
   return (
-    <Input
-      ref={input}
-      type="text"
-      inputMode="numeric"
-      pattern="[0-9]*"
-      autoComplete="off"
-      enterKeyHint="done"
-      maxLength={4}
-      aria-label={`Quantidade de ${description}`}
-      aria-invalid={quantityTextInvalid(text) || undefined}
-      className="min-h-touch w-16 shrink-0 px-2 text-center tabular-nums xl:min-h-0"
-      value={text}
-      onFocus={(e) => {
-        setEditing(true);
-        onEditing(true);
-        onChange(quantity);
-        const el = e.currentTarget;
-        window.requestAnimationFrame(() => el.setSelectionRange(0, el.value.length));
-      }}
-      onBlur={() => {
-        setEditing(false);
-        onEditing(false);
-        setText(String(quantity));
-        onChange(quantity);
-      }}
-      onKeyDown={(e) => {
-        // Enter conclui: o foco vai para a lista (não para o body), e a janela corre os 5 s.
-        if (e.key === 'Enter') onLostFocus();
-      }}
-      onChange={(e) => {
-        // Só dígitos, até 4: o campo nunca mostra um número diferente do que vai para a fila.
-        const clean = cleanQuantityText(e.target.value);
-        setText(clean);
-        const n = parseQuantity(clean);
-        if (n !== null) lastSent.current = n;
-        onChange(n ?? quantity);
-      }}
-    />
+    // Coluna estreita: o aviso do zero cabe embaixo do campo, em texto (🟡-1 do red team de 22/11).
+    <div className="flex shrink-0 flex-col items-center">
+      <Input
+        ref={input}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
+        enterKeyHint="done"
+        aria-label={`Quantidade de ${description}`}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? hintId : undefined}
+        className="min-h-touch w-16 shrink-0 px-2 text-center tabular-nums xl:min-h-0"
+        value={text}
+        onFocus={(e) => {
+          setEditing(true);
+          onEditing(true);
+          onChange(quantity);
+          const el = e.currentTarget;
+          window.requestAnimationFrame(() => el.setSelectionRange(0, el.value.length));
+        }}
+        onBlur={() => {
+          setEditing(false);
+          onEditing(false);
+          setText(String(quantity));
+          onChange(quantity);
+        }}
+        onKeyDown={(e) => {
+          // Enter conclui: o foco vai para a lista (não para o body), e a janela corre os 5 s.
+          if (e.key === 'Enter') onLostFocus();
+        }}
+        onChange={(e) => {
+          // Só dígitos, até o teto: o campo mostra o que vai para a fila. Zero fica marcado e avisado.
+          const next = nextQuantity(e.target.value, quantity);
+          setText(next.text);
+          if (!next.invalid && next.text !== '') lastSent.current = next.quantity;
+          onChange(next.quantity);
+        }}
+      />
+      {invalid && (
+        <span id={hintId} className="mt-0.5 text-xs text-status-maintenance">
+          <span aria-hidden>{QUANTITY_ZERO_HINT.visible}</span>
+          <span className="sr-only">{QUANTITY_ZERO_HINT.spoken}</span>
+        </span>
+      )}
+    </div>
   );
 }
 
