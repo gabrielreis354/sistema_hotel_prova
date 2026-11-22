@@ -118,7 +118,7 @@ describe('transitionReservation — 422 da máquina de estados', () => {
     const cases: [ReservationTransition, string][] = [
       ['check-in', "Check-in não permitido no status 'CHECKED_IN'"],
       ['check-out', 'Check-out só possível quando status for CHECKED_IN'],
-      ['cancel', "Cancelamento não permitido no status 'CHECKED_OUT'"],
+      ['cancel', "Cancelamento não permitido no status 'NO_SHOW'"],
     ];
     for (const [action, error] of cases) {
       api.PUT.mockResolvedValue(reply(422, { error }));
@@ -126,6 +126,16 @@ describe('transitionReservation — 422 da máquina de estados', () => {
       expect(err).toMatchObject({ status: 422 });
       expect(err.message).toMatch(/mudou de situação em outro atendimento/);
       expect(err.message).not.toMatch(/PENDING|CONFIRMED|CHECKED_IN|CHECKED_OUT|CANCELLED|status/);
+    }
+  });
+
+  it('422 com texto do servidor sem código de status continua com o motivo (🟢3 do qa-redteam de 22/11)', async () => {
+    for (const error of ['Reserva já encerrada', 'Reserva já cancelada', 'Não é possível cancelar uma reserva com hóspede no quarto']) {
+      api.PUT.mockResolvedValue(reply(422, { error }));
+      await expect(transitionReservation('res1', 'cancel')).rejects.toMatchObject({
+        status: 422,
+        message: expect.stringContaining(`(${error})`),
+      });
     }
   });
 
