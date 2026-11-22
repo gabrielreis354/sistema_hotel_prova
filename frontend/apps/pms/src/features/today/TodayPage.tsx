@@ -7,6 +7,7 @@ import { useOccupancy } from '../analytics/index.js';
 import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
 import { arrivalRows, departureRows, formatPercent, inHouseRows, loadState, soldToday } from './todayLogic.js';
 import { TodayBlock } from './components/TodayBlock.js';
+import { StaleNotice } from './components/StaleNotice.js';
 import { TodayCounters, type Counter } from './components/TodayCounters.js';
 import { ArrivalItem, CleaningItem, DepartureItem, InHouseItem, RowList, type Feedback } from './components/rows.js';
 import { ButtonLink } from '../../components/links.js';
@@ -70,6 +71,9 @@ export function TodayPage() {
   const inHouseLoad = loadState(inHouse);
   const alertsLoad = loadState(alerts);
   const occupancyLoad = loadState(occupancy);
+  // A outra metade do 🟡-2: o dado fica, mas o bloco avisa que pode estar velho. Só online, porque
+  // sem rede a faixa do topo já diz isso (revisão dos PRs da SPEC-11, 22/11).
+  const stale = (q: { data?: unknown; isError: boolean }) => online && q.data !== undefined && q.isError;
 
   const noShowCount = arrivalList.filter((a) => a.noShowRisk).length;
   const lateDepartures = departureList.filter((d) => d.late).length;
@@ -90,6 +94,7 @@ export function TodayPage() {
         busy={occupancyLoad.isLoading || arrivalsLoad.isLoading}
         offline={occupancyLoad.isOffline}
         error={occupancy.data ? null : occupancy.error}
+        stale={stale(occupancy)}
         onRetry={() => occupancy.refetch()}
       />
 
@@ -118,15 +123,18 @@ export function TodayPage() {
         ) : alerts.isError && !alerts.data ? (
           <ErrorState message={alerts.error.message} onRetry={() => alerts.refetch()} />
         ) : (
-          <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-800 sm:flex-row sm:flex-wrap sm:gap-x-6">
-            <AttentionItem tone="maintenance" count={noShowCount} href="#chegadas-titulo" one="chegada sem pagamento — risco de no-show" many="chegadas sem pagamento — risco de no-show" />
-            <AttentionItem tone="cleaning" count={lateDepartures} href="#saidas-titulo" one="saída atrasada" many="saídas atrasadas" />
-            <AttentionItem tone="cleaning" count={cleaning.length} href="#limpeza-titulo" one="quarto em limpeza" many="quartos em limpeza" />
-            <AttentionItem tone="booked" count={alerts.data.pendingTooLong} to="/reservas" one="reserva pendente há mais de 48 h" many="reservas pendentes há mais de 48 h" />
-            {noShowCount + lateDepartures + cleaning.length + alerts.data.pendingTooLong === 0 && (
-              <li className="py-2 text-gray-700">Nada pedindo atenção agora.</li>
-            )}
-          </ul>
+          <>
+            {stale(alerts) && <StaleNotice onRetry={() => alerts.refetch()} />}
+            <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-800 sm:flex-row sm:flex-wrap sm:gap-x-6">
+              <AttentionItem tone="maintenance" count={noShowCount} href="#chegadas-titulo" one="chegada sem pagamento — risco de no-show" many="chegadas sem pagamento — risco de no-show" />
+              <AttentionItem tone="cleaning" count={lateDepartures} href="#saidas-titulo" one="saída atrasada" many="saídas atrasadas" />
+              <AttentionItem tone="cleaning" count={cleaning.length} href="#limpeza-titulo" one="quarto em limpeza" many="quartos em limpeza" />
+              <AttentionItem tone="booked" count={alerts.data.pendingTooLong} to="/reservas" one="reserva pendente há mais de 48 h" many="reservas pendentes há mais de 48 h" />
+              {noShowCount + lateDepartures + cleaning.length + alerts.data.pendingTooLong === 0 && (
+                <li className="py-2 text-gray-700">Nada pedindo atenção agora.</li>
+              )}
+            </ul>
+          </>
         )}
       </section>
 
@@ -139,6 +147,7 @@ export function TodayPage() {
           isLoading={arrivalsLoad.isLoading}
           isOffline={arrivalsLoad.isOffline}
           error={arrivals.data ? null : arrivals.error}
+          stale={stale(arrivals)}
           onRetry={() => arrivals.refetch()}
           isEmpty={arrivalList.length === 0}
           empty={{
@@ -161,6 +170,7 @@ export function TodayPage() {
           isLoading={inHouseLoad.isLoading}
           isOffline={inHouseLoad.isOffline}
           error={inHouse.data ? null : inHouse.error}
+          stale={stale(inHouse)}
           onRetry={() => inHouse.refetch()}
           isEmpty={departureList.length === 0}
           empty={{ title: 'Nenhuma saída hoje.', description: 'Os hóspedes com saída marcada para hoje aparecem aqui.' }}
@@ -179,6 +189,7 @@ export function TodayPage() {
           isLoading={inHouseLoad.isLoading}
           isOffline={inHouseLoad.isOffline}
           error={inHouse.data ? null : inHouse.error}
+          stale={stale(inHouse)}
           onRetry={() => inHouse.refetch()}
           isEmpty={inHouseList.length === 0}
           empty={{ title: 'Nenhum hóspede na casa.', description: 'Quem fizer check-in aparece aqui.' }}
@@ -196,6 +207,7 @@ export function TodayPage() {
           isLoading={alertsLoad.isLoading}
           isOffline={alertsLoad.isOffline}
           error={alerts.data ? null : alerts.error}
+          stale={stale(alerts)}
           onRetry={() => alerts.refetch()}
           isEmpty={cleaning.length === 0}
           empty={{ title: 'Nenhum quarto em limpeza.', description: 'O quarto entra aqui no check-out.' }}
@@ -230,10 +242,10 @@ function AttentionItem({
   if (count === 0) return null;
   const content = (
     <>
-      <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', DOT[tone])} aria-hidden="true" />
-      <span>
-        <strong className="tabular-nums">{count}</strong> {count === 1 ? one : many}
-      </span>
+        <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', DOT[tone])} aria-hidden="true" />
+        <span>
+          <strong className="tabular-nums">{count}</strong> {count === 1 ? one : many}
+        </span>
     </>
   );
   const linkClass = 'inline-flex min-h-touch items-center gap-2 hover:underline xl:min-h-0 xl:py-1';

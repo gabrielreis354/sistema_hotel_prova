@@ -1,4 +1,5 @@
 import { Card, ErrorState } from '@hotel/ui';
+import { StaleNotice } from './StaleNotice.js';
 
 export interface Counter {
   id: string;
@@ -17,6 +18,7 @@ export function TodayCounters({
   busy,
   offline = false,
   error,
+  stale = false,
   onRetry,
 }: {
   counters: Counter[];
@@ -24,11 +26,14 @@ export function TodayCounters({
   /** Sem rede e sem números ainda (CA-11.h): avisa em texto, os cartões ficam com "—". */
   offline?: boolean;
   error: Error | null;
+  /** Há números, mas o último refetch falhou com o aparelho online. */
+  stale?: boolean;
   onRetry: () => void;
 }) {
   return (
     <section aria-label="Números do dia" className="space-y-2">
       {error && <ErrorState message={error.message} onRetry={onRetry} />}
+      {stale && <StaleNotice onRetry={onRetry} />}
       {offline && <p className="text-sm text-gray-700">Sem conexão. Os números aparecem quando a rede voltar.</p>}
       <ul aria-busy={busy} className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {counters.map((c) => (
