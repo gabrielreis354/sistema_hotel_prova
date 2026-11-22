@@ -71,7 +71,7 @@ export function ReservationsListPage() {
               variant={activePreset === p.id ? 'primary' : 'secondary'}
               aria-pressed={activePreset === p.id}
               onClick={() => applyPreset(p.id)}
-              className="xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm"
+              className="desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
             >
               {p.label}
             </Button>
@@ -144,7 +144,7 @@ export function ReservationsListPage() {
                       <td className="px-4 py-2">
                         <Link
                           to={`/reservas/${r.id}`}
-                          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand xl:min-h-0 xl:py-1"
+                          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0 xl:py-1"
                         >
                           {r.guest?.full_name ?? 'Hóspede removido'}
                         </Link>

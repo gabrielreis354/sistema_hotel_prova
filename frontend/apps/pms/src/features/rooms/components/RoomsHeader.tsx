@@ -23,7 +23,7 @@ export function RoomsHeader({ title, action }: { title: string; action?: ReactNo
             end={t.end}
             className={({ isActive }) =>
               cn(
-                '-mb-px inline-flex min-h-touch items-center border-b-2 px-4 text-sm xl:min-h-0 xl:py-2',
+                '-mb-px inline-flex min-h-touch items-center border-b-2 px-4 text-sm desk:min-h-0 xl:py-2',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
                 isActive ? 'border-brand font-medium text-brand' : 'border-transparent text-gray-600 hover:text-gray-900',
               )

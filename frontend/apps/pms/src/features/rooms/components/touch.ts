@@ -3,4 +3,4 @@
  * @hotel/ui mede 42px; mudá-lo afetaria hóspedes, então o ajuste fica local até a faxina
  * semanal decidir promover (CATALOGO.md).
  */
-export const TOUCH = 'min-h-touch xl:min-h-0';
+export const TOUCH = 'min-h-touch desk:min-h-0';

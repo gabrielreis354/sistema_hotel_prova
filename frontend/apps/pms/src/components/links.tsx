@@ -27,7 +27,7 @@ export function BackLink({ to, children, className }: { to: string; children: Re
   return (
     <Link
       to={to}
-      className={cn('inline-flex min-h-touch items-center text-sm text-brand hover:underline xl:min-h-0 xl:py-1', className)}
+      className={cn('inline-flex min-h-touch items-center text-sm text-brand hover:underline desk:min-h-0 xl:py-1', className)}
     >
       {children}
     </Link>

@@ -18,7 +18,7 @@ import { officialBalanceCents } from '../reservationLogic.js';
 import { Money } from './primitives.js';
 
 // Alvo de 48px no celular, altura natural no desktop — o mesmo ajuste local de rooms/components/touch.ts.
-const TOUCH = 'min-h-touch xl:min-h-0';
+const TOUCH = 'min-h-touch desk:min-h-0';
 
 export type PaymentResult = { kind: 'ok' | 'error'; text: string };
 

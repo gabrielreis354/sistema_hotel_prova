@@ -118,7 +118,7 @@ export function AppShell() {
             {/* 48 px até o xl (CA-08.g); compacto só no desktop. */}
             <Button
               variant="ghost"
-              className="shrink-0 border border-gray-300 bg-white/70 xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm"
+              className="shrink-0 border border-gray-300 bg-white/70 desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
               onClick={logout}
             >
               Sair
@@ -262,7 +262,7 @@ function NavItemLink({ item }: { item: NavItem }) {
       className={({ isActive }) =>
         cn(
           // 48 px até o xl: a barra lateral já aparece no tablet (md), onde tinha 36 px (CA-08.g).
-          'relative flex min-h-touch items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm transition-colors duration-150 xl:min-h-0',
+          'relative flex min-h-touch items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm transition-colors duration-150 desk:min-h-0',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-accent',
           isActive
             ? 'bg-nav-active font-semibold text-white before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-[10px] before:bg-nav-accent'

@@ -12,7 +12,7 @@ export function StaleNotice({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-status-cleaning/10 px-3 py-1.5">
       <p className="text-sm text-gray-900">Não foi possível atualizar. Mostrando o último dado carregado.</p>
-      <Button variant="ghost" className="xl:h-9 xl:min-h-0 xl:text-sm" onClick={onRetry}>
+      <Button variant="ghost" className="desk:h-9 desk:min-h-0 xl:text-sm" onClick={onRetry}>
         Tentar de novo
       </Button>
     </div>

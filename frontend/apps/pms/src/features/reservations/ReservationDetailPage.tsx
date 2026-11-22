@@ -398,7 +398,7 @@ export function ReservationDetailPage() {
           <Card className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-section text-gray-800">Conta da estadia</h2>
-              <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" className="min-h-touch xl:min-h-0 xl:py-1.5 xl:text-sm">
+              <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" className="min-h-touch desk:min-h-0 xl:py-1.5 xl:text-sm">
                 Comprovante para imprimir
               </ButtonLink>
             </div>
@@ -422,7 +422,7 @@ export function ReservationDetailPage() {
 }
 
 /** Ação secundária: 48 px no celular e no tablet, compacta só a partir de xl (GUIA §3, regra 9). */
-const SECONDARY_ACTION = 'xl:h-9 xl:min-h-0 xl:px-3 xl:text-sm';
+const SECONDARY_ACTION = 'desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm';
 
 function TabButton({
   id,

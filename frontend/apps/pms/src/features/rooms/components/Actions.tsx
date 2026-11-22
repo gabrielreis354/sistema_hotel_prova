@@ -7,7 +7,7 @@ import { READ_ONLY_NOTICE_ID } from './ReadOnlyNotice.js';
 // 48px no celular e no tablet (o gerente consulta e o admin corrige andando), compacto só na
 // tabela do desktop, a partir de xl — CA-08.g e GUIA_UI_CORPORATIVA, regra 9. Antes o corte era md
 // (768 px) e o botão ficava com 32 px no tablet do balcão.
-const RESPONSIVE = 'xl:h-8 xl:min-h-0 xl:px-3 xl:text-sm';
+const RESPONSIVE = 'desk:h-8 desk:min-h-0 xl:px-3 xl:text-sm';
 
 /**
  * Botão de escrita. Sem permissão ele continua na tela, desabilitado, com o motivo em
