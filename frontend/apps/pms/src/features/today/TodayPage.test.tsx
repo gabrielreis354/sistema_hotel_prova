@@ -60,6 +60,17 @@ describe('TodayPage sem rede', () => {
     const html = render(qc);
     expect(html).toContain('Ana Hospedada');
     expect(html).not.toContain('Falha ao carregar reservas.');
+    // O onlineManager diz online, então a faixa do topo não aparece: o próprio bloco avisa que o
+    // dado pode estar velho, senão a recepção atende uma chegada que outro já atendeu (revisão de 22/11).
+    expect(html).toContain('Não foi possível atualizar');
+  });
+
+  it('com dado e o refetch em dia: nenhum aviso de dado velho', () => {
+    const qc = client();
+    qc.setQueryData(todayKeys.inHouse('u1'), page([ANA]));
+    const html = render(qc);
+    expect(html).toContain('Ana Hospedada');
+    expect(html).not.toContain('Não foi possível atualizar');
   });
 });
 
