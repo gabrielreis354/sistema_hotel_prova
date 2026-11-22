@@ -7,6 +7,9 @@ import { findConflictingRooms, isRoomOccupiedError, ROOM_OCCUPIED_MESSAGE } from
 import { calculateStayTotal } from '../../utils/calculateStayTotal.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
+import { checkInInPast, checkInInPastError } from '../../utils/checkInDateGuard.js';
+import { todayInHotel } from '../../utils/hotelTimezone.js';
+import { isIsoDate } from '../../utils/isIsoDate.js';
 
 export default withDeadlockRetry('CreateReservationController', CreateReservationController);
 
@@ -21,9 +24,15 @@ async function CreateReservationController(request, response) {
         if (!room_id)        errors.push('room_id obrigatório');
         if (!check_in_date)  errors.push('check_in_date obrigatório');
         if (!check_out_date) errors.push('check_out_date obrigatório');
+        // Formato antes de comparar: as regras de data comparam texto (🔴-1 do qa-redteam de 22/11).
+        if (check_in_date && !isIsoDate(check_in_date))   errors.push('check_in_date deve ser uma data AAAA-MM-DD');
+        if (check_out_date && !isIsoDate(check_out_date)) errors.push('check_out_date deve ser uma data AAAA-MM-DD');
         if (extra_room_ids !== undefined && !Array.isArray(extra_room_ids)) errors.push('extra_room_ids deve ser uma lista');
         if (!errors.length && check_out_date <= check_in_date) errors.push('check_out_date deve ser posterior a check_in_date');
         if (errors.length) return response.status(400).json({ errors });
+
+        // Entrada antes de hoje, no fuso do hotel, não nasce (SPEC-11, CA-11.f). Hoje vale: walk-in.
+        if (checkInInPast(check_in_date, todayInHotel())) return response.status(422).json(checkInInPastError(check_in_date));
 
         // Valida a FK do hóspede antes de qualquer escrita: um guest_id inexistente
         // estouraria a foreign key dentro da transação e retornaria 500 genérico.

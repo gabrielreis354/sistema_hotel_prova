@@ -2,7 +2,7 @@
 
 **Criado em:** 26/08/2026
 **Metodologia:** SDD (Spec-Driven Development) · Fluxo RPI
-**Base do inventário:** `develop` @ `a28cefd`
+**Base do inventário:** `develop` @ `a28cefd` · **estados conferidos em 19/11/2026** contra a `develop` @ `0f438db`
 
 ---
 
@@ -31,16 +31,17 @@ Substituem as pendências espalhadas em relatórios de sessão, que não eram ex
 
 | Spec | Frente | Prioridade | Estado | Bloqueia |
 |------|--------|-----------|--------|----------|
-| [SPEC-01](SPEC-01-microsservicos.md) | Arquitetura de Microsserviços | 🔴 **Crítica** | 🟡 T-01.1 ✅ (ADR-003) | SPEC-02, docs C4/DFD, MER v1.2 |
+| [SPEC-01](SPEC-01-microsservicos.md) | Arquitetura de Microsserviços | 🔴 **Crítica** | 🟡 T-01.0, T-01.1 e T-01.4 ✅ (analytics separado: #105, cutover #109); T-01.5 parcial; T-01.6 no 5º sem. | SPEC-02, docs C4/DFD, MER v1.2 |
 | [SPEC-02](SPEC-02-cloud-iac-observabilidade.md) | Cloud, IaC e Observabilidade | 🔴 **Crítica** | 🔲 | Defesa do 5º semestre |
-| [SPEC-03](SPEC-03-integracoes-externas.md) | Integrações com APIs Externas | 🔴 **Crítica** | 🔲 | — |
+| [SPEC-03](SPEC-03-integracoes-externas.md) | Integrações com APIs Externas | 🔴 **Crítica** | 🟡 Integrações prontas: ViaCEP e PIX do Asaas com webhook real no sandbox (12/11, #143); Mercado Pago sem validação; falta a comparação Asaas × Mercado Pago na ADR-008 (CA-03.3.a) | — |
 | [SPEC-04](SPEC-04-modulo-consumo.md) | Módulo de Consumo (Comanda) | 🟠 Alta | 🟡 7 de 9 fatias + T-04.6 parcial (a, c, d), até 26/10 | Frontend Fase 2 |
-| [SPEC-05](SPEC-05-frontend-pms.md) | Frontend — app-pms | 🟠 Alta | 🟡 Parcial | Demonstração da defesa |
-| [SPEC-06](SPEC-06-qualidade-divida-tecnica.md) | Qualidade e Dívida Técnica | 🟡 Média | 🔲 | Portão de cobertura do CI |
+| [SPEC-05](SPEC-05-frontend-pms.md) | Frontend — app-pms | 🟠 Alta | 🟡 Telas do MVP entregues: T-05.1 (#106), T-05.2 (#108), T-05.3 (#125), T-05.5 e os indicadores da T-05.6; T-05.4 e T-05.7 a T-05.12 fora do MVP | Demonstração da defesa |
+| [SPEC-06](SPEC-06-qualidade-divida-tecnica.md) | Qualidade e Dívida Técnica | 🟡 Média | 🟡 T-06.2 a T-06.6, T-06.8, T-06.9 e T-06.13 (#100) ✅; abertas T-06.1, T-06.7, T-06.10 a T-06.12 | Portão de cobertura do CI |
 | [SPEC-07](SPEC-07-tarifas-por-periodo.md) | Tarifas por Período | 🟠 Alta para o produto | 🔲 | — |
-| [SPEC-08](SPEC-08-acabamento-corporativo.md) | Acabamento corporativo do app-pms | 🟠 Alta | 🔲 | — |
+| [SPEC-08](SPEC-08-acabamento-corporativo.md) | Acabamento corporativo do app-pms | 🟠 Alta | ✅ T-08.1 a T-08.6 (#159 a #162, #167, #170; ressalvas no #178) | — |
 | [SPEC-09](SPEC-09-acabamento-telas-mvp.md) | Correções das telas do MVP (revisão de 15/11) | 🟠 Alta | 🟡 Aprovada 15/11 | Congelamento de 24/11 |
-| [SPEC-10](SPEC-10-identidade-visual.md) | Identidade visual, do login à administração | 🟢 Proposta (opcional) | 🟡 Login na `develop` (#181, 18/11); plano das outras telas proposto (§10) | — |
+| [SPEC-10](SPEC-10-identidade-visual.md) | Identidade visual, do login à administração | 🟢 Proposta (opcional) | 🟡 Login na `develop` (#181, 18/11); plano das outras telas aprovado em 18/11 (§10) | — |
+| [SPEC-11](SPEC-11-robustez-balcao-mvp.md) | Robustez do balcão: duplo clique, CPF, reserva no passado, painel sem rede (banca simulada de 15/11) | 🟠 Alta | ✅ T-11.1 a T-11.4 (#202 a #205, #209), 22/11; CA-11.e no 5º sem. | — |
 | [SPEC_DOC](../SPEC_DOCUMENTACAO_OFICIAL_23ago2026.md) | Documentação Acadêmica | 🟠 Alta | 🟡 Fase A completa | — |
 
 > **SPEC-07** nasceu em 09/09 do levantamento `docs/frontend/REQUISITOS_TELAS_PMS_09set2026.md`. Não é exigida pelo Termo de Aceite — é exigida pela realidade: a tarifa hoje é um número por categoria, e nenhum hotel opera assim. Ficou fora da SPEC-05 porque a maior parte do trabalho é backend.

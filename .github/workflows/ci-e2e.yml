@@ -1,0 +1,165 @@
+name: CI — roteiro e2e (não bloqueia)
+
+# Os 7 passos do roteiro da banca (frontend/e2e, PR #166) contra o compose inteiro, num runner
+# descartável. Avisa, mas não impede o merge (proposta 7 do encontro de 03/11; plano de
+# fechamento de 15/11, §5). O que libera o merge é este job NÃO entrar nos checks obrigatórios
+# da branch — não marque como obrigatório. Sem `continue-on-error` de propósito: com ele o run
+# ficava verde com o roteiro quebrado e o aviso sumia (🟡-1 do red team de 16/11). A ideia é a
+# quebra do roteiro aparecer, em vermelho, no dia em que acontece, e não no ensaio.
+#
+# Filtro só para docs: o roteiro quebra por mudança em qualquer serviço (core, analytics, nginx,
+# frontend, compose), mas não por texto. Nenhum segredo real: .env com senhas aleatórias geradas
+# aqui, chaves JWT geradas aqui e PIX_PROVIDER=fake.
+on:
+  pull_request:
+    branches: [main, develop]
+    paths-ignore: ['docs/**', '**/*.md']
+  push:
+    branches: [develop]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Mesmos valores do frontend/e2e/README.md: projeto isolado e nginx na 8088.
+  COMPOSE_PROJECT_NAME: gesway-ensaio
+  E2E_API_URL: http://localhost:8088
+
+jobs:
+  e2e:
+    name: Roteiro da demonstração (Playwright)
+    runs-on: ubuntu-latest
+    # A 1ª execução compila o MinIO do fonte (sem cache); as seguintes reaproveitam o cache.
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Gerar .env descartável
+        run: |
+          cp .env.example .env
+          # Senhas aleatórias por execução: nada aqui vale fora deste runner.
+          gera() { openssl rand -hex 16; }
+          sed -i \
+            -e "s|^PIX_PROVIDER=.*|PIX_PROVIDER=fake|" \
+            -e "s|^PIX_WEBHOOK_SECRET=.*|PIX_WEBHOOK_SECRET=$(gera)|" \
+            -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gera)|" \
+            -e "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=$(gera)|" \
+            -e "s|^MINIO_PRESIGN_PASSWORD=.*|MINIO_PRESIGN_PASSWORD=$(gera)|" \
+            -e "s|^RABBITMQ_DEFAULT_PASS=.*|RABBITMQ_DEFAULT_PASS=$(gera)|" \
+            -e "s|^RABBITMQ_CORE_PASSWORD=.*|RABBITMQ_CORE_PASSWORD=$(gera)|" \
+            -e "s|^RABBITMQ_ANALYTICS_PASSWORD=.*|RABBITMQ_ANALYTICS_PASSWORD=$(gera)|" \
+            -e "s|^ANALYTICS_POSTGRES_PASSWORD=.*|ANALYTICS_POSTGRES_PASSWORD=$(gera)|" \
+            -e "s|^NGINX_PORT=.*|NGINX_PORT=8088|" \
+            -e "s|^MINIO_PUBLIC_ENDPOINT=.*|MINIO_PUBLIC_ENDPOINT=http://localhost:8088|" \
+            .env
+          docker compose config -q
+
+      # A versão do pnpm vem do "packageManager" do frontend/package.json. Antes do setup-node,
+      # para o cache do pnpm funcionar (mesma ordem do ci-frontend.yml).
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # Chaves RS256 do JWT (ADR-006), só deste runner. O script não tem dependência npm.
+      - name: Gerar chaves JWT
+        run: |
+          node services/core-service/scripts/gerar_chaves_jwt.js
+          # O backend roda como uid 1000 (USER node) e a chave privada sai 0600 do dono do
+          # runner (uid 1001): sem o chown, o backend não lê a chave e não sobe.
+          sudo chown 1000:1000 services/core-service/keys/jwt-private.pem
+
+      # MinIO compilado do fonte (docker/minio/Dockerfile): o pull das imagens oficiais dá 401.
+      # Este passo traz as camadas do cache do Actions para o builder do buildx; o
+      # `compose-up --build` logo depois compila de novo pelo mesmo builder e acha tudo em cache
+      # (por isso é rápido — não é a imagem carregada que o compose reaproveita).
+      - name: Tag da imagem do MinIO
+        id: minio
+        # Confere que compose e k8s usam a tag do ARG do Dockerfile (falha se divergir).
+        # Atribuição em linha própria: dentro do echo, a falha do script não pararia o passo.
+        run: |
+          image=$(bash scripts/verificar_imagem_minio.sh)
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      # As duas actions docker/* por SHA (tag mutável de terceiro num job que roda código do PR);
+      # as actions/* e pnpm/* seguem por tag, como no resto do repositório.
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build da imagem do MinIO (com cache)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: docker/minio
+          tags: ${{ steps.minio.outputs.image }}
+          load: true
+          push: false
+          cache-from: type=gha,scope=minio
+          # Grava só na develop (~1 GB com mode=max); os PRs só leem. Gravar em todo PR despejava
+          # os caches de pnpm/npm do teto de 10 GB do repositório (🟡-2 do red team de 16/11).
+          # Até o 1º push na develop, o PR compila o MinIO sem cache.
+          cache-to: ${{ github.ref == 'refs/heads/develop' && 'type=gha,scope=minio,mode=max' || '' }}
+
+      - name: Subir o compose
+        run: ./start.sh compose-up --build
+
+      - name: Migrate, seed e carga inicial do analytics
+        run: |
+          docker compose exec -T backend node command.js migrate
+          docker compose exec -T -e ALLOW_SEED=1 backend node command.js seed
+          docker compose exec -T backend node command.js outbox-initial-load
+
+      - name: Instalar dependências do frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Chromium do Playwright
+        working-directory: frontend
+        run: pnpm --filter @hotel/e2e exec playwright install --with-deps chromium
+
+      # O globalSetup do e2e confere a API e aquece o Vite antes dos passos.
+      # Prazo próprio, bem abaixo dos 45 min do job: se o roteiro travar, este passo falha (em vez
+      # de o job ser cancelado) e os passos de falha abaixo ainda rodam — os logs do compose saem,
+      # e o que o Playwright já gravou em test-results/ também. O relatório HTML NÃO sai: o
+      # processo é morto antes de escrevê-lo. Uma rodada normal leva ~1 min.
+      - name: Roteiro (pnpm e2e)
+        working-directory: frontend
+        timeout-minutes: 15
+        run: pnpm e2e
+
+      # O trace de falha guarda o JWT dos 3 usuários e a senha do seed (frontend/e2e/README.md,
+      # "Artefatos no CI"): só em falha, com retenção curta. Os segredos são deste runner.
+      - name: Relatório do Playwright (só em falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-playwright
+          path: |
+            frontend/e2e/playwright-report/
+            frontend/e2e/test-results/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Logs do compose (só em falha)
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=200
+
+      - name: Derrubar o compose
+        if: always()
+        run: docker compose down -v --remove-orphans

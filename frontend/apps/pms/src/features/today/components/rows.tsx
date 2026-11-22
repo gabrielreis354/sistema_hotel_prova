@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { ActionSlot, Button, Money, Spinner, StatusBadge, cn } from '@hotel/ui';
 import { ApiError } from '../../../lib/http.js';
+import { mutateOnce, promiseOnce } from '../../../lib/submitLock.js';
 import {
   ReservationStatusBadge,
   officialBalanceCents,
@@ -20,6 +21,7 @@ import {
   BLOCK_LIMIT,
   arrivalFlags,
   checkInBlockedReason,
+  invalidateAnalyticsSoon,
   toggleFocusTarget,
   visibleRows,
   type ArrivalRow,
@@ -211,13 +213,16 @@ function useRowTransition(reservation: ReservationListItem, onResult: OnResult) 
   const qc = useQueryClient();
   const transition = useTransitionReservation(reservation.id ?? '');
   const guest = reservation.guest?.full_name ?? 'hóspede';
+  // Um envio por vez (SPEC-11, CA-11.a): o 2º clique em "Confirmar check-in" saía antes do
+  // isPending e voltava 422, e a tela mostrava só o erro de um check-in que deu certo.
+  const lock = useRef(false);
   function run(action: ReservationTransition, after?: () => void) {
-    transition.mutate(action, {
+    mutateOnce(lock, transition.mutate, action, {
       onSuccess: () => onResult({ kind: 'success', text: DONE[action](guest) }),
       onError: (err) => onResult({ kind: 'error', text: err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.' }),
       onSettled: () => {
         after?.();
-        void qc.invalidateQueries({ queryKey: ['analytics'] });
+        invalidateAnalyticsSoon(qc);
       },
     });
   }
@@ -413,6 +418,7 @@ export function InHouseItem({ reservation }: { reservation: ReservationListItem 
 /** Quarto parado em limpeza com a ação de liberar (CA-05.3.g, D-1). */
 export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult: OnResult }) {
   const release = useReleaseRoom();
+  const qc = useQueryClient();
   const busy = release.isPending;
   const [confirming, setConfirming] = useState(false);
   // A lista vem do analytics-service, que só tira o quarto quando o evento chega: por alguns
@@ -425,11 +431,14 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
 
   // mutateAsync, não callbacks do mutate: a linha some ao recarregar a lista, e o React Query não
   // chama callback de mutate de componente já desmontado.
+  const lock = useRef(false);
   function confirmRelease() {
-    void release.mutateAsync({ id: room.id, number: room.number }).then(
+    void promiseOnce(lock, () => release.mutateAsync({ id: room.id, number: room.number }))?.then(
       () => {
         setConfirming(false);
         setReleasedFor(room.since ?? '');
+        // O useReleaseRoom já recarrega na hora; o segundo refetch pega a projeção (CA-11.g).
+        invalidateAnalyticsSoon(qc);
         onResult({ kind: 'success', text: `Quarto ${room.number} liberado — voltou para a venda.` });
       },
       (err: unknown) => {

@@ -48,6 +48,43 @@ INSERT INTO tenants (name, subdomain, legal_id, status, booking_enabled, deposit
   ('Pousada Sol',  'sol',    '00.000.000/0001-02', 'ACTIVE', true, 50)
 ON CONFLICT (subdomain) DO NOTHING;
 
+-- -----------------------------------------------------------------------------
+-- CPFs válidos (repasse da SPEC-11, 22/11/2026)
+-- Até 22/11 os hóspedes do seed tinham CPF sem dígito verificador válido (30000000001…).
+-- Desde então o CPF é "3" (Aurora) ou "4" (Sol) + 6 zeros + o número do hóspede + os 2
+-- verificadores: 300.000.006-20 é o hóspede 6 da Aurora. Num banco semeado antes, o UPDATE
+-- troca o CPF do mesmo hóspede, sem criar outro, e as reservas continuam com ele.
+-- Idempotente: no banco novo, ou na segunda rodada, nenhuma linha casa com o CPF antigo.
+-- Limite conhecido (🟢-1 do qa-redteam de 22/11): se alguém já cadastrou à mão, no mesmo hotel,
+-- um CPF novo daqui, a linha é pulada (o índice único não deixa dois) e o hóspede do seed fica com
+-- o CPF antigo. Só acontece num banco antigo com um CPF que só existe desde 22/11: recrie o banco.
+-- -----------------------------------------------------------------------------
+UPDATE guests g
+   SET cpf = m.novo
+  FROM tenants t,
+       (VALUES
+         ('30000000001','30000000116'), ('30000000002','30000000205'), ('30000000003','30000000388'), ('30000000004','30000000469'),
+         ('30000000005','30000000540'), ('30000000006','30000000620'), ('30000000007','30000000701'), ('30000000008','30000000892'),
+         ('30000000009','30000000973'), ('30000000010','30000001007'), ('30000000011','30000001198'), ('30000000012','30000001279'),
+         ('30000000013','30000001350'), ('30000000014','30000001430'), ('30000000015','30000001511'), ('30000000016','30000001600'),
+         ('30000000017','30000001783'), ('30000000018','30000001864'), ('30000000019','30000001945'), ('30000000020','30000002089'),
+         ('30000000021','30000002160'), ('30000000022','30000002240'), ('30000000023','30000002321'), ('30000000024','30000002402'),
+         ('30000000025','30000002593'), ('30000000026','30000002674'), ('30000000027','30000002755'), ('30000000028','30000002836'),
+         ('30000000029','30000002917'), ('30000000030','30000003050'), ('30000000031','30000003131'), ('30000000032','30000003212'),
+         ('30000000033','30000003301'), ('30000000034','30000003484'), ('30000000035','30000003565'), ('30000000036','30000003646'),
+         ('30000000037','30000003727'), ('30000000038','30000003808'), ('30000000039','30000003999'), ('30000000040','30000004022'),
+         ('40000000001','40000000124'), ('40000000002','40000000205'), ('40000000003','40000000396'), ('40000000004','40000000477'),
+         ('40000000005','40000000558'), ('40000000006','40000000639'), ('40000000007','40000000710'), ('40000000008','40000000809'),
+         ('40000000009','40000000981'), ('40000000010','40000001015'), ('40000000011','40000001104'), ('40000000012','40000001287'),
+         ('40000000013','40000001368'), ('40000000014','40000001449'), ('40000000015','40000001520'), ('40000000016','40000001600'),
+         ('40000000017','40000001791'), ('40000000018','40000001872'), ('40000000019','40000001953'), ('40000000020','40000002097')
+       ) AS m(antigo, novo)
+ WHERE g.tenant_id = t.id
+   AND t.subdomain = CASE left(m.antigo, 1) WHEN '3' THEN 'aurora' ELSE 'sol' END
+   AND g.cpf = m.antigo
+   AND NOT EXISTS (SELECT 1 FROM guests x
+                    WHERE x.tenant_id = g.tenant_id AND x.cpf = m.novo AND x.deleted_at IS NULL);
+
 
 -- #############################################################################
 -- TENANT 1 — HOTEL AURORA
@@ -134,63 +171,63 @@ WHERE t.subdomain = 'aurora'
 ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
--- Hóspedes do Hotel Aurora — lote 1 (20: CPFs 30000000001..20)
+-- Hóspedes do Hotel Aurora — lote 1 (20: CPFs 300.000.001-xx a 300.000.020-xx)
 -- -----------------------------------------------------------------------------
 INSERT INTO guests (tenant_id, full_name, cpf, phone, email)
 SELECT t.id, v.full_name, v.cpf, v.phone, v.email
 FROM tenants t
 CROSS JOIN (VALUES
-  ('Ana Souza',         '30000000001', '+55-11-91000-0001', 'hospede01@aurora.example'),
-  ('Bruno Carvalho',    '30000000002', '+55-11-91000-0002', 'hospede02@aurora.example'),
-  ('Carla Mendes',      '30000000003', '+55-11-91000-0003', 'hospede03@aurora.example'),
-  ('Diego Almeida',     '30000000004', '+55-11-91000-0004', 'hospede04@aurora.example'),
-  ('Eduarda Lima',      '30000000005', '+55-11-91000-0005', 'hospede05@aurora.example'),
-  ('Felipe Rocha',      '30000000006', '+55-11-91000-0006', 'hospede06@aurora.example'),
-  ('Gabriela Nunes',    '30000000007', '+55-11-91000-0007', 'hospede07@aurora.example'),
-  ('Henrique Dias',     '30000000008', '+55-11-91000-0008', 'hospede08@aurora.example'),
-  ('Isabela Castro',    '30000000009', '+55-11-91000-0009', 'hospede09@aurora.example'),
-  ('Joao Pereira',      '30000000010', '+55-11-91000-0010', 'hospede10@aurora.example'),
-  ('Karina Barbosa',    '30000000011', '+55-11-91000-0011', 'hospede11@aurora.example'),
-  ('Lucas Martins',     '30000000012', '+55-11-91000-0012', 'hospede12@aurora.example'),
-  ('Mariana Ferreira',  '30000000013', '+55-11-91000-0013', 'hospede13@aurora.example'),
-  ('Nelson Ribeiro',    '30000000014', '+55-11-91000-0014', 'hospede14@aurora.example'),
-  ('Olivia Cardoso',    '30000000015', '+55-11-91000-0015', 'hospede15@aurora.example'),
-  ('Paulo Teixeira',    '30000000016', '+55-11-91000-0016', 'hospede16@aurora.example'),
-  ('Quiteria Gomes',    '30000000017', '+55-11-91000-0017', 'hospede17@aurora.example'),
-  ('Rafael Moreira',    '30000000018', '+55-11-91000-0018', 'hospede18@aurora.example'),
-  ('Sabrina Pinto',     '30000000019', '+55-11-91000-0019', 'hospede19@aurora.example'),
-  ('Thiago Araujo',     '30000000020', '+55-11-91000-0020', 'hospede20@aurora.example')
+  ('Ana Souza',         '30000000116', '+55-11-91000-0001', 'hospede01@aurora.example'),
+  ('Bruno Carvalho',    '30000000205', '+55-11-91000-0002', 'hospede02@aurora.example'),
+  ('Carla Mendes',      '30000000388', '+55-11-91000-0003', 'hospede03@aurora.example'),
+  ('Diego Almeida',     '30000000469', '+55-11-91000-0004', 'hospede04@aurora.example'),
+  ('Eduarda Lima',      '30000000540', '+55-11-91000-0005', 'hospede05@aurora.example'),
+  ('Felipe Rocha',      '30000000620', '+55-11-91000-0006', 'hospede06@aurora.example'),
+  ('Gabriela Nunes',    '30000000701', '+55-11-91000-0007', 'hospede07@aurora.example'),
+  ('Henrique Dias',     '30000000892', '+55-11-91000-0008', 'hospede08@aurora.example'),
+  ('Isabela Castro',    '30000000973', '+55-11-91000-0009', 'hospede09@aurora.example'),
+  ('Joao Pereira',      '30000001007', '+55-11-91000-0010', 'hospede10@aurora.example'),
+  ('Karina Barbosa',    '30000001198', '+55-11-91000-0011', 'hospede11@aurora.example'),
+  ('Lucas Martins',     '30000001279', '+55-11-91000-0012', 'hospede12@aurora.example'),
+  ('Mariana Ferreira',  '30000001350', '+55-11-91000-0013', 'hospede13@aurora.example'),
+  ('Nelson Ribeiro',    '30000001430', '+55-11-91000-0014', 'hospede14@aurora.example'),
+  ('Olivia Cardoso',    '30000001511', '+55-11-91000-0015', 'hospede15@aurora.example'),
+  ('Paulo Teixeira',    '30000001600', '+55-11-91000-0016', 'hospede16@aurora.example'),
+  ('Quiteria Gomes',    '30000001783', '+55-11-91000-0017', 'hospede17@aurora.example'),
+  ('Rafael Moreira',    '30000001864', '+55-11-91000-0018', 'hospede18@aurora.example'),
+  ('Sabrina Pinto',     '30000001945', '+55-11-91000-0019', 'hospede19@aurora.example'),
+  ('Thiago Araujo',     '30000002089', '+55-11-91000-0020', 'hospede20@aurora.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'aurora'
 ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
--- Hóspedes do Hotel Aurora — lote 2 (20: CPFs 30000000021..40)
+-- Hóspedes do Hotel Aurora — lote 2 (20: CPFs 300.000.021-xx a 300.000.040-xx)
 -- -----------------------------------------------------------------------------
 INSERT INTO guests (tenant_id, full_name, cpf, phone, email)
 SELECT t.id, v.full_name, v.cpf, v.phone, v.email
 FROM tenants t
 CROSS JOIN (VALUES
-  ('Ursula Campos',       '30000000021', '+55-11-91000-0021', 'hospede21@aurora.example'),
-  ('Vinicius Lopes',      '30000000022', '+55-11-91000-0022', 'hospede22@aurora.example'),
-  ('Wesley Freitas',      '30000000023', '+55-11-91000-0023', 'hospede23@aurora.example'),
-  ('Xenia Duarte',        '30000000024', '+55-11-91000-0024', 'hospede24@aurora.example'),
-  ('Yara Monteiro',       '30000000025', '+55-11-91000-0025', 'hospede25@aurora.example'),
-  ('Zeca Andrade',        '30000000026', '+55-11-91000-0026', 'hospede26@aurora.example'),
-  ('Amanda Correia',      '30000000027', '+55-11-91000-0027', 'hospede27@aurora.example'),
-  ('Beatriz Fonseca',     '30000000028', '+55-11-91000-0028', 'hospede28@aurora.example'),
-  ('Caio Ramos',          '30000000029', '+55-11-91000-0029', 'hospede29@aurora.example'),
-  ('Daniela Vieira',      '30000000030', '+55-11-91000-0030', 'hospede30@aurora.example'),
-  ('Emerson Pacheco',     '30000000031', '+55-11-91000-0031', 'hospede31@aurora.example'),
-  ('Fernanda Cunha',      '30000000032', '+55-11-91000-0032', 'hospede32@aurora.example'),
-  ('Gustavo Tavares',     '30000000033', '+55-11-91000-0033', 'hospede33@aurora.example'),
-  ('Helena Barros',       '30000000034', '+55-11-91000-0034', 'hospede34@aurora.example'),
-  ('Icaro Macedo',        '30000000035', '+55-11-91000-0035', 'hospede35@aurora.example'),
-  ('Julia Sales',         '30000000036', '+55-11-91000-0036', 'hospede36@aurora.example'),
-  ('Kleber Antunes',      '30000000037', '+55-11-91000-0037', 'hospede37@aurora.example'),
-  ('Leticia Farias',      '30000000038', '+55-11-91000-0038', 'hospede38@aurora.example'),
-  ('Marcelo Bittencourt', '30000000039', '+55-11-91000-0039', 'hospede39@aurora.example'),
-  ('Natalia Siqueira',    '30000000040', '+55-11-91000-0040', 'hospede40@aurora.example')
+  ('Ursula Campos',       '30000002160', '+55-11-91000-0021', 'hospede21@aurora.example'),
+  ('Vinicius Lopes',      '30000002240', '+55-11-91000-0022', 'hospede22@aurora.example'),
+  ('Wesley Freitas',      '30000002321', '+55-11-91000-0023', 'hospede23@aurora.example'),
+  ('Xenia Duarte',        '30000002402', '+55-11-91000-0024', 'hospede24@aurora.example'),
+  ('Yara Monteiro',       '30000002593', '+55-11-91000-0025', 'hospede25@aurora.example'),
+  ('Zeca Andrade',        '30000002674', '+55-11-91000-0026', 'hospede26@aurora.example'),
+  ('Amanda Correia',      '30000002755', '+55-11-91000-0027', 'hospede27@aurora.example'),
+  ('Beatriz Fonseca',     '30000002836', '+55-11-91000-0028', 'hospede28@aurora.example'),
+  ('Caio Ramos',          '30000002917', '+55-11-91000-0029', 'hospede29@aurora.example'),
+  ('Daniela Vieira',      '30000003050', '+55-11-91000-0030', 'hospede30@aurora.example'),
+  ('Emerson Pacheco',     '30000003131', '+55-11-91000-0031', 'hospede31@aurora.example'),
+  ('Fernanda Cunha',      '30000003212', '+55-11-91000-0032', 'hospede32@aurora.example'),
+  ('Gustavo Tavares',     '30000003301', '+55-11-91000-0033', 'hospede33@aurora.example'),
+  ('Helena Barros',       '30000003484', '+55-11-91000-0034', 'hospede34@aurora.example'),
+  ('Icaro Macedo',        '30000003565', '+55-11-91000-0035', 'hospede35@aurora.example'),
+  ('Julia Sales',         '30000003646', '+55-11-91000-0036', 'hospede36@aurora.example'),
+  ('Kleber Antunes',      '30000003727', '+55-11-91000-0037', 'hospede37@aurora.example'),
+  ('Leticia Farias',      '30000003808', '+55-11-91000-0038', 'hospede38@aurora.example'),
+  ('Marcelo Bittencourt', '30000003999', '+55-11-91000-0039', 'hospede39@aurora.example'),
+  ('Natalia Siqueira',    '30000004022', '+55-11-91000-0040', 'hospede40@aurora.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'aurora'
 ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
@@ -207,35 +244,35 @@ FROM tenants t
 JOIN users u ON u.tenant_id = t.id AND u.email = 'admin@aurora.example'
 CROSS JOIN (VALUES
   -- CHECKED_OUT (8)
-  ('30000000001','101','2026-01-05','2026-01-08','CHECKED_OUT', 450.00),
-  ('30000000001','102','2026-01-10','2026-01-12','CHECKED_OUT', 300.00),
-  ('30000000002','103','2026-01-15','2026-01-20','CHECKED_OUT', 750.00),
-  ('30000000003','201','2026-02-01','2026-02-05','CHECKED_OUT', 1400.00),
-  ('30000000001','202','2026-02-10','2026-02-12','CHECKED_OUT', 700.00),
-  ('30000000004','301','2026-02-15','2026-02-18','CHECKED_OUT', 2400.00),
-  ('30000000005','104','2026-03-01','2026-03-04','CHECKED_OUT', 450.00),
-  ('30000000002','105','2026-03-10','2026-03-15','CHECKED_OUT', 750.00),
+  ('30000000116','101','2026-01-05','2026-01-08','CHECKED_OUT', 450.00),
+  ('30000000116','102','2026-01-10','2026-01-12','CHECKED_OUT', 300.00),
+  ('30000000205','103','2026-01-15','2026-01-20','CHECKED_OUT', 750.00),
+  ('30000000388','201','2026-02-01','2026-02-05','CHECKED_OUT', 1400.00),
+  ('30000000116','202','2026-02-10','2026-02-12','CHECKED_OUT', 700.00),
+  ('30000000469','301','2026-02-15','2026-02-18','CHECKED_OUT', 2400.00),
+  ('30000000540','104','2026-03-01','2026-03-04','CHECKED_OUT', 450.00),
+  ('30000000205','105','2026-03-10','2026-03-15','CHECKED_OUT', 750.00),
   -- CHECKED_IN (4)
-  ('30000000006','106','2026-06-15','2026-06-20','CHECKED_IN', 750.00),
-  ('30000000007','107','2026-06-16','2026-06-19','CHECKED_IN', 450.00),
-  ('30000000008','203','2026-06-14','2026-06-18','CHECKED_IN', 1400.00),
-  ('30000000009','302','2026-06-17','2026-06-21','CHECKED_IN', 3200.00),
+  ('30000000620','106','2026-06-15','2026-06-20','CHECKED_IN', 750.00),
+  ('30000000701','107','2026-06-16','2026-06-19','CHECKED_IN', 450.00),
+  ('30000000892','203','2026-06-14','2026-06-18','CHECKED_IN', 1400.00),
+  ('30000000973','302','2026-06-17','2026-06-21','CHECKED_IN', 3200.00),
   -- CONFIRMED (5)
-  ('30000000010','108','2026-07-01','2026-07-05','CONFIRMED', 600.00),
-  ('30000000011','204','2026-07-10','2026-07-14','CONFIRMED', 1400.00),
-  ('30000000012','205','2026-08-01','2026-08-03','CONFIRMED', 700.00),
-  ('30000000001','101','2026-08-10','2026-08-14','CONFIRMED', 600.00),
-  ('30000000013','301','2026-09-01','2026-09-05','CONFIRMED', 3200.00),
+  ('30000001007','108','2026-07-01','2026-07-05','CONFIRMED', 600.00),
+  ('30000001198','204','2026-07-10','2026-07-14','CONFIRMED', 1400.00),
+  ('30000001279','205','2026-08-01','2026-08-03','CONFIRMED', 700.00),
+  ('30000000116','101','2026-08-10','2026-08-14','CONFIRMED', 600.00),
+  ('30000001350','301','2026-09-01','2026-09-05','CONFIRMED', 3200.00),
   -- PENDING (5)
-  ('30000000014','102','2026-09-10','2026-09-12','PENDING', 300.00),
-  ('30000000015','103','2026-10-01','2026-10-04','PENDING', 450.00),
-  ('30000000016','201','2026-10-10','2026-10-15','PENDING', 1750.00),
-  ('30000000017','202','2026-11-01','2026-11-03','PENDING', 700.00),
-  ('30000000018','104','2026-11-10','2026-11-13','PENDING', 450.00),
+  ('30000001430','102','2026-09-10','2026-09-12','PENDING', 300.00),
+  ('30000001511','103','2026-10-01','2026-10-04','PENDING', 450.00),
+  ('30000001600','201','2026-10-10','2026-10-15','PENDING', 1750.00),
+  ('30000001783','202','2026-11-01','2026-11-03','PENDING', 700.00),
+  ('30000001864','104','2026-11-10','2026-11-13','PENDING', 450.00),
   -- CANCELLED (3)
-  ('30000000019','105','2027-01-05','2027-01-08','CANCELLED', 450.00),
-  ('30000000020','203','2027-02-01','2027-02-04','CANCELLED', 1050.00),
-  ('30000000021','302','2027-03-01','2027-03-05','CANCELLED', 3200.00)
+  ('30000001945','105','2027-01-05','2027-01-08','CANCELLED', 450.00),
+  ('30000002089','203','2027-02-01','2027-02-04','CANCELLED', 1050.00),
+  ('30000002160','302','2027-03-01','2027-03-05','CANCELLED', 3200.00)
 ) AS v(guest_cpf, room_number, check_in, check_out, status, total)
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
@@ -364,32 +401,32 @@ WHERE t.subdomain = 'sol'
 ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
 
 -- -----------------------------------------------------------------------------
--- Hóspedes da Pousada Sol (20: CPFs 40000000001..20)
+-- Hóspedes da Pousada Sol (20: CPFs 400.000.001-xx a 400.000.020-xx)
 -- -----------------------------------------------------------------------------
 INSERT INTO guests (tenant_id, full_name, cpf, phone, email)
 SELECT t.id, v.full_name, v.cpf, v.phone, v.email
 FROM tenants t
 CROSS JOIN (VALUES
-  ('Otavio Guerra',         '40000000001', '+55-21-92000-0001', 'hospede01@sol.example'),
-  ('Patricia Nobrega',      '40000000002', '+55-21-92000-0002', 'hospede02@sol.example'),
-  ('Renato Aguiar',         '40000000003', '+55-21-92000-0003', 'hospede03@sol.example'),
-  ('Simone Bastos',         '40000000004', '+55-21-92000-0004', 'hospede04@sol.example'),
-  ('Tadeu Vasconcelos',     '40000000005', '+55-21-92000-0005', 'hospede05@sol.example'),
-  ('Ulisses Prado',         '40000000006', '+55-21-92000-0006', 'hospede06@sol.example'),
-  ('Vanessa Quintana',      '40000000007', '+55-21-92000-0007', 'hospede07@sol.example'),
-  ('Wagner Cordeiro',       '40000000008', '+55-21-92000-0008', 'hospede08@sol.example'),
-  ('Yasmin Galvao',         '40000000009', '+55-21-92000-0009', 'hospede09@sol.example'),
-  ('Zelia Maia',            '40000000010', '+55-21-92000-0010', 'hospede10@sol.example'),
-  ('Andre Brito',           '40000000011', '+55-21-92000-0011', 'hospede11@sol.example'),
-  ('Bianca Resende',        '40000000012', '+55-21-92000-0012', 'hospede12@sol.example'),
-  ('Cesar Lemos',           '40000000013', '+55-21-92000-0013', 'hospede13@sol.example'),
-  ('Debora Peixoto',        '40000000014', '+55-21-92000-0014', 'hospede14@sol.example'),
-  ('Elias Furtado',         '40000000015', '+55-21-92000-0015', 'hospede15@sol.example'),
-  ('Flavia Coelho',         '40000000016', '+55-21-92000-0016', 'hospede16@sol.example'),
-  ('Geraldo Sa',            '40000000017', '+55-21-92000-0017', 'hospede17@sol.example'),
-  ('Heloisa Regis',         '40000000018', '+55-21-92000-0018', 'hospede18@sol.example'),
-  ('Iuri Bezerra',          '40000000019', '+55-21-92000-0019', 'hospede19@sol.example'),
-  ('Junia Valente',         '40000000020', '+55-21-92000-0020', 'hospede20@sol.example')
+  ('Otavio Guerra',         '40000000124', '+55-21-92000-0001', 'hospede01@sol.example'),
+  ('Patricia Nobrega',      '40000000205', '+55-21-92000-0002', 'hospede02@sol.example'),
+  ('Renato Aguiar',         '40000000396', '+55-21-92000-0003', 'hospede03@sol.example'),
+  ('Simone Bastos',         '40000000477', '+55-21-92000-0004', 'hospede04@sol.example'),
+  ('Tadeu Vasconcelos',     '40000000558', '+55-21-92000-0005', 'hospede05@sol.example'),
+  ('Ulisses Prado',         '40000000639', '+55-21-92000-0006', 'hospede06@sol.example'),
+  ('Vanessa Quintana',      '40000000710', '+55-21-92000-0007', 'hospede07@sol.example'),
+  ('Wagner Cordeiro',       '40000000809', '+55-21-92000-0008', 'hospede08@sol.example'),
+  ('Yasmin Galvao',         '40000000981', '+55-21-92000-0009', 'hospede09@sol.example'),
+  ('Zelia Maia',            '40000001015', '+55-21-92000-0010', 'hospede10@sol.example'),
+  ('Andre Brito',           '40000001104', '+55-21-92000-0011', 'hospede11@sol.example'),
+  ('Bianca Resende',        '40000001287', '+55-21-92000-0012', 'hospede12@sol.example'),
+  ('Cesar Lemos',           '40000001368', '+55-21-92000-0013', 'hospede13@sol.example'),
+  ('Debora Peixoto',        '40000001449', '+55-21-92000-0014', 'hospede14@sol.example'),
+  ('Elias Furtado',         '40000001520', '+55-21-92000-0015', 'hospede15@sol.example'),
+  ('Flavia Coelho',         '40000001600', '+55-21-92000-0016', 'hospede16@sol.example'),
+  ('Geraldo Sa',            '40000001791', '+55-21-92000-0017', 'hospede17@sol.example'),
+  ('Heloisa Regis',         '40000001872', '+55-21-92000-0018', 'hospede18@sol.example'),
+  ('Iuri Bezerra',          '40000001953', '+55-21-92000-0019', 'hospede19@sol.example'),
+  ('Junia Valente',         '40000002097', '+55-21-92000-0020', 'hospede20@sol.example')
 ) AS v(full_name, cpf, phone, email)
 WHERE t.subdomain = 'sol'
 ON CONFLICT (tenant_id, cpf) WHERE deleted_at IS NULL DO NOTHING;
@@ -404,25 +441,25 @@ FROM tenants t
 JOIN users u ON u.tenant_id = t.id AND u.email = 'admin@sol.example'
 CROSS JOIN (VALUES
   -- CHECKED_OUT (5)
-  ('40000000001','1', '2026-01-05','2026-01-08','CHECKED_OUT', 360.00),
-  ('40000000001','2', '2026-01-10','2026-01-13','CHECKED_OUT', 360.00),
-  ('40000000002','8', '2026-02-01','2026-02-04','CHECKED_OUT', 660.00),
-  ('40000000003','3', '2026-02-10','2026-02-12','CHECKED_OUT', 240.00),
-  ('40000000004','9', '2026-03-01','2026-03-05','CHECKED_OUT', 880.00),
+  ('40000000124','1', '2026-01-05','2026-01-08','CHECKED_OUT', 360.00),
+  ('40000000124','2', '2026-01-10','2026-01-13','CHECKED_OUT', 360.00),
+  ('40000000205','8', '2026-02-01','2026-02-04','CHECKED_OUT', 660.00),
+  ('40000000396','3', '2026-02-10','2026-02-12','CHECKED_OUT', 240.00),
+  ('40000000477','9', '2026-03-01','2026-03-05','CHECKED_OUT', 880.00),
   -- CHECKED_IN (2)
-  ('40000000005','4', '2026-06-15','2026-06-18','CHECKED_IN', 360.00),
-  ('40000000006','10','2026-06-16','2026-06-20','CHECKED_IN', 880.00),
+  ('40000000558','4', '2026-06-15','2026-06-18','CHECKED_IN', 360.00),
+  ('40000000639','10','2026-06-16','2026-06-20','CHECKED_IN', 880.00),
   -- CONFIRMED (3)
-  ('40000000001','5', '2026-07-01','2026-07-04','CONFIRMED', 360.00),
-  ('40000000007','6', '2026-07-10','2026-07-13','CONFIRMED', 360.00),
-  ('40000000008','8', '2026-08-01','2026-08-05','CONFIRMED', 880.00),
+  ('40000000124','5', '2026-07-01','2026-07-04','CONFIRMED', 360.00),
+  ('40000000710','6', '2026-07-10','2026-07-13','CONFIRMED', 360.00),
+  ('40000000809','8', '2026-08-01','2026-08-05','CONFIRMED', 880.00),
   -- PENDING (3)
-  ('40000000009','7', '2026-09-01','2026-09-03','PENDING', 240.00),
-  ('40000000010','1', '2026-09-10','2026-09-13','PENDING', 360.00),
-  ('40000000011','9', '2026-10-01','2026-10-04','PENDING', 660.00),
+  ('40000000981','7', '2026-09-01','2026-09-03','PENDING', 240.00),
+  ('40000001015','1', '2026-09-10','2026-09-13','PENDING', 360.00),
+  ('40000001104','9', '2026-10-01','2026-10-04','PENDING', 660.00),
   -- CANCELLED (2)
-  ('40000000012','2', '2027-01-05','2027-01-08','CANCELLED', 360.00),
-  ('40000000013','10','2027-02-01','2027-02-04','CANCELLED', 660.00)
+  ('40000001287','2', '2027-01-05','2027-01-08','CANCELLED', 360.00),
+  ('40000001368','10','2027-02-01','2027-02-04','CANCELLED', 660.00)
 ) AS v(guest_cpf, room_number, check_in, check_out, status, total)
 JOIN guests g ON g.tenant_id = t.id AND g.cpf = v.guest_cpf
 JOIN rooms  rm ON rm.tenant_id = t.id AND rm.number = v.room_number
@@ -493,6 +530,24 @@ END $$;
 -- -----------------------------------------------------------------------------
 -- CLIENTES CORPORATIVOS — Hotel Aurora (3 organizações)
 -- -----------------------------------------------------------------------------
+-- CPF do representante válido (repasse da SPEC-11, 22/11/2026). Num banco semeado antes, o
+-- INSERT abaixo pula a organização (NOT EXISTS pelo CNPJ); este UPDATE troca só o CPF antigo,
+-- no hotel dono do CNPJ. Um CPF corrigido à mão no ensaio fica como está (🟡-1 do qa-redteam).
+UPDATE corporate_clients cc
+   SET representante_cpf = m.novo
+  FROM tenants t,
+       (VALUES
+         ('aurora', '11111111000101', '11111111101', '50000000132'),
+         ('aurora', '22222222000102', '22222222202', '50000000213'),
+         ('aurora', '33333333000103', '33333333303', '50000000302'),
+         ('sol',    '44444444000104', '44444444404', '50000000485'),
+         ('sol',    '55555555000105', '55555555505', '50000000566')
+       ) AS m(subdomain, cnpj, antigo, novo)
+ WHERE cc.tenant_id = t.id
+   AND t.subdomain = m.subdomain
+   AND cc.cnpj = m.cnpj
+   AND cc.representante_cpf = m.antigo;
+
 INSERT INTO corporate_clients (tenant_id, razao_social, cnpj, email, telefone, endereco,
   representante_nome, representante_cpf, representante_rg)
 SELECT t.id, v.razao_social, v.cnpj, v.email, v.telefone, v.endereco, v.rep_nome, v.rep_cpf, v.rep_rg
@@ -500,13 +555,13 @@ FROM tenants t
 CROSS JOIN (VALUES
   ('Igreja Batista Central',         '11111111000101', 'secretaria@ibcentral.org',      '+55-11-93000-0001',
    'Rua das Flores, 200 – Centro – São Paulo – SP, CEP: 01000-100',
-   'Pastor João Silva',    '11111111101', 'MG-1234567'),
+   'Pastor João Silva',    '50000000132', 'MG-1234567'),
   ('TechCorp Soluções Ltda',         '22222222000102', 'eventos@techcorp.com.br',        '+55-11-93000-0002',
    'Av. Paulista, 1000, Sala 501 – Bela Vista – São Paulo – SP, CEP: 01310-100',
-   'Maria Executiva',      '22222222202', 'SP-2345678'),
+   'Maria Executiva',      '50000000213', 'SP-2345678'),
   ('APM Escola Estadual Horizonte',  '33333333000103', 'apm@escolahorizonte.edu.br',     '+55-11-93000-0003',
    'Rua Horizonte, 450 – Jardim Verde – São Paulo – SP, CEP: 02000-300',
-   'Carlos Diretor',       '33333333303', 'SP-3456789')
+   'Carlos Diretor',       '50000000302', 'SP-3456789')
 ) AS v(razao_social, cnpj, email, telefone, endereco, rep_nome, rep_cpf, rep_rg)
 WHERE t.subdomain = 'aurora'
   AND NOT EXISTS (
@@ -521,10 +576,10 @@ FROM tenants t
 CROSS JOIN (VALUES
   ('Escola Municipal Primavera',     '44444444000104', 'direcao@emprimavera.edu.br',     '+55-21-94000-0001',
    'Rua Primavera, 100 – Vila Escolar – Rio de Janeiro – RJ, CEP: 20000-100',
-   'Ana Lucia Pereira',   '44444444404', 'RJ-4567890'),
+   'Ana Lucia Pereira',   '50000000485', 'RJ-4567890'),
   ('Associação Família Reunida',     '55555555000105', 'contato@familiaereunida.org',    '+55-21-94000-0002',
    'Rua das Famílias, 50 – Bairro Unido – Rio de Janeiro – RJ, CEP: 21000-200',
-   'Rogério Familiar',    '55555555505', 'RJ-5678901')
+   'Rogério Familiar',    '50000000566', 'RJ-5678901')
 ) AS v(razao_social, cnpj, email, telefone, endereco, rep_nome, rep_cpf, rep_rg)
 WHERE t.subdomain = 'sol'
   AND NOT EXISTS (

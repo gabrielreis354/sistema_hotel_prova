@@ -208,7 +208,7 @@ const options = {
                     properties: {
                         id:        { type: 'string', format: 'uuid' },
                         full_name: { type: 'string', example: 'Maria Oliveira' },
-                        cpf:       { type: 'string', example: '123.456.789-00' },
+                        cpf:       { type: 'string', example: '52998224725' },
                         phone:     { type: 'string', example: '(11) 99999-9999' },
                         email:     { type: 'string', format: 'email' }
                     }
@@ -259,6 +259,15 @@ const options = {
                     properties: {
                         error: { type: 'string' },
                         code:  { type: 'string', enum: ['CHECK_IN_TOO_EARLY', 'RESERVATION_EXPIRED'] }
+                    }
+                },
+                ReservationDateError: {
+                    type: 'object',
+                    description: '422 da criação e da troca de datas. Com code CHECK_IN_IN_PAST: a entrada é anterior a hoje, contado no horário de Brasília (SPEC-11, CA-11.f). Sem code: a categoria do quarto não tem preço definido (na criação, e no PUT quando o quarto ou as datas mudam e o total é recalculado).',
+                    required: ['error'],
+                    properties: {
+                        error: { type: 'string' },
+                        code:  { type: 'string', enum: ['CHECK_IN_IN_PAST'] }
                     }
                 },
                 RoomOccupied: {
@@ -936,7 +945,7 @@ const options = {
                     }}}}},
                     responses: {
                         201: { description: 'Criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
-                        400: { description: 'full_name ausente', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'full_name ausente, ou CPF preenchido inválido (dígito verificador; gravado só com os dígitos)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'CPF ou e-mail já cadastrado para outro hóspede', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
                 }
@@ -958,6 +967,7 @@ const options = {
                     }}}}},
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Guest' } } } },
+                        400: { description: 'full_name em branco, ou CPF trocado por um inválido (só o CPF que muda é conferido; reenviar o gravado não dá 400 nem o reescreve só com dígitos)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         404: { description: 'Não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'CPF ou e-mail já cadastrado para outro hóspede', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
                     }
@@ -1015,10 +1025,10 @@ const options = {
                     }}}}},
                     responses: {
                         201: { description: 'Criada — status PENDING, total_amount calculado no servidor', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
-                        400: { description: 'Campos obrigatórios ausentes ou check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
+                        400: { description: 'Campos obrigatórios ausentes, datas fora do formato AAAA-MM-DD (ou que não existem no calendário) ou check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrors' } } } },
                         404: { description: 'Hóspede, quarto ou quarto extra não encontrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Algum quarto (principal ou extra) ocupado no período', content: { 'application/json': { schema: { $ref: '#/components/schemas/RoomOccupied' } } } },
-                        422: { description: 'Categoria do quarto sem preço definido', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+                        422: { description: 'Entrada anterior a hoje no horário de Brasília (code CHECK_IN_IN_PAST; hoje vale, é o walk-in), ou categoria do quarto sem preço definido (sem code)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ReservationDateError' } } } }
                     }
                 }
             },
@@ -1036,7 +1046,8 @@ const options = {
                     description: 'Na troca do quarto principal, as contas ROOM abertas do quarto que sai passam para o quarto novo na mesma transação (RN-005 / D-3, D-5). O rótulo gerado pelo sistema ("Suíte 906") acompanha; o escolhido pela recepção fica. Conta fechada ou paga não muda (D-23).',
                     responses: {
                         200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Reservation' } } } },
-                        400: { description: 'check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        400: { description: 'Datas fora do formato AAAA-MM-DD (null incluído) ou check_out_date não posterior a check_in_date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                        422: { description: 'check_in_date mudou para antes de hoje no horário de Brasília (code CHECK_IN_IN_PAST). Entrada reenviada igual à gravada não é barrada: estender a saída de quem entrou ontem continua 200. Sem code: categoria do quarto sem preço, no recálculo do total', content: { 'application/json': { schema: { $ref: '#/components/schemas/ReservationDateError' } } } },
                         404: { description: 'Reserva, hóspede ou quarto não encontrado (no hotel do token)', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
                         409: { description: 'Quarto ocupado no período (com room_ids); quarto novo já é extra desta reserva; quarto novo já tem conta cobrando diária desta reserva (RN-005, com account_ids — escolha outro quarto ou peça ao administrador para ajustar a conta); reserva-bloco B2B (altere pelo contrato); reserva CHECKED_OUT ou CANCELLED', content: { 'application/json': { schema: { allOf: [
                             { $ref: '#/components/schemas/RoomOccupied' },

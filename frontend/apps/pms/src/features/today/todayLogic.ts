@@ -207,3 +207,42 @@ export function arrivalFlags(row: ArrivalRow): ArrivalFlag[] {
   }
   return flags;
 }
+
+// ─── Sem conexão e indicadores atrasados (SPEC-11, T-11.4) ──────────────────────────────
+
+/**
+ * Estado de carga de um bloco (CA-11.h). Sem rede, a consulta sem dado fica pausada com
+ * `isPending` para sempre: mostrar "Carregando…" mente, e cair no vazio também. Conta o dado, não o
+ * `isPending`: a consulta que errou e depois pausou também está sem dado, e o "Tentar de novo" do
+ * erro só pausaria de novo (🟢-1 do qa-redteam de 22/11). Com dado já carregado, o bloco mostra o
+ * dado, e a faixa do topo avisa que pode estar velho.
+ */
+export function loadState(q: { isPending: boolean; isPaused: boolean; data?: unknown }): { isLoading: boolean; isOffline: boolean } {
+  return { isLoading: q.isPending && !q.isPaused, isOffline: q.isPaused && q.data === undefined };
+}
+
+/**
+ * Dado na tela que pode estar velho: há dado, o último refetch falhou e o aparelho está online
+ * (Wi-Fi sem internet, que o `onlineManager` não percebe). Sem rede, a faixa do topo já avisa,
+ * e o bloco não repete (revisão dos PRs da SPEC-11, 22/11).
+ */
+export function isStale(q: { data?: unknown; isError: boolean }, online: boolean): boolean {
+  return online && q.data !== undefined && q.isError;
+}
+
+/**
+ * Atraso do segundo refetch dos indicadores (CA-11.g). O analytics projeta o evento do core
+ * alguns instantes depois da resposta (RabbitMQ; consistência eventual, ADR-003): o refetch
+ * imediato traz o número velho. 3 s cabem com folga nos 10 s do critério.
+ */
+export const ANALYTICS_REFETCH_DELAY = 3000;
+
+/**
+ * Recarrega os indicadores agora e de novo depois da projeção. Sem otimismo no cache: o cartão só
+ * mostra o número que o analytics confirmou. O timer não depende da tela: o QueryClient é do app,
+ * e a linha que disparou a ação pode já ter sumido.
+ */
+export function invalidateAnalyticsSoon(qc: { invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void> }): void {
+  void qc.invalidateQueries({ queryKey: ['analytics'] });
+  setTimeout(() => void qc.invalidateQueries({ queryKey: ['analytics'] }), ANALYTICS_REFETCH_DELAY);
+}

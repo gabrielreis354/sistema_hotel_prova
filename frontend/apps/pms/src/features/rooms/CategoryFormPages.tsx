@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, Spinner } from '@hotel/ui';
 import { centsToBRLInput, decimalToCents } from '@hotel/domain';
@@ -12,6 +12,7 @@ import {
   useUpdateCategory,
 } from './queries.js';
 import { messageOf } from './errorMessages.js';
+import { mutateOnce } from '../../lib/submitLock.js';
 import { DeleteControl } from './components/DeleteControl.js';
 import { FormShell } from './components/FormShell.js';
 import { LoadError } from '../../components/LoadError.js';
@@ -22,6 +23,8 @@ export function CategoryNewPage() {
   const navigate = useNavigate();
   const create = useCreateCategory();
   const [serverError, setServerError] = useState<string | null>(null);
+  // Um envio por vez (SPEC-11, CA-11.a): o 2º clique levava 409 num cadastro que deu certo.
+  const lock = useRef(false);
 
   return (
     <FormShell title="Nova categoria" {...BACK}>
@@ -33,7 +36,7 @@ export function CategoryNewPage() {
           cancelTo="/quartos/categorias"
           onSubmit={(input) => {
             setServerError(null);
-            create.mutate(input, {
+            mutateOnce(lock, create.mutate, input, {
               onSuccess: () => navigate('/quartos/categorias'),
               onError: (e) => setServerError(messageOf(e)),
             });
@@ -54,6 +57,7 @@ export function CategoryEditPage() {
   const del = useDeleteCategory();
   const [serverError, setServerError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const lock = useRef(false);
 
 
   return (
@@ -82,7 +86,7 @@ export function CategoryEditPage() {
             cancelTo="/quartos/categorias"
             onSubmit={(input) => {
               setServerError(null);
-              update.mutate(input, {
+              mutateOnce(lock, update.mutate, input, {
                 onSuccess: () => navigate('/quartos/categorias'),
                 onError: (e) => setServerError(messageOf(e)),
               });
@@ -103,7 +107,9 @@ export function CategoryEditPage() {
             error={deleteError}
             onConfirm={() => {
               setDeleteError(null);
-              del.mutate(id, {
+              // Mesma trava do salvar (🟡2 do qa-redteam de 22/11): o 2º DELETE voltava 404 e
+              // a tela dizia "excluído por outra pessoa" num quarto que o próprio admin apagou.
+              mutateOnce(lock, del.mutate, id, {
                 onSuccess: () => navigate('/quartos/categorias'),
                 onError: (e) => setDeleteError(messageOf(e)),
               });

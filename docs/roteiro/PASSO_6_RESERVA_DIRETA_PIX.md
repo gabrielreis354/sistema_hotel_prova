@@ -1,9 +1,12 @@
 # Passo 6 do roteiro — hóspede reserva direto e paga o sinal por PIX
 
-> Roteiro de demonstração do `docs/PLANO_MVP_ATE_10DEZ2026.md` §2, passo 6. Pela decisão 5, o
-> passo é mostrado **pelo Swagger, sem tela**: não existe app do hóspede no 4º semestre.
+> Roteiro de demonstração do `docs/PLANO_MVP_ATE_10DEZ2026.md` §2, passo 6. O passo é mostrado
+> **pela API, sem tela do hóspede**: as chamadas saem do Swagger, o QR do sinal aparece na resposta
+> e a reserva confirma sozinha no app da recepção. Não existe app do hóspede no 4º semestre.
+> Decisão de 15/11 (`docs/PLANO_FECHAMENTO_MVP_15NOV2026.md` §7): **plano A, sandbox real do
+> Asaas**; o plano B só se a rede cair.
 > Dono: Weslley (M6). Versão de 04/11/2026, revisada pelo qa-redteam
-> (`docs/qa/redteam_passo6-swagger_04112026.md`).
+> (`docs/qa/redteam_passo6-swagger_04112026.md`); situação atualizada em 20/11/2026.
 
 **O que a banca precisa ver:** a reserva nasce `PENDING` com o QR do sinal. Depois do pagamento,
 o **webhook** do PSP confirma a reserva sozinho, e ela aparece confirmada no PMS da recepção. Ninguém
@@ -49,10 +52,16 @@ Na raiz do repositório, como no cabeçalho do `docker-compose.yml`:
    ```
    Abra `http://localhost:5173`. O login é `admin@aurora.example` / `senha123`, subdomínio `aurora`.
 5. **Plano A:**
-   - Confira se a chave do sandbox ainda vale. A atual vence em **15/11/2026**.
+   - Confira se a chave do sandbox ainda vale antes de cada ensaio. A chave usada em 12/11 foi
+     colada num chat e foi trocada depois do M6 (confirmação do Weslley em 16/11). A chave nova
+     vence em **31/07/2027 às 00:00**. O primeiro ensaio com ela no compose é o de 24/11.
    - No `.env`, use `PIX_PROVIDER=asaas`, a chave e o `ASAAS_WEBHOOK_TOKEN`, como em
      `docs/pagamentos/ASAAS_SANDBOX.md` §4.
-   - Suba o túnel e cadastre o webhook apontando para `https://<túnel>/webhooks/pix` (§5).
+   - Suba o túnel e cadastre o webhook apontando para `https://<túnel>/webhooks/pix` (§5). No
+     ensaio de 12/11 o túnel foi o `cloudflared tunnel --url http://localhost:3000`, que dispensa
+     conta; o ngrok do §5 também serve.
+   - No painel do sandbox, o botão de confirmar o pagamento fica nos **detalhes da cobrança**, não
+     na lista.
    - Rode `docker compose up -d backend` para o backend ler o `.env` novo.
 
 ## Durante a demonstração
@@ -106,8 +115,29 @@ aceita a autenticação do provider ativo. Para trocar:
 
 ## Pendências conhecidas
 
-- **Ensaio no compose ainda não feito.** Este roteiro foi escrito em 04/11 a partir do código, sem
-  Docker. Ensaiar os dois planos e registrar o resultado aqui.
+- **Plano A ensaiado em 12/11/2026** contra o sandbox real
+  (`docs/historico_sessao/weslley/ensaio_pix_asaas_sandbox_m6_12nov2026.md`, #143): o Asaas chamou
+  o webhook pelo túnel e a reserva foi a `CONFIRMED` com o sinal `PAID`, e cancelar a reserva
+  removeu a cobrança no Asaas. O ensaio foi com o backend fora do compose.
+- **Plano B ensaiado em 14/11/2026** no compose, dentro do roteiro inteiro
+  (`docs/qa/ensaio_roteiro_14112026.md`): o webhook simulado confirmou a reserva em 2 s. O plano A
+  no compose foi ensaiado em 20/11 (abaixo); o 2º ensaio completo é em 24/11.
+- **Plano B ensaiado de novo em 20/11/2026** no compose, com as imagens do backend e do analytics
+  refeitas e `PIX_PROVIDER=fake` passado pelo shell (o `.env` não foi alterado). Os 6 passos deram
+  certo: reserva `9268e0bd…` `PENDING` com sinal de R$ 135,00 (30% de R$ 450,00) e QR; o script
+  confirmou o pagamento; o status voltou `CONFIRMED` com `deposit.status = PAID`; a reserva aparece
+  confirmada no PMS, com o PIX pago no extrato; e o evento chegou ao `analytics-service`
+  (`analytics_events_total{outcome="applied"}` subiu, visível no passo 8). Para repetir sem 409,
+  as datas de 15 a 18/12 já têm essa reserva na Standard, mas ainda sobram 7 quartos.
+- **Plano A ensaiado no compose em 20/11/2026**, com a chave nova do sandbox e o webhook entregue
+  pelo próprio Asaas por um quick tunnel do `cloudflared` (`https://<túnel>/webhooks/pix`, eventos
+  `PAYMENT_CREATED`, `CONFIRMED`, `RECEIVED` e `OVERDUE`, token `whsec_` igual ao
+  `ASAAS_WEBHOOK_TOKEN` do `.env`). Reserva `3faba6bc…` `PENDING` com o sinal de R$ 135,00 e a
+  cobrança `pay_0_7o1nggd01q33ie`; depois de "Confirmar pagamento" no painel, `CONFIRMED` com
+  `deposit.status = PAID`, o PIX pago no extrato do PMS e o evento no `analytics-service`. O backend
+  não registra no log o webhook aceito: a prova pelo lado do Asaas fica em Integrações → Webhooks →
+  Logs. Na reserva pública, o hóspede com o mesmo CPF reaproveita o cadastro existente (#142).
+  **Antes do ensaio de 24/11:** o túnel rápido muda de URL a cada subida; atualize a URL no painel.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
 - **A reserva pública aceita data no passado.** O `CreateBookingController` e o

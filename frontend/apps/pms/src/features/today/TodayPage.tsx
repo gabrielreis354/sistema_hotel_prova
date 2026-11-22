@@ -4,12 +4,15 @@ import { formatDateBR } from '@hotel/domain';
 import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
 import { useOccupancy } from '../analytics/index.js';
-import { useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
-import { arrivalRows, departureRows, formatPercent, inHouseRows, soldToday } from './todayLogic.js';
+import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
+import { arrivalRows, departureRows, formatPercent, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
 import { TodayBlock } from './components/TodayBlock.js';
+import { StaleNotice } from './components/StaleNotice.js';
 import { TodayCounters, type Counter } from './components/TodayCounters.js';
 import { ArrivalItem, CleaningItem, DepartureItem, InHouseItem, RowList, type Feedback } from './components/rows.js';
 import { ButtonLink } from '../../components/links.js';
+import { ConnectionBanner, OfflineStrip } from '../../components/ConnectionBanner.js';
+import { useOnline } from '../../lib/online.js';
 
 const NO_IDS: ReadonlySet<string> = new Set();
 
@@ -23,7 +26,10 @@ export function TodayPage() {
   const inHouse = useInHouse();
   const arrivals = useArrivals(today);
   const alerts = useTodayAlerts();
-  const occupancy = useOccupancy(today);
+  // Mesmo ritmo das outras consultas do painel (CA-11.g): sem isso, os cartões só mudavam com a
+  // ação feita nesta aba, e o check-in de outro recepcionista não aparecia.
+  const occupancy = useOccupancy(today, { refetchInterval: REFRESH });
+  const online = useOnline();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
   // Sucesso some sozinho (a lista já mostra o novo estado); erro fica até a pessoa fechar.
@@ -58,6 +64,16 @@ export function TodayPage() {
     },
   ];
 
+  // Sem rede (CA-11.h): bloco sem dado diz "sem conexão" em vez de "Carregando…" sem fim. O erro
+  // também só aparece sem dado: com Wi-Fi sem internet o onlineManager diz online, o refetch do
+  // minuto falha, e a lista já carregada era trocada pelo erro (🟡-2 do qa-redteam de 22/11).
+  const arrivalsLoad = loadState(arrivals);
+  const inHouseLoad = loadState(inHouse);
+  const alertsLoad = loadState(alerts);
+  const occupancyLoad = loadState(occupancy);
+  // A outra metade do 🟡-2: o dado fica, mas o bloco avisa que pode estar velho (isStale).
+  const stale = (q: Parameters<typeof isStale>[0]) => isStale(q, online);
+
   const noShowCount = arrivalList.filter((a) => a.noShowRisk).length;
   const lateDepartures = departureList.filter((d) => d.late).length;
 
@@ -65,10 +81,19 @@ export function TodayPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader title="Hoje" context={formatDateBR(today)} />
 
+      {/* Mesmo tom e ícone da faixa da comanda; o texto é do painel, que não tem fila. */}
+      <ConnectionBanner offline={!online}>
+        <OfflineStrip>
+          <span className="font-semibold">Sem conexão:</span> o painel mostra o último dado carregado e atualiza quando a rede voltar.
+        </OfflineStrip>
+      </ConnectionBanner>
+
       <TodayCounters
         counters={counters}
-        busy={occupancy.isPending || arrivals.isPending}
-        error={occupancy.error}
+        busy={occupancyLoad.isLoading || arrivalsLoad.isLoading}
+        offline={occupancyLoad.isOffline}
+        error={occupancy.data ? null : occupancy.error}
+        stale={stale(occupancy)}
         onRetry={() => occupancy.refetch()}
       />
 
@@ -90,20 +115,25 @@ export function TodayPage() {
         <h2 id="atencao-titulo" className="text-section text-gray-900">
           Atenção
         </h2>
-        {alerts.isPending ? (
+        {alertsLoad.isOffline ? (
+          <p className="py-2 text-sm text-gray-700">Sem conexão. Os alertas aparecem quando a rede voltar.</p>
+        ) : alerts.isPending ? (
           <Spinner label="Carregando alertas…" />
-        ) : alerts.isError ? (
+        ) : alerts.isError && !alerts.data ? (
           <ErrorState message={alerts.error.message} onRetry={() => alerts.refetch()} />
         ) : (
-          <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-800 sm:flex-row sm:flex-wrap sm:gap-x-6">
-            <AttentionItem tone="maintenance" count={noShowCount} href="#chegadas-titulo" one="chegada sem pagamento — risco de no-show" many="chegadas sem pagamento — risco de no-show" />
-            <AttentionItem tone="cleaning" count={lateDepartures} href="#saidas-titulo" one="saída atrasada" many="saídas atrasadas" />
-            <AttentionItem tone="cleaning" count={cleaning.length} href="#limpeza-titulo" one="quarto em limpeza" many="quartos em limpeza" />
-            <AttentionItem tone="booked" count={alerts.data.pendingTooLong} to="/reservas" one="reserva pendente há mais de 48 h" many="reservas pendentes há mais de 48 h" />
-            {noShowCount + lateDepartures + cleaning.length + alerts.data.pendingTooLong === 0 && (
-              <li className="py-2 text-gray-700">Nada pedindo atenção agora.</li>
-            )}
-          </ul>
+          <>
+            {stale(alerts) && <StaleNotice onRetry={() => alerts.refetch()} />}
+            <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-800 sm:flex-row sm:flex-wrap sm:gap-x-6">
+              <AttentionItem tone="maintenance" count={noShowCount} href="#chegadas-titulo" one="chegada sem pagamento — risco de no-show" many="chegadas sem pagamento — risco de no-show" />
+              <AttentionItem tone="cleaning" count={lateDepartures} href="#saidas-titulo" one="saída atrasada" many="saídas atrasadas" />
+              <AttentionItem tone="cleaning" count={cleaning.length} href="#limpeza-titulo" one="quarto em limpeza" many="quartos em limpeza" />
+              <AttentionItem tone="booked" count={alerts.data.pendingTooLong} to="/reservas" one="reserva pendente há mais de 48 h" many="reservas pendentes há mais de 48 h" />
+              {noShowCount + lateDepartures + cleaning.length + alerts.data.pendingTooLong === 0 && (
+                <li className="py-2 text-gray-700">Nada pedindo atenção agora.</li>
+              )}
+            </ul>
+          </>
         )}
       </section>
 
@@ -113,8 +143,10 @@ export function TodayPage() {
           title="Chegadas"
           caption="Entrada hoje, ainda sem check-in — e as atrasadas"
           count={arrivals.data ? arrivalList.length : undefined}
-          isLoading={arrivals.isPending}
-          error={arrivals.error}
+          isLoading={arrivalsLoad.isLoading}
+          isOffline={arrivalsLoad.isOffline}
+          error={arrivals.data ? null : arrivals.error}
+          stale={stale(arrivals)}
           onRetry={() => arrivals.refetch()}
           isEmpty={arrivalList.length === 0}
           empty={{
@@ -134,8 +166,10 @@ export function TodayPage() {
           title="Saídas"
           caption="Saída hoje — e as atrasadas, que continuam na casa"
           count={inHouse.data ? departureList.length : undefined}
-          isLoading={inHouse.isPending}
-          error={inHouse.error}
+          isLoading={inHouseLoad.isLoading}
+          isOffline={inHouseLoad.isOffline}
+          error={inHouse.data ? null : inHouse.error}
+          stale={stale(inHouse)}
           onRetry={() => inHouse.refetch()}
           isEmpty={departureList.length === 0}
           empty={{ title: 'Nenhuma saída hoje.', description: 'Os hóspedes com saída marcada para hoje aparecem aqui.' }}
@@ -151,8 +185,10 @@ export function TodayPage() {
           title="Na casa"
           caption="Hóspedes com check-in feito"
           count={inHouse.data ? inHouseList.length : undefined}
-          isLoading={inHouse.isPending}
-          error={inHouse.error}
+          isLoading={inHouseLoad.isLoading}
+          isOffline={inHouseLoad.isOffline}
+          error={inHouse.data ? null : inHouse.error}
+          stale={stale(inHouse)}
           onRetry={() => inHouse.refetch()}
           isEmpty={inHouseList.length === 0}
           empty={{ title: 'Nenhum hóspede na casa.', description: 'Quem fizer check-in aparece aqui.' }}
@@ -167,8 +203,10 @@ export function TodayPage() {
           title="Em limpeza"
           caption="Quartos que saíram e ainda não voltaram para a venda"
           count={alerts.data ? cleaning.length : undefined}
-          isLoading={alerts.isPending}
-          error={alerts.error}
+          isLoading={alertsLoad.isLoading}
+          isOffline={alertsLoad.isOffline}
+          error={alerts.data ? null : alerts.error}
+          stale={stale(alerts)}
           onRetry={() => alerts.refetch()}
           isEmpty={cleaning.length === 0}
           empty={{ title: 'Nenhum quarto em limpeza.', description: 'O quarto entra aqui no check-out.' }}
@@ -203,10 +241,10 @@ function AttentionItem({
   if (count === 0) return null;
   const content = (
     <>
-      <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', DOT[tone])} aria-hidden="true" />
-      <span>
-        <strong className="tabular-nums">{count}</strong> {count === 1 ? one : many}
-      </span>
+        <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', DOT[tone])} aria-hidden="true" />
+        <span>
+          <strong className="tabular-nums">{count}</strong> {count === 1 ? one : many}
+        </span>
     </>
   );
   const linkClass = 'inline-flex min-h-touch items-center gap-2 hover:underline xl:min-h-0 xl:py-1';

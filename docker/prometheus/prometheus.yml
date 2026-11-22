@@ -15,6 +15,16 @@ scrape_configs:
     static_configs:
       - targets: ['backend:3000']
 
+  # analytics-service (RNF-029; 🔴-7 da revisão de 19/11): mesmo token do core. Sem porta no host —
+  # o Prometheus fala direto com o contêiner; o nginx só roteia /analytics/ para ele.
+  - job_name: analytics-service
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /prometheus/metrics_token
+    static_configs:
+      - targets: ['analytics-service:3001']
+
   # RabbitMQ (T-01.4/H.1, CA-01.4.f): plugin rabbitmq_prometheus, já ativo na imagem. O
   # /metrics/per-object traz a profundidade de CADA fila — inclusive a de mensagens mortas
   # (analytics.core-events.dlq), que o painel do Grafana precisa mostrar (catálogo §5.3).

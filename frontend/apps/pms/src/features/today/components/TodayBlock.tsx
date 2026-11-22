@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Card, EmptyState, ErrorState, Spinner } from '@hotel/ui';
+import { StaleNotice } from './StaleNotice.js';
 
 interface TodayBlockProps {
   id: string;
@@ -9,7 +10,11 @@ interface TodayBlockProps {
   /** Uma linha sob o título: o que entra no bloco. */
   caption: string;
   isLoading: boolean;
+  /** Sem rede e sem dado: diz isso em vez de "Carregando…" sem fim ou do vazio falso (CA-11.h). */
+  isOffline?: boolean;
   error: Error | null;
+  /** Há dado, mas o último refetch falhou com o aparelho online: o dado pode estar velho. */
+  stale?: boolean;
   onRetry: () => void;
   isEmpty: boolean;
   empty: { title: string; description?: string; action?: ReactNode };
@@ -22,9 +27,10 @@ interface TodayBlockProps {
  * Moldura de cada bloco do painel com os quatro estados — carregando, erro, vazio e dados.
  * Cada bloco falha sozinho: o `/analytics` fora do ar não tira as chegadas da recepção.
  */
-export function TodayBlock({ id, title, count, caption, isLoading, error, onRetry, isEmpty, empty, truncated, children }: TodayBlockProps) {
+export function TodayBlock({ id, title, count, caption, isLoading, isOffline = false, error, stale = false, onRetry, isEmpty, empty, truncated, children }: TodayBlockProps) {
   let body: ReactNode;
-  if (isLoading) body = <Spinner label={`Carregando ${title.toLowerCase()}…`} />;
+  if (isOffline) body = <p className="py-2 text-sm text-gray-700">Sem conexão. A lista aparece quando a rede voltar.</p>;
+  else if (isLoading) body = <Spinner label={`Carregando ${title.toLowerCase()}…`} />;
   else if (error) body = <ErrorState message={error.message} onRetry={onRetry} />;
   else if (isEmpty) body = <EmptyState title={empty.title} description={empty.description} action={empty.action} />;
   else body = children;
@@ -49,6 +55,7 @@ export function TodayBlock({ id, title, count, caption, isLoading, error, onRetr
             Mostrando {truncated.shown} de {truncated.total}. A lista completa está em Reservas.
           </p>
         )}
+        {stale && <StaleNotice onRetry={onRetry} />}
         {body}
       </Card>
     </section>

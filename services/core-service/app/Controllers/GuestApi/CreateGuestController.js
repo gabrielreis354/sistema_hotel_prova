@@ -1,6 +1,7 @@
 import GuestModel from '../../Models/GuestModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import isNonBlankString from '../../utils/isNonBlankString.js';
+import { checkNewCpf, isBlankCpf } from '../../utils/guestCpf.js';
 
 export default async function CreateGuestController(request, response) {
     try {
@@ -9,15 +10,18 @@ export default async function CreateGuestController(request, response) {
 
         if (!isNonBlankString(full_name)) return response.status(400).json({ error: 'full_name obrigatório' });
 
-        if (cpf) {
-            const existing = await GuestModel.findOne({ where: { cpf, tenant_id: tenantId } });
-            if (existing) return response.status(409).json({ error: 'CPF já cadastrado para outro hóspede' });
+        // CPF opcional; preenchido, tem de ser válido e é gravado só com dígitos (SPEC-11, T-11.1).
+        let cpfDigits = null;
+        if (cpf !== undefined && !isBlankCpf(cpf)) {
+            const checked = await checkNewCpf(tenantId, cpf);
+            if (checked.error) return response.status(checked.status).json({ error: checked.error });
+            cpfDigits = checked.digits;
         }
 
         const guest = await GuestModel.create({
             tenant_id: tenantId,
             full_name,
-            cpf: cpf || null,
+            cpf: cpfDigits,
             phone: phone || null,
             email: email || null
         });

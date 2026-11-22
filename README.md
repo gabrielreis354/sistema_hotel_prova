@@ -1,6 +1,6 @@
 # Sistema de Gestão de Hotel — Backend API
 
-> Projeto Acadêmico (TCC) — Unifaat 2026
+> Gesway — Projeto Experimental de ADS, UniFAAT 2026 (4º e 5º semestres)
 > API REST multi-tenant para gerenciamento hoteleiro.
 > Infraestrutura: **Kubernetes (orquestração local via Docker Desktop ou Minikube)**
 
@@ -375,8 +375,10 @@ docker compose --profile observability up -d
 ```
 
 Grafana em http://localhost:3002 (login `admin` + `GRAFANA_ADMIN_PASSWORD`), pasta **Gesway** →
-*Saúde do core-service*. O `/metrics` do backend exige `Authorization: Bearer $METRICS_TOKEN` e
-não sai pelo nginx (404) — o contador por tenant revela o volume de cada hotel. No k8s, o mesmo
+*Saúde do core e do analytics* e *Mensageria (RabbitMQ)*. O `/metrics` do backend e o do
+`analytics-service` exigem `Authorization: Bearer $METRICS_TOKEN` (o mesmo token) e não saem pelo
+nginx (404) — o contador por tenant revela o volume de cada hotel. Roteiro de 30 s para a banca:
+`docs/roteiro/PASSO_8_GRAFANA.md`. No k8s, o mesmo
 conjunto está em `infra/k8s/observability.yaml`; acesso com
 `kubectl -n hotel-system port-forward svc/grafana 3002:3000`.
 
@@ -546,12 +548,12 @@ Resposta `200`:
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user":  { "id": "uuid", "name": "Administrador", "email": "admin@paraiso.com", "role": "ADMIN" }
 }
 ```
 
-O token carrega o payload `{ userId, role, tenantId }` com validade de **8 horas**.
+O token é assinado em **RS256** (chave privada só no core, ADR-006) e carrega o payload `{ userId, role, tenantId }` com validade de **8 horas**. Os papéis são `ADMIN`, `RECEPTIONIST` e `WAITER`; o garçom só alcança as rotas da comanda (`services/core-service/app/utils/roles.js`).
 
 ### Passo 3 — Usar o token nas requisições
 
@@ -571,7 +573,9 @@ curl -s http://localhost/reservations \
 
 ## Entidades e Rotas
 
-### Tabela completa de endpoints
+### Tabela de endpoints
+
+> **A referência completa é o Swagger** (`/api-docs`), que também cobre comanda, produtos, contas, reserva direta pública, webhook do PIX e endereço. As rotas B2B (`/corporate-clients`, `/event-quotes`, `/contracts`) ainda não estão no Swagger; estão em `services/core-service/routes/apis/`. A tabela abaixo resume o núcleo de reservas.
 
 | Recurso | Método | Rota | Função |
 |---|---|---|---|
@@ -591,7 +595,8 @@ curl -s http://localhost/reservations \
 | | GET | `/rooms/:id` | Busca quarto |
 | | GET | `/rooms/available` | Lista quartos disponíveis no período (`?check_in=&check_out=`) |
 | | POST | `/rooms` | Cria quarto |
-| | PUT | `/rooms/:id` | Atualiza quarto |
+| | PUT | `/rooms/:id` | Atualiza quarto (admin) |
+| | PUT | `/rooms/:id/release` | Libera quarto em limpeza (admin ou recepção) |
 | | DELETE | `/rooms/:id` | Remove quarto |
 | **Hóspedes** | GET | `/guests` | Lista hóspedes |
 | | GET | `/guests/:id` | Busca hóspede |
@@ -611,15 +616,17 @@ curl -s http://localhost/reservations \
 | **Pagamentos** | GET | `/payments` | Lista pagamentos |
 | | GET | `/payments/:id` | Busca pagamento |
 | | POST | `/payments` | Registra pagamento |
-| | PUT | `/payments/:id` | Atualiza pagamento |
-| | DELETE | `/payments/:id` | Remove pagamento |
+| | PUT | `/payments/:id` | Atualiza pagamento (admin) |
+| | POST | `/payments/:id/void` | Estorna pagamento (admin) |
+| | DELETE | `/payments/:id` | Responde 405 ao admin (pagamento não se apaga, se estorna); 403 aos demais papéis |
 
 ### Máquina de estados — Reservas
 
 ```
 PENDING ──► CONFIRMED ──► CHECKED_IN ──► CHECKED_OUT
-   │              │
-   └──► CANCELLED ◄┘
+   │   │                      ▲
+   │   └──── walk-in ─────────┘   (check-in direto de PENDING, no balcão)
+   └──► CANCELLED ◄── CONFIRMED
    (apenas PENDING e CONFIRMED podem ser canceladas)
 ```
 
@@ -628,7 +635,9 @@ PENDING ──► CONFIRMED ──► CHECKED_IN ──► CHECKED_OUT
 ```
 AVAILABLE ──► OCCUPIED  (no check-in)
 OCCUPIED  ──► CLEANING  (no check-out)
-CLEANING  ──► AVAILABLE (limpeza concluída — via PUT /rooms/:id)
+CLEANING  ──► AVAILABLE   (limpeza concluída — PUT /rooms/:id/release, admin ou recepção; o admin também pela edição)
+CLEANING  ──► MAINTENANCE (defeito achado na limpeza — admin)
+AVAILABLE ◄─► MAINTENANCE (bloqueio manual — admin)
 ```
 
 ---
@@ -738,12 +747,14 @@ sistema_gestao_hotel/
 | Usuários estimados | ~50 usuários simultâneos (recepcionistas + administradores) |
 | Consultas principais | Disponibilidade de quartos por período, painel de check-in/out, relatório financeiro, histórico de hóspede |
 
-### Estrutura do banco — 8 tabelas
+### Estrutura do banco
+
+> **A referência é o Documento 04 (MER)** dos documentos oficiais. O `services/core-service/db/schema.sql` tem 17 tabelas, mais a do *outbox* criada pelo `migrate`; o `analytics-service` tem banco próprio, com as projeções e o controle de eventos já processados (`processed_events`). A tabela abaixo lista o núcleo de reservas; comanda (`products`, `accounts`, `account_items`, `consumptions`) e B2B (`corporate_clients`, `event_quotes`, `quote_services`, `contracts`, `contract_installments`) estão no Doc 04.
 
 | Tabela | Descrição | Chave primária |
 |---|---|---|
 | `tenants` | Hotel (raiz do sistema SaaS) | UUID |
-| `users` | Usuários do hotel (ADMIN ou RECEPTIONIST) | UUID |
+| `users` | Usuários do hotel (`ADMIN`, `RECEPTIONIST` ou `WAITER`) | UUID |
 | `room_categories` | Categorias de quartos com preço por noite | UUID |
 | `rooms` | Quartos físicos com status operacional | UUID |
 | `guests` | Hóspedes cadastrados | UUID |
@@ -762,7 +773,7 @@ Todas as tabelas possuem `tenant_id` como chave estrangeira para isolamento mult
 | **3FN** | Atendida | Sem dependências transitivas entre atributos não-chave |
 | **Desnormalização intencional** | `tenant_id` em `payments` | Acelera relatórios financeiros sem JOIN adicional com `reservations` |
 
-Análise completa com exemplos em `justificativa/arquitetura.md`.
+Análise completa com exemplos em `docs/legado/justificativa/arquitetura.md` (material do 3º semestre).
 
 ### Índices
 
@@ -778,23 +789,23 @@ Análise completa com exemplos em `justificativa/arquitetura.md`.
 
 ### Modelagem visual
 
-Os diagramas estão em `modelagem/`:
+Os diagramas do 3º semestre estão em `docs/legado/modelagem/` (o MER vigente é o do Documento 04):
 
 | Arquivo | Conteúdo |
 |---|---|
-| `modelagem/der.png` | Diagrama Entidade-Relacionamento (DER) |
-| `modelagem/modelo_logico.png` | Diagrama Lógico com PK/FK/UK |
-| `modelagem/dicionario_dados.md` | Dicionário completo: tipo, constraint e descrição de cada coluna |
+| `docs/legado/modelagem/der.png` | Diagrama Entidade-Relacionamento (DER) |
+| `docs/legado/modelagem/modelo_logico.png` | Diagrama Lógico com PK/FK/UK |
+| `docs/legado/modelagem/dicionario_dados.md` | Dicionário completo: tipo, constraint e descrição de cada coluna |
 
 ### Consultas críticas
 
-As consultas estão organizadas em `queries/`:
+As consultas do 3º semestre estão em `docs/legado/queries/`:
 
 | Arquivo | Consultas |
 |---|---|
-| `queries/crud.sql` | CRUD completo de todas as entidades com isolamento por `tenant_id` |
-| `queries/consultas_avancadas.sql` | 5 JOINs complexos: painel de check-in/out, histórico de hóspede com saldo, busca por CPF, detecção de conflito de datas |
-| `queries/agregacoes.sql` | 5 agregações: receita por mês, taxa de ocupação, ranking de quartos, ticket médio por categoria, top 10 hóspedes |
+| `docs/legado/queries/crud.sql` | CRUD completo de todas as entidades com isolamento por `tenant_id` |
+| `docs/legado/queries/consultas_avancadas.sql` | 5 JOINs complexos: painel de check-in/out, histórico de hóspede com saldo, busca por CPF, detecção de conflito de datas |
+| `docs/legado/queries/agregacoes.sql` | 5 agregações: receita por mês, taxa de ocupação, ranking de quartos, ticket médio por categoria, top 10 hóspedes |
 
 ---
 
@@ -1006,14 +1017,11 @@ npm test
 
 O `globalSetup` cria automaticamente o banco `gestao_hotel_test` e sincroniza o schema. Nenhuma configuração manual é necessária.
 
-Resultado esperado:
-
-```
-Test Files  7 passed (7)
-     Tests  84 passed | 1 skipped (85)
-```
+Os testes rodam de dentro de `services/core-service/` (e de `services/analytics-service/` para o outro serviço). O número de arquivos e de testes muda a cada PR; o valor de referência é o da última execução verde do workflow `ci-core-service` no GitHub Actions.
 
 ### Cobertura dos testes
+
+Alguns dos arquivos (a pasta `tests/` tem a lista completa):
 
 | Arquivo | O que valida |
 |---|---|
@@ -1197,15 +1205,17 @@ kubectl wait --for=condition=ready pod --all -n hotel-system --timeout=120s
 
 # Pipeline CI/CD
 
-O pipeline `.github/workflows/docker-ecr.yml` automatiza o build e push da imagem Docker. Depende de 3 secrets configurados no GitHub:
+Cinco workflows do GitHub Actions. O `ci.yml` roda em todo PR; os outros quatro só quando o PR mexe nos caminhos do seu serviço (filtro de `paths`):
 
-| Secret | Descrição |
+| Workflow | O que faz |
 |---|---|
-| `AWS_ACCESS_KEY_ID` | Chave de acesso IAM da AWS |
-| `AWS_SECRET_ACCESS_KEY` | Chave secreta IAM da AWS |
-| `AWS_REGION` | Região da AWS (ex: `us-east-1`) |
+| `ci.yml` | Checagens determinísticas do repositório (`scripts/qa_checks.sh`) |
+| `ci-core-service.yml` | Testes e cobertura do `core-service`, com PostgreSQL e RabbitMQ de serviço |
+| `ci-analytics-service.yml` | Testes e cobertura do `analytics-service` |
+| `ci-frontend.yml` | Typecheck, testes e build do monorepo `frontend/` |
+| `ci-e2e.yml` | Roteiro da demonstração no navegador (Playwright); avisa, mas não bloqueia o merge |
 
-Configure em: **GitHub → Settings → Secrets and variables → Actions**
+Nenhum workflow publica imagem nem faz *deploy*: no 4º semestre o ambiente é o Docker Compose local. Publicação em *registry* e *deploy* na nuvem são do 5º semestre (Documento 05).
 
 ---
 
@@ -1256,6 +1266,6 @@ kubectl delete pvc postgres-data -n hotel-system
 
 ---
 
-*Sistema de Gestão de Hotel — TCC Unifaat 2026*
+*Gesway — Projeto Experimental de ADS, UniFAAT 2026*
 *Node.js 24 · Express 4 · Sequelize 6 · PostgreSQL 17 · Kubernetes · Nginx*
 *Grupo: Gabriel · Sirlande · Weslley*

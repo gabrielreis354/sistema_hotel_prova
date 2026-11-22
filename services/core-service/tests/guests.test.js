@@ -16,7 +16,7 @@ beforeAll(async () => {
     const res = await request(app)
         .post('/guests')
         .set('Authorization', `Bearer ${jwt}`)
-        .send({ full_name: 'João da Silva', cpf: '12345678901', email: 'joao@test.com', phone: '11999990000' });
+        .send({ full_name: 'João da Silva', cpf: '52998224725', email: 'joao@test.com', phone: '11999990000' });
     guestId = res.body.id;
 });
 
@@ -25,7 +25,7 @@ describe('POST /guests', () => {
         const res = await request(app)
             .post('/guests')
             .set('Authorization', `Bearer ${jwt}`)
-            .send({ full_name: 'Carlos Secundário', cpf: '55544433322', email: 'carlos@test.com' });
+            .send({ full_name: 'Carlos Secundário', cpf: '16899535009', email: 'carlos@test.com' });
 
         expect(res.status).toBe(201);
         expect(res.body).toMatchObject({ full_name: 'Carlos Secundário' });
@@ -45,7 +45,7 @@ describe('POST /guests', () => {
         const res = await request(app)
             .post('/guests')
             .set('Authorization', `Bearer ${jwt}`)
-            .send({ full_name: 'João Duplicado', cpf: '12345678901' });
+            .send({ full_name: 'João Duplicado', cpf: '52998224725' });
 
         expect(res.status).toBe(409);
     });

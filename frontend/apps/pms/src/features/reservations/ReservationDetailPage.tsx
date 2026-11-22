@@ -3,9 +3,10 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatCpf, formatDateBR } from '@hotel/domain';
 import { ActionSlot, Button, Card, ErrorState, Section, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
+import { mutateOnce } from '../../lib/submitLock.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/auth.js';
-import { myTenantOptions } from '../tenant/index.js';
+import { canReadMyTenant, myTenantOptions } from '../tenant/index.js';
 import { useBill, useReservation, useTransitionReservation } from './queries.js';
 import type { ReservationTransition } from './reservationsApi.js';
 import {
@@ -55,9 +56,10 @@ export function ReservationDetailPage() {
   // Adianta o hotel emissor do comprovante (T-09.1): quem abre o comprovante vem desta tela, e
   // assim o nome já está no cache quando a recepção clica em Imprimir.
   const queryClient = useQueryClient();
+  // O prefetch ignora o `enabled` da consulta: o papel é conferido aqui, como no hook.
   useEffect(() => {
-    void queryClient.prefetchQuery(myTenantOptions());
-  }, [queryClient]);
+    if (canReadMyTenant(role)) void queryClient.prefetchQuery(myTenantOptions());
+  }, [queryClient, role]);
   // Fora do cartão do formulário: quando o saldo zera, o formulário some e o aviso fica.
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
   const paymentResultRef = useRef<HTMLParagraphElement>(null);
@@ -77,9 +79,11 @@ export function ReservationDetailPage() {
     setParams(merged, { replace: true });
   }
 
+  // Um envio por vez (SPEC-11): o 2º clique saía antes do isPending e voltava 422.
+  const lock = useRef(false);
   function run(action: ReservationTransition) {
     setFeedback(null);
-    transition.mutate(action, {
+    mutateOnce(lock, transition.mutate, action, {
       onSuccess: () => {
         setConfirming(null);
         setFeedback({ kind: 'ok', text: DONE_MESSAGE[action] });

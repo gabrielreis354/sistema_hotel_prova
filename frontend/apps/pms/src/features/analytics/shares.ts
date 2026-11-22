@@ -6,6 +6,9 @@ const METHOD_LABELS: Record<string, string> = {
   CARTAO_CREDITO: 'Cartão de crédito',
   CARTAO_DEBITO: 'Cartão de débito',
   DINHEIRO: 'Dinheiro',
+  // Linha antiga: `method` era TEXT livre e o seed ainda grava 'CARTAO'. Mesmo rótulo da conta da
+  // reserva (reservationLogic.ts), para o gerente não ler o código cru no passo 7.
+  CARTAO: 'Cartão',
 };
 
 export function methodLabel(method: string | undefined): string {

@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { RESERVATION_STATUS_LABEL, formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { Button, ErrorState, Spinner } from '@hotel/ui';
-import { receiptIssuer, useMyTenant } from '../tenant/index.js';
+import { useAuthStore } from '../../stores/auth.js';
+import { canReadMyTenant, receiptIssuer, useMyTenant } from '../tenant/index.js';
 import { useBill, useReservation } from './queries.js';
 import { buildBillTimeline, isReservationStatus, maskCpf, officialBalanceCents, receiptEntries, safeNights } from './reservationLogic.js';
 import { Money } from './components/primitives.js';
@@ -21,6 +22,7 @@ export function ReservationReceiptPage() {
   // Quem emitiu (T-09.1). Fica fora das guardas de carregamento e de erro de propósito: o
   // cabeçalho é opcional, e o comprovante não espera por ele nem cai se /tenants/me falhar.
   const tenant = useMyTenant();
+  const role = useAuthStore((st) => st.user?.role);
   const issuer = receiptIssuer(tenant.data);
 
   if (reservation.isPending || bill.isPending) {
@@ -52,7 +54,8 @@ export function ReservationReceiptPage() {
         <BackLink to={`/reservas/${id}?aba=conta`}>← Voltar à reserva</BackLink>
         <div className="flex items-center gap-3">
           {/* Não bloqueia: só avisa que o papel ainda sairia sem o nome do hotel. */}
-          {tenant.isPending && <span className="text-xs text-gray-600">Buscando o nome do hotel…</span>}
+          {/* Só avisa quem vai buscar: uma consulta desligada (papel sem acesso) fica pending para sempre. */}
+          {tenant.isPending && canReadMyTenant(role) && <span className="text-xs text-gray-600">Buscando o nome do hotel…</span>}
           <Button onClick={() => window.print()}>Imprimir</Button>
         </div>
       </div>

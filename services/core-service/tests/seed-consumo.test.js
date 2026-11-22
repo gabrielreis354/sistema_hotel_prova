@@ -8,18 +8,16 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../database/connections/sequelize.js';
+import runSeedFiles from '../database/runSeed.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 
 const app = createApp();
 const seedDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 
-// Mesma ordem do `node command.js seed`.
-async function runSeed() {
-    for (const file of ['seed_hotels.sql', 'seed_consumo.sql', 'seed_hoje.sql']) {
-        await sequelize.query(await readFile(path.join(seedDir, file), 'utf-8'));
-    }
-}
+// O mesmo código do `node command.js seed` (database/runSeed.js), com a lista e a ordem de lá
+// (🟢-4 do red team de 18/11: a lista não fica mais duplicada aqui).
+const runSeed = () => runSeedFiles(sequelize);
 
 const count = async (table) =>
     (await sequelize.query(`SELECT COUNT(*)::int AS n FROM ${table}`, { type: QueryTypes.SELECT }))[0].n;
