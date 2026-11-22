@@ -142,6 +142,16 @@ report_warn "Log com objeto de requisição" \
     "$hits"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 5b. LGPD — erro cru no log (SPEC-06, T-06.12, CA-06.12.d)
+#
+# O erro do Sequelize carrega sql, parameters e parent.detail com o CPF, o nome e o
+# e-mail do hóspede. Log de erro passa pelo logError (app/utils/logError.js), que
+# guarda só nome, mensagem, código, constraint e pilha. `.message` sozinho é seguro.
+# ─────────────────────────────────────────────────────────────────────────────
+hits=$(grep -rnE "console\.(error|warn)\(([^()]*,[[:space:]]*)?(error|err|e|dbError)\)" "$CORE/app"         --include='*.js' 2>/dev/null | strip_comments)
+report_error "Erro cru no log do core"     "LGPD art. 46 — o erro do Sequelize leva o dado do hóspede (sql, parameters). Use logError(rótulo, error)"     "$hits"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 6. LGPD — include sem attributes devolve o model inteiro.
 #
 # Só alerta para models que carregam dado pessoal ou segredo. Incluir
