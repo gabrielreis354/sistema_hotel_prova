@@ -212,11 +212,13 @@ export function arrivalFlags(row: ArrivalRow): ArrivalFlag[] {
 
 /**
  * Estado de carga de um bloco (CA-11.h). Sem rede, a consulta sem dado fica pausada com
- * `isPending` para sempre: mostrar "Carregando…" mente, e cair no vazio também. Com dado já
- * carregado, o bloco mostra o dado, e a faixa do topo avisa que pode estar velho.
+ * `isPending` para sempre: mostrar "Carregando…" mente, e cair no vazio também. Conta o dado, não o
+ * `isPending`: a consulta que errou e depois pausou também está sem dado, e o "Tentar de novo" do
+ * erro só pausaria de novo (🟢-1 do qa-redteam de 22/11). Com dado já carregado, o bloco mostra o
+ * dado, e a faixa do topo avisa que pode estar velho.
  */
-export function loadState(q: { isPending: boolean; isPaused: boolean }): { isLoading: boolean; isOffline: boolean } {
-  return { isLoading: q.isPending && !q.isPaused, isOffline: q.isPending && q.isPaused };
+export function loadState(q: { isPending: boolean; isPaused: boolean; data?: unknown }): { isLoading: boolean; isOffline: boolean } {
+  return { isLoading: q.isPending && !q.isPaused, isOffline: q.isPaused && q.data === undefined };
 }
 
 /**

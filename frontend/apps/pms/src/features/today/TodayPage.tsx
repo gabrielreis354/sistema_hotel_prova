@@ -63,7 +63,9 @@ export function TodayPage() {
     },
   ];
 
-  // Sem rede (CA-11.h): bloco sem dado diz "sem conexão" em vez de "Carregando…" sem fim.
+  // Sem rede (CA-11.h): bloco sem dado diz "sem conexão" em vez de "Carregando…" sem fim. O erro
+  // também só aparece sem dado: com Wi-Fi sem internet o onlineManager diz online, o refetch do
+  // minuto falha, e a lista já carregada era trocada pelo erro (🟡-2 do qa-redteam de 22/11).
   const arrivalsLoad = loadState(arrivals);
   const inHouseLoad = loadState(inHouse);
   const alertsLoad = loadState(alerts);
@@ -87,7 +89,7 @@ export function TodayPage() {
         counters={counters}
         busy={occupancyLoad.isLoading || arrivalsLoad.isLoading}
         offline={occupancyLoad.isOffline}
-        error={occupancy.error}
+        error={occupancy.data ? null : occupancy.error}
         onRetry={() => occupancy.refetch()}
       />
 
@@ -113,7 +115,7 @@ export function TodayPage() {
           <p className="py-2 text-sm text-gray-700">Sem conexão. Os alertas aparecem quando a rede voltar.</p>
         ) : alerts.isPending ? (
           <Spinner label="Carregando alertas…" />
-        ) : alerts.isError ? (
+        ) : alerts.isError && !alerts.data ? (
           <ErrorState message={alerts.error.message} onRetry={() => alerts.refetch()} />
         ) : (
           <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-800 sm:flex-row sm:flex-wrap sm:gap-x-6">
@@ -136,7 +138,7 @@ export function TodayPage() {
           count={arrivals.data ? arrivalList.length : undefined}
           isLoading={arrivalsLoad.isLoading}
           isOffline={arrivalsLoad.isOffline}
-          error={arrivals.error}
+          error={arrivals.data ? null : arrivals.error}
           onRetry={() => arrivals.refetch()}
           isEmpty={arrivalList.length === 0}
           empty={{
@@ -158,7 +160,7 @@ export function TodayPage() {
           count={inHouse.data ? departureList.length : undefined}
           isLoading={inHouseLoad.isLoading}
           isOffline={inHouseLoad.isOffline}
-          error={inHouse.error}
+          error={inHouse.data ? null : inHouse.error}
           onRetry={() => inHouse.refetch()}
           isEmpty={departureList.length === 0}
           empty={{ title: 'Nenhuma saída hoje.', description: 'Os hóspedes com saída marcada para hoje aparecem aqui.' }}
@@ -176,7 +178,7 @@ export function TodayPage() {
           count={inHouse.data ? inHouseList.length : undefined}
           isLoading={inHouseLoad.isLoading}
           isOffline={inHouseLoad.isOffline}
-          error={inHouse.error}
+          error={inHouse.data ? null : inHouse.error}
           onRetry={() => inHouse.refetch()}
           isEmpty={inHouseList.length === 0}
           empty={{ title: 'Nenhum hóspede na casa.', description: 'Quem fizer check-in aparece aqui.' }}
@@ -193,7 +195,7 @@ export function TodayPage() {
           count={alerts.data ? cleaning.length : undefined}
           isLoading={alertsLoad.isLoading}
           isOffline={alertsLoad.isOffline}
-          error={alerts.error}
+          error={alerts.data ? null : alerts.error}
           onRetry={() => alerts.refetch()}
           isEmpty={cleaning.length === 0}
           empty={{ title: 'Nenhum quarto em limpeza.', description: 'O quarto entra aqui no check-out.' }}
