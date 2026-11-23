@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -15,6 +18,8 @@ vi.mock('../stores/auth.js', () => ({
 vi.mock('../features/tenant/index.js', () => ({ useMyTenant: () => ({ data: { name: 'Pousada Aurora' } }) }));
 
 import { AppShell } from './AppShell.js';
+
+const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 function render(role: string) {
   session.user = { name: 'Recepção Aurora 1', role };
@@ -54,8 +59,17 @@ describe('barra lateral (SPEC-10, T-10.4)', () => {
   });
 
   it('o usuário fica no pé da barra, com nome e papel', () => {
-    const usuario = trecho(trecho(render('RECEPTIONIST'), '<aside', '</aside>'), 'data-area="usuario"', '</div></div>');
-    expect(usuario).toContain('Recepção Aurora 1');
+    session.user = { name: 'Ana Lima', role: 'RECEPTIONIST' };
+    const html = renderToString(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <AppShell />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    // Nome que não contém o papel: "Recepção" só pode vir do rótulo do papel (🟢 do qa-redteam de 22/11).
+    const usuario = trecho(trecho(html, '<aside', '</aside>'), 'data-area="usuario"', '</div></div>');
+    expect(usuario).toContain('Ana Lima');
     expect(usuario).toContain('Recepção');
   });
 });
@@ -79,8 +93,21 @@ describe('topo (SPEC-10, T-10.4)', () => {
 });
 
 describe('barra do celular (SPEC-10, R-4)', () => {
-  it('deixa folga para a barra de gestos do iPhone', () => {
+  it('deixa folga para a barra de gestos do iPhone, com no mínimo 6 px', () => {
     const barra = trecho(render('RECEPTIONIST'), 'aria-label="Navegação principal"', '</nav>');
-    expect(barra).toContain('safe-area-inset-bottom');
+    expect(barra).toContain('pb-[max(6px,env(safe-area-inset-bottom))]');
+  });
+
+  it('o index.html pede viewport-fit=cover: sem ele o Safari devolve 0 para a área segura (🟡 do qa-redteam de 22/11)', () => {
+    const html = readFileSync(path.join(raiz, 'index.html'), 'utf-8');
+    expect(html).toMatch(/<meta name="viewport" content="[^"]*viewport-fit=cover/);
+  });
+
+  it('o que fica preso acima da barra soma a mesma folga (total da comanda e folha do Mais)', () => {
+    const conta = readFileSync(path.join(raiz, 'src/features/accounts/AccountPage.tsx'), 'utf-8');
+    const casca = readFileSync(path.join(raiz, 'src/components/AppShell.tsx'), 'utf-8');
+    const folga = 'calc(3rem+max(6px,env(safe-area-inset-bottom)))';
+    expect(conta).toContain(`bottom-[${folga}]`);
+    expect(casca).toContain(`bottom-[${folga}]`);
   });
 });

@@ -52,6 +52,13 @@ describe('alvo de toque até o xl (CA-08.g)', () => {
     expect(violacoes).toEqual([]);
   });
 
+  it('Button size="compact" tem 48 px no toque e só encolhe com mouse (🟡 do qa-redteam de 22/11)', () => {
+    const botao = readFileSync(path.resolve(src, '../../../packages/ui/src/Button.tsx'), 'utf-8');
+    const compact = botao.match(/compact: '([^']+)'/)?.[1] ?? '';
+    expect(compact.split(' ')).toEqual(expect.arrayContaining(['min-h-touch', 'desk:h-9', 'desk:min-h-0']));
+    expect(compact.split(' ')).not.toContain('h-9');
+  });
+
   it('item do menu lateral com 48 px até o compacto com mouse (no md ele aparece, e tinha 36 px)', () => {
     const shell = readFileSync(path.join(src, 'components/AppShell.tsx'), 'utf-8');
     const item = shell.slice(shell.indexOf('function NavItemLink('));
