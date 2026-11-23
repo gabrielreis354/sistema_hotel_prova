@@ -1,4 +1,5 @@
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
+import { logError } from '../../utils/logError.js';
 
 // Allowlist explícita: só orçamento recém-enviado pode ser confirmado — fail-safe.
 const CONFIRMABLE_STATUSES = ['SENT'];
@@ -25,7 +26,7 @@ export default async function ConfirmEventQuoteController(request, response) {
 
         return response.json(quote);
     } catch (error) {
-        console.error('ConfirmEventQuoteController:', error);
+        logError('ConfirmEventQuoteController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

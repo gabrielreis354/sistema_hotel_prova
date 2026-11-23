@@ -16,6 +16,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
+import { logError } from '../../utils/logError.js';
 
 const NO_AVAILABILITY = 'Sem disponibilidade na categoria para o período';
 
@@ -259,7 +260,7 @@ export default async function CreateBookingController(request, response) {
         // recusou a segunda (EXCLUDE). O hóspede tenta de novo — não é erro do servidor.
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
 
-        console.error('CreateBookingController:', error.message);
+        logError('CreateBookingController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

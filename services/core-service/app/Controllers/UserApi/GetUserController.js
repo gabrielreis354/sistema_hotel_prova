@@ -1,4 +1,5 @@
 import UserModel from '../../Models/UserModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function GetUserController(request, response) {
     try {
@@ -11,7 +12,7 @@ export default async function GetUserController(request, response) {
         if (!user) return response.status(404).json({ error: 'Usuário não encontrado' });
         return response.json(user);
     } catch (error) {
-        console.error(error);
+        logError('GetUserController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

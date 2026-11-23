@@ -3,6 +3,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import isUuid from '../../utils/isUuid.js';
 import accountBill, { closeAccount, lockAccount } from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * PUT /accounts/:id/close
@@ -78,7 +79,7 @@ export default async function CloseAccountController(request, response) {
             throw error;
         }
     } catch (error) {
-        console.error('CloseAccountController:', error.message);
+        logError('CloseAccountController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -1,5 +1,6 @@
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function GetRoomController(request, response) {
     try {
@@ -12,7 +13,7 @@ export default async function GetRoomController(request, response) {
         if (!room) return response.status(404).json({ error: 'Quarto não encontrado' });
         return response.json(room);
     } catch (error) {
-        console.error(error);
+        logError('GetRoomController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

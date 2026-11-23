@@ -1,5 +1,6 @@
 import AccountModel from '../../Models/AccountModel.js';
 import { ACCOUNT_TYPES, ACCOUNT_STATUSES } from '../../utils/accountEnums.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /accounts?status=OPEN&type=TABLE
@@ -40,7 +41,7 @@ export default async function ListAccountController(request, response) {
 
         return response.json(accounts);
     } catch (error) {
-        console.error('ListAccountController:', error.message);
+        logError('ListAccountController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

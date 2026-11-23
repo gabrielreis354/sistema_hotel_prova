@@ -4,6 +4,7 @@ import AccountItemModel from '../../Models/AccountItemModel.js';
 import isUuid from '../../utils/isUuid.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * DELETE /reservations/:id/consumptions/:consumptionId
@@ -82,7 +83,7 @@ export default async function DeleteConsumptionController(request, response) {
             throw error;
         }
     } catch (error) {
-        console.error('DeleteConsumptionController:', error.message);
+        logError('DeleteConsumptionController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

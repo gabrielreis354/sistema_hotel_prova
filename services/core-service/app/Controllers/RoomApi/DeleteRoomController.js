@@ -5,6 +5,7 @@ import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
 import { ROOM_HOLDING_RESERVATION_STATUSES } from '../../utils/roomRules.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DeleteRoomController(request, response) {
     // Quarto travado (FOR UPDATE) durante a checagem e a exclusão. Isso fecha a corrida nos dois
@@ -52,7 +53,7 @@ export default async function DeleteRoomController(request, response) {
         return response.status(204).send();
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error(error);
+        logError('DeleteRoomController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

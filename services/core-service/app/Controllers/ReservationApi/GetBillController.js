@@ -5,6 +5,7 @@ import GuestModel from '../../Models/GuestModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
 import reservationBill from '../../utils/reservationBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /reservations/:id/bill
@@ -54,7 +55,7 @@ export default async function GetBillController(request, response) {
         );
         return response.status(result.status).json(result.body);
     } catch (error) {
-        console.error('GetBillController:', error);
+        logError('GetBillController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

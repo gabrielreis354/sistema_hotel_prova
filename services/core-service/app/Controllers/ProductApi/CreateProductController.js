@@ -1,6 +1,7 @@
 import ProductModel from '../../Models/ProductModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import { validateProductFields, parsePrice } from '../../utils/productValidation.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * POST /products
@@ -39,7 +40,7 @@ export default async function CreateProductController(request, response) {
         // passam as duas e o índice único barra a segunda. Sem este catch viraria 500.
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
-        console.error('CreateProductController:', error.message);
+        logError('CreateProductController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

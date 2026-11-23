@@ -9,6 +9,8 @@
  * vencedora na checagem de disponibilidade e responde o 409 verdadeiro. Se o deadlock se
  * repetir, 409 pedindo para tentar de novo — nunca 500 por uma corrida esperada.
  */
+import { logError } from './logError.js';
+
 export const DEADLOCK_ATTEMPTS = 2;
 export const DEADLOCK_RETRY_MESSAGE = 'Outra operação está usando estes quartos agora — tente de novo';
 
@@ -28,7 +30,7 @@ export function withDeadlockRetry(name, controller) {
                 return await controller(request, response);
             } catch (error) {
                 if (!isDeadlockError(error) || response.headersSent) {
-                    console.error(`${name}:`, error);
+                    logError(name, error);
                     if (!response.headersSent) response.status(500).json({ error: 'Erro interno do servidor' });
                     return undefined;
                 }

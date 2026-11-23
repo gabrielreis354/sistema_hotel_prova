@@ -1,4 +1,5 @@
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /public/:subdomain/hotel
@@ -17,7 +18,7 @@ export default async function GetHotelController(request, response) {
             deposit_percent: tenant.deposit_percent
         });
     } catch (error) {
-        console.error('GetHotelController:', error);
+        logError('GetHotelController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

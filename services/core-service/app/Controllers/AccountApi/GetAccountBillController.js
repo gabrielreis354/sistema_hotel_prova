@@ -2,6 +2,7 @@ import AccountModel from '../../Models/AccountModel.js';
 import isUuid from '../../utils/isUuid.js';
 import accountBill from '../../utils/accountBill.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /accounts/:id/bill
@@ -27,7 +28,7 @@ export default async function GetAccountBillController(request, response) {
 
         return response.json(await accountBill(account));
     } catch (error) {
-        console.error('GetAccountBillController:', error.message);
+        logError('GetAccountBillController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

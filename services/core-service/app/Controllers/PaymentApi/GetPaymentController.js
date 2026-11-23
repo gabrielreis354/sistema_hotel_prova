@@ -1,5 +1,6 @@
 import PaymentModel from '../../Models/PaymentModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function GetPaymentController(request, response) {
     try {
@@ -16,7 +17,7 @@ export default async function GetPaymentController(request, response) {
 
         return response.json(payment);
     } catch (error) {
-        console.error('GetPaymentController error:', error);
+        logError('GetPaymentController', error);
         return response.status(500).json({ error: 'Erro ao buscar pagamento.' });
     }
 }

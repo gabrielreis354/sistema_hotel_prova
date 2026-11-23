@@ -1,5 +1,6 @@
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
 import { getAvailableCategories } from '../../utils/getAvailableCategories.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /public/:subdomain/availability?check_in=&check_out=&guests=
@@ -39,7 +40,7 @@ export default async function GetAvailabilityController(request, response) {
             categories
         });
     } catch (error) {
-        console.error('GetAvailabilityController:', error);
+        logError('GetAvailabilityController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

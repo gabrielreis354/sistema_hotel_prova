@@ -1,4 +1,5 @@
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
+import { logError } from '../../utils/logError.js';
 
 // Allowlist explícita: apenas esses status podem ser cancelados — fail-safe.
 const CANCELLABLE_STATUSES = ['SENT', 'CONFIRMED'];
@@ -24,7 +25,7 @@ export default async function CancelEventQuoteController(request, response) {
 
         return response.json(quote);
     } catch (error) {
-        console.error('CancelEventQuoteController:', error);
+        logError('CancelEventQuoteController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

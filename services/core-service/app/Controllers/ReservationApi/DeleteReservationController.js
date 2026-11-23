@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
 import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DeleteReservationController(request, response) {
     const { id } = request.params;
@@ -26,7 +27,7 @@ export default async function DeleteReservationController(request, response) {
         return response.status(204).send();
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error(error);
+        logError('DeleteReservationController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

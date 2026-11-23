@@ -1,4 +1,5 @@
 import ContractModel from '../../Models/ContractModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DeleteContractController(request, response) {
     try {
@@ -8,7 +9,7 @@ export default async function DeleteContractController(request, response) {
         await contract.destroy();
         return response.status(204).send();
     } catch (error) {
-        console.error('DeleteContractController:', error);
+        logError('DeleteContractController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }
