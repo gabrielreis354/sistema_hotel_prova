@@ -138,8 +138,11 @@ describe('casca: logo, frase e atalho de teclado (P3)', () => {
 
   it('o logo leva à tela inicial do papel: Hoje para a recepção, Comanda para o garçom', () => {
     // A tag <a> do logo, em qualquer ordem de atributos.
-    const linkDoLogo = (html: string) => (trecho(html, '<aside', '</aside>').match(/<a [^>]*aria-label="Gesway, ir para o início"[^>]*>/) ?? [''])[0];
+    // O nome contém o texto visível, "Gesway" e "gestão hoteleira" (WCAG 2.5.3; red team de 22/11).
+    const linkDoLogo = (html: string) =>
+      (trecho(html, '<aside', '</aside>').match(/<a [^>]*aria-label="Gesway, gestão hoteleira, ir para o início"[^>]*>/) ?? [''])[0];
     expect(linkDoLogo(render('RECEPTIONIST'))).toContain('href="/"');
+    expect(linkDoLogo(render('ADMIN'))).toContain('href="/"');
     expect(linkDoLogo(render('WAITER'))).toContain('href="/comanda"');
   });
 
@@ -149,7 +152,15 @@ describe('casca: logo, frase e atalho de teclado (P3)', () => {
     expect(atalho).toBeGreaterThan(-1);
     expect(atalho).toBeLessThan(html.indexOf('<aside'));
     expect(html).toContain('Pular para o conteúdo');
-    expect(html).toMatch(/<main[^>]*id="conteudo"/);
+    // Fora da tela sem foco, visível com foco, sem deslizar para quem pediu movimento reduzido.
+    const tag = html.slice(html.lastIndexOf('<a', atalho), html.indexOf('>', atalho));
+    for (const classe of ['fixed', '-translate-y-24', 'focus:translate-y-0', 'motion-reduce:transition-none']) {
+      expect(tag.split(/[\s"]/)).toContain(classe);
+    }
+    // O main recebe o foco do atalho.
+    const main = (html.match(/<main[^>]*>/) ?? [''])[0];
+    expect(main).toContain('id="conteudo"');
+    expect(main).toContain('tabindex="-1"');
   });
 });
 
