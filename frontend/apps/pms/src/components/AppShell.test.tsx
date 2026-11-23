@@ -111,3 +111,45 @@ describe('barra do celular (SPEC-10, R-4)', () => {
     expect(casca).toContain(`bottom-[${folga}]`);
   });
 });
+
+// Audit do Impeccable de 22/11 (P2 e P3), tratado junto com o red team.
+describe('tipografia da casca pela escala do preset (P2)', () => {
+  it('nenhum tamanho de texto sob medida (text-[..]) na casca', () => {
+    const casca = readFileSync(path.join(raiz, 'src/components/AppShell.tsx'), 'utf-8');
+    expect(casca.match(/text-\[[^\]]+\]/g) ?? []).toEqual([]);
+  });
+
+  it('marca e rótulos usam os tamanhos novos do preset', () => {
+    const preset = readFileSync(path.join(raiz, '../../packages/config/tailwind-preset.js'), 'utf-8');
+    for (const nome of ['wordmark', "'wordmark-tag'", 'overline']) expect(preset).toContain(`${nome}: [`);
+    const barra = trecho(render('ADMIN'), '<aside', '</aside>');
+    expect(barra).toContain('text-wordmark ');
+    expect(barra).toContain('text-wordmark-tag');
+    expect(barra).toContain('text-overline');
+  });
+});
+
+describe('casca: logo, frase e atalho de teclado (P3)', () => {
+  it('a frase da marca pode quebrar linha (fonte aumentada não estoura a barra)', () => {
+    const barra = trecho(render('ADMIN'), '<aside', '</aside>');
+    const frase = barra.slice(barra.lastIndexOf('<span', barra.indexOf('GESTÃO HOTELEIRA')), barra.indexOf('GESTÃO HOTELEIRA'));
+    expect(frase).not.toContain('whitespace-nowrap');
+  });
+
+  it('o logo leva à tela inicial do papel: Hoje para a recepção, Comanda para o garçom', () => {
+    const recepcao = trecho(render('RECEPTIONIST'), '<aside', '</aside>');
+    expect(recepcao).toMatch(/<a[^>]*href="\/"[^>]*aria-label="Gesway, ir para o início"/);
+    const garcom = trecho(render('WAITER'), '<aside', '</aside>');
+    expect(garcom).toMatch(/<a[^>]*href="\/comanda"[^>]*aria-label="Gesway, ir para o início"/);
+  });
+
+  it('atalho "Pular para o conteúdo" antes do menu, apontando para o main', () => {
+    const html = render('RECEPTIONIST');
+    const atalho = html.indexOf('href="#conteudo"');
+    expect(atalho).toBeGreaterThan(-1);
+    expect(atalho).toBeLessThan(html.indexOf('<aside'));
+    expect(html).toContain('Pular para o conteúdo');
+    expect(html).toMatch(/<main[^>]*id="conteudo"/);
+  });
+});
+
