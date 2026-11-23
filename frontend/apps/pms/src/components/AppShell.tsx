@@ -37,8 +37,6 @@ export function AppShell() {
   // cache por uma hora. Sem resposta, o lugar dele fica com "Gesway".
   const { data: tenant } = useMyTenant();
 
-  // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
-  // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
   const role = user ? ROLE_LABEL[user.role] : '';
 
   // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
@@ -51,9 +49,9 @@ export function AppShell() {
       <aside className="hidden bg-nav text-nav-fg md:block">
         <div className="sticky top-0 flex h-screen min-h-[560px] flex-col overflow-y-auto">
           <div className="flex items-center gap-3.5 px-5 pb-[22px] pt-6">
-            <GeswayLogo className="h-[47px] w-14 shrink-0 text-white" />
+            <GeswayLogo className="h-[47px] w-14 shrink-0 text-nav-strong" />
             <div className="flex flex-col">
-              <span className="text-[23px] font-extrabold leading-7 tracking-[0.03em] text-white">
+              <span className="text-[23px] font-extrabold leading-7 tracking-[0.03em] text-nav-strong">
                 GES<span className="text-nav-accent">WAY</span>
               </span>
               <span className="whitespace-nowrap text-[10.5px] leading-[15px] tracking-[0.08em] text-nav-muted">GESTÃO HOTELEIRA</span>
@@ -92,7 +90,7 @@ export function AppShell() {
               {initials(user?.name)}
             </span>
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-[13px] font-semibold leading-[18px] text-white" title={user?.name}>
+              <span className="truncate text-[13px] font-semibold leading-[18px] text-nav-strong" title={user?.name}>
                 {user?.name}
               </span>
               <span className="truncate text-support text-nav-muted">{role}</span>
@@ -116,10 +114,10 @@ export function AppShell() {
                 </div>
               </div>
             </div>
-            {/* 48 px até o xl (CA-08.g); compacto só no desktop. */}
+            {/* 48 px no toque (CA-08.g); compacto só com mouse a partir de 1280 px (desk, R-3). */}
             <Button
               variant="ghost"
-              className="shrink-0 border border-gray-300 bg-white/70 desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
+              className="shrink-0 border border-gray-300 bg-white/70 focus-visible:ring-brand desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
               onClick={logout}
             >
               Sair
@@ -262,11 +260,11 @@ function NavItemLink({ item }: { item: NavItem }) {
       end={item.to === '/'}
       className={({ isActive }) =>
         cn(
-          // 48 px até o xl: a barra lateral já aparece no tablet (md), onde tinha 36 px (CA-08.g).
+          // 48 px no toque: a barra lateral já aparece no tablet (md), onde tinha 36 px (CA-08.g); compacto só com mouse (desk, R-3).
           'relative flex min-h-touch items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm transition-colors duration-150 desk:min-h-0',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-accent',
           isActive
-            ? 'bg-nav-active font-semibold text-white before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-[10px] before:bg-nav-accent'
+            ? 'bg-nav-active font-semibold text-nav-strong before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-[10px] before:bg-nav-accent'
             : 'text-nav-fg hover:bg-black/15',
         )
       }

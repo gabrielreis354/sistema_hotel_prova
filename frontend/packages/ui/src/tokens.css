@@ -20,6 +20,8 @@
  * da proposta foi ajustada para passar contraste sobre ele:
  * - texto dos itens #ECFDF5 = 5,2:1; ícones e títulos dos grupos #D1FAE5 = 4,8:1;
  * - item ativo #035E44 com texto branco = 7,8:1; fio do ativo #A7F3D0 = 6,1:1 sobre o ativo.
+ * O texto mais forte (logo, nome do usuário, item ativo) também é token: um hotel que trocar a barra
+ * por uma cor clara troca o `nav-strong` junto e não perde o contraste (qa-redteam de 22/11).
  */
 :root {
   --color-nav: 4 120 87;
@@ -27,6 +29,7 @@
   --color-nav-muted: 209 250 229;
   --color-nav-active: 3 94 68;
   --color-nav-accent: 167 243 208;
+  --color-nav-strong: 255 255 255;
 }
 
 /*

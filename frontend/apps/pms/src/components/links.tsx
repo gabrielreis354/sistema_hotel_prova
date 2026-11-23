@@ -22,7 +22,7 @@ export function ButtonLink({
   return <Link className={buttonClasses({ variant, size, block }, className)} {...props} />;
 }
 
-/** Link de volta, discreto. 48 px até o xl (CA-08.g); compacto só no desktop. */
+/** Link de volta, discreto. 48 px no toque (CA-08.g); compacto só com mouse a partir de 1280 px (desk, R-3). */
 export function BackLink({ to, children, className }: { to: string; children: ReactNode; className?: string }) {
   return (
     <Link

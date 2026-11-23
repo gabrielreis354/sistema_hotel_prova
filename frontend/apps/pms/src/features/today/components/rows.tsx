@@ -34,7 +34,7 @@ import { ButtonLink } from '../../../components/links.js';
 export type Feedback = { kind: 'success' | 'error'; text: string };
 type OnResult = (f: Feedback) => void;
 
-/** Botão de ação da linha: 48 px no celular e no tablet (toque), mais baixo só no desktop (≥ 1280). */
+/** Botão de ação da linha: 48 px no celular e no tablet (toque), mais baixo só com mouse a partir de 1280 px (desk, R-3). */
 const ROW_ACTION = 'w-full sm:w-auto desk:min-h-0 desk:h-10 xl:text-sm';
 
 /** Botão que abre a ação da linha (T-08.4): secundário, com ícone, embaixo do texto no celular. */

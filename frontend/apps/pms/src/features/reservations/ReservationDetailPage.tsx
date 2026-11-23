@@ -421,7 +421,7 @@ export function ReservationDetailPage() {
   );
 }
 
-/** Ação secundária: 48 px no celular e no tablet, compacta só a partir de xl (GUIA §3, regra 9). */
+/** Ação secundária: 48 px no celular e no tablet, compacta só com mouse a partir de 1280 px (desk, R-3; GUIA §3, regra 9). */
 const SECONDARY_ACTION = 'desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm';
 
 function TabButton({

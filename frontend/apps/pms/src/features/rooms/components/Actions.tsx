@@ -5,7 +5,7 @@ import { READ_ONLY_REASON } from '../roomRules.js';
 import { READ_ONLY_NOTICE_ID } from './ReadOnlyNotice.js';
 
 // 48px no celular e no tablet (o gerente consulta e o admin corrige andando), compacto só na
-// tabela do desktop, a partir de xl — CA-08.g e GUIA_UI_CORPORATIVA, regra 9. Antes o corte era md
+// tabela do desktop, com mouse a partir de 1280 px (desk, R-3) — CA-08.g e GUIA_UI_CORPORATIVA, regra 9. Antes o corte era md
 // (768 px) e o botão ficava com 32 px no tablet do balcão.
 const RESPONSIVE = 'desk:h-8 desk:min-h-0 xl:px-3 xl:text-sm';
 

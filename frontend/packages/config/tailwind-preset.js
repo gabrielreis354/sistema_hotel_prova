@@ -43,6 +43,7 @@ const preset = {
           muted: 'rgb(var(--color-nav-muted) / <alpha-value>)',
           active: 'rgb(var(--color-nav-active) / <alpha-value>)',
           accent: 'rgb(var(--color-nav-accent) / <alpha-value>)',
+          strong: 'rgb(var(--color-nav-strong) / <alpha-value>)',
         },
         ground: 'rgb(var(--color-ground) / <alpha-value>)',
         strip: {
