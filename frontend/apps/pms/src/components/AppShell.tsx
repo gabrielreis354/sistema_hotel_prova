@@ -50,7 +50,7 @@ export function AppShell() {
           fora da tela até receber foco; fixo para não virar célula da grade (audit de 22/11). */}
       <a
         href="#conteudo"
-        className="fixed left-3 top-3 z-50 -translate-y-24 rounded-md bg-white px-4 py-3 text-sm font-semibold text-brand shadow-lg transition-transform focus:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="fixed left-3 top-3 z-50 -translate-y-24 rounded-md bg-white px-4 py-3 text-sm font-semibold text-brand shadow-lg transition-transform focus:translate-y-0 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         Pular para o conteúdo
       </a>
@@ -62,7 +62,7 @@ export function AppShell() {
               com a fonte aumentada no navegador, ela não estoura a barra de 236 px (audit de 22/11). */}
           <Link
             to={home}
-            aria-label="Gesway, ir para o início"
+            aria-label="Gesway, gestão hoteleira, ir para o início"
             className="mx-2 mb-2 mt-3 flex items-center gap-3.5 rounded-[10px] px-3 pb-[14px] pt-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-accent"
           >
             <GeswayLogo className="h-[47px] w-14 shrink-0 text-nav-strong" />
