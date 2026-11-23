@@ -137,10 +137,10 @@ describe('casca: logo, frase e atalho de teclado (P3)', () => {
   });
 
   it('o logo leva à tela inicial do papel: Hoje para a recepção, Comanda para o garçom', () => {
-    const recepcao = trecho(render('RECEPTIONIST'), '<aside', '</aside>');
-    expect(recepcao).toMatch(/<a[^>]*href="\/"[^>]*aria-label="Gesway, ir para o início"/);
-    const garcom = trecho(render('WAITER'), '<aside', '</aside>');
-    expect(garcom).toMatch(/<a[^>]*href="\/comanda"[^>]*aria-label="Gesway, ir para o início"/);
+    // A tag <a> do logo, em qualquer ordem de atributos.
+    const linkDoLogo = (html: string) => (trecho(html, '<aside', '</aside>').match(/<a [^>]*aria-label="Gesway, ir para o início"[^>]*>/) ?? [''])[0];
+    expect(linkDoLogo(render('RECEPTIONIST'))).toContain('href="/"');
+    expect(linkDoLogo(render('WAITER'))).toContain('href="/comanda"');
   });
 
   it('atalho "Pular para o conteúdo" antes do menu, apontando para o main', () => {

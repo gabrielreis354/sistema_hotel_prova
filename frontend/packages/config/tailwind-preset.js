@@ -64,6 +64,11 @@ const preset = {
         body: ['14px', { lineHeight: '20px' }], // corpo (formulário no celular usa text-base, 16 px)
         support: ['12px', { lineHeight: '16px' }], // apoio
         figure: ['24px', { lineHeight: '32px', fontWeight: '600' }], // valor de destaque, com tabular-nums
+        // Marca na barra lateral e rótulo de grupo (SPEC-10, T-10.4; audit do Impeccable de 22/11).
+        // Fora da escala de leitura de propósito: são elementos de identidade, não texto corrido.
+        wordmark: ['23px', { lineHeight: '28px', fontWeight: '800', letterSpacing: '0.03em' }], // GESWAY
+        'wordmark-tag': ['10.5px', { lineHeight: '15px', letterSpacing: '0.08em' }], // GESTÃO HOTELEIRA
+        overline: ['11px', { lineHeight: '16px', fontWeight: '600', letterSpacing: '0.12em' }], // OPERAÇÃO, GESTÃO
       },
       fontVariantNumeric: {
         // Números tabulares em valores monetários e no rack (alinhamento de colunas).

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, matchPath, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, matchPath, useLocation } from 'react-router-dom';
 import { Ellipsis } from 'lucide-react';
 import { Button, cn } from '@hotel/ui';
 import { useAuthStore } from '../stores/auth.js';
 import { mobileNavForRole, navGroupsForRole, type NavItem } from '../routes/nav.js';
+import { homeForRole } from '../routes/roleHome.js';
 import { useMyTenant } from '../features/tenant/index.js';
 import { GeswayLogo } from './GeswayLogo.js';
 
@@ -38,25 +39,40 @@ export function AppShell() {
   const { data: tenant } = useMyTenant();
 
   const role = user ? ROLE_LABEL[user.role] : '';
+  const home = user ? homeForRole(user.role) : '/';
 
   // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
   // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
   // As laterais seguras (pl/pr) só valem no iPhone deitado, por causa do entalhe; no resto são 0.
   return (
     <div className="min-h-screen bg-ground pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:grid md:grid-cols-[236px_minmax(0,1fr)]">
+      {/* Atalho de teclado: primeiro Tab da página, pula os itens do menu e vai ao conteúdo. Fica
+          fora da tela até receber foco; fixo para não virar célula da grade (audit de 22/11). */}
+      <a
+        href="#conteudo"
+        className="fixed left-3 top-3 z-50 -translate-y-24 rounded-md bg-white px-4 py-3 text-sm font-semibold text-brand shadow-lg transition-transform focus:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        Pular para o conteúdo
+      </a>
       {/* Barra lateral — o fundo vai até o fim da página; o conteúdo dela fica preso no topo ao rolar,
           com o usuário sempre no pé da tela. */}
       <aside className="hidden bg-nav text-nav-fg md:block">
         <div className="sticky top-0 flex h-screen min-h-[560px] flex-col overflow-y-auto">
-          <div className="flex items-center gap-3.5 px-5 pb-[22px] pt-6">
+          {/* O logo leva à tela inicial do papel (Hoje; Comanda para o garçom). A frase pode quebrar:
+              com a fonte aumentada no navegador, ela não estoura a barra de 236 px (audit de 22/11). */}
+          <Link
+            to={home}
+            aria-label="Gesway, ir para o início"
+            className="mx-2 mb-2 mt-3 flex items-center gap-3.5 rounded-[10px] px-3 pb-[14px] pt-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-accent"
+          >
             <GeswayLogo className="h-[47px] w-14 shrink-0 text-nav-strong" />
-            <div className="flex flex-col">
-              <span className="text-[23px] font-extrabold leading-7 tracking-[0.03em] text-nav-strong">
+            <div className="flex min-w-0 flex-col" aria-hidden="true">
+              <span className="text-wordmark text-nav-strong">
                 GES<span className="text-nav-accent">WAY</span>
               </span>
-              <span className="whitespace-nowrap text-[10.5px] leading-[15px] tracking-[0.08em] text-nav-muted">GESTÃO HOTELEIRA</span>
+              <span className="text-wordmark-tag text-nav-muted">GESTÃO HOTELEIRA</span>
             </div>
-          </div>
+          </Link>
           <div className="mx-5 h-px bg-white/15" />
           <nav aria-label="Menu" className="flex flex-col gap-4 px-3 pt-[18px]">
             {groups.map((group, index) => (
@@ -68,7 +84,7 @@ export function AppShell() {
               >
                 <span
                   id={`menu-${group.id}`}
-                  className="px-2.5 pb-2 text-[11px] font-semibold uppercase leading-4 tracking-[0.12em] text-nav-muted"
+                  className="px-2.5 pb-2 text-overline uppercase text-nav-muted"
                 >
                   {group.title}
                 </span>
@@ -85,12 +101,12 @@ export function AppShell() {
           <div data-area="usuario" className="mt-auto flex items-center gap-2.5 border-t border-white/15 px-3 py-3">
             <span
               aria-hidden="true"
-              className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-nav-fg text-[13px] font-bold text-brand"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-nav-fg text-sm font-bold text-brand"
             >
               {initials(user?.name)}
             </span>
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-[13px] font-semibold leading-[18px] text-nav-strong" title={user?.name}>
+              <span className="truncate text-sm font-semibold text-nav-strong" title={user?.name}>
                 {user?.name}
               </span>
               <span className="truncate text-support text-nav-muted">{role}</span>
@@ -125,7 +141,11 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 pb-[calc(5rem+max(6px,env(safe-area-inset-bottom)))] md:px-8 md:pb-4">
+        <main
+          id="conteudo"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1440px] flex-1 p-4 pb-[calc(5rem+max(6px,env(safe-area-inset-bottom)))] focus:outline-none md:px-8 md:pb-4"
+        >
           <Outlet />
         </main>
 
