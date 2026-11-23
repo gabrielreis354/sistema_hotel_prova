@@ -43,8 +43,9 @@ export function AppShell() {
 
   // minmax(0,1fr): a coluna do conteúdo encolhe com a tela; com 1fr ela crescia até a tabela mais
   // larga e a página rolava de lado em 768 px (qa-explorador de 15/11, CA-08.g).
+  // As laterais seguras (pl/pr) só valem no iPhone deitado, por causa do entalhe; no resto são 0.
   return (
-    <div className="min-h-screen bg-ground md:grid md:grid-cols-[236px_minmax(0,1fr)]">
+    <div className="min-h-screen bg-ground pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:grid md:grid-cols-[236px_minmax(0,1fr)]">
       {/* Barra lateral — o fundo vai até o fim da página; o conteúdo dela fica preso no topo ao rolar,
           com o usuário sempre no pé da tela. */}
       <aside className="hidden bg-nav text-nav-fg md:block">
@@ -126,7 +127,7 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-4">
+        <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 pb-[calc(5rem+max(6px,env(safe-area-inset-bottom)))] md:px-8 md:pb-4">
           <Outlet />
         </main>
 
@@ -187,7 +188,7 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
             ref={sheetRef}
             id="menu-mais"
             aria-label="Mais opções"
-            className="sheet-up fixed inset-x-0 bottom-[calc(3rem+env(safe-area-inset-bottom))] z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
+            className="sheet-up fixed inset-x-0 bottom-[calc(3rem+max(6px,env(safe-area-inset-bottom)))] z-30 rounded-t-lg border-t border-gray-200 bg-white p-2 shadow-lg"
           >
             <ul>
               {more.map((item) => (
@@ -214,7 +215,7 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
       {/* Folga para a barra de gestos do iPhone (estudo de responsividade, R-4). */}
       <nav
         aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)]"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-gray-200 bg-white pb-[max(6px,env(safe-area-inset-bottom))]"
       >
         {primary.map((item) => (
           <NavLink

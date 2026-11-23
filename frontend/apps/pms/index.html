@@ -2,7 +2,9 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: sem ele o Safari devolve 0 para env(safe-area-inset-*) e a barra do celular
+         fica embaixo da barra de gestos (SPEC-10, R-4). A casca compensa as laterais no iPhone deitado. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Gesway — Gestão hoteleira</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
