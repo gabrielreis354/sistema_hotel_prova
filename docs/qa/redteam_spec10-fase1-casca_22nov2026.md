@@ -91,3 +91,71 @@ nenhum
 | — | `favicon.svg` com cor literal | Sem mudança: arquivo estático, não lê token | — |
 
 Suíte do pms depois do tratamento: 64 arquivos e 613 testes verdes, typecheck limpo, `desk` no CSS gerado como `@media (min-width: 1280px) and (pointer: fine)`.
+
+---
+
+## 2ª rodada (audit do Impeccable)
+**Diff:** `86359fb..feature/t10-fase1-casca` (commits 7d10795 e 971b676) · **Data:** 22/11/2026
+**Arquivos auditados:** 5 (`AppShell.tsx`, `AppShell.test.tsx`, `typeScale.test.ts`, `tailwind-preset.js`, `cn.ts`)
+**Achados no escopo:** 3 (🔴 0 · 🟡 0 · 🟢 3) · **Repassados:** 0
+
+### Veredito
+**APROVADO**
+
+Não há 🔴 nem 🟡. Os tokens saem certos no CSS, o `cn()` resolve os conflitos do jeito esperado, o atalho fica escondido em qualquer zoom e nenhum nome do roteiro e2e mudou. Os três 🟢 são melhorias. O mais útil é o do teste do atalho: hoje ele fica verde mesmo com o atalho invisível ao receber foco.
+
+### 🟢 [Acessibilidade/WCAG 2.5.3] O nome do link do logo não inclui a frase visível "GESTÃO HOTELEIRA"
+**Onde:** `frontend/apps/pms/src/components/AppShell.tsx:64` (`aria-label="Gesway, ir para o início"`) e `:69-74` (texto visível com `aria-hidden`)
+**Cenário:** o texto visível do link é "GESWAY GESTÃO HOTELEIRA". Quem usa controle por voz e diz "clicar Gesway" acerta, porque o nome começa pela palavra principal, e isso atende ao núcleo da 2.5.3. Quem diz "clicar Gestão hoteleira" não acerta nada. O `aria-hidden` no texto não causa problema: o `aria-label` do `<a>` já substitui o conteúdo no nome, o SVG é `aria-hidden` com `focusable="false"` (`GeswayLogo.tsx:12`), e o leitor de tela não lê nada em duplicidade.
+**Correção sugerida:** é opcional. Para a frase contar também, usar "Gesway, gestão hoteleira, ir para o início".
+
+### 🟢 [Testes] Os mutantes que quebram o comportamento do atalho sobrevivem
+**Onde:** `frontend/apps/pms/src/components/AppShell.test.tsx:146-153`
+**Cenário:** o teste confere só o `href`, o texto, a ordem antes da `<aside>` e o `id` do `main`. Sobrevivem estes mutantes:
+- (a) Apagar `focus:translate-y-0` (`AppShell.tsx:53`): o atalho recebe o foco fora da tela e nunca aparece, o que falha a WCAG 2.4.7.
+- (b) Apagar `-translate-y-24`: o atalho fica sempre visível por cima do logo.
+- (c) Apagar `tabIndex={-1}` (`:146`): o navegador ainda move o ponto de partida do Tab, mas o `document.activeElement` fica no `body`.
+- (d) Tirar o `aria-hidden` do texto do logo: esse é inofensivo.
+
+No teste do logo, o ADMIN não é exercitado (`:140-141` cobre RECEPTIONIST e WAITER). O risco é pequeno porque o `homeForRole` trata o ADMIN como a recepção.
+**Correção sugerida:** no teste do atalho, conferir na tag `<a href="#conteudo">` que existem as duas classes, `-translate-y-24` e `focus:translate-y-0`, e conferir `tabindex="-1"` no `<main>`.
+
+### 🟢 [UI/Movimento] O atalho anima sem respeitar `prefers-reduced-motion`
+**Onde:** `frontend/apps/pms/src/components/AppShell.tsx:53` (`transition-transform`)
+**Cenário:** para quem pediu movimento reduzido, o atalho desliza 96 px ao receber o foco. O resto do projeto anula a transição nesse caso: `ReservationsListPage.tsx:124`, `RoomPicker.tsx:53` com `motion-reduce:transition-none`, e `index.css:33` para a folha "Mais". O `DESIGN_PMS.md:62` põe `prefers-reduced-motion` como regra.
+**Correção sugerida:** acrescentar `motion-reduce:transition-none`.
+
+### Repassados a outro dev
+nenhum
+
+### O que foi verificado e está correto
+- **Tokens no Tailwind 3.4.17:** gerei o CSS do pms no scratchpad. O `.text-wordmark` sai com `font-size 23px`, `line-height 28px`, `letter-spacing 0.03em` e `font-weight 800`. O `.text-overline` sai com 11px/16px, `0.12em` e 600. O `.text-wordmark-tag` sai com 10.5px/15px e `0.08em`, sem peso, o que está certo porque herda o normal. O `letterSpacing` e o `fontWeight` no objeto do `fontSize` funcionam.
+- **`cn()` (tailwind-merge 2.6), testei com chamadas reais:**
+  - `text-wordmark` com `text-wordmark-tag`, nas duas ordens: fica a última. É o certo, porque as duas são `font-size` do mesmo grupo. A `-tag` não é lida como `text-wordmark` mais sufixo.
+  - `text-wordmark-tag` com `text-nav-muted`: as duas ficam, porque tamanho não conflita com cor.
+  - `text-overline` com `font-bold`, e `text-wordmark` com `tracking-wide` ou `leading-tight`: as duas ficam. O ajuste explícito vence pela ordem do CSS (o `fontSize` sai antes de `fontWeight`/`tracking`).
+  - `text-overline` com `text-sm`: fica `text-sm`.
+- **Atalho escondido:** tudo está em rem. A posição é `top-3` (0,75 rem), o deslocamento é −6 rem e a altura é 2,75 rem com uma linha, então a borda de baixo fica em −2,5 rem com qualquer zoom de página. Para aparecer, o texto precisaria quebrar em 4 linhas. Em 320 px de largura (o equivalente a 400% de zoom) ele cabe em uma, com cerca de 170 px. Fora da janela não dá para clicar nele.
+- **Camadas:** o atalho é `z-50`, a folha do "Mais" e o fundo dela são `z-30`, e a barra de abas é `z-40`. O atalho fica no topo e a folha embaixo, então não se sobrepõem. Não existe modal ou dialog no pms nem no `@hotel/ui` (busquei `Dialog` e `fixed inset-0`). O leitor de tela anunciar o atalho na ordem de leitura é o padrão da técnica G1 e é aceitável.
+- **`main` com `tabIndex={-1}`:** um clique numa área sem controle dentro do `main` passa a focá-lo. Não aparece contorno, por causa do `focus:outline-none`, e o efeito é o mesmo do ponto de partida do Tab que o navegador já define. O único código que olha o `document.activeElement` (`ItemList.tsx:69`) compara com o próprio input e não é afetado. O `href="#conteudo"` no `BrowserRouter` acrescenta `#conteudo` à URL e uma entrada no histórico. Isso não mexe no `pathname`, então a folha do "Mais" (`AppShell.tsx:172`) não reage.
+- **Link do logo:**
+  - O anel `ring-nav-accent` sobre `bg-nav` tem 4,28:1, acima de 3:1, conforme a 1ª rodada.
+  - O `mx-2 mt-3` dá folga para o anel de 2 px dentro do `overflow-y-auto`, sem corte.
+  - O logo fica fora do `<nav aria-label="Menu">` e não precisa de `aria-current`: o "Hoje" do menu já marca a página atual. Link para a própria página, num logo, é o padrão esperado.
+- **e2e:** o `roteiro.spec.ts` não usa `link` fora de "Contas abertas" (`:120`) e não usa `main`, "Pular" nem "Gesway". Nenhum nome acessível de que ele depende mudou.
+- **Pé da barra com `text-sm`/`size-10`:** a coluna de 236 px, menos 24 px de padding, menos 40 px do avatar e 10 px de gap, deixa 162 px para o nome (antes eram 164 px, com 13 px de fonte). A 14 px em Inter semibold cabem cerca de 21 caracteres, uns 2 a menos que antes. "Recepção Aurora 1" (17) cabe. O `truncate` com `title` continua.
+- **Testes (P2):** o teste "nenhum `text-[..]`" e o `typeScale` com os três tamanhos novos derrubam o mutante que tira um nome do `cn.ts`, porque sem o grupo o tailwind-merge lê `text-wordmark` como cor e apaga a classe ao lado do `text-gray-600`.
+
+### Não foi possível verificar
+- Leitor de tela real (NVDA/VoiceOver) no link do logo e no atalho. A análise vem da árvore de acessibilidade calculada pelas regras ARIA.
+- Não abri as capturas `audit_*.png`, e não rodei a suíte nem o e2e de novo. Valem os números do autor (621 testes verdes).
+
+### Tratamento da 2ª rodada (Sirlande, 22/11)
+
+| # | Achado | O que foi feito | Commit |
+|---|---|---|---|
+| 🟢1 | Nome do link do logo sem a frase visível (WCAG 2.5.3) | `aria-label="Gesway, gestão hoteleira, ir para o início"` | `0e093bb`, `f7fa35e` |
+| 🟢2 | Teste do atalho deixava passar 3 mutantes | O teste confere `fixed`, `-translate-y-24`, `focus:translate-y-0` e `motion-reduce:transition-none` no atalho, e o `tabindex="-1"` no `main`; o logo do administrador também é testado. Os 3 mutantes agora derrubam a suíte (rodado) | `0e093bb` |
+| 🟢3 | Atalho desliza sem respeitar `prefers-reduced-motion` | `motion-reduce:transition-none` | `0e093bb`, `f7fa35e` |
+
+Suíte do pms: 64 arquivos e 621 testes verdes, typecheck limpo.
