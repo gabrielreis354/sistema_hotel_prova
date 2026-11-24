@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatDateBR, formatDateTimeBR } from '@hotel/domain';
 import { ActionSlot, Button, Money, Spinner, StatusBadge, cn } from '@hotel/ui';
 import { ApiError } from '../../../lib/http.js';
+import { useOnline } from '../../../lib/online.js';
 import { mutateOnce, promiseOnce } from '../../../lib/submitLock.js';
 import {
   ReservationStatusBadge,
@@ -420,6 +421,9 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
   const release = useReleaseRoom();
   const qc = useQueryClient();
   const busy = release.isPending;
+  // Sem rede o envio fica pausado e só sai quando ela volta: a tela diz isso, em vez de
+  // "Liberando…" sem fim (QA de 24/11, 🟢-3). Offline antes de confirmar, nem deixa enviar.
+  const online = useOnline();
   const [confirming, setConfirming] = useState(false);
   // A lista vem do analytics-service, que só tira o quarto quando o evento chega: por alguns
   // segundos, a linha continua aqui depois do sucesso. Guardar a limpeza que foi liberada impede
@@ -469,12 +473,17 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
             id={panelId}
             title={`Confirmar que o quarto ${room.number} está limpo`}
             confirmLabel="Liberar para a venda"
-            busyLabel="Liberando…"
+            busyLabel={release.isPaused ? 'Sem conexão…' : 'Liberando…'}
             busy={busy}
+            canConfirm={online}
             onConfirm={confirmRelease}
             onCancel={() => setConfirming(false)}
           >
-            O quarto volta para a venda. Depois disso, só o administrador consegue tirá-lo de novo.
+            {release.isPaused
+              ? 'Sem conexão: o quarto será liberado assim que a rede voltar.'
+              : !online
+                ? 'Sem conexão: confirme quando a rede voltar.'
+                : 'O quarto volta para a venda. Depois disso, só o administrador consegue tirá-lo de novo.'}
           </ConfirmPanel>
         )
       }

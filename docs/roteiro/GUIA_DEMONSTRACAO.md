@@ -198,7 +198,7 @@ diz 'Sem conexão' e não finge que o dado está atualizado."
 4. **Fazer check-out → Confirmar check-out.**
 
 **A banca vê:** a conta quitada e fechada, a estadia encerrada e o quarto em limpeza.
-**Dizer:** "O saldo vem do servidor, não da tela: outro balcão pode ter recebido no meio. O quarto
+**Dizer:** "O saldo vem do servidor, não da tela: se outro balcão recebeu antes, este já abre com o saldo novo. O quarto
 vai para limpeza, e a recepção o libera no painel quando a camareira termina."
 
 ### Passo 6 — Reserva direta com PIX (3 min) · Swagger
@@ -229,7 +229,8 @@ pagamento, autenticado, e não o hóspede."
 categoria, meios de pagamento e hóspedes frequentes, incluindo o que foi feito nos passos anteriores.
 **Dizer:** "Esta tela não vem do sistema da recepção. Ela vem do `analytics-service`, outro serviço,
 com banco próprio. Cada check-in e pagamento virou um evento no RabbitMQ, e ele aplicou esses
-eventos. Se o analytics cair, a recepção continua funcionando."
+eventos. Se o analytics cair, o balcão continua: reservas, check-in, check-out e pagamento. O
+que se perde são os números do painel do dia."
 
 ### Passo 8 — Monitoramento (30 s) · Grafana
 
@@ -251,7 +252,7 @@ Siga a tabela de "Durante a demonstração" do [guia do passo 8](PASSO_8_GRAFANA
 | Login diz "Muitas tentativas de entrar a partir desta rede" | O nginx limita a 5 logins por minuto por IP. Espere um minuto |
 | Painel Hoje ou Indicadores zerados | Rode o `seed` de novo (é do dia) e, para os indicadores, o `outbox-initial-load` |
 | Celular não abre o app | O `pnpm ... dev` precisa do `--host`; celular e computador na mesma rede; o firewall do Windows pode pedir para liberar a porta 5173 |
-| Indicadores com erro | `docker compose ps`: o `analytics-service` está no ar? Se não, `docker compose up -d analytics-service`. Os outros passos não dependem dele |
+| Indicadores com erro | `docker compose ps`: o `analytics-service` está no ar? Se não, `docker compose up -d analytics-service`. Reservas, check-in, check-out e pagamento não dependem dele; o painel Hoje perde os cartões, a lista Atenção e o bloco Em limpeza |
 | Algo do passo 6 | Tabela "Se algo der errado" do [guia do passo 6](PASSO_6_RESERVA_DIRETA_PIX.md) |
 | Grafana vazio ("No data") | Intervalo **Last 3 hours**; o profile precisa ter subido antes do passo 1 ([guia do passo 8](PASSO_8_GRAFANA.md)) |
 

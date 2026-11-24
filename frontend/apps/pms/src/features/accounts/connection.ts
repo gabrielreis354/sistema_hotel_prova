@@ -19,6 +19,22 @@ export function looksOffline(online: boolean, mine: QueueEntry[]): boolean {
 }
 
 /**
+ * Por que a faixa aparece: o aparelho está sem rede (`network`) ou a rede está de pé e o servidor
+ * não respondeu (`server`: 502, Wi-Fi sem saída). Com 502 a faixa dizia "Sem conexão", e o garçom
+ * ia conferir o Wi-Fi, que estava bom (QA de 24/11, 🟢-7).
+ */
+export type OfflineReason = 'network' | 'server';
+
+export function offlineReason(online: boolean): OfflineReason {
+  return online ? 'server' : 'network';
+}
+
+const LEAD: Record<OfflineReason, { lead: string; message: string }> = {
+  network: { lead: 'Sem conexão:', message: 'os lançamentos serão enviados quando a rede voltar.' },
+  server: { lead: 'O sistema não respondeu:', message: 'os lançamentos ficam na fila e são enviados sozinhos.' },
+};
+
+/**
  * Texto da faixa de "sem conexão". `waiting` é quantos lançamentos deste usuário ainda não
  * chegaram ao servidor, em qualquer conta; com zero, a faixa só diz o que acontece com o próximo
  * toque. `elsewhere` é quantos deles são de outras contas: sem dizer isso, a faixa dizia "3" e a
@@ -27,18 +43,17 @@ export function looksOffline(online: boolean, mine: QueueEntry[]): boolean {
 export function offlineBannerText(
   waiting: number,
   elsewhere = 0,
+  reason: OfflineReason = 'network',
 ): { lead: string; message: string; waiting: string | null } {
-  if (waiting <= 0) return { lead: 'Sem conexão:', message: 'os lançamentos serão enviados quando a rede voltar.', waiting: null };
-  const count = waiting === 1 ? '1 lançamento aguardando a rede' : `${waiting} lançamentos aguardando a rede`;
+  const { lead, message } = LEAD[reason];
+  if (waiting <= 0) return { lead, message, waiting: null };
+  const awaiting = reason === 'server' ? 'aguardando o envio' : 'aguardando a rede';
+  const count = waiting === 1 ? `1 lançamento ${awaiting}` : `${waiting} lançamentos ${awaiting}`;
   const where =
     elsewhere <= 0
       ? ''
       : elsewhere >= waiting
         ? waiting === 1 ? ' (em outra conta)' : ' (em outras contas)'
         : elsewhere === 1 ? ' (1 em outra conta)' : ` (${elsewhere} em outras contas)`;
-  return {
-    lead: 'Sem conexão:',
-    message: 'os lançamentos serão enviados quando a rede voltar.',
-    waiting: `${count}${where}.`,
-  };
+  return { lead, message, waiting: `${count}${where}.` };
 }

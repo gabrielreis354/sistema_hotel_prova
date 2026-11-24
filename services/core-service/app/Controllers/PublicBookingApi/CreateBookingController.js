@@ -17,6 +17,8 @@ import PaymentModel from '../../Models/PaymentModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { logError } from '../../utils/logError.js';
+import { publicStayDatesError } from '../../utils/publicStayDates.js';
+import isUuid from '../../utils/isUuid.js';
 
 const NO_AVAILABILITY = 'Sem disponibilidade na categoria para o período';
 
@@ -48,10 +50,14 @@ export default async function CreateBookingController(request, response) {
         if (!check_out)   errors.push('check_out obrigatório (YYYY-MM-DD)');
         if (!guest?.full_name) errors.push('guest.full_name obrigatório');
         if (!guest?.email && !guest?.phone) errors.push('informe ao menos guest.email ou guest.phone');
+        // CPF opcional, mas válido quando vem (QA 24/11, 🟡-4): a mesma regra do balcão
+        // (SPEC-11), qualquer que seja o provider. Antes só o Asaas validava.
+        if (guest?.cpf && !isValidCpf(guest.cpf)) errors.push('guest.cpf inválido');
         if (errors.length) return response.status(400).json({ errors });
-        if (check_in >= check_out) {
-            return response.status(400).json({ error: 'check_out deve ser posterior a check_in' });
-        }
+        const datesError = publicStayDatesError(check_in, check_out);
+        if (datesError) return response.status(400).json({ error: datesError });
+        // category_id que não é UUID chegava ao Postgres como cast inválido e virava 500.
+        if (!isUuid(category_id)) return response.status(404).json({ error: 'Categoria não encontrada' });
 
         // 2. Categoria válida e pertencente ao tenant
         const category = await RoomCategoryModel.findOne({
@@ -101,11 +107,8 @@ export default async function CreateBookingController(request, response) {
         if (pix.requiresPayerCpf && !(guest.cpf && onlyDigits(guest.cpf))) {
             return response.status(400).json({ errors: ['guest.cpf obrigatório para pagamento PIX'] });
         }
-        // CPF malformado o Asaas recusa, e a recusa virava 503. Só vale para quem exige CPF:
-        // no fake e no Mercado Pago o CPF é opcional e não vai ao PSP.
-        if (pix.requiresPayerCpf && !isValidCpf(guest.cpf)) {
-            return response.status(400).json({ errors: ['guest.cpf inválido'] });
-        }
+        // CPF preenchido e malformado já saiu com 400 na validação de entrada, para qualquer
+        // provider: o Asaas não recebe CPF que ele recusaria com 503.
         let charge;
         try {
             charge = await pix.createCharge({

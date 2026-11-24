@@ -11,6 +11,7 @@ import {
   toTodayAlerts,
   toggleFocusTarget,
   type TodayReservation,
+  departuresError,
 } from './todayLogic.js';
 
 const TODAY = '2026-11-04';
@@ -216,5 +217,15 @@ describe('toggleFocusTarget — foco do "Ver todas" e do "Mostrar menos" (ressal
 
   it('sem item novo para mostrar, o foco fica no botão', () => {
     expect(toggleFocusTarget(true, 8)).toEqual({ kind: 'button' });
+  });
+});
+
+describe('departuresError — o bloco Saídas fala das saídas (QA 24/11, 🟢-6)', () => {
+  it('troca o nome do bloco vizinho; outro erro e nulo passam iguais', () => {
+    const inHouse = new Error('Não foi possível carregar os hóspedes na casa. Confira a conexão e tente de novo.');
+    expect(departuresError(inHouse)?.message).toBe('Não foi possível carregar as saídas. Confira a conexão e tente de novo.');
+    const other = new Error('Sessão expirada.');
+    expect(departuresError(other)).toBe(other);
+    expect(departuresError(null)).toBeNull();
   });
 });

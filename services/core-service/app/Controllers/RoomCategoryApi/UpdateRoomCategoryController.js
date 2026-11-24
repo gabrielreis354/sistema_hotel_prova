@@ -5,6 +5,7 @@ import { parseInteger } from '../../utils/roomRules.js';
 import { invalidInputBody } from '../../utils/roomErrors.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { logError } from '../../utils/logError.js';
+import { categoryNameTaken } from '../../utils/categoryNameTaken.js';
 
 export default async function UpdateRoomCategoryController(request, response) {
     try {
@@ -19,6 +20,12 @@ export default async function UpdateRoomCategoryController(request, response) {
         // findInTenant: :id que não é UUID responde 404, não 500 do cast no Postgres (🟡-3).
         const category = await findInTenant(RoomCategoryModel, id, tenantId);
         if (!category) return response.status(404).json({ error: 'Categoria não encontrada' });
+
+        // Mesmo nome de OUTRA categoria em outra caixa → 409; a própria pode mudar a caixa.
+        if (name !== undefined) {
+            const taken = await categoryNameTaken(tenantId, name.trim(), category.id);
+            if (taken) return response.status(409).json(taken);
+        }
 
         // Aparado, como o produto (🟢-3): "P " ao lado de "P" eram duas categorias na tela.
         if (name !== undefined)            category.name = name.trim();
