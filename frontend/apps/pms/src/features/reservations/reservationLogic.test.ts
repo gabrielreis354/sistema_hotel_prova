@@ -184,6 +184,26 @@ describe('buildBillTimeline — conta em linha do tempo', () => {
     ]);
   });
 
+  // QA de 24/11 (🟡-1): "Caipirinha R$ 66,00" para 3 caipirinhas de R$ 22,00 parecia preço errado.
+  it('consumo com mais de uma unidade diz a quantidade no rótulo; uma unidade fica como antes', () => {
+    const t = buildBillTimeline({
+      ...bill,
+      consumptions: [
+        { id: 'c3', description: 'Caipirinha', quantity: 3, unit_price: 22, amount: 66, consumed_at: '2026-10-22T19:00:00.000Z' },
+        { id: 'c4', description: 'Água', quantity: 1, unit_price: 5.5, amount: 5.5, consumed_at: '2026-10-22T19:05:00.000Z' },
+        { id: 'c5', description: 'Suco', amount: 8, consumed_at: '2026-10-22T19:10:00.000Z' },
+      ],
+      voided_consumptions: [
+        { id: 'x9', description: 'Vinho', quantity: 2, amount: 180, consumed_at: '2026-10-22T20:00:00.000Z', deleted_by: { name: 'Ana' } },
+      ],
+    });
+    const label = (key: string) => t.entries.find((e) => e.key === key)?.label;
+    expect(label('consumption-c3')).toBe('3 × Caipirinha');
+    expect(label('consumption-c4')).toBe('Água');
+    expect(label('consumption-c5')).toBe('Suco'); // resposta sem quantity (versão antiga do servidor)
+    expect(label('voided-consumption-x9')).toBe('2 × Vinho (estornado por Ana)');
+  });
+
   // CA-05.2.j: consumo estornado aparece para a equipe com quem autorizou, mas nunca pesa na conta.
   describe('consumo estornado (CA-05.2.j)', () => {
     const voided = {

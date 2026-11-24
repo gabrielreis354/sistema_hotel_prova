@@ -169,11 +169,21 @@ export interface BillLike {
   check_out_date?: string;
   room_total?: number;
   balance_due?: number;
-  consumptions?: { id?: string; description?: string; amount?: number; consumed_at?: string }[];
+  consumptions?: {
+    id?: string;
+    description?: string;
+    /** Unidades lançadas (QA 24/11). Ausente em resposta de servidor antigo: vale 1. */
+    quantity?: number;
+    unit_price?: number;
+    amount?: number;
+    consumed_at?: string;
+  }[];
   /** Consumos estornados (CA-05.2.j). `deleted_by` nulo = sem registro confiável de quem autorizou. */
   voided_consumptions?: {
     id?: string;
     description?: string;
+    quantity?: number;
+    unit_price?: number;
     amount?: number;
     consumed_at?: string;
     deleted_by?: { name?: string } | null;
@@ -191,6 +201,17 @@ export interface BillLike {
 }
 
 export type TimelineKind = 'lodging' | 'consumption' | 'payment';
+
+/**
+ * Rótulo do consumo na conta e no comprovante: "3 × Caipirinha" quando há mais de uma unidade.
+ * Sem a quantidade, 3 caipirinhas de R$ 22,00 apareciam como "Caipirinha R$ 66,00", e o hóspede
+ * lia uma caipirinha de R$ 66,00 (QA de 24/11, 🟡-1). Uma unidade, ou servidor antigo sem
+ * `quantity`, fica só com o nome, como antes. Mesmo "×" da comanda do garçom.
+ */
+export function consumptionLabel(c: { description?: string; quantity?: number }): string {
+  const name = c.description || 'Consumo';
+  return c.quantity && c.quantity > 1 ? `${c.quantity} × ${name}` : name;
+}
 
 export interface TimelineEntry {
   key: string;
@@ -307,7 +328,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       kind: 'consumption',
       at: c.consumed_at ? new Date(c.consumed_at) : null,
       dateOnly: false,
-      label: c.description || 'Consumo',
+      label: consumptionLabel(c),
       amountCents: cents(c.amount),
       notCounted: false,
       awaiting: false,
@@ -327,7 +348,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       kind: 'consumption',
       at: c.consumed_at ? new Date(c.consumed_at) : null,
       dateOnly: false,
-      label: `${c.description || 'Consumo'} (${note})`,
+      label: `${consumptionLabel(c)} (${note})`,
       amountCents: cents(c.amount),
       notCounted: true,
       awaiting: false,
