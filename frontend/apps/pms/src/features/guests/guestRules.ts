@@ -13,15 +13,15 @@ export function canDeleteGuest(role: Role | undefined): boolean {
 export const DELETE_GUEST_REASON = 'Só o administrador exclui hóspedes.';
 
 /**
- * Termo de busca para achar o hóspede que barrou o cadastro com 409 ("CPF ou e-mail já
- * cadastrado"): os dígitos do CPF, se houver CPF completo; senão o e-mail. `null` se não há com
- * o que procurar. QA de 24/11 (🟢-2): a recepcionista precisava voltar à busca e digitar de novo.
+ * Termos de busca para achar o hóspede que barrou o cadastro com 409 ("CPF ou e-mail já
+ * cadastrado"), na ordem: os dígitos do CPF completo e o e-mail. O 409 não diz qual dos dois
+ * colidiu, então a tela tenta os dois (qa-redteam de 24/11). QA de 24/11 (🟢-2): a recepcionista
+ * precisava voltar à busca e digitar de novo.
  */
-export function duplicateSearchTerm(draft: { cpf?: string; email?: string }): string | null {
+export function duplicateSearchTerms(draft: { cpf?: string; email?: string }): string[] {
   const cpf = (draft.cpf ?? '').replace(/\D/g, '');
-  if (cpf.length === 11) return cpf;
   const email = (draft.email ?? '').trim();
-  return email || null;
+  return [...(cpf.length === 11 ? [cpf] : []), ...(email ? [email] : [])];
 }
 
 /**

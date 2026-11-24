@@ -350,3 +350,25 @@ Feitas pelo Sirlande, com o aceite dele para mexer nas telas do Gabriel. O Gabri
 
 Além do QA, o CI do core ficava vermelho das 21h à meia-noite de Brasília, porque três testes tiravam "hoje" da data UTC. Os testes passaram a usar o `todayInHotel`.
 
+### Red team do diff e simulação de ponta a ponta (24/11)
+- **qa-redteam** (`docs/qa/redteam_qa-roteiro-24nov_24nov2026.md`): APROVADO COM RESSALVAS, sem 🔴.
+  - Os dois 🟡 foram corrigidos na mesma branch: o atalho "Usar este hóspede" some quando o CPF ou o e-mail muda e ignora resposta atrasada; o teste de outro hotel agora pega a regressão de tenant.
+  - Dos 🟢, foram corrigidos o CPF do teste, as datas relativas, o teste do fuso, os JSDoc e a busca por CPF e depois por e-mail.
+  - Ficaram como estão:
+    - a API pública responde 400 sem `code`, e o balcão responde 422 `CHECK_IN_IN_PAST` (5º semestre);
+    - o `departuresError` depende do texto da mensagem;
+    - o "Liberar quarto" sem rede não tem teste de tela (conferido pelo red team e pelo `isPaused`).
+- **Pendência criada por esta branch:** com a regra da entrada no passado, 19 testes de API pública com datas fixas de 2027 (o primeiro é 01/05/2027) passam a falhar quando essas datas chegarem. Os arquivos são `public-booking`, `asaas-webhook`, `rooms-race`, `payments` e `bill-consumptions`. Trocar por datas relativas (`todayInHotel` + `addDays`) no 5º semestre, antes de maio.
+- **Simulação da família Oliveira**, no compose reconstruído com a branch:
+  - Carlos foi cadastrado no balcão com CPF válido, e a reserva walk-in da Suíte 202 (2 diárias) mostrou R$ 700,00 antes de confirmar;
+  - o check-in direto de PENDING funcionou;
+  - o garçom, em 360 px, lançou 4 almoços, 3 refrigerantes e 2 caipirinhas, com os nomes inteiros;
+  - o painel Hoje mostrou a família em "Na casa";
+  - a conta, em 800 px, coube no cartão (514 de 514 px) e mostrou "4 × Almoço executivo";
+  - o pagamento de R$ 945,00 no cartão zerou o saldo;
+  - o check-out levou o quarto para limpeza;
+  - o comprovante saiu com as quantidades e o CPF mascarado;
+  - o quarto foi liberado no painel e os indicadores somaram o pagamento.
+  - Capturas em `docs/qa/evidencias/familia_24112026/`.
+  - **Observação:** a linha do tempo é cronológica. O pagamento de hoje vem antes da diária de amanhã, e por isso essa linha mostra "R$ 350,00 crédito" no saldo corrente. A conta está certa; a leitura é que pode confundir. O comportamento é anterior a esta branch.
+

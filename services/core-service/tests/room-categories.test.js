@@ -119,9 +119,11 @@ describe('Nome da categoria sem diferença de caixa (QA 24/11, 🟢-1)', () => {
     });
 
     it('o mesmo nome em outro hotel continua valendo', async () => {
+        // "Suíte Família" existe no primeiro hotel (teste acima): sem o tenant_id na busca, o
+        // vizinho levaria 409 e este teste pegaria a regressão (qa-redteam de 24/11, 🟡-2).
         const { jwt: otherJwt } = await registerAndLogin(app, { tenantName: 'Hotel Categoria Vizinho' });
         const res = await request(app).post('/room-categories').set('Authorization', `Bearer ${otherJwt}`)
-            .send({ name: 'luxo', capacity: 2, price_per_night: 100 });
+            .send({ name: 'suíte família', capacity: 2, price_per_night: 100 });
         expect(res.status).toBe(201);
     });
 });

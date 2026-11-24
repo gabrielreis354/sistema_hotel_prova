@@ -19,12 +19,6 @@ export function looksOffline(online: boolean, mine: QueueEntry[]): boolean {
 }
 
 /**
- * Texto da faixa de "sem conexão". `waiting` é quantos lançamentos deste usuário ainda não
- * chegaram ao servidor, em qualquer conta; com zero, a faixa só diz o que acontece com o próximo
- * toque. `elsewhere` é quantos deles são de outras contas: sem dizer isso, a faixa dizia "3" e a
- * lista da conta aberta mostrava 1 na fila (🟢 do red team de 15/11).
- */
-/**
  * Por que a faixa aparece: o aparelho está sem rede (`network`) ou a rede está de pé e o servidor
  * não respondeu (`server`: 502, Wi-Fi sem saída). Com 502 a faixa dizia "Sem conexão", e o garçom
  * ia conferir o Wi-Fi, que estava bom (QA de 24/11, 🟢-7).
@@ -40,6 +34,12 @@ const LEAD: Record<OfflineReason, { lead: string; message: string }> = {
   server: { lead: 'O sistema não respondeu:', message: 'os lançamentos ficam na fila e são enviados sozinhos.' },
 };
 
+/**
+ * Texto da faixa de "sem conexão". `waiting` é quantos lançamentos deste usuário ainda não
+ * chegaram ao servidor, em qualquer conta; com zero, a faixa só diz o que acontece com o próximo
+ * toque. `elsewhere` é quantos deles são de outras contas: sem dizer isso, a faixa dizia "3" e a
+ * lista da conta aberta mostrava 1 na fila (🟢 do red team de 15/11).
+ */
 export function offlineBannerText(
   waiting: number,
   elsewhere = 0,

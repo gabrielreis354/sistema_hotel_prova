@@ -1,11 +1,11 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { formatCpf } from '@hotel/domain';
 import { Button, Card, Field, Input, Spinner } from '@hotel/ui';
 import { MIN_SEARCH_TERM, searchTermOf, useCreateGuest, useGuestSearch, type Guest } from '../../guests/index.js';
 import { ApiError } from '../../../lib/http.js';
 import { guestDraftFromTerm, maskCpf, type GuestDraft } from '../reservationLogic.js';
 import { searchGuests } from '../../guests/guestsApi.js';
-import { duplicateSearchTerm, findDuplicateGuest } from '../../guests/guestRules.js';
+import { duplicateSearchTerms, findDuplicateGuest } from '../../guests/guestRules.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Espera o recepcionista parar de digitar antes de consultar: uma requisição por termo, não por tecla.
@@ -137,13 +137,18 @@ function NewGuestForm({
   const [serverError, setServerError] = useState<string | null>(null);
   // Hóspede que já tem este CPF ou e-mail (409): um toque o escolhe, sem voltar à busca (QA 24/11).
   const [existing, setExisting] = useState<Guest | null>(null);
+  // Só a busca do último envio pode mostrar o atalho: uma resposta atrasada de um 409 anterior
+  // traria de volta um hóspede que já não bate com o que está digitado (qa-redteam de 24/11, 🟡-1).
+  const lookup = useRef(0);
   const create = useCreateGuest();
 
-  async function offerExisting() {
-    const term = duplicateSearchTerm(draft);
-    if (!term) return;
+  async function offerExisting(sent: GuestDraft, id: number) {
     try {
-      setExisting(findDuplicateGuest(await searchGuests(term, 5), draft));
+      for (const term of duplicateSearchTerms(sent)) {
+        const found = findDuplicateGuest(await searchGuests(term, 5), sent);
+        if (lookup.current !== id) return;
+        if (found) return setExisting(found);
+      }
     } catch {
       // Sem o atalho, a mensagem do 409 e o "Voltar à busca" continuam valendo.
     }
@@ -155,6 +160,9 @@ function NewGuestForm({
 
   function set<K extends keyof GuestDraft>(key: K, value: string) {
     setDraft((d) => ({ ...d, [key]: value }));
+    // Mudou o que foi digitado: o hóspede achado era do envio anterior e pode não bater mais.
+    lookup.current += 1;
+    setExisting(null);
   }
 
   function submit(e: FormEvent) {
@@ -163,6 +171,8 @@ function NewGuestForm({
     if (!draft.full_name.trim() || (draft.email.trim() && !EMAIL_RE.test(draft.email.trim()))) return;
     setServerError(null);
     setExisting(null);
+    const id = ++lookup.current;
+    const sent = draft;
     create.mutate(
       {
         full_name: draft.full_name.trim(),
@@ -174,7 +184,7 @@ function NewGuestForm({
         onSuccess: onCreated,
         onError: (err) => {
           setServerError(err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.');
-          if (err instanceof ApiError && err.status === 409) void offerExisting();
+          if (err instanceof ApiError && err.status === 409) void offerExisting(sent, id);
         },
       },
     );

@@ -11,6 +11,15 @@ import sequelize from '../database/connections/sequelize.js';
 import { Op } from 'sequelize';
 import GuestModel from '../app/Models/GuestModel.js';
 import { digitsOf } from '../app/utils/digitsOf.js';
+import { publicStayDatesError } from '../app/utils/publicStayDates.js';
+import { todayInHotel } from '../app/utils/hotelTimezone.js';
+import { addDays } from './helpers/stayDates.js';
+
+// Estadia na API pública a `daysAhead` dias de hoje (fuso do hotel), com `nights` noites.
+const publicStay = (daysAhead, nights) => {
+    const check_in = addDays(todayInHotel(), daysAhead);
+    return { check_in, check_out: addDays(check_in, nights) };
+};
 
 // Testes do MOTOR DE RESERVA DIRETA + PIX (diferencial nº1).
 // Rotas públicas (sem auth) resolvidas por subdomínio + webhook de confirmação PIX.
@@ -490,12 +499,15 @@ describe('POST /public/:subdomain/bookings — CPF com o provider fake', () => {
     const booking = (cpf, email) => request(app)
         .post(`/public/${subdomain}/bookings`)
         .send({
-            category_id: categoryId, check_in: '2027-11-01', check_out: '2027-11-02', guests: 1,
+            // Datas relativas: com a regra da entrada no passado, data fixa vence sozinha.
+            category_id: categoryId, ...publicStay(400, 1), guests: 1,
             guest: { full_name: 'CPF Teste', email, ...(cpf === undefined ? {} : { cpf }) }
         });
 
     it('CPF com dígito errado → 400, e nenhum hóspede é criado', async () => {
-        const res = await booking('111.111.111-11', 'cpf.errado@example.com');
+        // 529.982.247-24: o 529.982.247-25 válido com o último dígito trocado. Um CPF de dígitos
+        // repetidos (111…) cai em outra regra do isValidCpf e não provaria o dígito verificador.
+        const res = await booking('529.982.247-24', 'cpf.errado@example.com');
         expect(res.status).toBe(400);
         expect(res.body.errors).toContain('guest.cpf inválido');
         expect(await GuestModel.count({ where: { email: 'cpf.errado@example.com' } })).toBe(0);
@@ -508,6 +520,12 @@ describe('POST /public/:subdomain/bookings — CPF com o provider fake', () => {
 });
 
 describe('Datas e ids inválidos na API pública (QA 24/11, 🟡-3)', () => {
+    it('"hoje" é o dia do hotel: às 23:30 de Brasília (02:30 UTC do dia seguinte) a entrada de hoje vale', () => {
+        const now = new Date('2026-11-25T02:30:00Z'); // 24/11, 23:30 em Brasília
+        expect(publicStayDatesError('2026-11-24', '2026-11-25', now)).toBeNull();
+        expect(publicStayDatesError('2026-11-23', '2026-11-25', now)).toBe('check_in não pode ser no passado');
+    });
+
     const futureBooking = (body) => request(app).post(`/public/${subdomain}/bookings`).send({
         category_id: categoryId, guests: 1,
         guest: { full_name: 'Data Teste', email: `data_${Date.now()}_${Math.random()}@example.com` },
@@ -542,7 +560,7 @@ describe('Datas e ids inválidos na API pública (QA 24/11, 🟡-3)', () => {
     });
 
     it('category_id que não é UUID → 404, não 500', async () => {
-        const res = await futureBooking({ category_id: 'abc', check_in: '2027-12-01', check_out: '2027-12-02' });
+        const res = await futureBooking({ category_id: 'abc', ...publicStay(410, 1) });
         expect(res.status).toBe(404);
     });
 
