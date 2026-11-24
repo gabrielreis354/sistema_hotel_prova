@@ -2,6 +2,8 @@
 
 Origem: QA explorador do roteiro da demonstração (`docs/qa/exploratorio_roteiro-demonstracao_24112026.md`), na `develop` `bf9cafe`. Evidências em `docs/qa/evidencias/roteiro-demonstracao_24112026/`, pasta fora do git.
 
+> **Atualização de 24/11 (Sirlande):** todos os itens deste repasse foram corrigidos na branch `fix/qa-roteiro-24nov`, com o aceite do Sirlande para mexer nas telas. O Gabriel revisa no PR. O que mudou em cada um está na seção "Correções de 24/11" do relatório.
+
 ## 🟡 A conta e o comprovante mostram o total da linha sem a quantidade
 - **Onde:** `/reservas/:id?aba=conta` (`BillTimeline`) e `/reservas/:id/comprovante`.
 - **O que acontece:** 3 caipirinhas de R$ 22,00 aparecem como "Caipirinha R$ 66,00". Duas porções lançadas em momentos diferentes aparecem como "Porção de fritas R$ 32,00" e "Porção de fritas R$ 64,00".

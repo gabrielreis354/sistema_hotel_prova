@@ -2,6 +2,8 @@
 
 Origem: QA explorador do roteiro da demonstração (`docs/qa/exploratorio_roteiro-demonstracao_24112026.md`), na `develop` `bf9cafe`. Evidências em `docs/qa/evidencias/roteiro-demonstracao_24112026/`, pasta fora do git.
 
+> **Atualização de 24/11:** corrigido na `fix/qa-roteiro-24nov`. Ver "Correções de 24/11" no relatório.
+
 ## 🟡 O `GET /reservations/:id/bill` não devolve a quantidade dos consumos
 - **O que acontece:** `consumptions[]` traz só `description` e `amount`, por exemplo `{"description":"Caipirinha","amount":66}` para 3 × R$ 22,00. A linha do tempo da conta e o comprovante, mostrados no passo 5 do roteiro, viram "Caipirinha R$ 66,00".
 - **Sugestão:** acrescentar `quantity` e `unit_price` a cada item. Só acrescenta campos e não muda os existentes.

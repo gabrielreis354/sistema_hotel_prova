@@ -2,6 +2,8 @@
 **Branch:** `develop` (`bf9cafe`, congelamento de 24/11) · **Tela(s):** `/quartos`, `/quartos/categorias/nova`, `/quartos/novo`, `/reservas/nova`, `/reservas/:id` (Resumo e Conta), `/reservas/:id/comprovante`, `/comanda`, `/comanda/:id`, `/` (Hoje), `/indicadores`, API pública `/public/aurora/*` · **Data:** 24/11/2026 · **Papéis usados:** ADMIN (`admin@aurora.example`, `admin@sol.example`), RECEPTIONIST (`recep1@aurora.example`, `recep2@aurora.example`), WAITER (`garcom@aurora.example`), hóspede anônimo (API pública)
 **Viewports:** 360×780 (garçom e conta), 800×900 (balcão estreito), 1280×800/900 (balcão), 1280 com zoom de 200% (640×400) · **Achados no escopo:** 13 (🔴 0 · 🟡 5 · 🟢 8) · **Já conhecidos (não contam):** 4 · **Repassados:** 13 (os do escopo, ao dono de cada tela)
 
+> **Correções de 24/11:** os achados foram tratados na branch `fix/qa-roteiro-24nov` no mesmo dia. O status de cada um está na seção "Correções de 24/11", no fim deste relatório.
+
 ## Veredito para a demonstração
 **Pronto com ressalvas.**
 
@@ -323,3 +325,28 @@ Em ordem. Os scripts de evidência estão na pasta de evidências, e `S` é o sc
 21. `node teclado_ordem_foco.mjs` em `/reservas/nova` (1280) e em `/` e `/reservas/:id` (zoom 2)
 22. `api … PUT check-out` e `PUT check-in` simultâneos (107 e 102); `api … GET /analytics/alerts` e `occupancy`
 23. `git check-ignore` da pasta de evidências; `mv` dos `page-*.yml` e `console-*.log` de hoje, gerados pelo MCP na raiz de `docs/qa/evidencias/`, para `roteiro-demonstracao_24112026/mcp/`
+
+## Correções de 24/11
+Feitas pelo Sirlande, com o aceite dele para mexer nas telas do Gabriel. O Gabriel revisa no PR. Todo achado corrigido ganhou um teste que falha antes da correção.
+
+| Achado | Situação | O que mudou |
+|---|---|---|
+| 🟡-1 conta sem quantidade | corrigido | o `/bill` devolve `quantity` e `unit_price`, só acrescentando campos, com o Swagger e os tipos atualizados. A conta e o comprovante dizem "3 × Caipirinha" |
+| 🟡-2 saldo cortado em 800 e 360 px | corrigido | a linha do tempo tem 3 colunas, sem largura mínima. A data vai embaixo do lançamento, e valor e saldo não quebram |
+| 🟡-3 data inexistente dá 500 | corrigido | disponibilidade e booking respondem 400 (`utils/publicStayDates.js`) |
+| 🟡-4 CPF errado na reserva pública | corrigido | o CPF é validado sempre que vem preenchido, com qualquer provider. Continua opcional |
+| 🟡-5 recepção vê ações de admin | não se confirma | os botões aparecem desabilitados, com o motivo e a faixa "Modo consulta" (princípio 11). Só a URL digitada manda para a página inicial do papel, pelo desenho da `RequireRole` |
+| 🟢-1 categoria em outra caixa | corrigido | 409 `CATEGORY_NAME_TAKEN` ao criar e ao renomear, checado na aplicação. O índice não mudou, para não quebrar o `migrate` |
+| 🟢-2 CPF repetido sem atalho | corrigido | no 409, a tela acha o hóspede com o mesmo CPF ou e-mail e oferece "Usar este hóspede" |
+| 🟢-3 "Liberando…" sem fim sem rede | corrigido | a tela diz "Sem conexão…" e que o quarto será liberado quando a rede voltar. Sem rede antes de confirmar, o botão fica desabilitado com o motivo |
+| 🟢-4 nome cortado na fila em 360 px | corrigido | o nome usa até 2 linhas |
+| 🟢-5 entrada no passado só ao confirmar | corrigido | o aviso aparece no campo "Entrada", e os quartos nem são consultados |
+| 🟢-6 Saídas com o texto do bloco vizinho | corrigido | com 502, a mensagem fala das saídas |
+| 🟢-7 502 aparece como "Sem conexão" | corrigido | com a rede de pé, a faixa diz "O sistema não respondeu: os lançamentos ficam na fila e são enviados sozinhos" |
+| 🟢-8 fala do passo 7 | corrigido | o guia diz que o balcão continua e que o painel do dia perde os números. A tabela "Se algo der errado" também foi ajustada |
+| Já conhecido: reserva pública no passado | corrigido | 400, com "hoje" no fuso do hotel |
+| Já conhecido: status com id que não é UUID | corrigido | 404 |
+| Já conhecido: dois balcões ao mesmo tempo | mantido para o 5º semestre | decisão do anexo CA-05.6.a. A fala do passo 5 deixou de sugerir o caso simultâneo |
+
+Além do QA, o CI do core ficava vermelho das 21h à meia-noite de Brasília, porque três testes tiravam "hoje" da data UTC. Os testes passaram a usar o `todayInHotel`.
+
