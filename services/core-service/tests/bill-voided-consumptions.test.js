@@ -6,6 +6,8 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import AccountItemModel from '../app/Models/AccountItemModel.js';
 import spec from '../config/swagger.js';
+import { todayInHotel } from '../app/utils/hotelTimezone.js';
+import { addDays } from './helpers/stayDates.js';
 
 // M5-c, CA-05.2.j (RT-18): o bill da reserva mostra o consumo estornado e quem autorizou.
 // Estorno de consumo = exclusão lógica do item, só ADMIN, com deleted_by (D-7, D-8).
@@ -43,8 +45,9 @@ beforeAll(async () => {
     const cat = await createCategory(app, jwt, { price_per_night: 200 });
     const room = await createRoom(app, jwt, cat.id, { number: '701' });
     const guest = await createGuest(app, jwt, { full_name: 'Carla Estorno' });
-    const today = new Date().toLocaleDateString('sv-SE');
-    const out = new Date(Date.now() + 2 * 86400000).toLocaleDateString('sv-SE');
+    // Dia do hotel (D-68): a data local do runner (UTC no CI) já é amanhã depois das 21h.
+    const today = todayInHotel();
+    const out = addDays(today, 2);
     const reservation = await createReservation(app, jwt, guest.id, room.id, { check_in_date: today, check_out_date: out });
     reservationId = reservation.id;
     const checkIn = await request(app).put(`/reservations/${reservationId}/check-in`).set(auth(jwt));
