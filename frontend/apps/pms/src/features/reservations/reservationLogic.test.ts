@@ -13,6 +13,7 @@ import {
   reservationActions,
   roomConflictMessage,
   splitLodging,
+  pastCheckInError,
 } from './reservationLogic.js';
 
 const standard = { id: 'r1', number: '101', category: { name: 'Standard', price_per_night: '150.00' } };
@@ -454,5 +455,14 @@ describe('primaryAction — uma ação principal na reserva (T-08.3, CA-08.e e C
       const a = reservationActions(s, futura, today);
       for (const st of [a.checkIn, a.checkOut, a.cancel]) if (!st.enabled) expect(st.reason, String(s)).toBeTruthy();
     }
+  });
+});
+
+describe('pastCheckInError — entrada no passado avisada no campo (QA 24/11, 🟢-5)', () => {
+  it('data antes de hoje traz a mensagem; hoje, futuro e campo incompleto não', () => {
+    expect(pastCheckInError('2026-11-20', '2026-11-24')).toBe('A entrada (20/11/2026) já passou. Escolha hoje ou uma data futura.');
+    expect(pastCheckInError('2026-11-24', '2026-11-24')).toBeNull();
+    expect(pastCheckInError('2026-12-01', '2026-11-24')).toBeNull();
+    expect(pastCheckInError('', '2026-11-24')).toBeNull();
   });
 });

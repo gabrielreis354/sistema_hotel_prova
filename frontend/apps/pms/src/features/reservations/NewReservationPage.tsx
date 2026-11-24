@@ -6,7 +6,7 @@ import type { Guest } from '../guests/index.js';
 import { ApiError } from '../../lib/http.js';
 import { useAvailableRooms, useCreateReservation } from './queries.js';
 import { RoomConflictError } from './reservationsApi.js';
-import { quoteStay, roomConflictMessage, safeNights } from './reservationLogic.js';
+import { pastCheckInError, quoteStay, roomConflictMessage, safeNights } from './reservationLogic.js';
 import { GuestPicker } from './components/GuestPicker.js';
 import { RoomPicker } from './components/RoomPicker.js';
 import { Money, Notice, PageHeader } from './components/primitives.js';
@@ -28,7 +28,10 @@ export function NewReservationPage() {
   const errorRef = useRef<HTMLParagraphElement>(null);
 
   const nights = safeNights(checkIn, checkOut);
-  const datesOk = nights !== null && nights > 0;
+  // Entrada passada nem lista quartos nem soma diárias: o aviso fica no campo (QA 24/11).
+  const pastError = pastCheckInError(checkIn, today);
+  const rangeOk = nights !== null && nights > 0;
+  const datesOk = rangeOk && !pastError;
   const available = useAvailableRooms(checkIn, checkOut, datesOk);
   const create = useCreateReservation();
 
@@ -42,7 +45,8 @@ export function NewReservationPage() {
   const quote = quoteStay(selectedRooms, checkIn, checkOut);
 
   const blockers: string[] = [];
-  if (!datesOk) blockers.push(nights === null ? 'Informe as datas de entrada e saída.' : 'A saída precisa ser depois da entrada.');
+  if (pastError) blockers.push(pastError);
+  else if (!rangeOk) blockers.push(nights === null ? 'Informe as datas de entrada e saída.' : 'A saída precisa ser depois da entrada.');
   if (!guest) blockers.push('Escolha ou cadastre o hóspede.');
   if (datesOk && selectedRooms.length === 0) blockers.push('Escolha ao menos um quarto livre.');
   if (datesOk && selectedRooms.length > 0 && !quote.ok) blockers.push(quote.reason);
@@ -110,15 +114,21 @@ export function NewReservationPage() {
         <div className="space-y-4">
           <Section step={1} title="Período">
             <div className="grid grid-cols-2 gap-3 sm:max-w-md">
-              <Field label="Entrada">
-                <Input type="date" value={checkIn} min={today} onChange={(e) => changeCheckIn(e.target.value)} />
+              <Field label="Entrada" error={pastError ?? undefined}>
+                <Input
+                  type="date"
+                  value={checkIn}
+                  min={today}
+                  aria-invalid={!!pastError}
+                  onChange={(e) => changeCheckIn(e.target.value)}
+                />
               </Field>
               <Field label="Saída">
                 <Input
                   type="date"
                   value={checkOut}
                   min={checkIn ? addDaysISO(checkIn, 1) : undefined}
-                  aria-invalid={!datesOk}
+                  aria-invalid={!rangeOk}
                   onChange={(e) => {
                     setSubmitError(null);
                     setCheckOut(e.target.value);
@@ -127,7 +137,7 @@ export function NewReservationPage() {
               </Field>
             </div>
             <p className="text-sm text-gray-600 tabular-nums">
-              {datesOk ? `${nights} ${nights === 1 ? 'diária' : 'diárias'}` : 'A saída precisa ser depois da entrada.'}
+              {rangeOk ? `${nights} ${nights === 1 ? 'diária' : 'diárias'}` : 'A saída precisa ser depois da entrada.'}
             </p>
           </Section>
 

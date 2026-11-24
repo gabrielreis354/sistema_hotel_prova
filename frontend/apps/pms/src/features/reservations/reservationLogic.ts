@@ -41,6 +41,17 @@ export type StayQuote =
   | { ok: false; reason: string };
 
 /** Noites entre as datas, ou null se alguma não for yyyy-MM-dd válida. */
+/**
+ * Mensagem para o campo "Entrada" quando a data já passou, ou `null`. O `min` do campo não basta:
+ * digitada à mão, a data passada listava quartos e somava as diárias, e só o "Confirmar reserva"
+ * recusava (QA de 24/11, 🟢-5). Mesma regra do servidor (entrada no passado → 422), na hora.
+ */
+export function pastCheckInError(checkIn: string, today: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(checkIn) || checkIn >= today) return null;
+  const [y, m, d] = checkIn.split('-');
+  return `A entrada (${d}/${m}/${y}) já passou. Escolha hoje ou uma data futura.`;
+}
+
 export function safeNights(checkIn: string, checkOut: string): number | null {
   try {
     return nightsBetween(checkIn, checkOut);
