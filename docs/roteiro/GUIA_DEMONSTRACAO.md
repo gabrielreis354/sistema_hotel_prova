@@ -35,7 +35,7 @@ Swagger, e o resultado aparece na tela de reservas do app.
 ### 1.1 O que o computador precisa ter
 
 - Docker Desktop com o Compose (ensaio de 22/11: Docker 29.5.3, Compose v5.1.4), ligado.
-- WSL com o repositório em `~/sistema_gestao_hotel`, na `develop` atualizada (`git pull`).
+- WSL com a pasta do repositório na `develop` atualizada (`git pull`).
 - Node 24 e pnpm 9, para a tela do app. Na primeira vez: `pnpm -C frontend install`.
 - Para o garçom no celular: o celular na **mesma rede Wi-Fi** do computador.
 
@@ -66,9 +66,10 @@ docker compose exec backend node command.js outbox-initial-load
 ```
 
 - O `migrate` cria as tabelas. Sem ele, o seed falha num banco novo.
-- O `seed` cria os hotéis de demonstração, o cardápio da comanda e o **cenário de hoje**: uma
-  estadia em andamento, uma chegada e uma saída marcadas para hoje, um pagamento recebido hoje e um
-  quarto em limpeza. Sem ele, o painel Hoje e os indicadores aparecem zerados. Ele exige
+- O `seed` cria os hotéis de demonstração, o cardápio da comanda e o **cenário de hoje**. No Hotel
+  Aurora: 4 estadias na casa; duas chegadas de hoje, a 201 com o sinal pago e a 102 sem sinal (o
+  risco de *no-show*); a saída de hoje da 107, com R$ 300,00 a cobrar no check-out; e a 105, que
+  já saiu hoje e está em limpeza. Sem ele, o painel Hoje e os indicadores aparecem zerados. Ele exige
   `ALLOW_SEED=1` porque cria usuários com senha conhecida.
 - O `outbox-initial-load` manda ao analytics o retrato do que o seed gravou, para os indicadores
   terem histórico.
@@ -91,8 +92,19 @@ pnpm -C frontend --filter app-pms dev --host
 
 ### 1.5 Ensaiar uma vez
 
-Faça os passos da Parte 3 uma vez, do começo ao fim. O que for criado no ensaio fica no banco, e não
-atrapalha, mas use nomes diferentes no dia (quarto 901 no ensaio, 902 no dia, por exemplo).
+Faça os passos da Parte 3 uma vez, do começo ao fim. **Depois do ensaio, recrie o banco.** O que o
+ensaio criou fica nele, e rodar o seed de novo não desfaz: a categoria do passo 1 (o nome é único por
+hotel), o CPF do hóspede do passo 2 (o sistema recusa CPF repetido) e as reservas do cenário que
+mudaram de situação. Sem recriar, os passos 1 e 2 falham no dia, e o painel Hoje e os indicadores
+mostram dados do ensaio.
+
+No dia da apresentação, antes da Parte 2:
+
+```bash
+docker compose --profile observability down -v   # apaga os bancos do ensaio
+```
+
+e depois a subida do §1.3 inteira, com `migrate`, `seed` e `outbox-initial-load`.
 
 > O roteiro automatizado (`frontend/e2e`, `pnpm e2e`) também confere os 7 passos, mas **só num
 > compose descartável** (`gesway-ensaio`): ele grava dados "E2E" que apareceriam na demonstração.
@@ -104,7 +116,8 @@ atrapalha, mas use nomes diferentes no dia (quarto 901 no ensaio, 902 no dia, po
 
 1. **Docker:** `docker compose ps`. Todos `running`, e `backend`, `nginx` e `analytics-service`
    com `healthy`.
-2. **Seed do dia:** `docker compose exec -e ALLOW_SEED=1 backend node command.js seed`.
+2. **Seed do dia:** se houve ensaio, o banco já foi recriado no dia (§1.5). Se não houve,
+   `docker compose exec -e ALLOW_SEED=1 backend node command.js seed`.
 3. **Tela:** o `pnpm ... dev --host` no ar, e `http://localhost:5173` abre o login.
 4. **Abas abertas no navegador, nesta ordem:**
    1. App logado como **administrador**.
@@ -170,9 +183,9 @@ quando a rede volta."
 
 1. Abra **Hoje** (a página inicial).
 
-**A banca vê:** os números do dia, a lista de **Atenção** (chegada sem pagamento — risco de
-*no-show*, saída atrasada), **Chegadas**, **Saídas** e quem está na casa, com os dados do seed de
-hoje. Há um quarto em limpeza com o botão para liberar.
+**A banca vê:** os números do dia, a lista de **Atenção** (a chegada sem pagamento da 102 — risco
+de *no-show*), **Chegadas**, **Saídas** (a 107 sai hoje com R$ 300,00 a cobrar) e quem está na
+casa, com os dados do seed de hoje. Há um quarto em limpeza com o botão para liberar.
 **Dizer:** "É a primeira tela da recepção de manhã: o que precisa de ação hoje. Sem rede, o painel
 diz 'Sem conexão' e não finge que o dado está atualizado."
 
