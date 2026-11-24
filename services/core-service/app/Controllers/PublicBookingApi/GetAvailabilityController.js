@@ -1,6 +1,7 @@
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
 import { getAvailableCategories } from '../../utils/getAvailableCategories.js';
 import { logError } from '../../utils/logError.js';
+import { publicStayDatesError } from '../../utils/publicStayDates.js';
 
 /**
  * GET /public/:subdomain/availability?check_in=&check_out=&guests=
@@ -14,12 +15,8 @@ export default async function GetAvailabilityController(request, response) {
         const { tenant, error } = await resolveTenantBySubdomain(subdomain);
         if (error) return response.status(error.status).json({ error: error.message });
 
-        if (!check_in || !check_out) {
-            return response.status(400).json({ error: 'check_in e check_out são obrigatórios (YYYY-MM-DD)' });
-        }
-        if (check_in >= check_out) {
-            return response.status(400).json({ error: 'check_out deve ser posterior a check_in' });
-        }
+        const datesError = publicStayDatesError(check_in, check_out);
+        if (datesError) return response.status(400).json({ error: datesError });
 
         const numGuests = guests ? parseInt(guests, 10) : 1;
 

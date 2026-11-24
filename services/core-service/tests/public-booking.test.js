@@ -483,16 +483,71 @@ describe('Webhook PIX x check-in simultâneo (qa-redteam de 12/10, 🟡-2)', () 
 });
 
 describe('POST /public/:subdomain/bookings — CPF com o provider fake', () => {
-    it('não valida o CPF: o fake não exige CPF e não o envia a nenhum PSP', async () => {
-        const res = await request(app)
-            .post(`/public/${subdomain}/bookings`)
-            .send({
-                category_id: categoryId,
-                check_in: '2027-11-01',
-                check_out: '2027-11-02',
-                guests: 1,
-                guest: { full_name: 'CPF Qualquer', email: 'cpf.qualquer@example.com', cpf: '123.456.789-00' }
-            });
+    // Até 24/11 o fake não validava o CPF (não o envia a nenhum PSP). A SPEC-11 fechou o
+    // balcão com "a mesma regra da reserva pública", e o QA de 24/11 (🟡-4) achou a
+    // diferença: no plano B um CPF de dígito errado entrava na base. Agora a regra é uma
+    // só: o CPF é opcional, mas, se vier, precisa ser válido.
+    const booking = (cpf, email) => request(app)
+        .post(`/public/${subdomain}/bookings`)
+        .send({
+            category_id: categoryId, check_in: '2027-11-01', check_out: '2027-11-02', guests: 1,
+            guest: { full_name: 'CPF Teste', email, ...(cpf === undefined ? {} : { cpf }) }
+        });
+
+    it('CPF com dígito errado → 400, e nenhum hóspede é criado', async () => {
+        const res = await booking('111.111.111-11', 'cpf.errado@example.com');
+        expect(res.status).toBe(400);
+        expect(res.body.errors).toContain('guest.cpf inválido');
+        expect(await GuestModel.count({ where: { email: 'cpf.errado@example.com' } })).toBe(0);
+    });
+
+    it('sem CPF continua aceito: o fake não exige CPF', async () => {
+        const res = await booking(undefined, 'sem.cpf@example.com');
         expect(res.status).toBe(201);
+    });
+});
+
+describe('Datas e ids inválidos na API pública (QA 24/11, 🟡-3)', () => {
+    const futureBooking = (body) => request(app).post(`/public/${subdomain}/bookings`).send({
+        category_id: categoryId, guests: 1,
+        guest: { full_name: 'Data Teste', email: `data_${Date.now()}_${Math.random()}@example.com` },
+        ...body
+    });
+
+    it('disponibilidade com data que não existe no calendário → 400, não 500', async () => {
+        const res = await request(app).get(`/public/${subdomain}/availability`)
+            .query({ check_in: '2027-02-30', check_out: '2027-03-02' });
+        expect(res.status).toBe(400);
+    });
+
+    it('disponibilidade com data fora do formato YYYY-MM-DD → 400', async () => {
+        const res = await request(app).get(`/public/${subdomain}/availability`)
+            .query({ check_in: '2027-5-1', check_out: '2027-05-04' });
+        expect(res.status).toBe(400);
+    });
+
+    it('booking com data que não existe no calendário → 400, não 500', async () => {
+        const res = await futureBooking({ check_in: '2027-02-30', check_out: '2027-03-02' });
+        expect(res.status).toBe(400);
+    });
+
+    it('entrada no passado → 400 na disponibilidade e no booking, sem cobrar PIX', async () => {
+        const avail = await request(app).get(`/public/${subdomain}/availability`)
+            .query({ check_in: '2020-01-10', check_out: '2020-01-12' });
+        expect(avail.status).toBe(400);
+        const before = await PaymentModel.count();
+        const res = await futureBooking({ check_in: '2020-01-10', check_out: '2020-01-12' });
+        expect(res.status).toBe(400);
+        expect(await PaymentModel.count()).toBe(before);
+    });
+
+    it('category_id que não é UUID → 404, não 500', async () => {
+        const res = await futureBooking({ category_id: 'abc', check_in: '2027-12-01', check_out: '2027-12-02' });
+        expect(res.status).toBe(404);
+    });
+
+    it('status com id que não é UUID → 404, não 500', async () => {
+        const res = await request(app).get(`/public/${subdomain}/bookings/abc/status`);
+        expect(res.status).toBe(404);
     });
 });
