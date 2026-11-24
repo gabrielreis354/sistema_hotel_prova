@@ -4,6 +4,7 @@ import { validateRoomCategoryFields } from '../../utils/roomCategoryValidation.j
 import { parseInteger } from '../../utils/roomRules.js';
 import { invalidInputBody } from '../../utils/roomErrors.js';
 import { logError } from '../../utils/logError.js';
+import { categoryNameTaken } from '../../utils/categoryNameTaken.js';
 
 export default async function CreateRoomCategoryController(request, response) {
     try {
@@ -14,6 +15,10 @@ export default async function CreateRoomCategoryController(request, response) {
         // negativo era gravado e texto ou estouro viravam 500.
         const issues = validateRoomCategoryFields({ name, capacity, price_per_night });
         if (issues.length) return response.status(400).json(invalidInputBody(issues));
+
+        // Mesmo nome em outra caixa é a mesma categoria para quem escolhe (QA 24/11, 🟢-1).
+        const taken = await categoryNameTaken(tenantId, name.trim());
+        if (taken) return response.status(409).json(taken);
 
         const category = await RoomCategoryModel.create({
             tenant_id: tenantId,
