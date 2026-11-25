@@ -31,20 +31,20 @@ Até 10/12, nenhuma além de `lucide-react` para ícones (com texto ao lado e `a
 
 | Componente | Para quê | Quando **não** usar |
 |---|---|---|
-| `Button` | Ação. Variantes `primary`, `secondary`, `ghost`, `danger`; tamanhos `comfortable` (mobile, alvo ≥ 48px) e `compact` (tabela e rack no desktop) | Navegação — use `Link` do router. Um `Button` que só navega quebra abrir em nova aba. Link com cara de botão: `ButtonLink` do app (`apps/pms/src/components/links.tsx`) |
+| `Button` | Ação. Variantes `primary`, `secondary` (branco com borda, desde a F2 da SPEC-10), `ghost`, `danger`, com o anel de foco da marca; tamanhos `comfortable` (mobile, alvo ≥ 48px) e `compact` (48 px no toque, 36 px com mouse: tabela, rack e a ação do `PageHeader`) | Navegação — use `Link` do router. Um `Button` que só navega quebra abrir em nova aba. Link com cara de botão: `ButtonLink` do app (`apps/pms/src/components/links.tsx`) |
 | `buttonClasses` | As classes do `Button` (mesmas variantes) para outro elemento. Existe para o `ButtonLink` do app, que é `<a>` do roteador — o `@hotel/ui` não depende de react-router (T-08.6) | Para recriar um botão com `<div>` ou `<span>`: use o `Button` |
-| `Input` | Campo de texto. Foco visível, estado de erro por `aria-invalid` | Sozinho num formulário — envolva em `Field`, senão o campo fica sem rótulo |
+| `Input` | Campo de texto. 48 px no toque e altura natural com mouse (F2 da SPEC-10: não repita o alvo na tela). Foco visível, estado de erro por `aria-invalid` | Sozinho num formulário — envolva em `Field`, senão o campo fica sem rótulo |
 | `Field` | Rótulo + controle + mensagem de erro, com `htmlFor` ligado | Texto de ajuda que não é erro; isso ainda não existe e precisa de variante nova |
 | `StatusBadge` | Status com ponto colorido **e** rótulo textual sempre juntos. Quarto: `status={room.status}`. Outro status (reserva, parcela): `tone` (`StatusTone` de `@hotel/domain`) + `label`, escolhidos pelo módulo dono do status | Para *escolher* status num formulário — selo é leitura, não controle. Nem com cor fora dos `StatusTone`: tom novo entra primeiro no preset e no `STATUS_TONES` |
 | `Card` | Contêiner de conteúdo, borda e fundo padrão | Como moldura de tudo. Borda, fundo e sombra dizem "objeto separado" — usar em todo bloco achata a hierarquia |
 | `Spinner` | Carregando, com `role="status"` e rótulo acessível | Espera longa em tela cheia — aí o certo é *skeleton*, que ainda não existe |
 | `EmptyState` | Lista vazia, com título, descrição e **ação sugerida** | Erro. Vazio e erro são coisas diferentes: vazio ensina o próximo passo, erro diz o que fazer para recuperar |
-| `ErrorState` | Erro com mensagem (`role="alert"`) e botão "Tentar de novo" | Erro de campo de formulário — isso é o `error` do `Field`. Vazio — isso é o `EmptyState` |
+| `ErrorState` | Erro com mensagem (`role="alert"`) e botão "Tentar de novo", na mesma faixa do `Notice` de erro (`noticeFrame`) | Erro de campo de formulário — isso é o `error` do `Field`. Vazio — isso é o `EmptyState` |
 | `Money` | Valor em reais a partir de **centavos** (`decimalToCents` antes): tabular, duas casas, sem quebrar. Promovido na T-05.3 | Para converter o DECIMAL — isso é do `@hotel/domain`. Nem para percentual ou quantidade |
 | `Notice` | Aviso de resultado de uma ação (`success` → `role="status"`, `error` → `role="alert"`), focável para o leitor de tela anunciar. Promovido na T-05.3 | Erro de carregamento com "tentar de novo" — isso é o `ErrorState` |
 | `ActionSlot` | Ação + o **motivo** quando está desabilitada, ligado por `aria-describedby` (RNF-026). Promovido na T-05.3 | Ação que o papel nunca terá — essa não aparece; o slot é para "agora não dá" |
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
-| `PageHeader` | Topo de toda página (T-08.5): título de 20 px, contexto curto embaixo (data, contagem) e a ação principal à direita; no celular a ação desce, na largura toda | Título de seção dentro da página — use `Section`. E não ponha duas ações `primary` nele: a segunda é `secondary` (GUIA, regra 1) |
+| `PageHeader` | Topo de toda página (T-08.5): título de 20 px, contexto curto embaixo (data, contagem) e a ação principal à direita, sempre `size="compact"` (um teste varre isso); no celular a ação desce, na largura toda | Título de seção dentro da página — use `Section`. E não ponha duas ações `primary` nele: a segunda é `secondary` (GUIA, regra 1) |
 | `Section` | Bloco só de leitura: título de seção e um fio em cima, sem cartão (ficha do hóspede, resumo da reserva) | O que pede atenção ou recebe dado — formulário, confirmação, pagamento: isso é `Card` |
 
 ---
