@@ -51,6 +51,15 @@ export function NewReservationPage() {
   if (datesOk && selectedRooms.length === 0) blockers.push('Escolha ao menos um quarto livre.');
   if (datesOk && selectedRooms.length > 0 && !quote.ok) blockers.push(quote.reason);
 
+  // "Isabela Castro · 2 diárias · 202, 203": a última conferência antes do toque, na barra do celular.
+  const readySummary = [
+    guest?.full_name,
+    nights !== null && nights > 0 ? `${nights} ${nights === 1 ? 'diária' : 'diárias'}` : null,
+    selectedRooms.map((r) => r.number).filter(Boolean).join(', ') || null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   useEffect(() => {
     if (submitError) errorRef.current?.focus();
   }, [submitError]);
@@ -229,18 +238,36 @@ export function NewReservationPage() {
 
       {/* Abaixo do lg, o valor e o "Confirmar" ficam presos acima da barra do celular (critique da F4, P2):
           no fim da página, o administrador rolava 8 quartos para ver o total e o que faltava. O mesmo
-          encaixe do total da comanda (--tabbar da casca). O primeiro bloqueio aparece aqui; a lista
-          inteira continua no resumo. */}
+          encaixe do total da comanda (--tabbar da casca); no md a barra de baixo some e ela desce até o fim,
+          como a conta (md:bottom-0; antes ficava solta 54 px acima, 🟡1 do qa-redteam da F5).
+          Com bloqueio, a barra diz o que falta em até duas linhas, nunca só o valor com o botão cinza; pronta,
+          diz para quem e quantas diárias, para não confirmar às cegas (critique da F5, P1). A lista inteira
+          dos bloqueios continua no resumo. */}
       <div
         data-area="confirmar-celular"
-        className="sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 flex items-center gap-3 border-t border-gray-200 bg-white px-4 py-3 md:-mx-8 md:px-8 lg:hidden"
+        className="sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 flex items-center gap-3 border-t border-gray-200 bg-white px-4 py-3 md:bottom-0 md:-mx-8 md:px-8 lg:hidden"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-gray-600">Valor da estadia</p>
-          {quote.ok ? (
-            <Money cents={quote.totalCents} className="text-lg font-semibold" />
+          {blockers.length > 0 ? (
+            <>
+              <p className="text-xs text-gray-600 tabular-nums">
+                {quote.ok ? (
+                  <>
+                    Valor da estadia <Money cents={quote.totalCents} className="font-semibold text-gray-800" />
+                  </>
+                ) : (
+                  'Falta para confirmar'
+                )}
+              </p>
+              <p className="line-clamp-2 text-sm font-medium text-gray-800">{blockers[0]}</p>
+            </>
           ) : (
-            <p className="truncate text-sm text-gray-700">{blockers[0] ?? '—'}</p>
+            <>
+              <p className="truncate text-xs text-gray-600" title={readySummary}>
+                {readySummary}
+              </p>
+              {quote.ok && <Money cents={quote.totalCents} className="text-lg font-semibold" />}
+            </>
           )}
         </div>
         <Button
