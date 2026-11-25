@@ -127,3 +127,22 @@ describe('ReservationDetailPage — regra dos hooks', () => {
     expect(hooksAfter).toEqual([]);
   });
 });
+
+describe('cabeçalho da reserva (SPEC-10, F4)', () => {
+  it('o número do quarto em destaque e as ações secundárias no próprio cabeçalho, antes das abas', async () => {
+    const html = await renderDetail('CHECKED_IN');
+    expect(html).toContain('aria-hidden="true" title="101"');
+    const cabecalho = html.slice(0, html.indexOf('role="tablist"'));
+    // Um cartão só antes das abas: as secundárias saíram do cartão próprio (decisão de 25/11).
+    expect(cabecalho.match(/rounded-lg border border-gray-200 bg-white/g)?.length).toBe(1);
+    expect(cabecalho).toContain('acao-cancelar-motivo');
+    expect(cabecalho).toContain('grid-cols-2');
+  });
+
+  it('alinhado à esquerda, com até 1024 px (R-7): sem o mx-auto que centralizava', async () => {
+    const html = await renderDetail('CHECKED_IN');
+    const raiz = html.match(/<div class="([^"]*)"/)?.[1] ?? '';
+    expect(raiz.split(' ')).toContain('max-w-5xl');
+    expect(raiz.split(' ')).not.toContain('mx-auto');
+  });
+});
