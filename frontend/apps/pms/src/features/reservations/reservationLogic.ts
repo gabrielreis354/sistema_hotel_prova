@@ -556,3 +556,19 @@ export function primaryAction(
 export function checkOutConfirmVariant(balanceCents: number | null, receiving: boolean): 'primary' | 'secondary' {
   return receiving && balanceCents !== null && balanceCents > 0 ? 'secondary' : 'primary';
 }
+
+/**
+ * "24/11 → 26/11": no celular o ano sai, porque o período da lista costuma ser curto. Ele volta, com dois
+ * dígitos ("28/12/26 → 03/01/27"), quando a virada do ano entra no jogo: o período filtrado ou a própria
+ * estadia atravessam o ano. Sem isso, reservas de anos diferentes ficavam iguais (🟢3 do qa-redteam da F5;
+ * decisão do Sirlande de 25/11).
+ */
+export function shortPeriod(checkIn: string | undefined, checkOut: string | undefined, from: string, to: string): string {
+  if (!checkIn || !checkOut) return '—';
+  const crossesYear = from.slice(0, 4) !== to.slice(0, 4) || checkIn.slice(0, 4) !== checkOut.slice(0, 4);
+  const short = (iso: string) => {
+    const br = formatDateBR(iso); // dd/mm/aaaa
+    return crossesYear ? `${br.slice(0, 6)}${br.slice(8, 10)}` : br.slice(0, 5);
+  };
+  return `${short(checkIn)} → ${short(checkOut)}`;
+}

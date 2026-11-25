@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decimalToCents, formatDateBR, todayISO } from '@hotel/domain';
-import { Button, Card, EmptyState, ErrorState, Field, Input, RoomNumber, SegmentedControl, Spinner, THead, Td, Th, Tr, cn } from '@hotel/ui';
+import { Button, Card, EmptyState, ErrorState, Field, Input, RoomNumber, SegmentedControl, Spinner, THead, Table, Td, Th, Tr, cn } from '@hotel/ui';
 import { useReservationList } from './queries.js';
-import { PERIOD_PRESETS, pageCount, presetRange, safeNights, type PeriodPreset } from './reservationLogic.js';
+import { PERIOD_PRESETS, pageCount, presetRange, safeNights, shortPeriod, type PeriodPreset } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { Money, PageHeader } from './components/primitives.js';
 import { ButtonLink } from '../../components/links.js';
@@ -114,19 +114,22 @@ export function ReservationsListPage() {
 
       {result && result.total > 0 && !outOfRange && (
         <>
-          <Card
+          {/* O Table do @hotel/ui rola dentro do cartão (overflow-x-auto): com overflow-hidden, a 768 px o Status
+              saía cortado ("Hos…"), justo a coluna que decide a ação (critique da F5, P1). As colunas só abrem no
+              lg: no tablet a barra lateral come 236 px e sobram ~466 px, menos que um celular deitado; até lá a
+              reserva fica nas duas linhas do celular. */}
+          <div
             className={cn(
-              'overflow-hidden transition-opacity duration-150 motion-reduce:transition-none',
+              'transition-opacity duration-150 motion-reduce:transition-none',
               query.isPlaceholderData && 'opacity-60',
             )}
           >
-            <table className="w-full text-left text-sm">
-              <caption className="sr-only">Reservas de {formatDateBR(from)} a {formatDateBR(to)}</caption>
+            <Table caption={`Reservas de ${formatDateBR(from)} a ${formatDateBR(to)}`}>
               <THead>
                 <Th>Hóspede</Th>
-                <Th className="hidden sm:table-cell">Quarto</Th>
-                <Th className="hidden sm:table-cell">Período</Th>
-                <Th align="right" className="hidden md:table-cell">
+                <Th className="hidden lg:table-cell">Quarto</Th>
+                <Th className="hidden lg:table-cell">Período</Th>
+                <Th align="right" className="hidden lg:table-cell">
                   Total
                 </Th>
                 <Th>Status</Th>
@@ -138,21 +141,21 @@ export function ReservationsListPage() {
                   return (
                     <Tr key={r.id}>
                       <Td>
-                        {/* Celular: o quarto em destaque à esquerda, o nome e o período curto (sem o ano) em
-                            duas linhas — eram 4 por reserva, e cabiam ~5 por tela (decisão de 25/11, F5). */}
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <RoomNumber number={r.room?.number ?? '—'} className="max-w-16 sm:hidden" />
-                          {/* O link envolve as duas linhas: no celular o alvo de toque é a reserva inteira. */}
-                          <Link
-                            to={`/reservas/${r.id}`}
-                            className="flex min-h-touch min-w-0 flex-col justify-center rounded-sm py-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0"
-                          >
-                            <span className="font-medium text-brand">{r.guest?.full_name ?? 'Hóspede removido'}</span>
-                            <span className="block text-xs text-gray-600 tabular-nums sm:hidden">
-                              {/* O quarto já está no selo à esquerda; o leitor de tela o ouve aqui. Período e
-                                  diárias não se partem por dentro: se faltar espaço, só as diárias descem. */}
+                        {/* Abaixo do lg: o quarto em destaque à esquerda, o nome e o período curto em duas linhas
+                            (decisão de 25/11, F5). O link envolve o selo e as duas linhas: o número do quarto é o
+                            maior alvo da linha e também abre a reserva (🟡4 do qa-redteam da F5). */}
+                        <Link
+                          to={`/reservas/${r.id}`}
+                          className="group flex min-h-touch min-w-0 items-center gap-2 rounded-sm py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0"
+                        >
+                          <RoomNumber number={r.room?.number ?? '—'} className="max-w-16 lg:hidden" />
+                          <span className="flex min-w-0 flex-col">
+                            <span className="font-medium text-brand group-hover:underline">{r.guest?.full_name ?? 'Hóspede removido'}</span>
+                            <span className="block text-xs text-gray-600 tabular-nums lg:hidden">
+                              {/* O selo é aria-hidden; o leitor de tela ouve o quarto aqui. Período e diárias não se
+                                  partem por dentro: se faltar espaço, só as diárias descem. */}
                               <span className="sr-only">{`Quarto ${r.room?.number ?? '—'} · `}</span>
-                              <span className="whitespace-nowrap">{shortPeriod(r.check_in_date, r.check_out_date)}</span>
+                              <span className="whitespace-nowrap">{shortPeriod(r.check_in_date, r.check_out_date, from, to)}</span>
                               {/* O espaço fora dos dois pedaços é o ponto de quebra: colados, viravam um bloco só
                                   de ~150 px, e a tabela rolava de lado em 360 px. */}
                               {stay && (
@@ -162,26 +165,26 @@ export function ReservationsListPage() {
                                 </>
                               )}
                             </span>
-                          </Link>
-                        </div>
+                          </span>
+                        </Link>
                       </Td>
-                      <Td className="hidden tabular-nums sm:table-cell">{r.room?.number ?? '—'}</Td>
-                      <Td className="hidden tabular-nums text-gray-700 sm:table-cell">
+                      <Td className="hidden tabular-nums lg:table-cell">{r.room?.number ?? '—'}</Td>
+                      <Td className="hidden whitespace-nowrap tabular-nums text-gray-700 lg:table-cell">
                         {period(r.check_in_date, r.check_out_date)}
                         {nights !== null && <span className="ml-1 text-gray-600">{stay}</span>}
                       </Td>
-                      <Td align="right" className="hidden md:table-cell">
+                      <Td align="right" className="hidden lg:table-cell">
                         {r.total_amount ? <Money cents={decimalToCents(r.total_amount)} /> : '—'}
                       </Td>
-                      <Td>
+                      <Td className="whitespace-nowrap">
                         <ReservationStatusBadge status={r.status} />
                       </Td>
                     </Tr>
                   );
                 })}
               </tbody>
-            </table>
-          </Card>
+            </Table>
+          </div>
 
           <nav className="flex flex-wrap items-center justify-between gap-3" aria-label="Paginação">
             <p className="text-sm text-gray-600 tabular-nums">
@@ -215,12 +218,6 @@ export function ReservationsListPage() {
 
 function valid(value: string | null): string | undefined {
   return value && ISO_RE.test(value) ? value : undefined;
-}
-
-/** "24/11 → 26/11": no celular o ano sai (a lista já é de um período curto). */
-function shortPeriod(checkIn?: string, checkOut?: string): string {
-  if (!checkIn || !checkOut) return '—';
-  return `${formatDateBR(checkIn).slice(0, 5)} → ${formatDateBR(checkOut).slice(0, 5)}`;
 }
 
 function period(checkIn?: string, checkOut?: string): string {
