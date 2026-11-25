@@ -224,6 +224,31 @@ describe('F5 (25/11): Table e SegmentedControl no @hotel/ui', async () => {
     for (const b of botoes) expect(b).toMatch(/min-h-touch[^"]*desk:h-9|desk:h-9[^"]*min-h-touch/);
     for (const b of botoes) expect(b).toContain('focus-visible:ring-brand');
   });
+
+  it('SegmentedControl: o ativo também se lê pelo peso, não só pela cor (WCAG 1.4.1; 🟡3 do qa-redteam da F5)', () => {
+    const html = renderToString(
+      <SegmentedControl label="p" value="b" onChange={() => {}} options={[{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }]} />,
+    );
+    const [inativo, ativo] = html.match(/<button[^>]*>/g) ?? [];
+    expect(ativo).toContain('font-semibold');
+    expect(inativo).not.toContain('font-semibold');
+  });
+
+  it('SegmentedControl: tocar numa opção chama onChange com o valor dela (o filtro de fato muda)', () => {
+    const escolhas: string[] = [];
+    // Componente sem hooks: dá para chamar e tocar nos botões sem DOM.
+    const arvore = SegmentedControl({
+      label: 'p',
+      value: 'a',
+      onChange: (v: string) => escolhas.push(v),
+      options: [
+        { value: 'a', label: 'A' },
+        { value: '6', label: '6 meses' },
+      ],
+    }) as { props: { children: { props: { onClick: () => void } }[] } };
+    for (const botao of arvore.props.children) botao.props.onClick();
+    expect(escolhas).toEqual(['a', '6']);
+  });
 });
 
 describe('telas encostadas à esquerda na coluna do conteúdo (R-7, F4 e F5)', () => {
@@ -233,7 +258,9 @@ describe('telas encostadas à esquerda na coluna do conteúdo (R-7, F4 e F5)', (
     const centralizadas = arquivosDoApp()
       .map((a) => path.relative(src, a))
       .filter((rel) => rel.startsWith('features/') && !EXCECOES.some((e) => rel.startsWith(e)))
-      .filter((rel) => /className="mx-auto /.test(readFileSync(path.join(src, rel), 'utf-8')));
+      .filter((rel) => !rel.includes('.test.'))
+      // Em qualquer posição da classe: antes só pegava quando o mx-auto vinha primeiro (🟢4 do qa-redteam da F5).
+      .filter((rel) => /className="[^"]*\bmx-auto\b/.test(readFileSync(path.join(src, rel), 'utf-8')));
     expect(centralizadas).toEqual([]);
   });
 });

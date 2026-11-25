@@ -40,9 +40,11 @@ export function SegmentedControl<V extends string>({
             aria-pressed={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              'min-h-touch flex-1 rounded px-2 py-1 text-sm font-medium leading-tight transition-colors sm:flex-none sm:px-3 desk:h-9 desk:min-h-0',
+              'min-h-touch flex-1 rounded px-2 py-1 text-sm leading-tight transition-colors sm:flex-none sm:px-3 desk:h-9 desk:min-h-0',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-              active ? 'bg-brand/10 text-brand' : 'text-gray-700 hover:bg-gray-100',
+              // O ativo não se lê só pela cor (WCAG 1.4.1; 🟡3 do qa-redteam da F5): o tingido tem 1,14:1 contra o
+              // vizinho, então ele também ganha peso.
+              active ? 'bg-brand/10 font-semibold text-brand' : 'font-medium text-gray-700 hover:bg-gray-100',
             )}
           >
             {o.label}
