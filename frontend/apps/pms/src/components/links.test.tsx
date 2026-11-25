@@ -29,15 +29,15 @@ describe('ButtonLink — as classes do Button, num <a>', () => {
   });
 
   it('className do chamador entra por último (o tailwind-merge resolve conflito)', () => {
-    const out = html(<ButtonLink to="/x" variant="secondary" className="xl:min-h-0 w-full">Ir</ButtonLink>);
-    expect(classOf(out)).toEqual(expect.arrayContaining(['xl:min-h-0', 'w-full']));
+    const out = html(<ButtonLink to="/x" variant="secondary" className="desk:min-h-0 w-full">Ir</ButtonLink>);
+    expect(classOf(out)).toEqual(expect.arrayContaining(['desk:min-h-0', 'w-full']));
   });
 });
 
 describe('BackLink — volta com alvo de toque', () => {
-  it('48 px até o xl', () => {
+  it('48 px até o compacto com mouse (desk, R-3)', () => {
     const out = html(<BackLink to="/hospedes">← Voltar</BackLink>);
-    expect(classOf(out)).toEqual(expect.arrayContaining(['min-h-touch', 'xl:min-h-0']));
+    expect(classOf(out)).toEqual(expect.arrayContaining(['min-h-touch', 'desk:min-h-0']));
   });
 });
 

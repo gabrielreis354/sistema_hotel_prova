@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MOBILE_TABS_MAX, mobileNavForRole, navItemsForRole } from './nav.js';
+import { MOBILE_TABS_MAX, mobileNavForRole, navGroupsForRole, navItemsForRole } from './nav.js';
 import type { Role } from '../types.js';
 
 const labels = (items: { label: string }[]) => items.map((i) => i.label);
@@ -44,6 +44,27 @@ describe('ícones do menu (SPEC-08, T-08.2)', () => {
         expect(item.icon, item.label).toBeTruthy();
         expect(item.label.trim().length, item.to).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+describe('navGroupsForRole — grupos da barra lateral (SPEC-10, T-10.4)', () => {
+  it('ADMIN: Operação (Hoje, Reservas, Hóspedes, Quartos, Comanda) e Gestão (Indicadores)', () => {
+    const grupos = navGroupsForRole('ADMIN');
+    expect(grupos.map((g) => g.title)).toEqual(['Operação', 'Gestão']);
+    expect(labels(grupos[0]!.items)).toEqual(['Hoje', 'Reservas', 'Hóspedes', 'Quartos', 'Comanda']);
+    expect(labels(grupos[1]!.items)).toEqual(['Indicadores']);
+  });
+
+  it('grupo sem item do papel não aparece: o garçom vê só Operação, com Comanda', () => {
+    const grupos = navGroupsForRole('WAITER');
+    expect(grupos.map((g) => g.title)).toEqual(['Operação']);
+    expect(labels(grupos[0]!.items)).toEqual(['Comanda']);
+  });
+
+  it('os grupos têm os mesmos itens do menu, na mesma ordem', () => {
+    for (const role of ['ADMIN', 'RECEPTIONIST', 'WAITER'] as Role[]) {
+      expect(labels(navGroupsForRole(role).flatMap((g) => g.items))).toEqual(labels(navItemsForRole(role)));
     }
   });
 });

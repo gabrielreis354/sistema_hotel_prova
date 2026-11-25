@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { cn } from '@hotel/ui';
 
 describe('cn() com a escala de tipografia', () => {
-  it.each(['title', 'section', 'body', 'support', 'figure'])('text-%s convive com uma cor de texto', (size) => {
+  it.each(['title', 'section', 'body', 'support', 'figure', 'wordmark', 'wordmark-tag', 'overline'])('text-%s convive com uma cor de texto', (size) => {
     expect(cn(`flex text-${size}`, 'text-gray-600').split(' ')).toEqual(['flex', `text-${size}`, 'text-gray-600']);
   });
 

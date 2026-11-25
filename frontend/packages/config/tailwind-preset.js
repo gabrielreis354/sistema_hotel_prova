@@ -15,6 +15,9 @@ const preset = {
       lg: '1024px',
       xl: '1280px',
       '2xl': '1536px',
+      // Compacto só com mouse (estudo de responsividade da SPEC-10, R-3): a partir do xl E com
+      // ponteiro fino. Um tablet de 1280 px deitado é usado com o dedo e fica com os 48 px.
+      desk: { raw: '(min-width: 1280px) and (pointer: fine)' },
     },
     extend: {
       colors: {
@@ -33,6 +36,20 @@ const preset = {
           DEFAULT: 'rgb(var(--color-brand) / <alpha-value>)',
           fg: 'rgb(var(--color-brand-fg) / <alpha-value>)',
         },
+        // Barra lateral e fundo (SPEC-10, T-10.4): também por token, para cada hotel poder trocar.
+        nav: {
+          DEFAULT: 'rgb(var(--color-nav) / <alpha-value>)',
+          fg: 'rgb(var(--color-nav-fg) / <alpha-value>)',
+          muted: 'rgb(var(--color-nav-muted) / <alpha-value>)',
+          active: 'rgb(var(--color-nav-active) / <alpha-value>)',
+          accent: 'rgb(var(--color-nav-accent) / <alpha-value>)',
+          strong: 'rgb(var(--color-nav-strong) / <alpha-value>)',
+        },
+        ground: 'rgb(var(--color-ground) / <alpha-value>)',
+        strip: {
+          from: 'rgb(var(--color-strip-from) / <alpha-value>)',
+          to: 'rgb(var(--color-strip-to) / <alpha-value>)',
+        },
       },
       fontFamily: {
         // Uma família (Inter) para todo o produto. "Inter Variable" é o nome que o
@@ -47,6 +64,11 @@ const preset = {
         body: ['14px', { lineHeight: '20px' }], // corpo (formulário no celular usa text-base, 16 px)
         support: ['12px', { lineHeight: '16px' }], // apoio
         figure: ['24px', { lineHeight: '32px', fontWeight: '600' }], // valor de destaque, com tabular-nums
+        // Marca na barra lateral e rótulo de grupo (SPEC-10, T-10.4; audit do Impeccable de 22/11).
+        // Fora da escala de leitura de propósito: são elementos de identidade, não texto corrido.
+        wordmark: ['23px', { lineHeight: '28px', fontWeight: '800', letterSpacing: '0.03em' }], // GESWAY
+        'wordmark-tag': ['10.5px', { lineHeight: '15px', letterSpacing: '0.08em' }], // GESTÃO HOTELEIRA
+        overline: ['11px', { lineHeight: '16px', fontWeight: '600', letterSpacing: '0.12em' }], // OPERAÇÃO, GESTÃO
       },
       fontVariantNumeric: {
         // Números tabulares em valores monetários e no rack (alinhamento de colunas).

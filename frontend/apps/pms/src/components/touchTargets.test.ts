@@ -1,5 +1,6 @@
-// Alvo de toque de 48 px em 375 e em 768 px (SPEC-08 CA-08.g). O compacto só vale a partir do xl
-// (1280 px), o corte da T-05.3: o tablet do balcão (768 px) já é md, e um `md:min-h-0` deixava menu,
+// Alvo de toque de 48 px em 375 e em 768 px (SPEC-08 CA-08.g). O compacto só vale com mouse e a partir
+// de 1280 px: a variante `desk` = xl + pointer fine (estudo de responsividade da SPEC-10, R-3). Pelo xl
+// sozinho, um tablet de 1280 px deitado, usado com o dedo, ficava com 36 px. O corte da T-05.3: o tablet do balcão (768 px) já é md, e um `md:min-h-0` deixava menu,
 // atalhos e abas com 36 a 38 px ali (repasse do qa-explorador de 16/11, T-08.6). Os testes de tela
 // renderizam no servidor e não medem altura; esta varredura impede o corte errado de voltar.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -38,18 +39,38 @@ describe('alvo de toque até o xl (CA-08.g)', () => {
     expect(violacoes).toEqual([]);
   });
 
-  it('item do menu lateral com 48 px até o xl (no md ele aparece, e tinha 36 px)', () => {
+  it('altura só encolhe com mouse: nenhum xl:min-h-0 ou xl:h-N, e sim desk: (R-3)', () => {
+    const violacoes: string[] = [];
+    for (const arquivo of arquivos) {
+      readFileSync(arquivo, 'utf-8')
+        .split('\n')
+        .forEach((linha, i) => {
+          const achou = linha.match(/\b(?:xl|2xl):(?:min-h-0|h-\d+)\b/g);
+          if (achou) violacoes.push(`${path.relative(src, arquivo)}:${i + 1} ${achou.join(' ')}`);
+        });
+    }
+    expect(violacoes).toEqual([]);
+  });
+
+  it('Button size="compact" tem 48 px no toque e só encolhe com mouse (🟡 do qa-redteam de 22/11)', () => {
+    const botao = readFileSync(path.resolve(src, '../../../packages/ui/src/Button.tsx'), 'utf-8');
+    const compact = botao.match(/compact: '([^']+)'/)?.[1] ?? '';
+    expect(compact.split(' ')).toEqual(expect.arrayContaining(['min-h-touch', 'desk:h-9', 'desk:min-h-0']));
+    expect(compact.split(' ')).not.toContain('h-9');
+  });
+
+  it('item do menu lateral com 48 px até o compacto com mouse (no md ele aparece, e tinha 36 px)', () => {
     const shell = readFileSync(path.join(src, 'components/AppShell.tsx'), 'utf-8');
     const item = shell.slice(shell.indexOf('function NavItemLink('));
     expect(item).toMatch(/min-h-touch/);
-    expect(item).toMatch(/xl:min-h-0/);
+    expect(item).toMatch(/desk:min-h-0/);
   });
 
-  it('atalhos de período: o compacto (h-9) só vale no xl', () => {
+  it('atalhos de período: o compacto (h-9) só vale com mouse (desk)', () => {
     const lista = readFileSync(path.join(src, 'features/reservations/ReservationsListPage.tsx'), 'utf-8');
     const atalhos = lista.slice(lista.indexOf('Atalhos de período'), lista.indexOf('</div>', lista.indexOf('Atalhos de período')));
-    // Sem size="compact": o tamanho padrão do Button (comfortable) é o de 48 px; o compacto entra no xl.
+    // Sem size="compact": o tamanho padrão do Button (comfortable) é o de 48 px; o compacto entra com mouse.
     expect(atalhos).not.toMatch(/size="compact"/);
-    expect(atalhos).toMatch(/xl:h-9 xl:min-h-0/);
+    expect(atalhos).toMatch(/desk:h-9 desk:min-h-0/);
   });
 });

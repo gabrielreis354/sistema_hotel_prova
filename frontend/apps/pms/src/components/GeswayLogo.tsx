@@ -3,7 +3,8 @@
  * Sirlande em 16/11 (original em docs/specs/anexos/SPEC-10-logo-gesway.svg).
  *
  * A cor vem de `currentColor`: quem usa decide pelo token (`text-…`), sem um arquivo por cor.
- * É decorativo onde o nome "Gesway" aparece escrito ao lado; em tamanho pequeno (menu, favicon)
+ * Usado no login e na casca (SPEC-10, T-10.4), por isso mora em components/. É decorativo onde o
+ * nome "Gesway" aparece escrito ao lado; em tamanho pequeno (menu, favicon)
  * os detalhes somem, e para isso existe a T-10.3 (símbolo simplificado).
  */
 export function GeswayLogo({ className }: { className?: string }) {

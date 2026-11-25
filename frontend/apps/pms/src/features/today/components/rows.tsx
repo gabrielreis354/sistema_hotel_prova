@@ -35,11 +35,11 @@ import { ButtonLink } from '../../../components/links.js';
 export type Feedback = { kind: 'success' | 'error'; text: string };
 type OnResult = (f: Feedback) => void;
 
-/** Botão de ação da linha: 48 px no celular e no tablet (toque), mais baixo só no desktop (≥ 1280). */
-const ROW_ACTION = 'w-full sm:w-auto xl:min-h-0 xl:h-10 xl:text-sm';
+/** Botão de ação da linha: 48 px no celular e no tablet (toque), mais baixo só com mouse a partir de 1280 px (desk, R-3). */
+const ROW_ACTION = 'w-full sm:w-auto desk:min-h-0 desk:h-10 xl:text-sm';
 
 /** Botão que abre a ação da linha (T-08.4): secundário, com ícone, embaixo do texto no celular. */
-const ROW_TRIGGER = 'w-full sm:w-auto sm:px-3 xl:min-h-0 xl:h-10 xl:text-sm';
+const ROW_TRIGGER = 'w-full sm:w-auto sm:px-3 desk:min-h-0 desk:h-10 xl:text-sm';
 
 /** Ícone da ação de linha: traço fino, sempre com o rótulo ao lado (GUIA, regra 5). */
 const ICON = 'size-4 shrink-0';
@@ -90,7 +90,7 @@ export function RowList<T>({ items, children }: { items: readonly T[]; children:
           variant="ghost"
           // scroll-mt: ao recolher, o botão sobe até o topo, onde o aviso fixo do painel (sticky
           // top-2, ≥ 48 px) o cobriria inteiro. A margem o deixa abaixo do aviso (🟡 do red team).
-          className="w-full scroll-mt-28 text-brand xl:min-h-0 xl:h-9 xl:text-sm"
+          className="w-full scroll-mt-28 text-brand desk:min-h-0 desk:h-9 xl:text-sm"
           aria-expanded={expanded}
           aria-controls={listId}
           onClick={() => {
@@ -181,7 +181,7 @@ function GuestLink({ reservation }: { reservation: ReservationListItem }) {
   return (
     <Link
       to={`/reservas/${reservation.id}`}
-      className="inline-flex min-h-touch items-center font-medium text-gray-900 underline-offset-2 hover:text-brand hover:underline xl:min-h-0"
+      className="inline-flex min-h-touch items-center font-medium text-gray-900 underline-offset-2 hover:text-brand hover:underline desk:min-h-0"
     >
       {reservation.guest?.full_name ?? 'Hóspede removido'}
     </Link>

@@ -7,7 +7,7 @@ import { extendTailwindMerge } from 'tailwind-merge';
  * A lista é a mesma de `fontSize` em packages/config/tailwind-preset.js.
  */
 const twMerge = extendTailwindMerge({
-  extend: { classGroups: { 'font-size': [{ text: ['title', 'section', 'body', 'support', 'figure'] }] } },
+  extend: { classGroups: { 'font-size': [{ text: ['title', 'section', 'body', 'support', 'figure', 'wordmark', 'wordmark-tag', 'overline'] }] } },
 });
 
 /** Junta classes condicionais e resolve conflitos do Tailwind (a última vence). */

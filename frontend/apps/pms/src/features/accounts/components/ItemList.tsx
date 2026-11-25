@@ -84,7 +84,7 @@ function QuantityField({
         aria-label={`Quantidade de ${description}`}
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? hintId : undefined}
-        className="min-h-touch w-16 shrink-0 px-2 text-center tabular-nums xl:min-h-0"
+        className="min-h-touch w-16 shrink-0 px-2 text-center tabular-nums desk:min-h-0"
         value={text}
         onFocus={(e) => {
           setEditing(true);

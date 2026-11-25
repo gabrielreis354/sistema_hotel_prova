@@ -22,12 +22,12 @@ export function ButtonLink({
   return <Link className={buttonClasses({ variant, size, block }, className)} {...props} />;
 }
 
-/** Link de volta, discreto. 48 px até o xl (CA-08.g); compacto só no desktop. */
+/** Link de volta, discreto. 48 px no toque (CA-08.g); compacto só com mouse a partir de 1280 px (desk, R-3). */
 export function BackLink({ to, children, className }: { to: string; children: ReactNode; className?: string }) {
   return (
     <Link
       to={to}
-      className={cn('inline-flex min-h-touch items-center text-sm text-brand hover:underline xl:min-h-0 xl:py-1', className)}
+      className={cn('inline-flex min-h-touch items-center text-sm text-brand hover:underline desk:min-h-0 xl:py-1', className)}
     >
       {children}
     </Link>

@@ -18,9 +18,10 @@ const button = cva(
         danger: 'bg-status-maintenance text-white hover:opacity-90 focus-visible:ring-status-maintenance',
       },
       size: {
-        // comfortable = mobile (alvo 48px); compact = tabelas/rack no desktop.
+        // comfortable = mobile (alvo 48px); compact = tabelas/rack no desktop. O compact só encolhe
+        // com mouse (desk = xl + pointer fine, SPEC-10 R-3): no toque continua com 48 px.
         comfortable: 'min-h-touch px-4 text-base',
-        compact: 'h-9 px-3 text-sm',
+        compact: 'min-h-touch px-3 text-sm desk:h-9 desk:min-h-0',
       },
       block: {
         true: 'w-full',
