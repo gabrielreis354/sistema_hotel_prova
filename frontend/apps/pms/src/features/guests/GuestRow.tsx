@@ -30,7 +30,11 @@ export function GuestRow({ guest, onOpen }: { guest: Guest; onOpen: (path: strin
   return (
     <tr onClick={handleRowClick} className="h-12 cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50">
       <td className="px-4 py-2">
-        <Link to={path} className="font-medium text-brand hover:underline">
+        {/* 48 px no toque também para o teclado e o leitor de tela: o link tinha 17 px (linha de base, F5). */}
+        <Link
+          to={path}
+          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0"
+        >
           {guest.full_name}
         </Link>
       </td>

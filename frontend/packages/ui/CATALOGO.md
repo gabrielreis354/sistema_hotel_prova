@@ -46,6 +46,8 @@ Até 10/12, nenhuma além de `lucide-react` para ícones (com texto ao lado e `a
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
 | `PageHeader` | Topo de toda página (T-08.5): título de 20 px, contexto curto embaixo (data, contagem) e a ação principal à direita, sempre `size="compact"` (um teste varre isso); no celular a ação desce, na largura toda | Título de seção dentro da página — use `Section`. E não ponha duas ações `primary` nele: a segunda é `secondary` (GUIA, regra 1) |
 | `RoomNumber` | O número do quarto em destaque, à esquerda da linha ou do cabeçalho (Hoje e detalhe da reserva). Decorativo: o texto ao lado diz o quarto | Como única informação do quarto: ele é `aria-hidden` |
+| `Table` (`THead`, `Th`, `Tr`, `Td`) | Tabela densa do balcão: legenda para o leitor de tela, cabeçalho cinza legível, valor à direita com `align="right"`. Promovido na F5 da SPEC-10 (quartos, categorias, reservas, hóspedes) | Lista que no celular vira cartão; e não esqueça o `caption` |
+| `SegmentedControl` | Escolha de uma entre poucas opções que **filtra** o que está embaixo (período das reservas, meses do gráfico). Ativo tingido, `aria-pressed` | Ação ("faça isto") é `Button`; trocar de tela é aba ou link |
 | `Section` | Bloco só de leitura: título de seção e um fio em cima, sem cartão (ficha do hóspede, resumo da reserva) | O que pede atenção ou recebe dado — formulário, confirmação, pagamento: isso é `Card` |
 
 ---
@@ -55,7 +57,7 @@ Até 10/12, nenhuma além de `lucide-react` para ícones (com texto ao lado e `a
 Registrados porque já se sabe que vão ser precisos por mais de um módulo. Quem chegar
 primeiro cria local; o segundo promove.
 
-> **Primeira versão local já existe** para `Table` e `Select` em
+> **Primeira versão local já existe** para `Select` em
 > `apps/pms/src/features/rooms/components/` (T-05.1, 21/10). Quem precisar no segundo módulo
 > promove de lá, em vez de recriar. O `Money` local de quartos virou `DecimalMoney` na T-08.6
 > (recebe o DECIMAL em texto; o `Money` daqui recebe centavos), e o `Notice` local da comanda
@@ -64,7 +66,6 @@ primeiro cria local; o segundo promove.
 
 | Falta | Quem vai precisar | Observação |
 |---|---|---|
-| `Table` | reservas, hóspedes, financeiro, B2B | Cabeçalho, coluna que some no mobile, estado vazio embutido |
 | `DateRangePicker` | reservas, rack, indicadores | Todo filtro por período do sistema |
 | `Skeleton` | listas e rack | Espera longa sem tela em branco |
 | `Select` | reservas, comanda, configurações | Lista de escolha com o visual do `Input`. Hoje só existe a versão local da T-05.1 |

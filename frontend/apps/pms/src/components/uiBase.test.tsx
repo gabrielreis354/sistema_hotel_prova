@@ -175,3 +175,53 @@ describe('F4 (25/11): RoomNumber e primário desabilitado', async () => {
     expect(classes(renderToString(<Button variant="ghost" disabled>x</Button>))).toContain('disabled:opacity-50');
   });
 });
+
+describe('F5 (25/11): Table e SegmentedControl no @hotel/ui', async () => {
+  const { Table, THead, Th, Tr, Td, SegmentedControl } = await import('@hotel/ui');
+
+  it('Table: legenda para o leitor de tela, cabeçalho em gray-600 (o gray-500 dava 4,4:1 no gray-50) e valor à direita', () => {
+    const html = renderToString(
+      <Table caption="Quartos">
+        <THead>
+          <Th>Quarto</Th>
+          <Th align="right">Diária</Th>
+        </THead>
+        <tbody>
+          <Tr>
+            <Td>101</Td>
+            <Td align="right">R$ 1,00</Td>
+          </Tr>
+        </tbody>
+      </Table>,
+    );
+    expect(html).toContain('<caption class="sr-only">Quartos</caption>');
+    expect(html).toMatch(/<thead class="[^"]*text-gray-600/);
+    expect(html).not.toMatch(/<thead class="[^"]*text-gray-500/);
+    expect(html).toMatch(/<th scope="col" class="[^"]*text-right/);
+    expect(html).toMatch(/<td class="[^"]*text-right tabular-nums/);
+  });
+
+  it('SegmentedControl: um grupo com nome, botões com aria-pressed; o ativo é tingido, não o primário sólido', () => {
+    const html = renderToString(
+      <SegmentedControl
+        label="Atalhos de período"
+        value="7"
+        onChange={() => {}}
+        options={[
+          { value: 'hoje', label: 'Hoje' },
+          { value: '7', label: 'Próximos 7 dias' },
+        ]}
+      />,
+    );
+    expect(html).toMatch(/^<div role="group" aria-label="Atalhos de período"/);
+    const botoes = html.match(/<button[^>]*>/g) ?? [];
+    expect(botoes).toHaveLength(2);
+    expect(botoes[1]).toContain('aria-pressed="true"');
+    expect(botoes[1]).toContain('bg-brand/10');
+    expect(botoes[1]).not.toContain(' bg-brand ');
+    expect(botoes[0]).toContain('aria-pressed="false"');
+    // 48 px no toque, compacto com mouse; anel de foco da marca.
+    for (const b of botoes) expect(b).toMatch(/min-h-touch[^"]*desk:h-9|desk:h-9[^"]*min-h-touch/);
+    for (const b of botoes) expect(b).toContain('focus-visible:ring-brand');
+  });
+});

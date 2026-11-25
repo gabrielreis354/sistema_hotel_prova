@@ -1,7 +1,7 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decimalToCents, formatDateBR, todayISO } from '@hotel/domain';
-import { Button, Card, EmptyState, ErrorState, Field, Input, Spinner, cn } from '@hotel/ui';
+import { Button, Card, EmptyState, ErrorState, Field, Input, RoomNumber, SegmentedControl, Spinner, THead, Td, Th, Tr, cn } from '@hotel/ui';
 import { useReservationList } from './queries.js';
 import { PERIOD_PRESETS, pageCount, presetRange, safeNights, type PeriodPreset } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
@@ -64,20 +64,14 @@ export function ReservationsListPage() {
       <PageHeader title="Reservas" action={<ButtonLink to="/reservas/nova" size="compact">Nova reserva</ButtonLink>} />
 
       <Card className="space-y-3 p-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Atalhos de período">
-          {PERIOD_PRESETS.map((p) => (
-            // 48 px até o xl, compacto só no desktop (CA-08.g): no tablet do balcão tinham 36 px.
-            <Button
-              key={p.id}
-              variant={activePreset === p.id ? 'primary' : 'secondary'}
-              aria-pressed={activePreset === p.id}
-              onClick={() => applyPreset(p.id)}
-              className="desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
+        {/* Filtro, não ação: grupo segmentado com o ativo tingido (decisão de 25/11, F5). Antes o ativo era o
+            verde sólido do botão principal, que diz "faça isto". */}
+        <SegmentedControl
+          label="Atalhos de período"
+          value={activePreset ?? null}
+          options={PERIOD_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+          onChange={applyPreset}
+        />
         <div className="grid grid-cols-2 gap-3 sm:max-w-md">
           <Field label="De">
             <Input type="date" value={from} onChange={(e) => valid(e.target.value) && update({ de: e.target.value })} />
@@ -128,46 +122,50 @@ export function ReservationsListPage() {
           >
             <table className="w-full text-left text-sm">
               <caption className="sr-only">Reservas de {formatDateBR(from)} a {formatDateBR(to)}</caption>
-              <thead className="border-b border-gray-200 bg-gray-50 text-gray-600">
-                <tr>
-                  <Th>Hóspede</Th>
-                  <Th>Quarto</Th>
-                  <Th className="hidden sm:table-cell">Período</Th>
-                  <Th className="hidden text-right md:table-cell">Total</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
+              <THead>
+                <Th>Hóspede</Th>
+                <Th className="hidden sm:table-cell">Quarto</Th>
+                <Th className="hidden sm:table-cell">Período</Th>
+                <Th align="right" className="hidden md:table-cell">
+                  Total
+                </Th>
+                <Th>Status</Th>
+              </THead>
               <tbody>
                 {result.data.map((r) => {
                   const nights = r.check_in_date && r.check_out_date ? safeNights(r.check_in_date, r.check_out_date) : null;
+                  const stay = nights !== null ? ` · ${nights} ${nights === 1 ? 'diária' : 'diárias'}` : '';
                   return (
-                    <tr key={r.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-2">
-                        <Link
-                          to={`/reservas/${r.id}`}
-                          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0 xl:py-1"
-                        >
-                          {r.guest?.full_name ?? 'Hóspede removido'}
-                        </Link>
-                        {/* No celular o período vem embaixo do nome — a coluna some. */}
-                        <span className="block text-xs text-gray-600 tabular-nums sm:hidden">
-                          {period(r.check_in_date, r.check_out_date)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 tabular-nums">{r.room?.number ?? '—'}</td>
-                      <td className="hidden px-4 py-2 tabular-nums text-gray-700 sm:table-cell">
+                    <Tr key={r.id}>
+                      <Td>
+                        {/* Celular: o quarto em destaque à esquerda, o nome e o período curto (sem o ano) em
+                            duas linhas — eram 4 por reserva, e cabiam ~5 por tela (decisão de 25/11, F5). */}
+                        <div className="flex items-center gap-3">
+                          <RoomNumber number={r.room?.number ?? '—'} className="sm:hidden" />
+                          {/* O link envolve as duas linhas: no celular o alvo de toque é a reserva inteira. */}
+                          <Link
+                            to={`/reservas/${r.id}`}
+                            className="flex min-h-touch min-w-0 flex-col justify-center rounded-sm py-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0"
+                          >
+                            <span className="font-medium text-brand">{r.guest?.full_name ?? 'Hóspede removido'}</span>
+                            <span className="block text-xs text-gray-600 tabular-nums sm:hidden">
+                              {`Quarto ${r.room?.number ?? '—'} · ${shortPeriod(r.check_in_date, r.check_out_date)}${stay}`}
+                            </span>
+                          </Link>
+                        </div>
+                      </Td>
+                      <Td className="hidden tabular-nums sm:table-cell">{r.room?.number ?? '—'}</Td>
+                      <Td className="hidden tabular-nums text-gray-700 sm:table-cell">
                         {period(r.check_in_date, r.check_out_date)}
-                        {nights !== null && (
-                          <span className="ml-1 text-gray-500">· {nights} {nights === 1 ? 'diária' : 'diárias'}</span>
-                        )}
-                      </td>
-                      <td className="hidden px-4 py-2 text-right md:table-cell">
+                        {nights !== null && <span className="ml-1 text-gray-600">{stay}</span>}
+                      </Td>
+                      <Td align="right" className="hidden md:table-cell">
                         {r.total_amount ? <Money cents={decimalToCents(r.total_amount)} /> : '—'}
-                      </td>
-                      <td className="px-4 py-2">
+                      </Td>
+                      <Td>
                         <ReservationStatusBadge status={r.status} />
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   );
                 })}
               </tbody>
@@ -204,17 +202,14 @@ export function ReservationsListPage() {
   );
 }
 
-/** Cabeçalho de coluna. Candidato ao `Table` do CATALOGO.md, que hóspedes também vai usar. */
-function Th({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <th scope="col" className={cn('px-4 py-2 font-medium', className)}>
-      {children}
-    </th>
-  );
-}
-
 function valid(value: string | null): string | undefined {
   return value && ISO_RE.test(value) ? value : undefined;
+}
+
+/** "24/11 → 26/11": no celular o ano sai (a lista já é de um período curto). */
+function shortPeriod(checkIn?: string, checkOut?: string): string {
+  if (!checkIn || !checkOut) return '—';
+  return `${formatDateBR(checkIn).slice(0, 5)} → ${formatDateBR(checkOut).slice(0, 5)}`;
 }
 
 function period(checkIn?: string, checkOut?: string): string {

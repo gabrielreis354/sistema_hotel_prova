@@ -1,13 +1,12 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, ErrorState, Spinner, StatusBadge } from '@hotel/ui';
+import { EmptyState, ErrorState, Spinner, StatusBadge, Table, Td, Th, THead, Tr } from '@hotel/ui';
 import { useCanWriteRooms, useRooms } from './queries.js';
 import { formatFloor, sortRooms } from './roomRules.js';
 import { RoomsHeader } from './components/RoomsHeader.js';
 import { ReadOnlyNotice } from './components/ReadOnlyNotice.js';
 import { EditAction, WriteButton } from './components/Actions.js';
 import { DecimalMoney } from './components/DecimalMoney.js';
-import { Table, THead, Th, Tr, Td } from './components/Table.js';
 
 export function RoomsListPage() {
   const navigate = useNavigate();

@@ -55,3 +55,12 @@ describe('GuestRow — a linha inteira abre o hóspede (CA-09.f)', () => {
     expect(semCpf.props.children[1].props.children).toBe('—');
   });
 });
+
+describe('GuestRow — o link do nome com alvo de toque (F5 da SPEC-10)', () => {
+  it('48 px no toque também para o teclado: o link tinha 17 px', () => {
+    const { nameCell } = render();
+    const link = nameCell.props.children as ReactElement<{ className: string }>;
+    const cls = (Array.isArray(link) ? link.find((c) => c?.props?.className) : link).props.className.split(' ');
+    expect(cls).toEqual(expect.arrayContaining(['min-h-touch', 'desk:min-h-0', 'focus-visible:ring-brand']));
+  });
+});

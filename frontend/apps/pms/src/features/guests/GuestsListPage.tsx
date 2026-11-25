@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, EmptyState, ErrorState, Input, PageHeader, Spinner } from '@hotel/ui';
+import { Button, EmptyState, ErrorState, Input, PageHeader, Spinner, THead, Table, Th } from '@hotel/ui';
 import { useGuests } from './queries.js';
 import { filterGuests } from './guestFilter.js';
 import { GuestRow } from './GuestRow.js';
@@ -50,23 +50,20 @@ export function GuestsListPage() {
           {filtered.length === 0 ? (
             <p className="px-1 text-sm text-gray-500">Nenhum hóspede corresponde à busca.</p>
           ) : (
-            <Card className="overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Nome</th>
-                    <th className="px-4 py-2 font-medium">CPF</th>
-                    <th className="hidden px-4 py-2 font-medium sm:table-cell">Telefone</th>
-                    <th className="hidden px-4 py-2 font-medium sm:table-cell">E-mail</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((g) => (
-                    <GuestRow key={g.id} guest={g} onOpen={navigate} />
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+            // O Table do @hotel/ui (F5): o cabeçalho copiado à mão acaba, e o cinza dele passa a 4,5:1.
+            <Table caption="Hóspedes cadastrados">
+              <THead>
+                <Th>Nome</Th>
+                <Th>CPF</Th>
+                <Th className="hidden sm:table-cell">Telefone</Th>
+                <Th className="hidden sm:table-cell">E-mail</Th>
+              </THead>
+              <tbody>
+                {filtered.map((g) => (
+                  <GuestRow key={g.id} guest={g} onOpen={navigate} />
+                ))}
+              </tbody>
+            </Table>
           )}
         </>
       )}
