@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatCpf, formatDateBR } from '@hotel/domain';
-import { ActionSlot, Button, Card, ErrorState, Section, Spinner, cn } from '@hotel/ui';
+import { ActionSlot, Button, Card, ErrorState, RoomNumber, Section, Spinner, cn } from '@hotel/ui';
 import { ApiError } from '../../lib/http.js';
 import { mutateOnce } from '../../lib/submitLock.js';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,6 +13,7 @@ import {
   buildBillTimeline,
   nextTab,
   officialBalanceCents,
+  checkOutConfirmVariant,
   primaryAction,
   reservationActions,
   safeNights,
@@ -47,7 +48,7 @@ export function ReservationDetailPage() {
   const bill = useBill(id);
   const transition = useTransitionReservation(id ?? '');
   const [confirming, setConfirming] = useState<Confirming>(null);
-  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string; action?: ReservationTransition } | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   // A confirmação do check-out nasce longe do botão do cabeçalho (aba Conta): o foco vai para ela e a
   // tela rola até lá. Sem isso o foco caía no body com o botão desabilitado (🟡-1 do qa-redteam de 15/11).
@@ -86,7 +87,7 @@ export function ReservationDetailPage() {
     mutateOnce(lock, transition.mutate, action, {
       onSuccess: () => {
         setConfirming(null);
-        setFeedback({ kind: 'ok', text: DONE_MESSAGE[action] });
+        setFeedback({ kind: 'ok', text: DONE_MESSAGE[action], action });
       },
       onError: (err) => {
         setConfirming(null);
@@ -105,7 +106,7 @@ export function ReservationDetailPage() {
   if (reservation.isPending) return <Spinner label="Carregando reserva…" />;
   if (reservation.isError || !reservation.data) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="max-w-5xl">
         <LoadError
           error={reservation.error}
           notFound="Reserva não encontrada — ela pode ter sido excluída."
@@ -124,6 +125,7 @@ export function ReservationDetailPage() {
   const balance = bill.data ? officialBalanceCents(bill.data) : null;
   const busy = transition.isPending;
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
+  const mainRoom = rooms.find((x) => x.id === r.room_id) ?? rooms[0];
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
   // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary. Com
@@ -138,65 +140,75 @@ export function ReservationDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    // Alinhado à esquerda, na mesma borda do Hoje e do topo, com até 1024 px de leitura (R-7; decisão do
+    // Sirlande de 25/11): centralizado, o conteúdo "pulava" de largura ao trocar de tela.
+    <div className="max-w-5xl space-y-4">
       <BackLink to="/reservas">← Reservas</BackLink>
 
       {/* Cabeçalho fixo acima das abas: quem, situação e saldo (CA-05.2.i). */}
-      <Card className="flex flex-wrap items-start justify-between gap-4 p-4">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-title">{r.guest?.full_name ?? 'Hóspede removido'}</h1>
-            <ReservationStatusBadge status={r.status} />
+      <Card className="space-y-4 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            {/* O principal (room_id), como no Hoje e no "(principal)" da seção Quartos: a lista `rooms` não vem
+                ordenada, e o primeiro dela podia ser um quarto extra (🟡2 do qa-redteam da F4). */}
+            {mainRoom?.number && <RoomNumber number={mainRoom.number} className="h-12 min-w-12 text-base" />}
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-title">{r.guest?.full_name ?? 'Hóspede removido'}</h1>
+                <ReservationStatusBadge status={r.status} />
+              </div>
+              <p className="text-sm text-gray-600 tabular-nums">
+                Quarto {rooms.map((x) => x.number).join(', ') || '—'} ·{' '}
+                {r.check_in_date && r.check_out_date
+                  ? `${formatDateBR(r.check_in_date)} → ${formatDateBR(r.check_out_date)}`
+                  : '—'}
+                {nights !== null && ` · ${nights} ${nights === 1 ? 'diária' : 'diárias'}`}
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-gray-600 tabular-nums">
-            Quarto {rooms.map((x) => x.number).join(', ') || '—'} ·{' '}
-            {r.check_in_date && r.check_out_date
-              ? `${formatDateBR(r.check_in_date)} → ${formatDateBR(r.check_out_date)}`
-              : '—'}
-            {nights !== null && ` · ${nights} ${nights === 1 ? 'diária' : 'diárias'}`}
-          </p>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+            <div className="sm:text-right" aria-live="polite">
+              <p className="text-overline uppercase text-gray-600">
+                {balance !== null && balance < 0 ? 'A devolver' : 'Saldo da estadia'}
+              </p>
+              {bill.isPending && <p className="text-sm text-gray-500">calculando…</p>}
+              {bill.isError && <p className="text-sm text-status-maintenance">indisponível</p>}
+              {balance !== null && (
+                <Money cents={Math.abs(balance)} className="text-2xl font-semibold text-gray-900" />
+              )}
+              {/* Verde só no ponto: o texto em gray-700 passa de 4,5:1 (o verde do preset dá 3,3). */}
+              {balance === 0 && (
+                <p className="flex items-center gap-1.5 text-xs font-medium text-gray-700 sm:justify-end">
+                  <span className="h-2 w-2 rounded-full bg-status-occupied" aria-hidden="true" />
+                  Conta quitada
+                </p>
+              )}
+            </div>
+            {primary === 'check-in' && (
+              <Button block className="sm:w-auto" disabled={busy} onClick={() => run('check-in')}>
+                {busy && transition.variables === 'check-in' ? 'Fazendo check-in…' : 'Fazer check-in'}
+              </Button>
+            )}
+            {primary === 'check-out' && (
+              <Button block className="sm:w-auto" disabled={busy || confirming === 'check-out'} onClick={openCheckOut}>
+                Fazer check-out
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
-        <div className="sm:text-right" aria-live="polite">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-            {balance !== null && balance < 0 ? 'A devolver' : 'Saldo da estadia'}
-          </p>
-          {bill.isPending && <p className="text-sm text-gray-500">calculando…</p>}
-          {bill.isError && <p className="text-sm text-status-maintenance">indisponível</p>}
-          {balance !== null && (
-            <Money cents={Math.abs(balance)} className="text-2xl font-semibold text-gray-900" />
-          )}
-          {/* Verde só no ponto: o texto em gray-700 passa de 4,5:1 (o verde do preset dá 3,3). */}
-          {balance === 0 && (
-            <p className="flex items-center gap-1.5 text-xs font-medium text-gray-700 sm:justify-end">
-              <span className="h-2 w-2 rounded-full bg-status-occupied" aria-hidden="true" />
-              Conta quitada
-            </p>
-          )}
-        </div>
-          {primary === 'check-in' && (
-            <Button block className="sm:w-auto" disabled={busy} onClick={() => run('check-in')}>
-              {busy && transition.variables === 'check-in' ? 'Fazendo check-in…' : 'Fazer check-in'}
-            </Button>
-          )}
-          {primary === 'check-out' && (
-            <Button block className="sm:w-auto" disabled={busy || confirming === 'check-out'} onClick={openCheckOut}>
-              Fazer check-out
-            </Button>
-          )}
-        </div>
-      </Card>
 
-      {/* Demais ações: secundárias, desabilitadas COM o motivo e nunca escondidas (CA-05.2.e,
-          CA-08.f). Cancelar fica por último e nunca no lugar da ação principal (T-08.3). */}
-      <Card className="p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+        {/* Demais ações: secundárias, desabilitadas COM o motivo e nunca escondidas (CA-05.2.e,
+            CA-08.f). Cancelar fica por último e nunca no lugar da ação principal (T-08.3). Ficam no
+            próprio cabeçalho, sob um fio, compactas e em 2 colunas no celular (decisão de 25/11): no
+            cartão separado viravam uma coluna longa antes da conta. */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-gray-200 pt-3 sm:flex sm:flex-wrap sm:items-start">
           {primary !== 'check-in' && (
-            <ActionSlot id="acao-checkin" state={actions.checkIn} className="sm:max-w-60">
+            <ActionSlot id="acao-checkin" state={actions.checkIn} className="min-w-0 sm:max-w-60">
               {(describedBy) => (
                 <Button
                   block
                   variant="secondary"
+                  size="compact"
                   className={SECONDARY_ACTION}
                   aria-describedby={describedBy}
                   disabled={!actions.checkIn.enabled || busy}
@@ -208,11 +220,12 @@ export function ReservationDetailPage() {
             </ActionSlot>
           )}
           {primary !== 'check-out' && (
-            <ActionSlot id="acao-checkout" state={actions.checkOut} className="sm:max-w-60">
+            <ActionSlot id="acao-checkout" state={actions.checkOut} className="min-w-0 sm:max-w-60">
               {(describedBy) => (
                 <Button
                   block
                   variant="secondary"
+                  size="compact"
                   className={SECONDARY_ACTION}
                   aria-describedby={describedBy}
                   disabled={!actions.checkOut.enabled || busy || confirming === 'check-out'}
@@ -223,11 +236,12 @@ export function ReservationDetailPage() {
               )}
             </ActionSlot>
           )}
-          <ActionSlot id="acao-cancelar" state={actions.cancel} className="sm:max-w-60">
+          <ActionSlot id="acao-cancelar" state={actions.cancel} className="min-w-0 sm:max-w-60">
             {(describedBy) => (
               <Button
                 block
                 variant="secondary"
+                size="compact"
                 className={SECONDARY_ACTION}
                 aria-describedby={describedBy}
                 disabled={!actions.cancel.enabled || busy || confirming === 'cancel'}
@@ -243,7 +257,7 @@ export function ReservationDetailPage() {
         </div>
 
         {confirming === 'cancel' && (
-          <div className="mt-4 space-y-3 rounded-md border border-status-maintenance/40 bg-status-maintenance/5 p-3">
+          <div className="space-y-3 rounded-md border border-status-maintenance/40 bg-status-maintenance/5 p-3">
             <p className="text-sm text-gray-800">
               Cancelar a reserva de <strong>{r.guest?.full_name}</strong>? O quarto volta a ficar livre no período e as
               contas da estadia fecham. Não dá para desfazer.
@@ -260,10 +274,16 @@ export function ReservationDetailPage() {
         )}
 
         {feedback && (
-          <div className="mt-4">
+          <div className="space-y-2">
             <Notice ref={feedbackRef} tone={feedback.kind === 'error' ? 'error' : 'success'}>
               {feedback.text}
             </Notice>
+            {/* Depois do check-out, o passo seguinte é entregar o papel (critique da F4, P3). */}
+            {feedback.kind === 'ok' && feedback.action === 'check-out' && (
+              <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" size="compact">
+                Imprimir comprovante
+              </ButtonLink>
+            )}
           </div>
         )}
       </Card>
@@ -371,7 +391,7 @@ export function ReservationDetailPage() {
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
-                <Button disabled={busy || !bill.data} onClick={() => run('check-out')}>
+                <Button variant={checkOutConfirmVariant(balance, receiving)} disabled={busy || !bill.data} onClick={() => run('check-out')}>
                   {busy ? 'Fazendo check-out…' : 'Confirmar check-out'}
                 </Button>
                 <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
@@ -422,7 +442,7 @@ export function ReservationDetailPage() {
 }
 
 /** Ação secundária: 48 px no celular e no tablet, compacta só com mouse a partir de 1280 px (desk, R-3; GUIA §3, regra 9). */
-const SECONDARY_ACTION = 'desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm';
+const SECONDARY_ACTION = 'sm:w-auto';
 
 function TabButton({
   id,

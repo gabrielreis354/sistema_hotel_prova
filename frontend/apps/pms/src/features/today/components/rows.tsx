@@ -3,7 +3,7 @@ import { LogIn, LogOut, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDateBR, formatDateTimeBR } from '@hotel/domain';
-import { ActionSlot, Button, Money, Spinner, StatusBadge, cn } from '@hotel/ui';
+import { ActionSlot, Button, Money, RoomNumber, Spinner, StatusBadge, cn } from '@hotel/ui';
 import { ApiError } from '../../../lib/http.js';
 import { useOnline } from '../../../lib/online.js';
 import { mutateOnce, promiseOnce } from '../../../lib/submitLock.js';
@@ -116,15 +116,7 @@ function Row({ room, children, action, panel }: { room?: string; children: React
         <div className="flex min-w-0 items-start gap-3 xl:items-center">
           {/* Número do quarto em destaque (protótipo de 22/11): a recepção acha a linha pelo quarto. O texto
               da linha já diz "Quarto 101", então o selo é só visual. */}
-          {room !== undefined && (
-            <span
-              aria-hidden="true"
-              title={room}
-              className="flex h-10 min-w-10 max-w-20 shrink-0 items-center justify-center rounded-md bg-ground px-1.5 text-sm font-bold tabular-nums text-gray-900 ring-1 ring-inset ring-gray-200"
-            >
-              <span className="truncate">{room}</span>
-            </span>
-          )}
+          {room !== undefined && <RoomNumber number={room} />}
           {/* Uma linha por item a partir de xl (T-08.4): nome, selos e quarto lado a lado. */}
           <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:flex-wrap xl:items-center xl:gap-x-3">{children}</div>
         </div>

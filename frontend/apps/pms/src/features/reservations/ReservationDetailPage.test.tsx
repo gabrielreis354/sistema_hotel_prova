@@ -33,7 +33,7 @@ async function renderDetail(status: string, { aba }: { aba?: 'conta' } = {}) {
     total_amount: '300.00',
     room_id: 'r1',
     guest: { id: 'g1', full_name: 'Maria Oliveira', cpf: '12345678901' },
-    rooms: [{ id: 'r1', number: '101' }],
+    rooms: [{ id: 'r9', number: '109' }, { id: 'r1', number: '101' }],
   };
   const bill = { status, check_in_date: '2026-11-20', check_out_date: '2026-11-22', room_total: 300, balance_due: 300, consumptions: [], payments: [] };
   api.GET.mockImplementation(async (path: string) => {
@@ -125,5 +125,27 @@ describe('ReservationDetailPage — regra dos hooks', () => {
     expect(firstReturn).toBeGreaterThan(0);
     const hooksAfter = body.slice(firstReturn).match(/\buse[A-Z]\w*\(/g) ?? [];
     expect(hooksAfter).toEqual([]);
+  });
+});
+
+describe('cabeçalho da reserva (SPEC-10, F4)', () => {
+  it('o número do quarto em destaque e as ações secundárias no próprio cabeçalho, antes das abas', async () => {
+    const html = await renderDetail('CHECKED_IN');
+    expect(html).toContain('aria-hidden="true" title="101"');
+    const cabecalho = html.slice(0, html.indexOf('role="tablist"'));
+    // Um cartão só antes das abas: as secundárias saíram do cartão próprio (decisão de 25/11).
+    expect(cabecalho.match(/rounded-lg border border-gray-200 bg-white/g)?.length).toBe(1);
+    expect(cabecalho).toContain('acao-cancelar-motivo');
+    // Dentro do cartão (sob o fio do próprio cabeçalho), e o primário vem antes das secundárias.
+    const cartao = cabecalho.slice(cabecalho.indexOf('rounded-lg border border-gray-200 bg-white'));
+    expect(cartao).toMatch(/border-t border-gray-200 pt-3[^]*acao-cancelar/);
+    expect(cartao.indexOf('Fazer check-out')).toBeLessThan(cartao.indexOf('acao-checkin'));
+  });
+
+  it('alinhado à esquerda, com até 1024 px (R-7): sem o mx-auto que centralizava', async () => {
+    const html = await renderDetail('CHECKED_IN');
+    const raiz = html.match(/<div class="([^"]*)"/)?.[1] ?? '';
+    expect(raiz.split(' ')).toContain('max-w-5xl');
+    expect(raiz.split(' ')).not.toContain('mx-auto');
   });
 });

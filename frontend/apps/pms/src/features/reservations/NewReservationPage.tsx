@@ -10,7 +10,7 @@ import { pastCheckInError, quoteStay, roomConflictMessage, safeNights } from './
 import { GuestPicker } from './components/GuestPicker.js';
 import { RoomPicker } from './components/RoomPicker.js';
 import { Money, Notice, PageHeader } from './components/primitives.js';
-import { ButtonLink } from '../../components/links.js';
+import { BackLink } from '../../components/links.js';
 
 /**
  * Nova reserva no balcão (CA-05.2.c, l, m). Uma página só, em três blocos — período,
@@ -100,15 +100,11 @@ export function NewReservationPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <PageHeader
-        title="Nova reserva"
-        action={
-          <ButtonLink to="/reservas" size="compact" variant="secondary">
-            Voltar à lista
-          </ButtonLink>
-        }
-      />
+    // À esquerda, como o detalhe (R-7). A volta é o link do topo, como no detalhe: o botão "Voltar à lista"
+    // ocupava o lugar que nas outras telas é da ação principal (linha de base de 24/11, F4).
+    <div className="max-w-5xl space-y-4">
+      <BackLink to="/reservas">← Reservas</BackLink>
+      <PageHeader title="Nova reserva" />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
         <div className="space-y-4">

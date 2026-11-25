@@ -150,3 +150,28 @@ describe('ressalvas do qa-redteam da F2 (25/11)', () => {
     expect(classes(renderToString(<Button>Ok</Button>))).toEqual(expect.arrayContaining(['border', 'border-transparent']));
   });
 });
+
+describe('F4 (25/11): RoomNumber e primário desabilitado', async () => {
+  const { RoomNumber } = await import('@hotel/ui');
+
+  it('RoomNumber: o número em destaque, decorativo (o texto ao lado já diz "Quarto 101"), cortando o longo com title', () => {
+    const html = renderToString(<RoomNumber number="E2E195939" />);
+    expect(html).toMatch(/^<span aria-hidden="true" title="E2E195939"/);
+    expect(html).toContain('truncate');
+    expect(html).toContain('E2E195939');
+  });
+
+  it('primário e danger desabilitados ficam cinza, não a marca a 50% (parecia meio habilitado, linha de base de 24/11)', () => {
+    for (const variant of ['primary', 'danger'] as const) {
+      const c = classes(renderToString(<Button variant={variant} disabled>Confirmar reserva</Button>));
+      expect(c).toEqual(expect.arrayContaining(['disabled:bg-gray-200', 'disabled:text-gray-600', 'disabled:opacity-100']));
+      expect(c).not.toContain('disabled:opacity-50');
+    }
+    // O secundário desabilitado também se lê (gray-500 sobre gray-50, 4,6:1), sem esmaecer o texto.
+    expect(classes(renderToString(<Button variant="secondary" disabled>x</Button>))).toEqual(
+      expect.arrayContaining(['disabled:bg-gray-50', 'disabled:text-gray-500', 'disabled:opacity-100']),
+    );
+    // O ghost continua esmaecido.
+    expect(classes(renderToString(<Button variant="ghost" disabled>x</Button>))).toContain('disabled:opacity-50');
+  });
+});
