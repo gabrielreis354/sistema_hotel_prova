@@ -19,7 +19,7 @@ describe('Atenção por gravidade (SPEC-10 F3, protótipo de 22/11)', () => {
   it('cada item leva ao lugar da ação', () => {
     expect(Object.fromEntries(todos.map((a) => [a.id, a.href ?? a.to]))).toEqual({
       'no-show': '#chegadas-titulo',
-      maintenance: '#fita-titulo',
+      maintenance: '#fita',
       'late-departures': '#saidas-titulo',
       cleaning: '#limpeza-titulo',
       pending: '/reservas',

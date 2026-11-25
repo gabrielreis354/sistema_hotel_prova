@@ -119,9 +119,10 @@ function Row({ room, children, action, panel }: { room?: string; children: React
           {room !== undefined && (
             <span
               aria-hidden="true"
-              className="flex h-10 min-w-10 shrink-0 items-center justify-center rounded-md bg-ground px-1.5 text-sm font-bold tabular-nums text-gray-900 ring-1 ring-inset ring-gray-200"
+              title={room}
+              className="flex h-10 min-w-10 max-w-20 shrink-0 items-center justify-center rounded-md bg-ground px-1.5 text-sm font-bold tabular-nums text-gray-900 ring-1 ring-inset ring-gray-200"
             >
-              {room}
+              <span className="truncate">{room}</span>
             </span>
           )}
           {/* Uma linha por item a partir de xl (T-08.4): nome, selos e quarto lado a lado. */}

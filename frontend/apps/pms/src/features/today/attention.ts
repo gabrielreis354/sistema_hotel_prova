@@ -36,7 +36,7 @@ export function attentionItems(n: { noShow: number; maintenance: number; lateDep
       count: n.maintenance,
       long: plural(n.maintenance, 'quarto em manutenção', 'quartos em manutenção'),
       short: 'em manutenção',
-      href: '#fita-titulo',
+      href: '#fita',
     },
     {
       id: 'late-departures',

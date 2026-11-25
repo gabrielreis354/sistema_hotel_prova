@@ -238,13 +238,13 @@ function AttentionChip({ item }: { item: AttentionItemData }) {
       <span className={cn('size-2.5 shrink-0 rounded-full', DOT[item.tone])} aria-hidden="true" />
       <strong className="tabular-nums">{item.count}</strong>
       <span className="sr-only sm:not-sr-only">{item.long}</span>
-      <span aria-hidden="true" className="truncate sm:hidden">
+      <span aria-hidden="true" className="leading-tight sm:hidden">
         {item.short}
       </span>
     </>
   );
   const chip =
-    'flex min-h-touch items-center gap-2 rounded-full border border-gray-200 bg-white px-3 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0 xl:py-1.5';
+    'flex min-h-touch items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:rounded-full desk:min-h-0 xl:py-1.5';
   return (
     <li className="min-w-0">
       {item.to ? (

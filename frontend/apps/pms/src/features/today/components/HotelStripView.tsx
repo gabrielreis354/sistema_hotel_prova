@@ -74,18 +74,17 @@ export function HotelStripView({
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
 
   return (
-    <section aria-labelledby="fita-titulo" className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 md:p-5">
-      <h2 id="fita-titulo" className="sr-only">
-        Situação dos quartos
-      </h2>
+    // Nome pela própria seção: um <h2 class="sr-only"> como primeiro filho ganhava o espaço do space-y e
+    // deixava um vão em cima do cartão. O id é o alvo do "em manutenção" do Atenção.
+    <section id="fita" aria-label="Situação dos quartos" className="scroll-mt-4 space-y-4 rounded-lg border border-gray-200 bg-white p-4 md:p-5">
       {stale && <StaleNotice onRetry={onRetry} />}
       {body ?? (
         strip && (
           <>
-            <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+            <div className="grid grid-cols-2 items-end gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8">
               <Figure label="Ocupação agora" value={formatPercent(strip.occupancyRate)} hint={`${strip.counts.occupied} de ${strip.total} quartos ocupados`} />
               <Figure label="Vendidos hoje" value={sold === null ? '—' : String(sold)} hint="ocupados + chegadas de hoje" />
-              <div role="group" aria-label="Filtrar a fita por estado" className="flex flex-wrap gap-2 xl:ml-auto">
+              <div role="group" aria-label="Filtrar a fita por estado" className="col-span-2 flex flex-wrap gap-2 xl:ml-auto">
                 {STRIP_TONES.map((tone) => (
                   <Button
                     key={tone}
@@ -127,6 +126,7 @@ export function HotelStripView({
                         <li key={room.id}>
                           <button
                             type="button"
+                            id={`fita-quarto-${room.id}`}
                             title={label}
                             aria-label={label}
                             aria-expanded={selectedId === room.id}
@@ -147,7 +147,7 @@ export function HotelStripView({
                             >
                               {Icon && <Icon data-tone-icon aria-hidden="true" className="size-4" strokeWidth={2} />}
                             </span>
-                            <span className="text-xs font-semibold tabular-nums text-gray-800">{room.number}</span>
+                            <span className="truncate text-xs font-semibold tabular-nums text-gray-800">{room.number}</span>
                           </button>
                         </li>
                       );
@@ -158,7 +158,16 @@ export function HotelStripView({
             </div>
 
             <div id="fita-detalhe" aria-live="polite">
-              {selected && <RoomDetail room={selected} onClose={() => setSelectedId(null)} />}
+              {selected && (
+                <RoomDetail
+                  room={selected}
+                  onClose={() => {
+                    setSelectedId(null);
+                    // O botão de fechar some com o painel: o foco volta ao quarto, senão cairia no body.
+                    document.getElementById(`fita-quarto-${selected.id}`)?.focus();
+                  }}
+                />
+              )}
             </div>
           </>
         )
@@ -187,7 +196,7 @@ export function RoomDetail({ room, onClose }: { room: StripRoom; onClose: () => 
   const dates = room.checkIn && room.checkOut ? `${formatDateBR(room.checkIn)} → ${formatDateBR(room.checkOut)}` : null;
   let line: string;
   if (room.tone === 'occupied') line = room.guest ? `${room.guest} está no quarto.` : 'Ocupado.';
-  else if (room.tone === 'booked') line = `${room.guest ?? 'Hóspede'} chega${room.late ? ' (chegada atrasada)' : ' hoje'}.`;
+  else if (room.tone === 'booked') line = room.late ? `Chegada atrasada de ${room.guest ?? 'hóspede'}.` : `${room.guest ?? 'Hóspede'} chega hoje.`;
   else if (room.tone === 'cleaning') line = 'Saiu e ainda não voltou para a venda.';
   else if (room.tone === 'maintenance') line = 'Bloqueado para venda.';
   else line = 'Pronto para vender.';
