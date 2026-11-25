@@ -210,8 +210,10 @@ export function NewReservationPage() {
               </Notice>
             )}
 
+            {/* No celular e no tablet o "Confirmar" mora na barra fixa de baixo; aqui só a partir do lg. */}
             <Button
               block
+              className="hidden lg:inline-flex"
               disabled={blockers.length > 0 || create.isPending}
               aria-describedby={blockers.length > 0 ? 'confirm-blockers' : undefined}
               onClick={confirm}
@@ -223,6 +225,32 @@ export function NewReservationPage() {
             </p>
           </Card>
         </aside>
+      </div>
+
+      {/* Abaixo do lg, o valor e o "Confirmar" ficam presos acima da barra do celular (critique da F4, P2):
+          no fim da página, o administrador rolava 8 quartos para ver o total e o que faltava. O mesmo
+          encaixe do total da comanda (--tabbar da casca). O primeiro bloqueio aparece aqui; a lista
+          inteira continua no resumo. */}
+      <div
+        data-area="confirmar-celular"
+        className="sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 flex items-center gap-3 border-t border-gray-200 bg-white px-4 py-3 md:-mx-8 md:px-8 lg:hidden"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-gray-600">Valor da estadia</p>
+          {quote.ok ? (
+            <Money cents={quote.totalCents} className="text-lg font-semibold" />
+          ) : (
+            <p className="truncate text-sm text-gray-700">{blockers[0] ?? '—'}</p>
+          )}
+        </div>
+        <Button
+          className="shrink-0"
+          disabled={blockers.length > 0 || create.isPending}
+          aria-describedby={blockers.length > 0 ? 'confirm-blockers' : undefined}
+          onClick={confirm}
+        >
+          {create.isPending ? 'Reservando…' : 'Confirmar reserva'}
+        </Button>
       </div>
     </div>
   );

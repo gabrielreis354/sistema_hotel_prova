@@ -56,3 +56,20 @@ describe('lista de reservas (SPEC-10, F5)', () => {
     expect(html).toMatch(/<thead class="[^"]*text-gray-600/);
   });
 });
+
+describe('nova reserva no celular (critique da F4, P2)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fonte = readFileSync(new URL('./NewReservationPage.tsx', import.meta.url), 'utf-8');
+
+  it('abaixo do lg, o "Confirmar" fica numa barra presa acima da barra do celular, com o valor', () => {
+    const barra = fonte.slice(fonte.indexOf('data-area="confirmar-celular"'));
+    expect(barra).toMatch(/className="sticky bottom-\[calc\(var\(--tabbar,3rem\)\+max\(6px,env\(safe-area-inset-bottom\)\)\)\][^"]*lg:hidden/);
+    expect(barra).toContain('quote.totalCents');
+    expect(barra).toContain("'Confirmar reserva'");
+  });
+
+  it('um "Confirmar" visível por largura: o do resumo só a partir do lg', () => {
+    expect(fonte.match(/'Confirmar reserva'/g)).toHaveLength(2);
+    expect(fonte).toMatch(/className="hidden lg:inline-flex"\s+disabled=\{blockers\.length > 0/);
+  });
+});
