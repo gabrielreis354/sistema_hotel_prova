@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BedDouble, LogIn, LogOut, Sparkles } from 'lucide-react';
 import { formatDateBR } from '@hotel/domain';
 import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
@@ -10,6 +11,8 @@ import { hotelStrip } from './hotelStrip.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { StaleNotice } from './components/StaleNotice.js';
 import { HotelStripView } from './components/HotelStripView.js';
+import { CountPill } from './components/TodayBlock.js';
+import { attentionItems, type AttentionItem as AttentionItemData } from './attention.js';
 import { ArrivalItem, CleaningItem, DepartureItem, InHouseItem, RowList, type Feedback } from './components/rows.js';
 import { ButtonLink } from '../../components/links.js';
 import { ConnectionBanner, OfflineStrip } from '../../components/ConnectionBanner.js';
@@ -64,6 +67,14 @@ export function TodayPage() {
 
   const noShowCount = arrivalList.filter((a) => a.noShowRisk).length;
   const lateDepartures = departureList.filter((d) => d.late).length;
+  const attention = attentionItems({
+    noShow: noShowCount,
+    maintenance: strip?.counts.maintenance ?? 0,
+    lateDepartures,
+    cleaning: cleaning.length,
+    pendingTooLong: alerts.data?.pendingTooLong ?? 0,
+  });
+  const attentionTotal = attention.reduce((n, a) => n + a.count, 0);
 
   return (
     // Coluna de até 1440 px do main, com os blocos em no máximo 2 colunas (protótipo de 22/11, R-7).
@@ -102,8 +113,9 @@ export function TodayPage() {
 
       {/* Atenção (CA-05.3.c): o que pede ação agora, com cor + rótulo. */}
       <section aria-labelledby="atencao-titulo" className="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 id="atencao-titulo" className="text-section text-gray-900">
+        <h2 id="atencao-titulo" className="flex items-baseline gap-2 text-section text-gray-900">
           Atenção
+          {attentionTotal > 0 && <CountPill count={attentionTotal} />}
         </h2>
         {alertsLoad.isOffline ? (
           <p className="py-2 text-sm text-gray-700">Sem conexão. Os alertas aparecem quando a rede voltar.</p>
@@ -114,14 +126,12 @@ export function TodayPage() {
         ) : (
           <>
             {stale(alerts) && <StaleNotice onRetry={() => alerts.refetch()} />}
-            <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-800 sm:flex-row sm:flex-wrap sm:gap-x-6">
-              <AttentionItem tone="maintenance" count={noShowCount} href="#chegadas-titulo" one="chegada sem pagamento — risco de no-show" many="chegadas sem pagamento — risco de no-show" />
-              <AttentionItem tone="cleaning" count={lateDepartures} href="#saidas-titulo" one="saída atrasada" many="saídas atrasadas" />
-              <AttentionItem tone="cleaning" count={cleaning.length} href="#limpeza-titulo" one="quarto em limpeza" many="quartos em limpeza" />
-              <AttentionItem tone="booked" count={alerts.data.pendingTooLong} to="/reservas" one="reserva pendente há mais de 48 h" many="reservas pendentes há mais de 48 h" />
-              {noShowCount + lateDepartures + cleaning.length + alerts.data.pendingTooLong === 0 && (
-                <li className="py-2 text-gray-700">Nada pedindo atenção agora.</li>
-              )}
+            {/* Grade de 2 colunas no celular, com o texto curto; em linha a partir do sm (estudo de 22/11). */}
+            <ul className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-800 sm:flex sm:flex-wrap">
+              {attention.map((item) => (
+                <AttentionChip key={item.id} item={item} />
+              ))}
+              {attention.length === 0 && <li className="col-span-2 py-2 text-gray-700">Nada pedindo atenção agora.</li>}
             </ul>
           </>
         )}
@@ -131,6 +141,8 @@ export function TodayPage() {
         <TodayBlock
           id="chegadas"
           title="Chegadas"
+          icon={LogIn}
+          alert={noShowCount > 0 ? { tone: 'maintenance', text: `${noShowCount} sem pagamento` } : undefined}
           caption="Entrada hoje, ainda sem check-in — e as atrasadas"
           count={arrivals.data ? arrivalList.length : undefined}
           isLoading={arrivalsLoad.isLoading}
@@ -154,6 +166,8 @@ export function TodayPage() {
         <TodayBlock
           id="saidas"
           title="Saídas"
+          icon={LogOut}
+          alert={lateDepartures > 0 ? { tone: 'cleaning', text: lateDepartures === 1 ? '1 atrasada' : `${lateDepartures} atrasadas` } : undefined}
           caption="Saída hoje — e as atrasadas, que continuam na casa"
           count={inHouse.data ? departureList.length : undefined}
           isLoading={inHouseLoad.isLoading}
@@ -173,6 +187,7 @@ export function TodayPage() {
         <TodayBlock
           id="na-casa"
           title="Na casa"
+          icon={BedDouble}
           caption="Hóspedes com check-in feito"
           count={inHouse.data ? inHouseList.length : undefined}
           isLoading={inHouseLoad.isLoading}
@@ -191,6 +206,7 @@ export function TodayPage() {
         <TodayBlock
           id="limpeza"
           title="Em limpeza"
+          icon={Sparkles}
           caption="Quartos que saíram e ainda não voltaram para a venda"
           count={alerts.data ? cleaning.length : undefined}
           isLoading={alertsLoad.isLoading}
@@ -212,40 +228,31 @@ export function TodayPage() {
 
 const DOT = { maintenance: 'bg-status-maintenance', cleaning: 'bg-status-cleaning', booked: 'bg-status-booked' } as const;
 
-/** Uma linha da faixa de atenção: ponto + contagem + rótulo; zero não aparece. */
-function AttentionItem({
-  tone,
-  count,
-  one,
-  many,
-  href,
-  to,
-}: {
-  tone: keyof typeof DOT;
-  count: number;
-  one: string;
-  many: string;
-  href?: string;
-  to?: string;
-}) {
-  if (count === 0) return null;
+/**
+ * Um item do Atenção: ponto + contagem + texto, levando ao lugar da ação. No celular vai o texto curto
+ * na tela, e o leitor de tela continua com o inteiro.
+ */
+function AttentionChip({ item }: { item: AttentionItemData }) {
   const content = (
     <>
-        <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', DOT[tone])} aria-hidden="true" />
-        <span>
-          <strong className="tabular-nums">{count}</strong> {count === 1 ? one : many}
-        </span>
+      <span className={cn('size-2.5 shrink-0 rounded-full', DOT[item.tone])} aria-hidden="true" />
+      <strong className="tabular-nums">{item.count}</strong>
+      <span className="sr-only sm:not-sr-only">{item.long}</span>
+      <span aria-hidden="true" className="truncate sm:hidden">
+        {item.short}
+      </span>
     </>
   );
-  const linkClass = 'inline-flex min-h-touch items-center gap-2 hover:underline desk:min-h-0 xl:py-1';
+  const chip =
+    'flex min-h-touch items-center gap-2 rounded-full border border-gray-200 bg-white px-3 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0 xl:py-1.5';
   return (
-    <li>
-      {to ? (
-        <Link to={to} className={linkClass}>
+    <li className="min-w-0">
+      {item.to ? (
+        <Link to={item.to} className={chip}>
           {content}
         </Link>
       ) : (
-        <a href={href} className={linkClass}>
+        <a href={item.href} className={chip}>
           {content}
         </a>
       )}

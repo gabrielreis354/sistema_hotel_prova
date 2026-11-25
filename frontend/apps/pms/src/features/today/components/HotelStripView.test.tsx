@@ -102,3 +102,30 @@ describe('painel do quarto (só informação, decisão de 25/11)', () => {
     expect(roomLabel(quarto({ tone: 'free' }))).toBe('Quarto 103, Livre');
   });
 });
+
+describe('blocos do painel (SPEC-10, F3)', async () => {
+  const { TodayBlock } = await import('./TodayBlock.js');
+  const { LogIn } = await import('lucide-react');
+  const bloco = (over: Partial<Parameters<typeof TodayBlock>[0]> = {}) =>
+    renderToString(
+      <TodayBlock id="chegadas" title="Chegadas" icon={LogIn} caption="x" isLoading={false} error={null} onRetry={() => {}} isEmpty={false} empty={{ title: 'Nenhuma.' }} count={2} {...over}>
+        <p>linha</p>
+      </TodayBlock>,
+    );
+
+  it('ícone tingido no cabeçalho, decorativo', () => {
+    expect(bloco()).toMatch(/<span aria-hidden="true" class="[^"]*bg-brand\/10[^"]*"><svg/);
+  });
+
+  it('o alerta do bloco aparece no cabeçalho, com ponto e texto', () => {
+    const html = bloco({ alert: { tone: 'maintenance', text: '1 sem pagamento' } });
+    expect(html).toContain('1 sem pagamento');
+    expect(html).toContain('bg-status-maintenance');
+  });
+
+  it('o vazio traz o ícone do bloco', () => {
+    const html = bloco({ isEmpty: true });
+    expect(html).toContain('Nenhuma.');
+    expect(html.match(/lucide-log-in/g)?.length).toBe(2);
+  });
+});

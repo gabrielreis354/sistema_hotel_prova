@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { QueryClient } from '@tanstack/react-query';
 import { ANALYTICS_REFETCH_DELAY, invalidateAnalyticsSoon, isStale, loadState } from './todayLogic.js';
+import { LogIn } from 'lucide-react';
 import { TodayBlock } from './components/TodayBlock.js';
 
 // Painel Hoje sem rede (SPEC-11, CA-11.h): a consulta sem dado fica pausada (isPending para
@@ -27,6 +28,7 @@ const block = (over: Partial<Parameters<typeof TodayBlock>[0]>) =>
     <TodayBlock
       id="chegadas"
       title="Chegadas"
+      icon={LogIn}
       caption="Entrada hoje"
       isLoading={false}
       isOffline={false}
