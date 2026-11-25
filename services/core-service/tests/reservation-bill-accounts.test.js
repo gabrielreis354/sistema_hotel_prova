@@ -192,6 +192,17 @@ describe('Bill da reserva = soma das contas (CA-04.5.a)', () => {
         expect(body.consumptions.map((c) => c.description).sort()).toEqual(['Vinho', 'Água']);
     });
 
+    it('cada consumo diz a quantidade e o unitário, além do total da linha (QA 24/11, 🟡-1)', async () => {
+        // Sem a quantidade, "3 × Água a 5,50" aparecia na conta como "Água R$ 16,50", e o
+        // hóspede lia uma água de R$ 16,50. Só acrescenta campos: description e amount ficam.
+        const { reservation, b } = await splitStay();
+        await addItem(b.id, { description: 'Água', quantity: 3, unit_price: '5.50' });
+        const body = await reservationBill(reservation.id);
+        expect(body.consumptions).toHaveLength(1);
+        expect(body.consumptions[0]).toMatchObject({ description: 'Água', quantity: 3, unit_price: 5.5, amount: 16.5 });
+        expect(typeof body.consumptions[0].unit_price).toBe('number');
+    });
+
     it('pagamento a maior: soma dos saldos negativa = balance_due negativo', async () => {
         const { reservation } = await splitStay();
         await payOk({ reservation_id: reservation.id, amount: 1600 });

@@ -140,10 +140,11 @@ aceita a autenticação do provider ativo. Para trocar:
   **Antes do ensaio de 24/11:** o túnel rápido muda de URL a cada subida; atualize a URL no painel.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
-- **A reserva pública aceita data no passado.** O `CreateBookingController` e o
-  `GetAvailabilityController` só conferem se `check_out` vem depois de `check_in`. Um hóspede
-  consegue reservar uma estadia que já passou. É um defeito de produto, fora do escopo deste roteiro
-  porque muda o contrato da API. As datas de exemplo do Swagger evitam o problema na demonstração.
+- **Data no passado e data inválida: corrigido em 24/11** (QA do roteiro, `fix/qa-roteiro-24nov`).
+  A disponibilidade e o booking respondem 400 para entrada antes de hoje (no fuso do hotel) e para
+  data que não existe (`2027-02-30`), que antes dava 500. CPF preenchido com dígito errado também
+  é 400 com qualquer provider, a mesma regra do balcão. Por isso, depois de 15/12 as datas de
+  exemplo do Swagger passam a responder 400: troque-as antes de reusar.
 - **Asaas, 🟡-1 e 🟡-3 do qa-redteam de 16/10, fechadas em 11/11:** cancelar a reserva cancela a
   cobrança no Asaas (o sinal vira `FAILED`), o prazo devolvido ao hóspede é de 30 min, e CPF
   malformado responde 400. Ainda não há job que expire sozinho a cobrança `PENDING` de reserva

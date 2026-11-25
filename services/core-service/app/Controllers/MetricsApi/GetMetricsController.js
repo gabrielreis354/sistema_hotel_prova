@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { registry } from '../../utils/metrics.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /metrics — exposição no formato do Prometheus (T-02.4).
@@ -28,7 +29,7 @@ export default async function GetMetricsController(request, response) {
         response.set('Content-Type', registry.contentType);
         return response.status(200).send(await registry.metrics());
     } catch (error) {
-        console.error('GetMetricsController:', error);
+        logError('GetMetricsController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

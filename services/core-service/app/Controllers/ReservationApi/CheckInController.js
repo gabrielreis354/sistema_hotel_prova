@@ -7,6 +7,7 @@ import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 import cancelPendingCharges from '../../services/pix/cancelPendingCharges.js';
 import { todayInHotel } from '../../utils/hotelTimezone.js';
 import { CHECK_IN_WINDOW, checkInWindow, checkInWindowError } from '../../utils/checkInWindow.js';
+import { logError } from '../../utils/logError.js';
 
 const CHECK_IN_FROM = 'AVAILABLE';
 
@@ -93,7 +94,7 @@ export default async function CheckInController(request, response) {
         return response.json(reservation);
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error(error);
+        logError('CheckInController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

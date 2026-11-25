@@ -3,6 +3,7 @@ import GuestModel from '../../Models/GuestModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { ACTIVE_RESERVATION_STATUSES } from '../../utils/reservationStatuses.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * Exclui (soft delete) o hóspede. Com reserva ativa (PENDING, CONFIRMED ou CHECKED_IN) recusa com
@@ -46,7 +47,7 @@ export default async function DeleteGuestController(request, response) {
         return response.status(204).send();
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error('DeleteGuestController:', error);
+        logError('DeleteGuestController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -4,6 +4,8 @@ import { validateRoomCategoryFields } from '../../utils/roomCategoryValidation.j
 import { parseInteger } from '../../utils/roomRules.js';
 import { invalidInputBody } from '../../utils/roomErrors.js';
 import findInTenant from '../../utils/findInTenant.js';
+import { logError } from '../../utils/logError.js';
+import { categoryNameTaken } from '../../utils/categoryNameTaken.js';
 
 export default async function UpdateRoomCategoryController(request, response) {
     try {
@@ -19,6 +21,12 @@ export default async function UpdateRoomCategoryController(request, response) {
         const category = await findInTenant(RoomCategoryModel, id, tenantId);
         if (!category) return response.status(404).json({ error: 'Categoria não encontrada' });
 
+        // Mesmo nome de OUTRA categoria em outra caixa → 409; a própria pode mudar a caixa.
+        if (name !== undefined) {
+            const taken = await categoryNameTaken(tenantId, name.trim(), category.id);
+            if (taken) return response.status(409).json(taken);
+        }
+
         // Aparado, como o produto (🟢-3): "P " ao lado de "P" eram duas categorias na tela.
         if (name !== undefined)            category.name = name.trim();
         if (capacity !== undefined)        category.capacity = parseInteger(capacity);
@@ -31,7 +39,7 @@ export default async function UpdateRoomCategoryController(request, response) {
         // Sem isto o conflito do cliente viraria 500.
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
-        console.error(error);
+        logError('UpdateRoomCategoryController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

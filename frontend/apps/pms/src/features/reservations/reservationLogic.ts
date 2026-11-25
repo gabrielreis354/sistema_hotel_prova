@@ -40,6 +40,17 @@ export type StayQuote =
   | { ok: true; nights: number; lines: StayQuoteLine[]; totalCents: Cents }
   | { ok: false; reason: string };
 
+/**
+ * Mensagem para o campo "Entrada" quando a data já passou, ou `null`. O `min` do campo não basta:
+ * digitada à mão, a data passada listava quartos e somava as diárias, e só o "Confirmar reserva"
+ * recusava (QA de 24/11, 🟢-5). Mesma regra do servidor (entrada no passado → 422), na hora.
+ */
+export function pastCheckInError(checkIn: string, today: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(checkIn) || checkIn >= today) return null;
+  const [y, m, d] = checkIn.split('-');
+  return `A entrada (${d}/${m}/${y}) já passou. Escolha hoje ou uma data futura.`;
+}
+
 /** Noites entre as datas, ou null se alguma não for yyyy-MM-dd válida. */
 export function safeNights(checkIn: string, checkOut: string): number | null {
   try {
@@ -169,11 +180,21 @@ export interface BillLike {
   check_out_date?: string;
   room_total?: number;
   balance_due?: number;
-  consumptions?: { id?: string; description?: string; amount?: number; consumed_at?: string }[];
+  consumptions?: {
+    id?: string;
+    description?: string;
+    /** Unidades lançadas (QA 24/11). Ausente em resposta de servidor antigo: vale 1. */
+    quantity?: number;
+    unit_price?: number;
+    amount?: number;
+    consumed_at?: string;
+  }[];
   /** Consumos estornados (CA-05.2.j). `deleted_by` nulo = sem registro confiável de quem autorizou. */
   voided_consumptions?: {
     id?: string;
     description?: string;
+    quantity?: number;
+    unit_price?: number;
     amount?: number;
     consumed_at?: string;
     deleted_by?: { name?: string } | null;
@@ -191,6 +212,17 @@ export interface BillLike {
 }
 
 export type TimelineKind = 'lodging' | 'consumption' | 'payment';
+
+/**
+ * Rótulo do consumo na conta e no comprovante: "3 × Caipirinha" quando há mais de uma unidade.
+ * Sem a quantidade, 3 caipirinhas de R$ 22,00 apareciam como "Caipirinha R$ 66,00", e o hóspede
+ * lia uma caipirinha de R$ 66,00 (QA de 24/11, 🟡-1). Uma unidade, ou servidor antigo sem
+ * `quantity`, fica só com o nome, como antes. Mesmo "×" da comanda do garçom.
+ */
+export function consumptionLabel(c: { description?: string; quantity?: number }): string {
+  const name = c.description || 'Consumo';
+  return c.quantity && c.quantity > 1 ? `${c.quantity} × ${name}` : name;
+}
 
 export interface TimelineEntry {
   key: string;
@@ -307,7 +339,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       kind: 'consumption',
       at: c.consumed_at ? new Date(c.consumed_at) : null,
       dateOnly: false,
-      label: c.description || 'Consumo',
+      label: consumptionLabel(c),
       amountCents: cents(c.amount),
       notCounted: false,
       awaiting: false,
@@ -327,7 +359,7 @@ export function buildBillTimeline(bill: BillLike): BillTimeline {
       kind: 'consumption',
       at: c.consumed_at ? new Date(c.consumed_at) : null,
       dateOnly: false,
-      label: `${c.description || 'Consumo'} (${note})`,
+      label: `${consumptionLabel(c)} (${note})`,
       amountCents: cents(c.amount),
       notCounted: true,
       awaiting: false,

@@ -1,6 +1,7 @@
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import { checkReservationConflict } from '../../utils/checkReservationConflict.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function ListAvailableRoomsController(request, response) {
     try {
@@ -33,7 +34,7 @@ export default async function ListAvailableRoomsController(request, response) {
 
         return response.json(availableRooms);
     } catch (error) {
-        console.error(error);
+        logError('ListAvailableRoomsController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -2,6 +2,7 @@ import AccountModel from '../../Models/AccountModel.js';
 import AccountItemModel from '../../Models/AccountItemModel.js';
 import isUuid from '../../utils/isUuid.js';
 import accountTotal from '../../utils/accountTotal.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /accounts/:id
@@ -26,7 +27,7 @@ export default async function GetAccountController(request, response) {
 
         return response.json({ ...account.toJSON(), total: await accountTotal(account.id, tenantId) });
     } catch (error) {
-        console.error('GetAccountController:', error.message);
+        logError('GetAccountController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

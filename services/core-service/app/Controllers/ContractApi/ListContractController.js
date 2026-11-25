@@ -2,6 +2,7 @@ import ContractModel from '../../Models/ContractModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
 import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function ListContractController(request, response) {
     try {
@@ -17,7 +18,7 @@ export default async function ListContractController(request, response) {
         const result = contracts.map(c => ({ ...c.toJSON(), ...summarizeContractInstallments(c.installments) }));
         return response.json(result);
     } catch (error) {
-        console.error('ListContractController:', error);
+        logError('ListContractController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

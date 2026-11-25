@@ -5,6 +5,7 @@ import ReservationModel from '../../Models/ReservationModel.js';
 import reservationRoomAccount, { CLOSED_STAY_STATUSES } from '../../utils/reservationRoomAccount.js';
 import itemAsConsumption from '../../utils/itemAsConsumption.js';
 import { MAX_PRICE } from '../../utils/productValidation.js';
+import { logError } from '../../utils/logError.js';
 
 const MAX_DESCRIPTION = 200;
 const TWO_DECIMALS = /^\d+(\.\d{1,2})?$/;
@@ -108,7 +109,7 @@ export default async function CreateConsumptionController(request, response) {
 
         return response.status(201).json(itemAsConsumption(await item.reload(), reservationId));
     } catch (error) {
-        console.error('CreateConsumptionController:', error.message);
+        logError('CreateConsumptionController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

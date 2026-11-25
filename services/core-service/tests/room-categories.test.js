@@ -94,3 +94,36 @@ describe('DELETE /room-categories/:id', () => {
         expect(res.status).toBe(204);
     });
 });
+
+describe('Nome da categoria sem diferença de caixa (QA 24/11, 🟢-1)', () => {
+    // "QA Suíte Teste" e "qa suíte teste" conviviam, e o seletor do quarto mostrava duas opções
+    // quase iguais com diárias diferentes.
+    const post = (name) => request(app).post('/room-categories').set('Authorization', `Bearer ${jwt}`)
+        .send({ name, capacity: 2, price_per_night: 300 });
+
+    it('criar com o mesmo nome em outra caixa → 409 com o code de nome em uso', async () => {
+        expect((await post('Suíte Família')).status).toBe(201);
+        const res = await post('suíte FAMÍLIA');
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('CATEGORY_NAME_TAKEN');
+    });
+
+    it('renomear para o nome de outra em outra caixa → 409; manter o próprio nome mudando a caixa vale', async () => {
+        const other = (await post('Chalé Casal')).body;
+        const res = await request(app).put(`/room-categories/${other.id}`).set('Authorization', `Bearer ${jwt}`)
+            .send({ name: 'SUÍTE FAMÍLIA' }); // a do teste anterior
+        expect(res.status).toBe(409);
+        const own = await request(app).put(`/room-categories/${other.id}`).set('Authorization', `Bearer ${jwt}`)
+            .send({ name: 'chalé casal' });
+        expect(own.status).toBe(200);
+    });
+
+    it('o mesmo nome em outro hotel continua valendo', async () => {
+        // "Suíte Família" existe no primeiro hotel (teste acima): sem o tenant_id na busca, o
+        // vizinho levaria 409 e este teste pegaria a regressão (qa-redteam de 24/11, 🟡-2).
+        const { jwt: otherJwt } = await registerAndLogin(app, { tenantName: 'Hotel Categoria Vizinho' });
+        const res = await request(app).post('/room-categories').set('Authorization', `Bearer ${otherJwt}`)
+            .send({ name: 'suíte família', capacity: 2, price_per_night: 100 });
+        expect(res.status).toBe(201);
+    });
+});

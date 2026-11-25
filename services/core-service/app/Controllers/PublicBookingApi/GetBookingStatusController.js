@@ -1,6 +1,7 @@
 import { resolveTenantBySubdomain } from '../../utils/resolveTenantBySubdomain.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import PaymentModel from '../../Models/PaymentModel.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /public/:subdomain/bookings/:id/status
@@ -48,7 +49,7 @@ export default async function GetBookingStatusController(request, response) {
             confirmed: reservation.status === 'CONFIRMED'
         });
     } catch (error) {
-        console.error('GetBookingStatusController:', error);
+        logError('GetBookingStatusController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

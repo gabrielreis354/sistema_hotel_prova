@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import ContractModel from '../../Models/ContractModel.js';
 import ReservationModel from '../../Models/ReservationModel.js';
 import closeReservationAccounts from '../../utils/closeReservationAccounts.js';
+import { logError } from '../../utils/logError.js';
 
 // Allowlist (fail-safe, regra do CLAUDE.md): só uma reserva-bloco ainda não ocupada pode ser
 // cancelada junto com o contrato. Com hóspede hospedado (CHECKED_IN) ou estadia encerrada
@@ -69,7 +70,7 @@ export default async function CancelContractController(request, response) {
             throw err;
         }
     } catch (error) {
-        console.error('CancelContractController:', error);
+        logError('CancelContractController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -8,6 +8,8 @@ import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
 import PaymentModel from '../app/Models/PaymentModel.js';
 import { pipelineConfigured, startPipeline, analyticsGet, waitForConsumption } from './helpers/analyticsPipeline.js';
+import { todayInHotel } from '../app/utils/hotelTimezone.js';
+import { addDays } from './helpers/stayDates.js';
 
 // Indicadores contra o analytics-service (T-01.4/H.3, CA-01.4.p): o core semeia (pela API e, onde o
 // caminho é histórico, pelo banco), o outbox publica no RabbitMQ, o analytics consome e responde.
@@ -253,10 +255,11 @@ describePipeline('Indicadores servidos pelo analytics-service (CA-01.4.p)', () =
 
         beforeAll(async () => {
             hotel = await newHotel('No-show', 150);
-            // A data de hoje do banco, que é a que o alerta compara (CURRENT_DATE). Neste teste o
-            // analytics usa o mesmo servidor PostgreSQL.
-            const [[dates]] = await sequelize.query(`SELECT CURRENT_DATE::text AS today, (CURRENT_DATE + 1)::text AS tomorrow`);
-            ({ today, tomorrow } = dates);
+            // "Hoje" é o dia do hotel (D-68), o mesmo que o GetAlertsController do analytics usa.
+            // O CURRENT_DATE do banco (UTC) já é amanhã depois das 21h de Brasília, e o teste
+            // quebrava à noite (CI vermelho da develop em 87a9aff, 23/11).
+            today = todayInHotel();
+            tomorrow = addDays(today, 1);
         });
 
         it('reserva de hoje com pagamento PAID não está em risco; estornado o pagamento, entra', async () => {

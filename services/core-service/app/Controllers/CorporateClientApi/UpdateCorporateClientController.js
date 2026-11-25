@@ -1,5 +1,6 @@
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function UpdateCorporateClientController(request, response) {
     try {
@@ -17,7 +18,7 @@ export default async function UpdateCorporateClientController(request, response)
         // Sem isto o conflito do cliente viraria 500.
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
-        console.error('UpdateCorporateClientController:', error);
+        logError('UpdateCorporateClientController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

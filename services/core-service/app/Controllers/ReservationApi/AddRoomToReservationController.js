@@ -7,6 +7,7 @@ import { recalculateReservationTotal } from '../../utils/recalculateReservationT
 import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js';
 import findInTenant from '../../utils/findInTenant.js';
 import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js';
+import { logError } from '../../utils/logError.js';
 
 export default withDeadlockRetry('AddRoomToReservationController', AddRoomToReservationController);
 
@@ -55,7 +56,7 @@ async function AddRoomToReservationController(request, response) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
         if (isDeadlockError(error)) throw error; // withDeadlockRetry repete
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
-        console.error(error);
+        logError('AddRoomToReservationController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

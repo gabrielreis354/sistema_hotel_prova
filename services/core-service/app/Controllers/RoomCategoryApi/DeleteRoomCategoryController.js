@@ -3,6 +3,7 @@ import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import { ROOM_ERROR_CODES, roomError } from '../../utils/roomErrors.js';
 import findInTenant from '../../utils/findInTenant.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DeleteRoomCategoryController(request, response) {
     // Categoria travada (FOR UPDATE) antes da contagem, como o quarto no DeleteRoom: quem grava
@@ -39,7 +40,7 @@ export default async function DeleteRoomCategoryController(request, response) {
         return response.status(204).send();
     } catch (error) {
         if (transaction && !transaction.finished) await transaction.rollback().catch(() => {});
-        console.error(error);
+        logError('DeleteRoomCategoryController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

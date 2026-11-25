@@ -3,6 +3,7 @@ import PaymentModel from '../../Models/PaymentModel.js';
 import isUuid from '../../utils/isUuid.js';
 import { settlePaymentAccount } from '../../utils/accountBill.js';
 import { VOIDABLE_STATUSES, VOID_REASON_MAX_LENGTH } from '../../utils/paymentEnums.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * POST /payments/:id/void — estorno do lançamento (T-06.13, CA-06.13.b a h).
@@ -74,7 +75,7 @@ export default async function VoidPaymentController(request, response) {
             throw error;
         }
     } catch (error) {
-        console.error('VoidPaymentController error:', error.message);
+        logError('VoidPaymentController', error);
         return response.status(500).json({ error: 'Erro ao estornar pagamento.' });
     }
 }

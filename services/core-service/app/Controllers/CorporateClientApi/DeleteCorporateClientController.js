@@ -1,4 +1,5 @@
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DeleteCorporateClientController(request, response) {
     try {
@@ -8,7 +9,7 @@ export default async function DeleteCorporateClientController(request, response)
         await client.destroy();
         return response.status(204).send();
     } catch (error) {
-        console.error('DeleteCorporateClientController:', error);
+        logError('DeleteCorporateClientController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -367,13 +367,18 @@ const options = {
                         fully_paid:          { type: 'boolean', example: true },
                         consumptions: { type: 'array', items: { type: 'object', properties: {
                             id: { type: 'string', format: 'uuid' }, description: { type: 'string' },
-                            amount: { type: 'number' }, consumed_at: { type: 'string', format: 'date-time' }
+                            quantity: { type: 'integer', example: 3, description: 'Unidades lançadas' },
+                            unit_price: { type: 'number', example: 22.00, description: 'Preço de uma unidade' },
+                            amount: { type: 'number', example: 66.00, description: 'Total da linha: quantity × unit_price' },
+                            consumed_at: { type: 'string', format: 'date-time' }
                         }}},
                         voided_consumptions: {
                             type: 'array',
                             description: 'Consumos estornados (M5-c, CA-05.2.j): itens faturáveis excluídos das contas da reserva, em ordem de estorno. Histórico — não somam em consumptions_total, grand_total nem balance_due. Cortesia excluída não aparece (nunca foi cobrada). Lista vazia quando não há estorno. Limitação: estorno antigo da tabela consumptions ainda não migrado para account_items (janela antes do migrate) não aparece aqui',
                             items: { type: 'object', required: ['id', 'description', 'amount', 'consumed_at', 'deleted_at', 'deleted_by'], properties: {
                                 id: { type: 'string', format: 'uuid' }, description: { type: 'string' },
+                                quantity: { type: 'integer', example: 1 },
+                                unit_price: { type: 'number', example: 120.00 },
                                 amount: { type: 'number', example: 120.00 },
                                 consumed_at: { type: 'string', format: 'date-time' },
                                 deleted_at: { type: 'string', format: 'date-time', description: 'Quando foi estornado' },

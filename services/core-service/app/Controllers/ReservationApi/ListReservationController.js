@@ -4,6 +4,7 @@ import GuestModel from '../../Models/GuestModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import UserModel from '../../Models/UserModel.js';
 import { parseStatusFilter } from '../../utils/reservationStatuses.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function ListReservationController(request, response) {
     try {
@@ -63,7 +64,7 @@ export default async function ListReservationController(request, response) {
             limit: parsedLimit
         });
     } catch (error) {
-        console.error(error);
+        logError('ListReservationController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

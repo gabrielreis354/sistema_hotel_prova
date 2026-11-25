@@ -4,6 +4,7 @@ import GetHotelController from '../../app/Controllers/PublicBookingApi/GetHotelC
 import GetAvailabilityController from '../../app/Controllers/PublicBookingApi/GetAvailabilityController.js';
 import CreateBookingController from '../../app/Controllers/PublicBookingApi/CreateBookingController.js';
 import GetBookingStatusController from '../../app/Controllers/PublicBookingApi/GetBookingStatusController.js';
+import notFoundUnlessUuid from '../../app/utils/notFoundUnlessUuid.js';
 
 /**
  * Router PÚBLICO do motor de reserva direta.
@@ -14,6 +15,9 @@ import GetBookingStatusController from '../../app/Controllers/PublicBookingApi/G
  */
 export default (() => {
     const router = Router({ mergeParams: true });
+
+    // id que não é UUID: 404 igual ao de reserva inexistente, em vez de 500 (repasse de 15/11).
+    router.param('id', notFoundUnlessUuid('Reserva não encontrada'));
 
     router.get('/hotel', GetHotelController);
     router.get('/availability', GetAvailabilityController);

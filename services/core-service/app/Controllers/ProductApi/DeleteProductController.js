@@ -1,5 +1,6 @@
 import ProductModel from '../../Models/ProductModel.js';
 import isUuid from '../../utils/isUuid.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * DELETE /products/:id — soft delete (ADMIN).
@@ -18,7 +19,7 @@ export default async function DeleteProductController(request, response) {
         await product.destroy();
         return response.status(204).send();
     } catch (error) {
-        console.error('DeleteProductController:', error.message);
+        logError('DeleteProductController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

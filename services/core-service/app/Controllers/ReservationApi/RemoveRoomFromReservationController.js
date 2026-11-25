@@ -6,6 +6,7 @@ import { reservationChangeBlocked } from '../../utils/reservationChangeGuard.js'
 import { moveRemovedRoomAccounts } from '../../utils/roomChangeAccounts.js';
 // PostgreSQL: "deadlock detected". A transação vítima volta inteira, então tentar de novo é seguro.
 import { isDeadlockError as isDeadlock, DEADLOCK_ATTEMPTS } from '../../utils/deadlockRetry.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * Uma tentativa da remoção, numa transação só. Devolve { status, body } ou lança.
@@ -76,7 +77,7 @@ export default async function RemoveRoomFromReservationController(request, respo
             }
         }
     } catch (error) {
-        console.error(error);
+        logError('RemoveRoomFromReservationController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

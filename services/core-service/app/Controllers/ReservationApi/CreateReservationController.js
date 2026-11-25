@@ -10,6 +10,7 @@ import { isDeadlockError, withDeadlockRetry } from '../../utils/deadlockRetry.js
 import { checkInInPast, checkInInPastError } from '../../utils/checkInDateGuard.js';
 import { todayInHotel } from '../../utils/hotelTimezone.js';
 import { isIsoDate } from '../../utils/isIsoDate.js';
+import { logError } from '../../utils/logError.js';
 
 export default withDeadlockRetry('CreateReservationController', CreateReservationController);
 
@@ -99,7 +100,7 @@ async function CreateReservationController(request, response) {
     } catch (error) {
         if (isDeadlockError(error)) throw error; // transação já desfeita; withDeadlockRetry repete
         if (isRoomOccupiedError(error)) return response.status(409).json({ error: ROOM_OCCUPIED_MESSAGE });
-        console.error(error);
+        logError('CreateReservationController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

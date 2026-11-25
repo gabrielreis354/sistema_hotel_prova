@@ -1,6 +1,7 @@
 import ReservationModel from '../../Models/ReservationModel.js';
 import itemAsConsumption, { reservationConsumptionItems } from '../../utils/itemAsConsumption.js';
 import pendingLegacyConsumption from '../../utils/pendingLegacyConsumption.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /reservations/:id/consumptions
@@ -25,7 +26,7 @@ export default async function ListConsumptionController(request, response) {
         const items = await reservationConsumptionItems(reservationId, tenantId);
         return response.status(200).json(items.map((item) => itemAsConsumption(item, reservationId)));
     } catch (error) {
-        console.error('ListConsumptionController:', error.message);
+        logError('ListConsumptionController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -1,5 +1,6 @@
 import RoomModel from '../../Models/RoomModel.js';
 import RoomCategoryModel from '../../Models/RoomCategoryModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function ListRoomController(request, response) {
     try {
@@ -10,7 +11,7 @@ export default async function ListRoomController(request, response) {
         });
         return response.json(rooms);
     } catch (error) {
-        console.error(error);
+        logError('ListRoomController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

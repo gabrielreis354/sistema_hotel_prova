@@ -5322,6 +5322,20 @@ export interface components {
                 /** Format: uuid */
                 id?: string;
                 description?: string;
+                /**
+                 * @description Unidades lançadas
+                 * @example 3
+                 */
+                quantity?: number;
+                /**
+                 * @description Preço de uma unidade
+                 * @example 22
+                 */
+                unit_price?: number;
+                /**
+                 * @description Total da linha: quantity × unit_price
+                 * @example 66
+                 */
                 amount?: number;
                 /** Format: date-time */
                 consumed_at?: string;
@@ -5331,6 +5345,10 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 description: string;
+                /** @example 1 */
+                quantity?: number;
+                /** @example 120 */
+                unit_price?: number;
                 /** @example 120 */
                 amount: number;
                 /** Format: date-time */
