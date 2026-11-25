@@ -235,9 +235,21 @@ Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e pre
 
 **Proposta, a decidir com o Gabriel (a parte de recepção é tela dele):**
 - [ ] **CA-04.8.a** — Corrigir é **estornar a linha e relançar a quantidade certa**, nunca editar a quantidade gravada. Para tirar 1 de 3 porções, estorna-se a linha de 3 e lança-se 2. O histórico mostra o erro e quem corrigiu. Um PATCH de quantidade apagaria o rastro do ato financeiro (D-7) e mudaria o contrato da API.
-- [ ] **CA-04.8.b** — Botão **"Estornar"** na linha da comanda, só para ADMIN, com motivo obrigatório. Reaproveita o `DELETE` que já existe. Guardar o motivo pode pedir uma coluna nova (`void_reason` no `AccountItem`, como o pagamento estornado da T-06.13). A mudança no `schema.sql` é do Sirlande.
-- [ ] **CA-04.8.c** — **"Pedir correção"** para o garçom: ele marca a linha e o pedido aparece para a recepção ou o admin aprovar. Cobre o caso real, em que o garçom está no salão e o admin não. O garçom continua sem apagar nada, como manda a D-8.
+- [ ] **CA-04.8.b** — Botão **"Estornar"** na linha da comanda, só para ADMIN, com motivo obrigatório de uma **lista fechada**: "lançado errado", "cliente desistiu" e "item com problema". Cortesia não entra nessa lista, porque já tem caminho próprio (`billable: false`, CA-04.1.l): erro e presente da casa ficam separados no relatório. Motivo livre vira "erro" em toda linha e não serve para auditoria. Reaproveita o `DELETE` que já existe. Guardar o motivo pode pedir uma coluna nova (`void_reason` no `AccountItem`, como o pagamento estornado da T-06.13). A mudança no `schema.sql` é do Sirlande.
+- [ ] **CA-04.8.c** — **"Pedir correção"** para o garçom, com **autorização no próprio aparelho**. Ele marca a linha e escolhe o motivo, e o supervisor (ADMIN ou recepção) autoriza ali mesmo, digitando o PIN dele no celular do garçom. É o *manager override* dos sistemas de restaurante: ninguém precisa ir ao balcão, e o garçom continua sem apagar nada sozinho, como manda a D-8. Se o supervisor não estiver no salão, o pedido fica pendente e aparece para a recepção aprovar. Criar o PIN do usuário é decisão a tomar: não pode ser a senha de login, digitada na frente do cliente.
 - [ ] **CA-04.8.d** *(opcional e barato)* — Avaliar subir a janela de desfazer de 5 s para cerca de 10 s, pesando contra a demora para o item aparecer na conta da suíte.
+- [ ] **CA-04.8.e** — O estorno grava **quem pediu e quem autorizou**, além do motivo e da hora, e **quem pediu não autoriza o próprio pedido** (separação de funções). Hoje o `deleted_by` guarda só quem fez. As colunas novas no `AccountItem` (por exemplo `void_requested_by`, `void_reason`) são mudança no `schema.sql`, do Sirlande. A conta da reserva e o comprovante mostram "estornado: motivo X, por Fulano, autorizado por Ciclano".
+- [ ] **CA-04.8.f** — **Relatório de estornos**, só para ADMIN, por período: contagem e valor por motivo, por quem pediu e por quem autorizou. É o principal controle contra o desvio clássico: cobrar do cliente, estornar e ficar com o dinheiro. Um garçom com estornos demais, ou sempre o mesmo supervisor autorizando, aparece aqui. Segue o molde do relatório de consumo interno (CA-04.7.a), que agrupa por motivo.
+
+**Referência de mercado:** nos sistemas de restaurante e de hotel, a correção segue o momento do erro.
+
+| Momento | Quem corrige |
+|---|---|
+| Antes do envio | o garçom, sem aprovação. No Gesway, é a janela de 5 s |
+| Depois do envio, com a conta aberta | estorno com motivo e autorização de um supervisor |
+| Com a conta fechada | ajuste ou devolução, só com o gerente ou o financeiro |
+
+Nenhum deles edita a quantidade gravada nem apaga a linha: a linha estornada fica visível e riscada, e o certo é relançado.
 
 **Resposta para a banca, no MVP:** dentro de 5 s o garçom desfaz ou corrige a quantidade. Depois de gravado, só o administrador estorna, porque é ato financeiro e fica registrado quem fez. A tela de estorno é do 5º semestre.
 
@@ -272,3 +284,4 @@ Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e pre
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Substitui o plano de 02/08, cuja tabela de status estava desatualizada — 2 fatias já mergeadas constavam como pendentes |
 | 1.1 | 26/10/2026 | Sirlande | T-04.7 concluída (D-63 a D-68); cenários do §3 marcados com a fatia que os entregou |
 | 1.2 | 24/11/2026 | Sirlande | §6.1: pendência do 5º semestre para corrigir lançamento depois da janela de desfazer (achado do ensaio) |
+| 1.3 | 24/11/2026 | Sirlande | §6.1 no padrão de mercado: motivo de lista fechada, PIN do supervisor no aparelho do garçom, quem pediu e quem autorizou (CA-04.8.e), relatório de estornos (CA-04.8.f) |
