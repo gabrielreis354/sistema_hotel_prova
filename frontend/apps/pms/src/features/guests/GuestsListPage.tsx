@@ -17,7 +17,7 @@ export function GuestsListPage() {
       <PageHeader
         title="Hóspedes"
         context={data && data.length > 0 ? `${data.length} ${data.length === 1 ? 'hóspede' : 'hóspedes'}` : undefined}
-        action={<Button onClick={() => navigate('/hospedes/novo')}>Novo hóspede</Button>}
+        action={<Button size="compact" onClick={() => navigate('/hospedes/novo')}>Novo hóspede</Button>}
       />
 
       {isLoading && <Spinner />}

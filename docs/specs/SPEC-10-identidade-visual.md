@@ -299,6 +299,10 @@ Os mesmos critérios do login (§6), adaptados à tela:
 - **a densidade não cai:** o número de linhas visíveis sem rolar fica igual ou maior. No painel
   Hoje vale o limite de 3.000 px em 375 px (CA-08.i);
 - **contraste:** texto ≥ 4,5:1 e borda, foco e ícone com função ≥ 3:1, medidos com as cores reais;
+  - *borda decorativa (decisão do Sirlande de 25/11, F2):* a borda do botão secundário (`gray-300`,
+    1,3:1 sobre o areia) não entra na regra dos 3:1. Quem identifica o botão é o texto (WCAG 1.4.11
+    dispensa a borda nesse caso), e o foco tem o anel da marca (≥ 6,6:1). É a mesma borda dos campos
+    de texto e do "Sair". Achado 🟡3 do qa-redteam da F2;
 - `qa_checks.sh` sem aviso novo nas regras 9a, 9b e 9c;
 - **roteiro e2e verde.** Ele passa pelas telas do roteiro, inclusive pelo login (§9);
 - `/impeccable audit` e `/impeccable critique` antes do polimento (`DESIGN_PMS.md` §6), depois o

@@ -2,7 +2,6 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Field, Input } from '@hotel/ui';
-import { TOUCH } from './components/touch.js';
 import { ActionLink } from './components/Actions.js';
 import { decimalToCents, formatBRL, ROOM_STATUSES, type RoomStatus } from '@hotel/domain';
 import { roomStatusOptions } from './roomRules.js';
@@ -75,10 +74,10 @@ export function RoomForm({
     <form onSubmit={handleSubmit((v) => onSubmit(toInput(v)))} className="space-y-4" noValidate>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Número" error={errors.number?.message}>
-          <Input className={TOUCH} aria-invalid={!!errors.number} autoComplete="off" autoFocus {...register('number')} />
+          <Input aria-invalid={!!errors.number} autoComplete="off" autoFocus {...register('number')} />
         </Field>
         <Field label="Andar (opcional)" error={errors.floor?.message}>
-          <Input className={TOUCH} aria-invalid={!!errors.floor} inputMode="numeric" placeholder="0 = térreo" {...register('floor')} />
+          <Input aria-invalid={!!errors.floor} inputMode="numeric" placeholder="0 = térreo" {...register('floor')} />
         </Field>
       </div>
 

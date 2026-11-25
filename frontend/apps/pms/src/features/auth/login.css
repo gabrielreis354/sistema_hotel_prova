@@ -232,7 +232,7 @@
   color: rgb(var(--login-ink-soft));
 }
 .login-page .login-toggle:focus-visible {
-  /* O ghost traz ring-gray-300: 1,4:1 sobre o vidro (🟡2 do red team). */
+  /* O anel do ghost é o da marca desde a F2; aqui é o acento do login, a cor do vidro (🟡2 do red team). */
   --tw-ring-color: rgb(var(--login-accent));
 }
 .login-page .login-toggle:hover {

@@ -26,7 +26,9 @@ export function WriteButton({
       disabled={props.disabled || !!reason}
       title={reason}
       aria-describedby={!canWrite ? READ_ONLY_NOTICE_ID : props['aria-describedby']}
-      className={cn(RESPONSIVE, className)}
+      // O compacto (ação do cabeçalho) já traz 36 px com mouse; o RESPONSIVE (32 px) é das linhas da tabela
+      // e, se viesse junto, venceria pelo twMerge (🟡4 do qa-redteam da F2).
+      className={cn(props.size === 'compact' ? 'xl:px-3 xl:text-sm' : RESPONSIVE, className)}
     />
   );
 }

@@ -60,7 +60,7 @@ export function ReservationsListPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <PageHeader title="Reservas" action={<ButtonLink to="/reservas/nova">Nova reserva</ButtonLink>} />
+      <PageHeader title="Reservas" action={<ButtonLink to="/reservas/nova" size="compact">Nova reserva</ButtonLink>} />
 
       <Card className="space-y-3 p-4">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Atalhos de período">

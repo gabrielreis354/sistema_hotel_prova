@@ -17,7 +17,7 @@ vi.mock('../stores/auth.js', () => ({
 }));
 vi.mock('../features/tenant/index.js', () => ({ useMyTenant: () => ({ data: { name: 'Pousada Aurora' } }) }));
 
-import { AppShell } from './AppShell.js';
+import { AppShell, moreTabClass } from './AppShell.js';
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -49,13 +49,13 @@ describe('barra lateral (SPEC-10, T-10.4)', () => {
     expect(barra).toContain('GESTÃO HOTELEIRA');
   });
 
-  it('grupos Operação e Gestão para o administrador; o garçom vê só Operação', () => {
+  it('grupos Operação e Gestão para o administrador; a recepção vê só Operação', () => {
     const admin = trecho(render('ADMIN'), '<aside', '</aside>');
     expect(admin).toContain('Operação');
     expect(admin).toContain('Gestão');
-    const garcom = trecho(render('WAITER'), '<aside', '</aside>');
-    expect(garcom).toContain('Operação');
-    expect(garcom).not.toContain('Gestão');
+    const recepcao = trecho(render('RECEPTIONIST'), '<aside', '</aside>');
+    expect(recepcao).toContain('Operação');
+    expect(recepcao).not.toContain('Gestão');
   });
 
   it('o usuário fica no pé da barra, com nome e papel', () => {
@@ -106,9 +106,10 @@ describe('barra do celular (SPEC-10, R-4)', () => {
   it('o que fica preso acima da barra soma a mesma folga (total da comanda e folha do Mais)', () => {
     const conta = readFileSync(path.join(raiz, 'src/features/accounts/AccountPage.tsx'), 'utf-8');
     const casca = readFileSync(path.join(raiz, 'src/components/AppShell.tsx'), 'utf-8');
-    const folga = 'calc(3rem+max(6px,env(safe-area-inset-bottom)))';
-    expect(conta).toContain(`bottom-[${folga}]`);
-    expect(casca).toContain(`bottom-[${folga}]`);
+    // A comanda lê a altura da barra da casca (--tabbar): sem barra (garçom), o total desce até a folga.
+    // Com valor padrão: fora da casca a página fica como antes, acima de uma barra de 3rem (🟢 do redteam da F2).
+    expect(conta).toContain('bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))]');
+    expect(casca).toContain('bottom-[calc(3rem+max(6px,env(safe-area-inset-bottom)))]');
   });
 });
 
@@ -143,7 +144,6 @@ describe('casca: logo, frase e atalho de teclado (P3)', () => {
       (trecho(html, '<aside', '</aside>').match(/<a [^>]*aria-label="Gesway, gestão hoteleira, ir para o início"[^>]*>/) ?? [''])[0];
     expect(linkDoLogo(render('RECEPTIONIST'))).toContain('href="/"');
     expect(linkDoLogo(render('ADMIN'))).toContain('href="/"');
-    expect(linkDoLogo(render('WAITER'))).toContain('href="/comanda"');
   });
 
   it('atalho "Pular para o conteúdo" antes do menu, apontando para o main', () => {
@@ -164,3 +164,52 @@ describe('casca: logo, frase e atalho de teclado (P3)', () => {
   });
 });
 
+
+describe('nome do hotel no topo (🟢 R-6 da linha de base de 24/11)', () => {
+  it('cortado com "…", o nome inteiro fica no title', () => {
+    const topo = trecho(render('RECEPTIONIST'), '<header', '</header>');
+    expect(topo).toMatch(/<div class="truncate[^"]*" title="Pousada Aurora">Pousada Aurora</);
+  });
+});
+
+describe('aba "Mais" (🟢 da linha de base de 24/11: duas abas ativas com a folha aberta)', () => {
+  const FIO = 'before:bg-brand';
+  it('aberta numa tela fora do "Mais": fundo, sem o fio de "você está aqui"', () => {
+    expect(moreTabClass(true, false)).not.toContain(FIO);
+    expect(moreTabClass(true, false)).toContain('bg-brand/5');
+  });
+  it('numa tela do "Mais": o fio, aberta ou não', () => {
+    expect(moreTabClass(false, true)).toContain(FIO);
+    expect(moreTabClass(true, true)).toContain(FIO);
+  });
+  it('fechada e fora: aba comum', () => {
+    expect(moreTabClass(false, false)).not.toContain(FIO);
+    expect(moreTabClass(false, false)).toContain('text-gray-600');
+  });
+});
+
+describe('papel com um destino só (garçom): sem navegação (🟢 da linha de base de 24/11; decisão de 25/11)', () => {
+  // No tablet a barra lateral comia 236 de 800 px para mostrar só "Comanda"; no celular, 55 px de barra
+  // com uma aba que leva à tela em que ele já está.
+  it('sem barra lateral, sem barra de baixo e sem a coluna de 236 px', () => {
+    const html = render('WAITER');
+    expect(html).not.toContain('<aside');
+    expect(html).not.toContain('Navegação principal');
+    expect(html).not.toContain('md:grid-cols-[236px_minmax(0,1fr)]');
+  });
+
+  it('o topo continua com o hotel, quem está logado e o Sair; o logo aparece em toda largura', () => {
+    const topo = trecho(render('WAITER'), '<header', '</header>');
+    expect(topo).toContain('Pousada Aurora');
+    expect(topo).toContain('Sair');
+    expect(topo).toContain('data-logo="gesway"');
+    // Sem a barra lateral, quem está logado aparece também no tablet e no desktop.
+    expect(trecho(topo, 'data-area="usuario-celular"', '</div>')).not.toContain('md:hidden');
+  });
+
+  it('a altura da barra (--tabbar) é 0 para o garçom e 3rem para quem tem barra', () => {
+    expect(render('WAITER')).toContain('[--tabbar:0px]');
+    expect(render('RECEPTIONIST')).toContain('[--tabbar:3rem]');
+    expect(render('RECEPTIONIST')).toContain('md:grid-cols-[236px_minmax(0,1fr)]');
+  });
+});

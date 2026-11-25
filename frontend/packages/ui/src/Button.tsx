@@ -12,10 +12,17 @@ const button = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-brand text-brand-fg hover:bg-brand/90 focus-visible:ring-brand',
-        secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus-visible:ring-gray-400',
-        ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus-visible:ring-gray-300',
-        danger: 'bg-status-maintenance text-white hover:opacity-90 focus-visible:ring-status-maintenance',
+        // Anel de foco da marca nas três (SPEC-10 §10.6, ≥ 3:1): o gray-400 do secondary dava 2,5:1 e o
+        // gray-300 do ghost ~1,5:1 (🟡 da linha de base de 24/11). Quem opera o balcão no teclado vê onde está.
+        // Borda transparente no primário e no danger: a mesma caixa do secundário, e o atalho de período
+        // não anda 2 px ao trocar de um para o outro (🟢 do qa-redteam da F2).
+        primary: 'border border-transparent bg-brand text-brand-fg hover:bg-brand/90 focus-visible:ring-brand',
+        // Branco com borda, como o "Sair" do topo (decisão de 25/11): o gray-100 preenchido sumia sobre o
+        // fundo areia da casca nova. A borda é decorativa (decisão de 25/11, SPEC-10 §10.6): quem diz que é
+        // botão é o texto, e o foco tem o anel da marca. Por isso o gray-300 dos campos, sem a regra dos 3:1.
+        secondary: 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus-visible:ring-brand',
+        ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus-visible:ring-brand',
+        danger: 'border border-transparent bg-status-maintenance text-white hover:opacity-90 focus-visible:ring-status-maintenance',
       },
       size: {
         // comfortable = mobile (alvo 48px); compact = tabelas/rack no desktop. O compact só encolhe

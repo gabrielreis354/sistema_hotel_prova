@@ -8,6 +8,11 @@ const NOTICE_TONE = {
 
 export type NoticeTone = keyof typeof NOTICE_TONE;
 
+/** A faixa do aviso (fio à esquerda e fundo tingido). O ErrorState usa a mesma, para os erros serem um visual só (F2). */
+export function noticeFrame(tone: NoticeTone): string {
+  return cn('rounded-md border-l-4', NOTICE_TONE[tone]);
+}
+
 /**
  * Aviso de resultado (sucesso ou erro). O texto é `gray-900` sobre o fundo tingido — o verde
  * e o vermelho do preset não passam de 4,5:1 sobre o próprio tom claro (3,0 e 4,1). A cor fica
@@ -21,7 +26,7 @@ export const Notice = forwardRef<HTMLParagraphElement, { tone: NoticeTone; child
       ref={ref}
       tabIndex={-1}
       role={tone === 'error' ? 'alert' : 'status'}
-      className={cn('rounded-md border-l-4 p-2 text-sm text-gray-900 focus:outline-none', NOTICE_TONE[tone], className)}
+      className={cn(noticeFrame(tone), 'p-2 text-sm text-gray-900 focus:outline-none', className)}
     >
       {children}
     </p>

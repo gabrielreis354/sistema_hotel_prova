@@ -1,8 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Button, Field, Input, cn } from '@hotel/ui';
-import { TOUCH } from './components/touch.js';
+import { Button, Field, Input } from '@hotel/ui';
 import { ActionLink } from './components/Actions.js';
 import { centsToDecimalString, parseBRLInput } from '@hotel/domain';
 import type { CategoryInput } from './roomsApi.js';
@@ -69,19 +68,19 @@ export function CategoryForm({
   return (
     <form onSubmit={handleSubmit((v) => onSubmit(toInput(v)))} className="space-y-4" noValidate>
       <Field label="Nome" error={errors.name?.message}>
-        <Input className={TOUCH} aria-invalid={!!errors.name} autoComplete="off" autoFocus placeholder="Standard, Luxo, Suíte…" {...register('name')} />
+        <Input aria-invalid={!!errors.name} autoComplete="off" autoFocus placeholder="Standard, Luxo, Suíte…" {...register('name')} />
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Capacidade (pessoas)" error={errors.capacity?.message}>
-          <Input className={TOUCH} aria-invalid={!!errors.capacity} inputMode="numeric" {...register('capacity')} />
+          <Input aria-invalid={!!errors.capacity} inputMode="numeric" {...register('capacity')} />
         </Field>
         <Field label="Diária (R$)" error={errors.price?.message}>
           <Input
             aria-invalid={!!errors.price}
             inputMode="decimal"
             placeholder="150,00"
-            className={cn(TOUCH, 'text-right tabular-nums')}
+            className="text-right tabular-nums"
             {...register('price')}
           />
         </Field>
