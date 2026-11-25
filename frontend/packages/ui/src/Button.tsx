@@ -18,7 +18,8 @@ const button = cva(
         // não anda 2 px ao trocar de um para o outro (🟢 do qa-redteam da F2).
         primary: 'border border-transparent bg-brand text-brand-fg hover:bg-brand/90 focus-visible:ring-brand',
         // Branco com borda, como o "Sair" do topo (decisão de 25/11): o gray-100 preenchido sumia sobre o
-        // fundo areia da casca nova. O texto é que diz que é botão; a borda separa do fundo.
+        // fundo areia da casca nova. A borda é decorativa (decisão de 25/11, SPEC-10 §10.6): quem diz que é
+        // botão é o texto, e o foco tem o anel da marca. Por isso o gray-300 dos campos, sem a regra dos 3:1.
         secondary: 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus-visible:ring-brand',
         ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus-visible:ring-brand',
         danger: 'border border-transparent bg-status-maintenance text-white hover:opacity-90 focus-visible:ring-status-maintenance',
