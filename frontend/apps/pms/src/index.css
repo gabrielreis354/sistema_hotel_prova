@@ -23,7 +23,7 @@
     background: repeating-linear-gradient(
       135deg,
       theme('colors.status.maintenance') 0 6px,
-      theme('colors.status.maintenance / 65%') 6px 12px
+      theme('colors.status.maintenance / 82%') 6px 12px
     );
   }
   .sheet-up {
