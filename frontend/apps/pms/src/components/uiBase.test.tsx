@@ -225,3 +225,15 @@ describe('F5 (25/11): Table e SegmentedControl no @hotel/ui', async () => {
     for (const b of botoes) expect(b).toContain('focus-visible:ring-brand');
   });
 });
+
+describe('telas encostadas à esquerda na coluna do conteúdo (R-7, F4 e F5)', () => {
+  // A comanda entra na F6; o comprovante é uma folha de papel, centralizada de propósito.
+  const EXCECOES = ['features/accounts/', 'features/reservations/ReservationReceiptPage.tsx', 'components/Placeholder.tsx'];
+  it('nenhuma tela centraliza o miolo com mx-auto: ele "pulava" de largura ao trocar de tela', () => {
+    const centralizadas = arquivosDoApp()
+      .map((a) => path.relative(src, a))
+      .filter((rel) => rel.startsWith('features/') && !EXCECOES.some((e) => rel.startsWith(e)))
+      .filter((rel) => /className="mx-auto /.test(readFileSync(path.join(src, rel), 'utf-8')));
+    expect(centralizadas).toEqual([]);
+  });
+});

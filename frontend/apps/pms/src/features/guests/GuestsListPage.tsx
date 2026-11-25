@@ -13,7 +13,7 @@ export function GuestsListPage() {
   const filtered = useMemo(() => filterGuests(data ?? [], term), [data, term]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="max-w-4xl space-y-4">
       <PageHeader
         title="Hóspedes"
         context={data && data.length > 0 ? `${data.length} ${data.length === 1 ? 'hóspede' : 'hóspedes'}` : undefined}

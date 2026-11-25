@@ -64,14 +64,14 @@ export function GuestDetailPage() {
   if (isLoading) return <Spinner label="Carregando hóspede…" />;
   if (isError || !guest) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="max-w-3xl">
         <LoadError error={guestQuery.error} {...GUEST_LOAD} onRetry={() => guestQuery.refetch()} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       <PageHeader
         title={guest.full_name}
         context="Hóspede"

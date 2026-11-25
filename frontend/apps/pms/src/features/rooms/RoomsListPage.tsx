@@ -21,7 +21,7 @@ export function RoomsListPage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="max-w-5xl space-y-4">
       <RoomsHeader title="Quartos" action={newRoom} />
       {!canWrite && <ReadOnlyNotice />}
 
