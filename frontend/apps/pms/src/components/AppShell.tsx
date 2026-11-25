@@ -131,9 +131,10 @@ export function AppShell() {
               </div>
             </div>
             {/* 48 px no toque (CA-08.g); compacto só com mouse a partir de 1280 px (desk, R-3). */}
+            {/* O secundário do @hotel/ui virou este visual (F2, 25/11): não precisa mais sobrescrever o ghost. */}
             <Button
-              variant="ghost"
-              className="shrink-0 border border-gray-300 bg-white/70 focus-visible:ring-brand desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
+              variant="secondary"
+              className="shrink-0 desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
               onClick={logout}
             >
               Sair

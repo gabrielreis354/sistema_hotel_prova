@@ -12,9 +12,13 @@ const button = cva(
   {
     variants: {
       variant: {
+        // Anel de foco da marca nas três (SPEC-10 §10.6, ≥ 3:1): o gray-400 do secondary dava 2,5:1 e o
+        // gray-300 do ghost ~1,5:1 (🟡 da linha de base de 24/11). Quem opera o balcão no teclado vê onde está.
         primary: 'bg-brand text-brand-fg hover:bg-brand/90 focus-visible:ring-brand',
-        secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus-visible:ring-gray-400',
-        ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus-visible:ring-gray-300',
+        // Branco com borda, como o "Sair" do topo (decisão de 25/11): o gray-100 preenchido sumia sobre o
+        // fundo areia da casca nova. O texto é que diz que é botão; a borda separa do fundo.
+        secondary: 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus-visible:ring-brand',
+        ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus-visible:ring-brand',
         danger: 'bg-status-maintenance text-white hover:opacity-90 focus-visible:ring-status-maintenance',
       },
       size: {
