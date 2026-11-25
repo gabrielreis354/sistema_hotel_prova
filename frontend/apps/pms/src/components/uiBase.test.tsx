@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { Button, Input } from '@hotel/ui';
+import { Button, ErrorState, Input, Notice } from '@hotel/ui';
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -50,5 +50,33 @@ describe('Input: alvo de 48 px no toque (CA-08.g, F2 de 25/11)', () => {
   it('nenhuma tela repete o alvo de toque no Input (o TOUCH local saiu)', () => {
     const repeticoes = arquivosDoApp().filter((a) => /\bTOUCH\b/.test(readFileSync(a, 'utf-8')));
     expect(repeticoes.map((a) => path.relative(src, a))).toEqual([]);
+  });
+});
+
+describe('ErrorState na família do Notice (🟢 F2 da linha de base de 24/11)', () => {
+  // Era texto vermelho num cartão branco com botão cinza grande, até 6 por tela nos Indicadores, e o 404
+  // (Notice) tinha outro visual. Agora os dois erros são a mesma faixa: fio vermelho, fundo tingido, texto escuro.
+  const html = renderToString(<ErrorState message="Não deu para carregar." onRetry={() => {}} />);
+
+  it('a faixa tem o fio e o fundo do Notice de erro', () => {
+    const faixa = classes(html);
+    const aviso = classes(renderToString(<Notice tone="error">x</Notice>));
+    for (const c of ['border-l-4', 'border-status-maintenance', 'bg-status-maintenance/10']) {
+      expect(faixa).toContain(c);
+      expect(aviso).toContain(c);
+    }
+  });
+
+  it('a mensagem é alerta em texto escuro: o vermelho do preset não passa de 4,5:1 sobre o tingido', () => {
+    const msg = html.match(/<p[^>]*role="alert"[^>]*>/)?.[0] ?? '';
+    expect(msg).toContain('text-gray-900');
+    expect(msg).not.toContain('text-status-maintenance');
+  });
+
+  it('"Tentar de novo" é secundário compacto, dentro da faixa', () => {
+    const botao = html.match(/<button[^>]*>/)?.[0] ?? '';
+    expect(html).toContain('Tentar de novo');
+    expect(botao).toContain('bg-white');
+    expect(botao).toContain('desk:h-9');
   });
 });
