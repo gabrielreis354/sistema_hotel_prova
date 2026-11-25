@@ -104,7 +104,7 @@ export function NewReservationPage() {
       <PageHeader
         title="Nova reserva"
         action={
-          <ButtonLink to="/reservas" variant="secondary">
+          <ButtonLink to="/reservas" size="compact" variant="secondary">
             Voltar à lista
           </ButtonLink>
         }

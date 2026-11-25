@@ -80,3 +80,49 @@ describe('ErrorState na família do Notice (🟢 F2 da linha de base de 24/11)',
     expect(botao).toContain('desk:h-9');
   });
 });
+
+describe('ação do PageHeader com um tamanho só (🟢 F2 da linha de base de 24/11; decisão de 25/11)', () => {
+  // Com mouse, "Nova reserva" tinha 48 px e "Novo quarto" 32. Agora todas são compactas: 48 px no toque e
+  // a altura da tabela com mouse (DESIGN_PMS §2, densidade).
+  /** Os botões que vão no `action` de um PageHeader (formatado pelo prettier: o bloco fecha com `/>` na mesma indentação). */
+  function botoesDoCabecalho(fonte: string): string[] {
+    const tags: string[] = [];
+    const linhas = fonte.split('\n');
+    linhas.forEach((linha, i) => {
+      const m = linha.match(/^(\s*)<PageHeader\b/);
+      if (!m) return;
+      let bloco = linha;
+      if (!/\/>\s*$/.test(linha)) {
+        const fim = linhas.findIndex((l, j) => j > i && l === `${m[1]}/>`);
+        bloco = linhas.slice(i, fim + 1).join('\n');
+      }
+      tags.push(...(bloco.match(/<(?:Button|ButtonLink|WriteButton)\b[^>]*>/g) ?? []));
+    });
+    return tags;
+  }
+
+  it('encontra as ações dos cabeçalhos', () => {
+    const todas = arquivosDoApp().flatMap((a) => botoesDoCabecalho(readFileSync(a, 'utf-8')));
+    expect(todas.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('toda ação de cabeçalho é compacta', () => {
+    const fora = arquivosDoApp().flatMap((a) =>
+      botoesDoCabecalho(readFileSync(a, 'utf-8'))
+        .filter((t) => !t.includes('size="compact"'))
+        .map((t) => `${path.relative(src, a)}: ${t}`),
+    );
+    expect(fora).toEqual([]);
+  });
+
+  it('o "Novo quarto" e a "Nova categoria" (ação em variável) também', () => {
+    for (const [arquivo, nome] of [
+      ['features/rooms/RoomsListPage.tsx', 'newRoom'],
+      ['features/rooms/CategoriesListPage.tsx', 'newCategory'],
+    ] as const) {
+      const fonte = readFileSync(path.join(src, arquivo), 'utf-8');
+      const tag = fonte.slice(fonte.indexOf(`const ${nome} = (`)).match(/<WriteButton\b[^>]*>/)?.[0] ?? '';
+      expect(tag).toContain('size="compact"');
+    }
+  });
+});

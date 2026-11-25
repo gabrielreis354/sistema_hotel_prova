@@ -18,7 +18,7 @@ export function CategoriesListPage() {
   const counts = useMemo(() => countRoomsByCategory(rooms.data ?? []), [rooms.data]);
 
   const newCategory = (
-    <WriteButton canWrite={canWrite} onClick={() => navigate('/quartos/categorias/nova')}>
+    <WriteButton size="compact" className="desk:h-9" canWrite={canWrite} onClick={() => navigate('/quartos/categorias/nova')}>
       Nova categoria
     </WriteButton>
   );

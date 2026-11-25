@@ -79,7 +79,7 @@ export function GuestDetailPage() {
           <>
             {/* sm:self-start: o cabeçalho estica os filhos, e o motivo do Excluir embaixo deixava o
                 Editar com a altura do bloco inteiro no desktop. */}
-            <ButtonLink to={`/hospedes/${id}/editar`} variant="secondary" className="sm:self-start">
+            <ButtonLink to={`/hospedes/${id}/editar`} size="compact" variant="secondary" className="sm:self-start">
               Editar
             </ButtonLink>
             {/* Excluir é irreversível e não é a ação da tela: fica discreto, e a confirmação diz o que
@@ -92,6 +92,7 @@ export function GuestDetailPage() {
                 {(describedBy) => (
                   <Button
                     ref={deleteRef}
+                    size="compact"
                     variant="ghost"
                     className="text-status-maintenance"
                     disabled={!canDelete}
