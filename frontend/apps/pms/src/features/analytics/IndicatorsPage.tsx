@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Button, ErrorState, Field, Input, PageHeader } from '@hotel/ui';
+import { Button, ErrorState, Field, Input, PageHeader, SegmentedControl } from '@hotel/ui';
 import { decimalToCents, formatBRL, formatDateBR, todayISO } from '@hotel/domain';
 import type { Period } from './analyticsApi.js';
 import { defaultPeriod, fillMonths, fillSeasonality, monthLabel, noSeasonReservations, monthlyWindow, periodError, SEASONALITY_WINDOWS } from './period.js';
@@ -99,19 +99,13 @@ export function IndicatorsPage() {
   }));
 
   const windowActions = (
-    <div role="group" aria-label="Meses no gráfico" className="flex gap-1">
-      {SEASONALITY_WINDOWS.map((n) => (
-        <Button
-          key={n}
-          size="compact"
-          variant={n === months ? 'primary' : 'secondary'}
-          aria-pressed={n === months}
-          onClick={() => setMonths(n)}
-        >
-          {n} meses
-        </Button>
-      ))}
-    </div>
+    // Filtro, não ação: o grupo segmentado da lista de reservas (F5), com o ativo tingido.
+    <SegmentedControl
+      label="Meses no gráfico"
+      value={String(months)}
+      options={SEASONALITY_WINDOWS.map((n) => ({ value: String(n), label: `${n} meses` }))}
+      onChange={(v) => setMonths(Number(v))}
+    />
   );
 
   return (

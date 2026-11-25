@@ -1,9 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decimalToCents, formatDateBR, todayISO } from '@hotel/domain';
-import { Button, Card, EmptyState, ErrorState, Field, Input, Spinner, cn } from '@hotel/ui';
+import { Button, Card, EmptyState, ErrorState, Field, Input, RoomNumber, SegmentedControl, Spinner, THead, Table, Td, Th, Tr, cn } from '@hotel/ui';
 import { useReservationList } from './queries.js';
-import { PERIOD_PRESETS, pageCount, presetRange, safeNights, type PeriodPreset } from './reservationLogic.js';
+import { PERIOD_PRESETS, pageCount, presetRange, safeNights, shortPeriod, type PeriodPreset } from './reservationLogic.js';
 import { ReservationStatusBadge } from './components/ReservationStatusBadge.js';
 import { Money, PageHeader } from './components/primitives.js';
 import { ButtonLink } from '../../components/links.js';
@@ -64,20 +64,14 @@ export function ReservationsListPage() {
       <PageHeader title="Reservas" action={<ButtonLink to="/reservas/nova" size="compact">Nova reserva</ButtonLink>} />
 
       <Card className="space-y-3 p-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Atalhos de período">
-          {PERIOD_PRESETS.map((p) => (
-            // 48 px até o xl, compacto só no desktop (CA-08.g): no tablet do balcão tinham 36 px.
-            <Button
-              key={p.id}
-              variant={activePreset === p.id ? 'primary' : 'secondary'}
-              aria-pressed={activePreset === p.id}
-              onClick={() => applyPreset(p.id)}
-              className="desk:h-9 desk:min-h-0 xl:px-3 xl:text-sm"
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
+        {/* Filtro, não ação: grupo segmentado com o ativo tingido (decisão de 25/11, F5). Antes o ativo era o
+            verde sólido do botão principal, que diz "faça isto". */}
+        <SegmentedControl
+          label="Atalhos de período"
+          value={activePreset ?? null}
+          options={PERIOD_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+          onChange={applyPreset}
+        />
         <div className="grid grid-cols-2 gap-3 sm:max-w-md">
           <Field label="De">
             <Input type="date" value={from} onChange={(e) => valid(e.target.value) && update({ de: e.target.value })} />
@@ -120,59 +114,77 @@ export function ReservationsListPage() {
 
       {result && result.total > 0 && !outOfRange && (
         <>
-          <Card
+          {/* O Table do @hotel/ui rola dentro do cartão (overflow-x-auto): com overflow-hidden, a 768 px o Status
+              saía cortado ("Hos…"), justo a coluna que decide a ação (critique da F5, P1). As colunas só abrem no
+              lg: no tablet a barra lateral come 236 px e sobram ~466 px, menos que um celular deitado; até lá a
+              reserva fica nas duas linhas do celular. */}
+          <div
             className={cn(
-              'overflow-hidden transition-opacity duration-150 motion-reduce:transition-none',
+              'transition-opacity duration-150 motion-reduce:transition-none',
               query.isPlaceholderData && 'opacity-60',
             )}
           >
-            <table className="w-full text-left text-sm">
-              <caption className="sr-only">Reservas de {formatDateBR(from)} a {formatDateBR(to)}</caption>
-              <thead className="border-b border-gray-200 bg-gray-50 text-gray-600">
-                <tr>
-                  <Th>Hóspede</Th>
-                  <Th>Quarto</Th>
-                  <Th className="hidden sm:table-cell">Período</Th>
-                  <Th className="hidden text-right md:table-cell">Total</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
+            <Table caption={`Reservas de ${formatDateBR(from)} a ${formatDateBR(to)}`}>
+              <THead>
+                <Th>Hóspede</Th>
+                <Th className="hidden lg:table-cell">Quarto</Th>
+                <Th className="hidden lg:table-cell">Período</Th>
+                <Th align="right" className="hidden lg:table-cell">
+                  Total
+                </Th>
+                <Th>Status</Th>
+              </THead>
               <tbody>
                 {result.data.map((r) => {
                   const nights = r.check_in_date && r.check_out_date ? safeNights(r.check_in_date, r.check_out_date) : null;
+                  const stay = nights !== null ? ` · ${nights} ${nights === 1 ? 'diária' : 'diárias'}` : '';
                   return (
-                    <tr key={r.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-2">
+                    <Tr key={r.id}>
+                      <Td>
+                        {/* Abaixo do lg: o quarto em destaque à esquerda, o nome e o período curto em duas linhas
+                            (decisão de 25/11, F5). O link envolve o selo e as duas linhas: o número do quarto é o
+                            maior alvo da linha e também abre a reserva (🟡4 do qa-redteam da F5). */}
                         <Link
                           to={`/reservas/${r.id}`}
-                          className="flex min-h-touch items-center font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0 xl:py-1"
+                          className="group flex min-h-touch min-w-0 items-center gap-2 rounded-sm py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0"
                         >
-                          {r.guest?.full_name ?? 'Hóspede removido'}
+                          <RoomNumber number={r.room?.number ?? '—'} className="max-w-16 lg:hidden" />
+                          <span className="flex min-w-0 flex-col">
+                            <span className="font-medium text-brand group-hover:underline">{r.guest?.full_name ?? 'Hóspede removido'}</span>
+                            <span className="block text-xs text-gray-600 tabular-nums lg:hidden">
+                              {/* O selo é aria-hidden; o leitor de tela ouve o quarto aqui. Período e diárias não se
+                                  partem por dentro: se faltar espaço, só as diárias descem. */}
+                              <span className="sr-only">{`Quarto ${r.room?.number ?? '—'} · `}</span>
+                              <span className="whitespace-nowrap">{shortPeriod(r.check_in_date, r.check_out_date, from, to)}</span>
+                              {/* O espaço fora dos dois pedaços é o ponto de quebra: colados, viravam um bloco só
+                                  de ~150 px, e a tabela rolava de lado em 360 px. */}
+                              {stay && (
+                                <>
+                                  {' '}
+                                  <span className="whitespace-nowrap">{stay.trimStart()}</span>
+                                </>
+                              )}
+                            </span>
+                          </span>
                         </Link>
-                        {/* No celular o período vem embaixo do nome — a coluna some. */}
-                        <span className="block text-xs text-gray-600 tabular-nums sm:hidden">
-                          {period(r.check_in_date, r.check_out_date)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 tabular-nums">{r.room?.number ?? '—'}</td>
-                      <td className="hidden px-4 py-2 tabular-nums text-gray-700 sm:table-cell">
+                      </Td>
+                      <Td className="hidden tabular-nums lg:table-cell">{r.room?.number ?? '—'}</Td>
+                      <Td className="hidden whitespace-nowrap tabular-nums text-gray-700 lg:table-cell">
                         {period(r.check_in_date, r.check_out_date)}
-                        {nights !== null && (
-                          <span className="ml-1 text-gray-500">· {nights} {nights === 1 ? 'diária' : 'diárias'}</span>
-                        )}
-                      </td>
-                      <td className="hidden px-4 py-2 text-right md:table-cell">
+                        {nights !== null && <span className="ml-1 text-gray-600">{stay}</span>}
+                      </Td>
+                      <Td align="right" className="hidden lg:table-cell">
                         {r.total_amount ? <Money cents={decimalToCents(r.total_amount)} /> : '—'}
-                      </td>
-                      <td className="px-4 py-2">
+                      </Td>
+                      <Td className="whitespace-nowrap">
                         <ReservationStatusBadge status={r.status} />
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   );
                 })}
               </tbody>
-            </table>
-          </Card>
+            </Table>
+          </div>
 
           <nav className="flex flex-wrap items-center justify-between gap-3" aria-label="Paginação">
             <p className="text-sm text-gray-600 tabular-nums">
@@ -201,15 +213,6 @@ export function ReservationsListPage() {
         </>
       )}
     </div>
-  );
-}
-
-/** Cabeçalho de coluna. Candidato ao `Table` do CATALOGO.md, que hóspedes também vai usar. */
-function Th({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <th scope="col" className={cn('px-4 py-2 font-medium', className)}>
-      {children}
-    </th>
   );
 }
 

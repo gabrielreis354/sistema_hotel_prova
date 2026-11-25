@@ -18,7 +18,7 @@ export function GuestNewPage() {
   const [serverError, setServerError] = useState<string | null>(null);
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="max-w-lg space-y-4">
       <PageHeader title="Novo hóspede" />
       <Card className="p-6">
         <GuestForm
@@ -51,14 +51,14 @@ export function GuestEditPage() {
   // Mesmo estado de erro da ficha (repasse do qa-redteam de 16/11): antes um 500 virava "não encontrado".
   if (isError || !guest) {
     return (
-      <div className="mx-auto max-w-lg">
+      <div className="max-w-lg">
         <LoadError error={guestQuery.error} {...GUEST_LOAD} onRetry={() => guestQuery.refetch()} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="max-w-lg space-y-4">
       <PageHeader title="Editar hóspede" />
       <Card className="p-6">
         <GuestForm

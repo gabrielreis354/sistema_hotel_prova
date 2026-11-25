@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { Card, cn } from '@hotel/ui';
+import { cn } from './cn.js';
+import { Card } from './feedback.js';
 
 /**
- * Tabela densa do balcão. Nasce local (CATALOGO.md: `Table` é candidato a promoção) — as
- * duas listas deste módulo usam; quem precisar num segundo módulo promove para @hotel/ui.
+ * Tabela densa do balcão. Nasceu local em quartos (T-05.1) e subiu na F5 da SPEC-10 (25/11), quando
+ * reservas e hóspedes passaram a usá-la: as quatro listas tinham o cabeçalho copiado à mão.
  */
 export function Table({ caption, children }: { caption: string; children: ReactNode }) {
   return (
@@ -18,9 +19,8 @@ export function Table({ caption, children }: { caption: string; children: ReactN
 
 export function THead({ children }: { children: ReactNode }) {
   return (
-    // Mesmo visual do cabeçalho das tabelas de hóspedes, que ainda copiam a string à mão: quando
-    // hóspedes adotar este Table, a cópia some (pendência registrada no relatório da T-05.1).
-    <thead className={cn('border-b border-gray-200', 'bg-gray-50 text-gray-500')}>
+    // gray-600: o gray-500 dava 4,4:1 sobre o gray-50 do cabeçalho (F5).
+    <thead className="border-b border-gray-200 bg-gray-50 text-gray-600">
       <tr>{children}</tr>
     </thead>
   );

@@ -9,6 +9,17 @@
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
   }
+  /* Barra fixa da nova reserva (abaixo do lg): o campo que recebe foco por Tab, ou o erro de envio, não
+     para atrás dela (WCAG 2.4.11; 🟡5 do qa-redteam da F5). Altura da barra (~4,6rem) + a de baixo do
+     celular (3rem) + folga; no md a barra de baixo some. */
+  html:has([data-area='confirmar-celular']) {
+    scroll-padding-bottom: 9rem;
+  }
+  @media (min-width: theme('screens.md')) {
+    html:has([data-area='confirmar-celular']) {
+      scroll-padding-bottom: 6rem;
+    }
+  }
 }
 
 /*

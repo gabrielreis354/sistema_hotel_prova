@@ -10,3 +10,5 @@ export { Notice, type NoticeTone } from './Notice.js';
 export { ActionSlot, type ActionState } from './ActionSlot.js';
 export { PageHeader, Section } from './PageHeader.js';
 export { RoomNumber } from './RoomNumber.js';
+export { Table, THead, Th, Tr, Td } from './Table.js';
+export { SegmentedControl, type SegmentOption } from './SegmentedControl.js';

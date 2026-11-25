@@ -15,7 +15,7 @@ export function FormShell({
   children: ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="max-w-xl space-y-4">
       <Link to={backTo} className="inline-flex min-h-touch items-center text-sm text-brand hover:underline desk:min-h-0">
         ← {backLabel}
       </Link>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  shortPeriod,
   nextTab,
   primaryAction,
   buildBillTimeline,
@@ -477,5 +478,20 @@ describe('confirmar check-out com saldo em aberto (critique da F4, P1)', async (
     expect(checkOutConfirmVariant(-500, true)).toBe('primary');
     expect(checkOutConfirmVariant(12500, false)).toBe('primary');
     expect(checkOutConfirmVariant(null, true)).toBe('primary');
+  });
+});
+
+describe('shortPeriod — o ano só aparece quando a virada do ano entra no jogo (decisão de 25/11, F5)', () => {
+  it('período e estadia no mesmo ano: sem o ano', () => {
+    expect(shortPeriod('2026-11-24', '2026-11-26', '2026-11-20', '2026-11-27')).toBe('24/11 → 26/11');
+  });
+  it('a estadia atravessa o ano: ano com dois dígitos nas duas pontas', () => {
+    expect(shortPeriod('2026-12-30', '2027-01-02', '2027-01-01', '2027-01-07')).toBe('30/12/26 → 02/01/27');
+  });
+  it('o período filtrado atravessa o ano: todas as linhas ganham o ano, inclusive as de um ano só', () => {
+    expect(shortPeriod('2026-12-20', '2026-12-22', '2026-12-15', '2027-01-15')).toBe('20/12/26 → 22/12/26');
+  });
+  it('sem data: travessão', () => {
+    expect(shortPeriod(undefined, '2026-11-26', '2026-11-20', '2026-11-27')).toBe('—');
   });
 });

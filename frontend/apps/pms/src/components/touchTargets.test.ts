@@ -66,11 +66,10 @@ describe('alvo de toque até o xl (CA-08.g)', () => {
     expect(item).toMatch(/desk:min-h-0/);
   });
 
-  it('atalhos de período: o compacto (h-9) só vale com mouse (desk)', () => {
+  it('atalhos de período: usam o SegmentedControl, que tem 48 px no toque e o compacto só com mouse (F5)', () => {
     const lista = readFileSync(path.join(src, 'features/reservations/ReservationsListPage.tsx'), 'utf-8');
-    const atalhos = lista.slice(lista.indexOf('Atalhos de período'), lista.indexOf('</div>', lista.indexOf('Atalhos de período')));
-    // Sem size="compact": o tamanho padrão do Button (comfortable) é o de 48 px; o compacto entra com mouse.
-    expect(atalhos).not.toMatch(/size="compact"/);
-    expect(atalhos).toMatch(/desk:h-9 desk:min-h-0/);
+    expect(lista).toMatch(/<SegmentedControl\s+label="Atalhos de período"/);
+    const seg = readFileSync(path.resolve(src, '../../../packages/ui/src/SegmentedControl.tsx'), 'utf-8');
+    expect(seg).toMatch(/min-h-touch[^']*desk:h-9 desk:min-h-0/);
   });
 });

@@ -175,3 +175,92 @@ describe('F4 (25/11): RoomNumber e primário desabilitado', async () => {
     expect(classes(renderToString(<Button variant="ghost" disabled>x</Button>))).toContain('disabled:opacity-50');
   });
 });
+
+describe('F5 (25/11): Table e SegmentedControl no @hotel/ui', async () => {
+  const { Table, THead, Th, Tr, Td, SegmentedControl } = await import('@hotel/ui');
+
+  it('Table: legenda para o leitor de tela, cabeçalho em gray-600 (o gray-500 dava 4,4:1 no gray-50) e valor à direita', () => {
+    const html = renderToString(
+      <Table caption="Quartos">
+        <THead>
+          <Th>Quarto</Th>
+          <Th align="right">Diária</Th>
+        </THead>
+        <tbody>
+          <Tr>
+            <Td>101</Td>
+            <Td align="right">R$ 1,00</Td>
+          </Tr>
+        </tbody>
+      </Table>,
+    );
+    expect(html).toContain('<caption class="sr-only">Quartos</caption>');
+    expect(html).toMatch(/<thead class="[^"]*text-gray-600/);
+    expect(html).not.toMatch(/<thead class="[^"]*text-gray-500/);
+    expect(html).toMatch(/<th scope="col" class="[^"]*text-right/);
+    expect(html).toMatch(/<td class="[^"]*text-right tabular-nums/);
+  });
+
+  it('SegmentedControl: um grupo com nome, botões com aria-pressed; o ativo é tingido, não o primário sólido', () => {
+    const html = renderToString(
+      <SegmentedControl
+        label="Atalhos de período"
+        value="7"
+        onChange={() => {}}
+        options={[
+          { value: 'hoje', label: 'Hoje' },
+          { value: '7', label: 'Próximos 7 dias' },
+        ]}
+      />,
+    );
+    expect(html).toMatch(/^<div role="group" aria-label="Atalhos de período"/);
+    const botoes = html.match(/<button[^>]*>/g) ?? [];
+    expect(botoes).toHaveLength(2);
+    expect(botoes[1]).toContain('aria-pressed="true"');
+    expect(botoes[1]).toContain('bg-brand/10');
+    expect(botoes[1]).not.toContain(' bg-brand ');
+    expect(botoes[0]).toContain('aria-pressed="false"');
+    // 48 px no toque, compacto com mouse; anel de foco da marca.
+    for (const b of botoes) expect(b).toMatch(/min-h-touch[^"]*desk:h-9|desk:h-9[^"]*min-h-touch/);
+    for (const b of botoes) expect(b).toContain('focus-visible:ring-brand');
+  });
+
+  it('SegmentedControl: o ativo também se lê pelo peso, não só pela cor (WCAG 1.4.1; 🟡3 do qa-redteam da F5)', () => {
+    const html = renderToString(
+      <SegmentedControl label="p" value="b" onChange={() => {}} options={[{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }]} />,
+    );
+    const [inativo, ativo] = html.match(/<button[^>]*>/g) ?? [];
+    expect(ativo).toContain('font-semibold');
+    expect(inativo).not.toContain('font-semibold');
+  });
+
+  it('SegmentedControl: tocar numa opção chama onChange com o valor dela (o filtro de fato muda)', () => {
+    const escolhas: string[] = [];
+    // Componente sem hooks: dá para chamar e tocar nos botões sem DOM.
+    const arvore = SegmentedControl({
+      label: 'p',
+      value: 'a',
+      onChange: (v: string) => escolhas.push(v),
+      options: [
+        { value: 'a', label: 'A' },
+        { value: '6', label: '6 meses' },
+      ],
+    }) as { props: { children: { props: { onClick: () => void } }[] } };
+    for (const botao of arvore.props.children) botao.props.onClick();
+    expect(escolhas).toEqual(['a', '6']);
+  });
+});
+
+describe('telas encostadas à esquerda na coluna do conteúdo (R-7, F4 e F5)', () => {
+  // A comanda entra na F6; o comprovante é uma folha de papel, centralizada de propósito.
+  const EXCECOES = ['features/accounts/', 'features/reservations/ReservationReceiptPage.tsx', 'components/Placeholder.tsx'];
+  it('nenhuma tela centraliza o miolo com mx-auto: ele "pulava" de largura ao trocar de tela', () => {
+    const centralizadas = arquivosDoApp()
+      .map((a) => path.relative(src, a))
+      .filter((rel) => rel.startsWith('features/') && !EXCECOES.some((e) => rel.startsWith(e)))
+      .filter((rel) => !rel.includes('.test.'))
+      // Em qualquer posição da classe: antes só pegava quando o mx-auto vinha primeiro (🟢4 do qa-redteam da F5).
+      .filter((rel) => /className="[^"]*\bmx-auto\b/.test(readFileSync(path.join(src, rel), 'utf-8')));
+    expect(centralizadas).toEqual([]);
+  });
+});
