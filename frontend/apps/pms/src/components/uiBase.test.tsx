@@ -167,7 +167,11 @@ describe('F4 (25/11): RoomNumber e primário desabilitado', async () => {
       expect(c).toEqual(expect.arrayContaining(['disabled:bg-gray-200', 'disabled:text-gray-600', 'disabled:opacity-100']));
       expect(c).not.toContain('disabled:opacity-50');
     }
-    // Os outros continuam esmaecidos: o cinza do secundário já é neutro.
-    expect(classes(renderToString(<Button variant="secondary" disabled>x</Button>))).toContain('disabled:opacity-50');
+    // O secundário desabilitado também se lê (gray-500 sobre gray-50, 4,6:1), sem esmaecer o texto.
+    expect(classes(renderToString(<Button variant="secondary" disabled>x</Button>))).toEqual(
+      expect.arrayContaining(['disabled:bg-gray-50', 'disabled:text-gray-500', 'disabled:opacity-100']),
+    );
+    // O ghost continua esmaecido.
+    expect(classes(renderToString(<Button variant="ghost" disabled>x</Button>))).toContain('disabled:opacity-50');
   });
 });

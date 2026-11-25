@@ -24,7 +24,10 @@ const button = cva(
         // Branco com borda, como o "Sair" do topo (decisão de 25/11): o gray-100 preenchido sumia sobre o
         // fundo areia da casca nova. A borda é decorativa (decisão de 25/11, SPEC-10 §10.6): quem diz que é
         // botão é o texto, e o foco tem o anel da marca. Por isso o gray-300 dos campos, sem a regra dos 3:1.
-        secondary: 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus-visible:ring-brand',
+        // Desabilitado: fundo gray-50 e texto gray-500 (4,6:1), não o texto a 50% (3,4:1). Ele fica ao lado do
+        // primário, com o motivo embaixo, e precisa ser lido (critique da F4, avaliação B).
+        secondary:
+          'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus-visible:ring-brand disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-500 disabled:opacity-100',
         ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus-visible:ring-brand',
         danger: `border border-transparent bg-status-maintenance text-white hover:opacity-90 focus-visible:ring-status-maintenance ${UNAVAILABLE}`,
       },

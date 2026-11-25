@@ -17,7 +17,8 @@ export { PageHeader } from '@hotel/ui';
 export function InfoItem({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</dt>
+      {/* gray-600: o gray-500 dava 4,4:1 sobre o fundo areia da casca (critique da F4, avaliação B). */}
+      <dt className="text-xs font-medium uppercase tracking-wide text-gray-600">{label}</dt>
       <dd className="mt-0.5 break-words text-sm text-gray-900">{children}</dd>
     </div>
   );

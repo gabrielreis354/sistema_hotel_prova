@@ -48,7 +48,7 @@ export function ReservationDetailPage() {
   const bill = useBill(id);
   const transition = useTransitionReservation(id ?? '');
   const [confirming, setConfirming] = useState<Confirming>(null);
-  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string; action?: ReservationTransition } | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   // A confirmação do check-out nasce longe do botão do cabeçalho (aba Conta): o foco vai para ela e a
   // tela rola até lá. Sem isso o foco caía no body com o botão desabilitado (🟡-1 do qa-redteam de 15/11).
@@ -87,7 +87,7 @@ export function ReservationDetailPage() {
     mutateOnce(lock, transition.mutate, action, {
       onSuccess: () => {
         setConfirming(null);
-        setFeedback({ kind: 'ok', text: DONE_MESSAGE[action] });
+        setFeedback({ kind: 'ok', text: DONE_MESSAGE[action], action });
       },
       onError: (err) => {
         setConfirming(null);
@@ -274,10 +274,16 @@ export function ReservationDetailPage() {
         )}
 
         {feedback && (
-          <div>
+          <div className="space-y-2">
             <Notice ref={feedbackRef} tone={feedback.kind === 'error' ? 'error' : 'success'}>
               {feedback.text}
             </Notice>
+            {/* Depois do check-out, o passo seguinte é entregar o papel (critique da F4, P3). */}
+            {feedback.kind === 'ok' && feedback.action === 'check-out' && (
+              <ButtonLink to={`/reservas/${r.id}/comprovante`} variant="secondary" size="compact">
+                Imprimir comprovante
+              </ButtonLink>
+            )}
           </div>
         )}
       </Card>
