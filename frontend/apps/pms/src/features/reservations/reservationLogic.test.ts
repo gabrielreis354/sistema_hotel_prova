@@ -466,3 +466,16 @@ describe('pastCheckInError — entrada no passado avisada no campo (QA 24/11, �
     expect(pastCheckInError('', '2026-11-24')).toBeNull();
   });
 });
+
+describe('confirmar check-out com saldo em aberto (critique da F4, P1)', async () => {
+  const { checkOutConfirmVariant } = await import('./reservationLogic.js');
+  it('com saldo a receber e alguém que recebe: secundário, o primário da tela é o pagamento', () => {
+    expect(checkOutConfirmVariant(12500, true)).toBe('secondary');
+  });
+  it('quitada, a devolver, sem quem receba ou sem a conta: primário', () => {
+    expect(checkOutConfirmVariant(0, true)).toBe('primary');
+    expect(checkOutConfirmVariant(-500, true)).toBe('primary');
+    expect(checkOutConfirmVariant(12500, false)).toBe('primary');
+    expect(checkOutConfirmVariant(null, true)).toBe('primary');
+  });
+});

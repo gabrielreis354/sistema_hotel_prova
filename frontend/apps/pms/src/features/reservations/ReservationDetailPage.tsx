@@ -13,6 +13,7 @@ import {
   buildBillTimeline,
   nextTab,
   officialBalanceCents,
+  checkOutConfirmVariant,
   primaryAction,
   reservationActions,
   safeNights,
@@ -124,6 +125,7 @@ export function ReservationDetailPage() {
   const balance = bill.data ? officialBalanceCents(bill.data) : null;
   const busy = transition.isPending;
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
+  const mainRoom = rooms.find((x) => x.id === r.room_id) ?? rooms[0];
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
   // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary. Com
@@ -147,7 +149,9 @@ export function ReservationDetailPage() {
       <Card className="space-y-4 p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            {rooms[0]?.number && <RoomNumber number={rooms[0].number} className="h-12 min-w-12 text-base" />}
+            {/* O principal (room_id), como no Hoje e no "(principal)" da seção Quartos: a lista `rooms` não vem
+                ordenada, e o primeiro dela podia ser um quarto extra (🟡2 do qa-redteam da F4). */}
+            {mainRoom?.number && <RoomNumber number={mainRoom.number} className="h-12 min-w-12 text-base" />}
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-title">{r.guest?.full_name ?? 'Hóspede removido'}</h1>
@@ -253,7 +257,7 @@ export function ReservationDetailPage() {
         </div>
 
         {confirming === 'cancel' && (
-          <div className="mt-4 space-y-3 rounded-md border border-status-maintenance/40 bg-status-maintenance/5 p-3">
+          <div className="space-y-3 rounded-md border border-status-maintenance/40 bg-status-maintenance/5 p-3">
             <p className="text-sm text-gray-800">
               Cancelar a reserva de <strong>{r.guest?.full_name}</strong>? O quarto volta a ficar livre no período e as
               contas da estadia fecham. Não dá para desfazer.
@@ -270,7 +274,7 @@ export function ReservationDetailPage() {
         )}
 
         {feedback && (
-          <div className="mt-4">
+          <div>
             <Notice ref={feedbackRef} tone={feedback.kind === 'error' ? 'error' : 'success'}>
               {feedback.text}
             </Notice>
@@ -381,7 +385,7 @@ export function ReservationDetailPage() {
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
-                <Button disabled={busy || !bill.data} onClick={() => run('check-out')}>
+                <Button variant={checkOutConfirmVariant(balance, receiving)} disabled={busy || !bill.data} onClick={() => run('check-out')}>
                   {busy ? 'Fazendo check-out…' : 'Confirmar check-out'}
                 </Button>
                 <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
@@ -432,7 +436,7 @@ export function ReservationDetailPage() {
 }
 
 /** Ação secundária: 48 px no celular e no tablet, compacta só com mouse a partir de 1280 px (desk, R-3; GUIA §3, regra 9). */
-const SECONDARY_ACTION = 'px-3 text-sm sm:w-auto';
+const SECONDARY_ACTION = 'sm:w-auto';
 
 function TabButton({
   id,

@@ -262,6 +262,13 @@
   background-color: rgb(var(--login-accent));
   filter: brightness(1.1);
 }
+.login-page .login-submit:disabled {
+  /* O primário desabilitado do @hotel/ui é cinza (F4); enviando, o "Entrar" segue com o acento do login,
+     só esmaecido. A pseudoclasse dá mais especificidade que o utilitário (🟡1 do qa-redteam da F4). */
+  background-color: rgb(var(--login-accent));
+  color: rgb(var(--login-accent-fg));
+  opacity: 0.7;
+}
 .login-page .login-submit:focus-visible {
   --tw-ring-color: rgb(var(--login-accent));
 }

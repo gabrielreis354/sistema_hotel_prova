@@ -546,3 +546,13 @@ export function primaryAction(
   if (actions.checkOut.enabled && !paymentDue) return 'check-out';
   return null;
 }
+
+/**
+ * Peso do "Confirmar check-out" (critique da F4, P1). Com saldo a receber e o formulário de pagamento na
+ * tela, eram dois primários empilhados, e o primeiro que o olho e o Tab achavam liberava o hóspede sem
+ * receber. Aí o confirmar fica secundário e o primário da tela é o pagamento. A regra não muda: o
+ * check-out com saldo continua possível, só deixa de ser o caminho mais fácil.
+ */
+export function checkOutConfirmVariant(balanceCents: number | null, receiving: boolean): 'primary' | 'secondary' {
+  return receiving && balanceCents !== null && balanceCents > 0 ? 'secondary' : 'primary';
+}
