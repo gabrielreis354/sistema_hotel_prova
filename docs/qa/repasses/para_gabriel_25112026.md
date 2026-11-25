@@ -12,3 +12,21 @@ total de quartos. A F3 mantém a fórmula, agora com `strip.counts.occupied` (co
 **Regra violada:** o indicador não mede o que diz ("vendidos" para a noite de hoje); risco de decisão comercial errada
 **Correção sugerida:** conte os quartos distintos: ocupados cuja saída não é hoje, mais os quartos das chegadas de hoje
 (`Set` por `room.id`). Ou redefina e documente a dica ("ocupados agora + chegadas", sem chamar de vendidos).
+
+---
+
+Origem: QA Red Team da SPEC-10 F4, detalhe da reserva (`feature/t10-fase4-reserva`, Sirlande). O achado está em
+código anterior à branch (já existia em feature/spec-10-identidade@066d0c4) e não reprova a F4. Relatório:
+`docs/qa/redteam_spec10-fase4-reserva_25112026.md`.
+
+### 🟡 [reservas / foco] "Cancelar reserva" desabilita o próprio botão no clique e o foco cai no `body`
+**Onde:** `frontend/apps/pms/src/features/reservations/ReservationDetailPage.tsx:243-247` (`disabled={… || confirming === 'cancel'}`
+junto de `setConfirming('cancel')`) e `:255-270` (painel sem `ref` e sem foco)
+**Cenário:** a recepção, no teclado, foca "Cancelar reserva" e aperta Enter. No mesmo render, o botão focado fica `disabled`.
+Pela regra de correção de foco do HTML, o foco vai para o `body`. O painel "Sim, cancelar reserva / Manter reserva" aparece
+logo abaixo, mas nada o foca ou anuncia. O próximo Tab recomeça no menu, e o leitor de tela fica mudo. O check-out já resolve
+esse caso com `checkOutRef` (`:54`, `:99-103`). O cancelar não recebeu a mesma correção. O padrão já tinha sido apontado em
+`redteam_spec08-minima_15nov2026.md:19` e `redteam_t085-cabecalho-cartoes_15nov2026.md:25`.
+**Regra violada:** WCAG 2.4.3 (ordem do foco); padrão do próprio arquivo (o foco vai para o bloco que nasce)
+**Correção sugerida:** um `cancelRef` no `<p>` do painel (`tabIndex={-1}`) e um `useEffect` igual ao do check-out para
+`confirming === 'cancel'`. Ou então não desabilitar o botão com o painel aberto e mandar o foco para "Manter reserva".
