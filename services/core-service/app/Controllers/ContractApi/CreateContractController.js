@@ -6,6 +6,7 @@ import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
 import storeDocumentPdf, { documentPdfKey } from '../../utils/storeDocumentPdf.js';
 import { summarizeContractInstallments } from '../../utils/summarizeContractInstallments.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function CreateContractController(request, response) {
     try {
@@ -73,7 +74,7 @@ export default async function CreateContractController(request, response) {
             ...summarizeContractInstallments(allInstallments)
         });
     } catch (error) {
-        console.error('CreateContractController:', error);
+        logError('CreateContractController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

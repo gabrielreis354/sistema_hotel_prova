@@ -1,5 +1,6 @@
 import ProductModel from '../../Models/ProductModel.js';
 import { PRODUCT_CATEGORIES } from '../../utils/productCategories.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * GET /products?active=true&category=DRINK
@@ -33,7 +34,7 @@ export default async function ListProductController(request, response) {
 
         return response.json(products);
     } catch (error) {
-        console.error('ListProductController:', error.message);
+        logError('ListProductController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

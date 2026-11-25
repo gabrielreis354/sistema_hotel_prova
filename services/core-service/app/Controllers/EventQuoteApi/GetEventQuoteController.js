@@ -1,6 +1,7 @@
 import EventQuoteModel from '../../Models/EventQuoteModel.js';
 import QuoteServiceModel from '../../Models/QuoteServiceModel.js';
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function GetEventQuoteController(request, response) {
     try {
@@ -15,7 +16,7 @@ export default async function GetEventQuoteController(request, response) {
         if (!quote) return response.status(404).json({ error: 'Orçamento não encontrado' });
         return response.json(quote);
     } catch (error) {
-        console.error('GetEventQuoteController:', error);
+        logError('GetEventQuoteController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

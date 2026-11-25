@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import UserModel from '../../Models/UserModel.js';
 import TenantModel from '../../Models/TenantModel.js';
 import { getPrivateKey, getKeyId } from '../../utils/jwtKeys.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function LoginController(request, response) {
     try {
@@ -61,7 +62,7 @@ export default async function LoginController(request, response) {
             user: { id: user.id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
-        console.error('LoginController:', error);
+        logError('LoginController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -60,13 +60,16 @@ export default async function reservationBill(reservation, transaction) {
         total_pending: toNumber(paidBy('PENDING')),
         balance_due: toNumber(balanceCents),
         fully_paid: balanceCents <= 0,
+        // quantity e unit_price (QA 24/11, 🟡-1): sem eles, "3 × Água a 5,50" aparecia como
+        // "Água 16,50" e o hóspede lia uma água de 16,50. Só acrescentam: amount é o total.
         consumptions: consumptions.map((c) => ({
-            id: c.id, description: c.description, amount: Number(c.total), consumed_at: c.consumed_at
+            id: c.id, description: c.description, quantity: c.quantity, unit_price: Number(c.unit_price),
+            amount: Number(c.total), consumed_at: c.consumed_at
         })),
         // Estornados: histórico com quem autorizou (M5-c, CA-05.2.j). Não somam em nada acima.
         voided_consumptions: voided.map((c) => ({
-            id: c.id, description: c.description, amount: Number(c.total),
-            consumed_at: c.consumed_at, deleted_at: c.deleted_at,
+            id: c.id, description: c.description, quantity: c.quantity, unit_price: Number(c.unit_price),
+            amount: Number(c.total), consumed_at: c.consumed_at, deleted_at: c.deleted_at,
             deleted_by: c.deleter ? { id: c.deleter.id, name: c.deleter.name } : null
         })),
         payments: payments.map((p) => ({

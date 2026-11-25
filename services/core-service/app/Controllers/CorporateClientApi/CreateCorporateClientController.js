@@ -1,6 +1,7 @@
 import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import { onlyDigits } from '../../utils/onlyDigits.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function CreateCorporateClientController(request, response) {
     try {
@@ -32,7 +33,7 @@ export default async function CreateCorporateClientController(request, response)
         // Sem isto o conflito do cliente viraria 500.
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
-        console.error('CreateCorporateClientController:', error);
+        logError('CreateCorporateClientController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

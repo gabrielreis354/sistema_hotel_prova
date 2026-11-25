@@ -13,6 +13,7 @@ import {
   reservationActions,
   roomConflictMessage,
   splitLodging,
+  pastCheckInError,
 } from './reservationLogic.js';
 
 const standard = { id: 'r1', number: '101', category: { name: 'Standard', price_per_night: '150.00' } };
@@ -182,6 +183,26 @@ describe('buildBillTimeline — conta em linha do tempo', () => {
       'lodging-2026-10-23',
       'payment-p1',
     ]);
+  });
+
+  // QA de 24/11 (🟡-1): "Caipirinha R$ 66,00" para 3 caipirinhas de R$ 22,00 parecia preço errado.
+  it('consumo com mais de uma unidade diz a quantidade no rótulo; uma unidade fica como antes', () => {
+    const t = buildBillTimeline({
+      ...bill,
+      consumptions: [
+        { id: 'c3', description: 'Caipirinha', quantity: 3, unit_price: 22, amount: 66, consumed_at: '2026-10-22T19:00:00.000Z' },
+        { id: 'c4', description: 'Água', quantity: 1, unit_price: 5.5, amount: 5.5, consumed_at: '2026-10-22T19:05:00.000Z' },
+        { id: 'c5', description: 'Suco', amount: 8, consumed_at: '2026-10-22T19:10:00.000Z' },
+      ],
+      voided_consumptions: [
+        { id: 'x9', description: 'Vinho', quantity: 2, amount: 180, consumed_at: '2026-10-22T20:00:00.000Z', deleted_by: { name: 'Ana' } },
+      ],
+    });
+    const label = (key: string) => t.entries.find((e) => e.key === key)?.label;
+    expect(label('consumption-c3')).toBe('3 × Caipirinha');
+    expect(label('consumption-c4')).toBe('Água');
+    expect(label('consumption-c5')).toBe('Suco'); // resposta sem quantity (versão antiga do servidor)
+    expect(label('voided-consumption-x9')).toBe('2 × Vinho (estornado por Ana)');
   });
 
   // CA-05.2.j: consumo estornado aparece para a equipe com quem autorizou, mas nunca pesa na conta.
@@ -434,5 +455,14 @@ describe('primaryAction — uma ação principal na reserva (T-08.3, CA-08.e e C
       const a = reservationActions(s, futura, today);
       for (const st of [a.checkIn, a.checkOut, a.cancel]) if (!st.enabled) expect(st.reason, String(s)).toBeTruthy();
     }
+  });
+});
+
+describe('pastCheckInError — entrada no passado avisada no campo (QA 24/11, 🟢-5)', () => {
+  it('data antes de hoje traz a mensagem; hoje, futuro e campo incompleto não', () => {
+    expect(pastCheckInError('2026-11-20', '2026-11-24')).toBe('A entrada (20/11/2026) já passou. Escolha hoje ou uma data futura.');
+    expect(pastCheckInError('2026-11-24', '2026-11-24')).toBeNull();
+    expect(pastCheckInError('2026-12-01', '2026-11-24')).toBeNull();
+    expect(pastCheckInError('', '2026-11-24')).toBeNull();
   });
 });

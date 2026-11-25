@@ -2,6 +2,7 @@ import sequelize from '../../../database/connections/sequelize.js';
 import AccountModel from '../../Models/AccountModel.js';
 import AccountItemModel from '../../Models/AccountItemModel.js';
 import isUuid from '../../utils/isUuid.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * DELETE /accounts/:id/items/:itemId
@@ -56,7 +57,7 @@ export default async function DeleteAccountItemController(request, response) {
             throw error;
         }
     } catch (error) {
-        console.error('DeleteAccountItemController:', error.message);
+        logError('DeleteAccountItemController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

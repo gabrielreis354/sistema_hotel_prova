@@ -6,6 +6,8 @@ import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
 import { registerAndLogin } from './helpers/auth.js';
 import { createCategory, createRoom, createGuest, createReservation } from './helpers/factories.js';
+import { todayInHotel } from '../app/utils/hotelTimezone.js';
+import { addDays } from './helpers/stayDates.js';
 
 // Integração da H.2 com a develop de 28/10 (T-04.6 conta da suíte no check-in, comanda T-05.5,
 // pagamento de conta T-04.4/T-06.13): os triggers do outbox continuam emitindo exatamente o catálogo
@@ -32,8 +34,9 @@ beforeAll(async () => {
 
 describe('Outbox × fluxos novos da develop (catálogo v1.1)', () => {
     it('check-in que cria a conta da suíte (T-04.6): reservation.status_changed + room.updated, nenhum evento de conta', async () => {
-        const hoje = new Date().toISOString().slice(0, 10);
-        const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        // Dia do hotel (D-68): em UTC já é amanhã depois das 21h, e o check-in dava 422.
+        const hoje = todayInHotel();
+        const amanha = addDays(hoje, 1);
         const reserva = await createReservation(app, jwt, guestId, roomId, { check_in_date: hoje, check_out_date: amanha });
 
         const antes = await ultimoId();

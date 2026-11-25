@@ -1066,8 +1066,20 @@
                 "description": {
                   "type": "string"
                 },
+                "quantity": {
+                  "type": "integer",
+                  "example": 3,
+                  "description": "Unidades lançadas"
+                },
+                "unit_price": {
+                  "type": "number",
+                  "example": 22,
+                  "description": "Preço de uma unidade"
+                },
                 "amount": {
-                  "type": "number"
+                  "type": "number",
+                  "example": 66,
+                  "description": "Total da linha: quantity × unit_price"
                 },
                 "consumed_at": {
                   "type": "string",
@@ -1096,6 +1108,14 @@
                 },
                 "description": {
                   "type": "string"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "unit_price": {
+                  "type": "number",
+                  "example": 120
                 },
                 "amount": {
                   "type": "number",

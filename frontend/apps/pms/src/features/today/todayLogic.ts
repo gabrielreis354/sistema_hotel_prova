@@ -246,3 +246,12 @@ export function invalidateAnalyticsSoon(qc: { invalidateQueries: (filters: { que
   void qc.invalidateQueries({ queryKey: ['analytics'] });
   setTimeout(() => void qc.invalidateQueries({ queryKey: ['analytics'] }), ANALYTICS_REFETCH_DELAY);
 }
+
+/**
+ * Erro do bloco Saídas. As saídas saem da mesma busca dos hóspedes na casa, e o erro dela fala
+ * "os hóspedes na casa": com 502, o bloco Saídas dizia o nome do vizinho (QA de 24/11, 🟢-6).
+ */
+export function departuresError(error: Error | null): Error | null {
+  if (!error || !error.message.includes('os hóspedes na casa')) return error;
+  return new Error(error.message.replace('os hóspedes na casa', 'as saídas'));
+}

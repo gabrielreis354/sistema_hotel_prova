@@ -5,7 +5,7 @@ import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
 import { useOccupancy } from '../analytics/index.js';
 import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
-import { arrivalRows, departureRows, formatPercent, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
+import { arrivalRows, departureRows, departuresError, formatPercent, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { StaleNotice } from './components/StaleNotice.js';
 import { TodayCounters, type Counter } from './components/TodayCounters.js';
@@ -168,7 +168,7 @@ export function TodayPage() {
           count={inHouse.data ? departureList.length : undefined}
           isLoading={inHouseLoad.isLoading}
           isOffline={inHouseLoad.isOffline}
-          error={inHouse.data ? null : inHouse.error}
+          error={inHouse.data ? null : departuresError(inHouse.error)}
           stale={stale(inHouse)}
           onRetry={() => inHouse.refetch()}
           isEmpty={departureList.length === 0}

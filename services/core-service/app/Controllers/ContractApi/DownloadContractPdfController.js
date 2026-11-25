@@ -4,6 +4,7 @@ import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
 import generateContractPdf from '../../utils/generateContractPdf.js';
 import { getPresignedDownloadUrl } from '../../utils/uploadToMinIO.js';
 import { documentPdfKey } from '../../utils/storeDocumentPdf.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DownloadContractPdfController(request, response) {
     try {
@@ -29,7 +30,7 @@ export default async function DownloadContractPdfController(request, response) {
         response.setHeader('Content-Disposition', `attachment; filename="contrato_${contract.id}.pdf"`);
         return response.send(buffer);
     } catch (error) {
-        console.error('DownloadContractPdfController:', error);
+        logError('DownloadContractPdfController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

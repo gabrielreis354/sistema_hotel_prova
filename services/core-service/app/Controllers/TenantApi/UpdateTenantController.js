@@ -1,4 +1,5 @@
 import TenantModel from '../../Models/TenantModel.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * PUT /tenants/me
@@ -47,7 +48,7 @@ export default async function UpdateTenantController(request, response) {
             deposit_percent: tenant.deposit_percent
         });
     } catch (error) {
-        console.error('UpdateTenantController:', error);
+        logError('UpdateTenantController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

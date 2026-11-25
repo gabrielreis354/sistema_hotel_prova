@@ -3,6 +3,7 @@ import ProductModel from '../../Models/ProductModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
 import { validateProductFields, parsePrice } from '../../utils/productValidation.js';
 import isUuid from '../../utils/isUuid.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * PUT /products/:id
@@ -49,7 +50,7 @@ export default async function UpdateProductController(request, response) {
     } catch (error) {
         const conflito = uniqueConstraintConflict(error, response);
         if (conflito) return conflito;
-        console.error('UpdateProductController:', error.message);
+        logError('UpdateProductController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

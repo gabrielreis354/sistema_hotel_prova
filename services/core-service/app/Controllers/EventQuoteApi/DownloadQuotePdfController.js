@@ -4,6 +4,7 @@ import CorporateClientModel from '../../Models/CorporateClientModel.js';
 import generateQuotePdf from '../../utils/generateQuotePdf.js';
 import { getPresignedDownloadUrl } from '../../utils/uploadToMinIO.js';
 import { documentPdfKey } from '../../utils/storeDocumentPdf.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function DownloadQuotePdfController(request, response) {
     try {
@@ -32,7 +33,7 @@ export default async function DownloadQuotePdfController(request, response) {
         response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         return response.send(buffer);
     } catch (error) {
-        console.error('DownloadQuotePdfController:', error);
+        logError('DownloadQuotePdfController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

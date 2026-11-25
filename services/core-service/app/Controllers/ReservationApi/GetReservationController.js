@@ -3,6 +3,7 @@ import GuestModel from '../../Models/GuestModel.js';
 import RoomModel from '../../Models/RoomModel.js';
 import UserModel from '../../Models/UserModel.js';
 import ReservationRoomModel from '../../Models/ReservationRoomModel.js';
+import { logError } from '../../utils/logError.js';
 
 export default async function GetReservationController(request, response) {
     try {
@@ -20,7 +21,7 @@ export default async function GetReservationController(request, response) {
         if (!reservation) return response.status(404).json({ error: 'Reserva não encontrada' });
         return response.json(reservation);
     } catch (error) {
-        console.error(error);
+        logError('GetReservationController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

@@ -3,6 +3,7 @@ import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from '../config/swagger.js';
 import corsMiddleware from '../middlewares/cors.middleware.js';
+import { logError } from '../app/utils/logError.js';
 import metricsMiddleware from '../middlewares/metrics.middleware.js';
 import GetMetricsController from '../app/Controllers/MetricsApi/GetMetricsController.js';
 import authRouter         from './apis/authRouter.js';
@@ -96,5 +97,18 @@ router.use('/public/:subdomain', publicBookingRouter);
 
 // Webhooks de provedores externos (ex.: confirmação de PIX)
 router.use('/webhooks', webhookRouter);
+
+// Erro que nenhuma rota tratou. Sem este middleware, o JSON malformado ia ao `finalhandler` do
+// Express, que imprime a pilha do SyntaxError com um trecho do corpo, ou seja, o dado do hóspede,
+// inclusive nas rotas públicas (qa-redteam da T-06.12, 22/11; LGPD art. 46). O corpo não vai ao log.
+// O Express reconhece o middleware de erro pelos 4 parâmetros.
+router.use((error, request, response, next) => {
+    if (response.headersSent) return next(error);
+    if (error.type === 'entity.parse.failed') return response.status(400).json({ error: 'JSON inválido' });
+    const status = error.status ?? error.statusCode;
+    if (status >= 400 && status < 500) return response.status(status).json({ error: 'Requisição inválida' });
+    logError('router', error);
+    return response.status(500).json({ error: 'Erro interno do servidor' });
+});
 
 export default router;

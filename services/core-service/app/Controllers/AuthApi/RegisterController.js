@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import TenantModel from '../../Models/TenantModel.js';
 import UserModel from '../../Models/UserModel.js';
 import uniqueConstraintConflict from '../../utils/uniqueConstraintConflict.js';
+import { logError } from '../../utils/logError.js';
 
 // Gera slug a partir do nome: "Hotel Aurora" → "hotel-aurora"
 function generateSubdomain(name) {
@@ -56,7 +57,7 @@ export default async function RegisterController(request, response) {
         const conflito = uniqueConstraintConflict(error, response, 'E-mail ou subdomain já em uso');
         if (conflito) return conflito;
 
-        console.error(error);
+        logError('RegisterController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

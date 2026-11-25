@@ -1,6 +1,7 @@
 import sequelize from '../../../database/connections/sequelize.js';
 import { QueryTypes } from 'sequelize';
 import { HOTEL_TIMEZONE } from '../../utils/hotelTimezone.js';
+import { logError } from '../../utils/logError.js';
 
 // Relatório de consumo interno (T-04.7, CA-04.7.a e b): "quanto o hotel deu de cortesia,
 // refeição de funcionário e perda no período?" (RN-007). Decisões D-63 a D-65 em
@@ -67,7 +68,7 @@ export default async function GetInternalConsumptionController(request, response
 
         return response.json(rows);
     } catch (error) {
-        console.error('GetInternalConsumptionController:', error);
+        logError('GetInternalConsumptionController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }

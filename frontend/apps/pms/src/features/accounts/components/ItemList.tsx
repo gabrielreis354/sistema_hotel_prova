@@ -222,7 +222,9 @@ export function ItemList({
           return (
             <Row key={item.id}>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm">
+                {/* Até 2 linhas, não 1 com reticências: "Cerveja l…" no celular de 360 px deixava
+                    duas cervejas iguais na hora de conferir o lançamento (QA de 24/11, 🟢-4). */}
+                <p className="line-clamp-2 break-words text-sm">
                   {line.quantityLabel && <span className="mr-1 font-medium tabular-nums">{line.quantityLabel}</span>}
                   {item.description}
                 </p>
@@ -241,7 +243,7 @@ export function ItemList({
           return (
             <Row key={entry.clientItemId} entryId={entry.clientItemId}>
               <div className="min-w-0 flex-1">
-                <p className={`truncate text-sm ${settled ? 'text-gray-500 line-through' : ''}`}>
+                <p className={`line-clamp-2 break-words text-sm ${settled ? 'text-gray-500 line-through' : ''}`}>
                   {/* Na janela de desfazer, a quantidade está no campo ao lado: o "6×" repetido só
                       tirava espaço do nome do produto no celular. */}
                   {entry.quantity !== 1 && !canUndo(entry, now) && (

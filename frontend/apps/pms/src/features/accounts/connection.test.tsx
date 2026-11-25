@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { onlineManager } from '@tanstack/react-query';
-import { looksOffline, offlineBannerText, useOnline } from './connection.js';
+import { looksOffline, offlineBannerText, offlineReason, useOnline } from './connection.js';
 import { OfflineBanner, OfflineNotice } from './components/OfflineBanner.js';
 import { addTap, applyOutcome, awaitsServer, markSending } from './queueCore.js';
 
@@ -122,5 +122,16 @@ describe('useOnline — ligado ao onlineManager do TanStack Query', () => {
     expect(renderToString(<Probe />)).toContain('sem rede');
     onlineManager.setOnline(true);
     expect(renderToString(<Probe />)).toContain('com rede');
+  });
+});
+
+describe('faixa com o servidor fora, a rede de pé (QA 24/11, 🟢-7)', () => {
+  it('aparelho sem rede diz "Sem conexão"; rede de pé e servidor calado diz que o sistema não respondeu', () => {
+    expect(offlineReason(false)).toBe('network');
+    expect(offlineReason(true)).toBe('server');
+    const server = offlineBannerText(1, 0, 'server');
+    expect(`${server.lead} ${server.message}`).toBe('O sistema não respondeu: os lançamentos ficam na fila e são enviados sozinhos.');
+    expect(server.waiting).toBe('1 lançamento aguardando o envio.');
+    expect(renderToString(<OfflineNotice waiting={0} reason="server" />)).toContain('O sistema não respondeu:');
   });
 });

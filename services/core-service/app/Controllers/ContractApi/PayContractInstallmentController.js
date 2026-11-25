@@ -1,5 +1,6 @@
 import ContractModel from '../../Models/ContractModel.js';
 import ContractInstallmentModel from '../../Models/ContractInstallmentModel.js';
+import { logError } from '../../utils/logError.js';
 
 /**
  * PUT /contracts/:id/installments/:installmentId/pay
@@ -30,7 +31,7 @@ export default async function PayContractInstallmentController(request, response
 
         return response.status(200).json(installment);
     } catch (error) {
-        console.error('PayContractInstallmentController:', error);
+        logError('PayContractInstallmentController', error);
         return response.status(500).json({ error: 'Erro interno do servidor' });
     }
 }
