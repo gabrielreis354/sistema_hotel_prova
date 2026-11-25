@@ -140,8 +140,8 @@ export function ReservationsListPage() {
                       <Td>
                         {/* Celular: o quarto em destaque à esquerda, o nome e o período curto (sem o ano) em
                             duas linhas — eram 4 por reserva, e cabiam ~5 por tela (decisão de 25/11, F5). */}
-                        <div className="flex items-center gap-3">
-                          <RoomNumber number={r.room?.number ?? '—'} className="sm:hidden" />
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <RoomNumber number={r.room?.number ?? '—'} className="max-w-16 sm:hidden" />
                           {/* O link envolve as duas linhas: no celular o alvo de toque é a reserva inteira. */}
                           <Link
                             to={`/reservas/${r.id}`}
@@ -149,7 +149,18 @@ export function ReservationsListPage() {
                           >
                             <span className="font-medium text-brand">{r.guest?.full_name ?? 'Hóspede removido'}</span>
                             <span className="block text-xs text-gray-600 tabular-nums sm:hidden">
-                              {`Quarto ${r.room?.number ?? '—'} · ${shortPeriod(r.check_in_date, r.check_out_date)}${stay}`}
+                              {/* O quarto já está no selo à esquerda; o leitor de tela o ouve aqui. Período e
+                                  diárias não se partem por dentro: se faltar espaço, só as diárias descem. */}
+                              <span className="sr-only">{`Quarto ${r.room?.number ?? '—'} · `}</span>
+                              <span className="whitespace-nowrap">{shortPeriod(r.check_in_date, r.check_out_date)}</span>
+                              {/* O espaço fora dos dois pedaços é o ponto de quebra: colados, viravam um bloco só
+                                  de ~150 px, e a tabela rolava de lado em 360 px. */}
+                              {stay && (
+                                <>
+                                  {' '}
+                                  <span className="whitespace-nowrap">{stay.trimStart()}</span>
+                                </>
+                              )}
                             </span>
                           </Link>
                         </div>

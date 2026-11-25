@@ -42,12 +42,13 @@ describe('lista de reservas (SPEC-10, F5)', () => {
     expect(grupo).not.toMatch(/ bg-brand /);
   });
 
-  it('celular: o quarto em destaque e uma linha curta "Quarto 101 · 24/11 → 26/11 · 2 diárias" dentro do link', () => {
+  it('celular: o quarto em destaque e uma linha curta "24/11 → 26/11 · 2 diárias" dentro do link (o quarto só para o leitor de tela)', () => {
     const html = render();
     expect(html).toContain('aria-hidden="true" title="101"');
     const link = html.match(/<a [^>]*href="\/reservas\/r1"[^>]*>([^]*?)<\/a>/)?.[1] ?? '';
     expect(link).toContain('Ana Hospedada');
-    expect(link).toContain('Quarto 101 · 24/11 → 26/11 · 2 diárias');
+    expect(link.replace(/<[^>]+>/g, '')).toContain('Quarto 101 · 24/11 → 26/11 · 2 diárias');
+    expect(link).toContain('<span class="sr-only">Quarto 101 · </span>');
   });
 
   it('a tabela é a do @hotel/ui: legenda e cabeçalho legível', () => {
