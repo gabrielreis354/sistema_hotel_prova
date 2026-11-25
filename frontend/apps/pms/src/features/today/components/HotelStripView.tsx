@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, LogIn, Sparkles, User, Wrench, X, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Clock, LogIn, LogOut, Sparkles, User, Wrench, X, type LucideIcon } from 'lucide-react';
 import { formatDateBR } from '@hotel/domain';
 import { Button, ErrorState, Spinner, StatusBadge, cn } from '@hotel/ui';
 import { STRIP_LABEL, STRIP_TONES, type HotelStrip, type StripRoom, type StripTone } from '../hotelStrip.js';
@@ -26,9 +26,26 @@ const DOT: Record<StripTone, string> = {
 // Ícone nos estados com ação: o estado se lê sem distinguir a cor (DESIGN_PMS §5). Livre fica vazio.
 const ICON: Partial<Record<StripTone, LucideIcon>> = { occupied: User, booked: LogIn, cleaning: Sparkles, maintenance: Wrench };
 
-/** Nome acessível do quarto: número, estado e hóspede. O mesmo texto vai no `title` para o mouse. */
+/**
+ * Ícone do quarto. Dentro do mesmo estado, o que pede ação no dia troca o ícone (critique da F3): quem
+ * sai hoje ganha a seta de saída, e a chegada atrasada ganha o relógio. Sem sexto estado na legenda.
+ */
+function roomIcon(room: StripRoom): LucideIcon | undefined {
+  if (room.tone === 'occupied' && room.departing) return LogOut;
+  if (room.tone === 'booked' && room.late) return Clock;
+  return ICON[room.tone];
+}
+
+/** O que o ícone diz, em texto: entra no nome acessível e no `title`. */
+function roomNote(room: StripRoom): string | undefined {
+  if (room.tone === 'occupied' && room.departing) return room.departureLate ? 'saída atrasada' : 'sai hoje';
+  if (room.tone === 'booked' && room.late) return 'chegada atrasada';
+  return undefined;
+}
+
+/** Nome acessível do quarto: número, estado, o aviso do dia e o hóspede. O mesmo texto vai no `title`. */
 export function roomLabel(room: StripRoom): string {
-  return [`Quarto ${room.number}`, STRIP_LABEL[room.tone], room.guest].filter(Boolean).join(', ');
+  return [`Quarto ${room.number}`, STRIP_LABEL[room.tone], roomNote(room), room.guest].filter(Boolean).join(', ');
 }
 
 const OVERLINE = 'text-overline uppercase text-gray-600';
@@ -62,6 +79,9 @@ export function HotelStripView({
   const [filter, setFilter] = useState<StripTone | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openOnPhone, setOpenOnPhone] = useState(false);
+  // Uma parada de Tab para a grade inteira, com as setas entre os quartos (critique da F3, P1-b): antes
+  // cada quarto era uma parada, e a recepção passava por 20 a 40 Tabs até a primeira chegada.
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   let body;
   if (!strip) {
@@ -72,6 +92,28 @@ export function HotelStripView({
 
   const rooms = strip?.floors.flatMap((f) => f.rooms) ?? [];
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
+  const tabStop = rooms.some((r) => r.id === activeId) ? activeId : rooms[0]?.id;
+
+  const moveFocus = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    const at = rooms.findIndex((r) => r.id === tabStop);
+    let next: number | null = null;
+    if (step) next = Math.min(rooms.length - 1, Math.max(0, at + step));
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = rooms.length - 1;
+    if (next === null || at === -1) return;
+    e.preventDefault();
+    const id = rooms[next]!.id;
+    setActiveId(id);
+    document.getElementById(`fita-quarto-${id}`)?.focus();
+  };
+
+  const closeDetail = (focusRoom: boolean) => {
+    const id = selectedId;
+    setSelectedId(null);
+    // O botão de fechar some com o painel: o foco volta ao quarto, senão cairia no body.
+    if (focusRoom && id) document.getElementById(`fita-quarto-${id}`)?.focus();
+  };
 
   return (
     // Nome pela própria seção: um <h2 class="sr-only"> como primeiro filho ganhava o espaço do space-y e
@@ -83,7 +125,10 @@ export function HotelStripView({
           <>
             <div className="grid grid-cols-2 items-end gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8">
               <Figure label="Ocupação agora" value={formatPercent(strip.occupancyRate)} hint={`${strip.counts.occupied} de ${strip.total} quartos ocupados`} />
-              <Figure label="Vendidos hoje" value={sold === null ? '—' : String(sold)} hint="ocupados + chegadas de hoje" />
+              {/* "no prazo": a chegada atrasada não entra nos vendidos (D-6), mas aparece em "Chega hoje" com o
+                  relógio. Sem a palavra, os dois números não fechavam (critique da F3, P1-a). */}
+              <Figure label="Vendidos hoje" value={sold === null ? '—' : String(sold)} hint="ocupados + chegadas no prazo" />
+              <Figure label="Saem hoje" value={String(strip.departing)} hint="ocupados com saída hoje ou atrasada" />
               <div role="group" aria-label="Filtrar a fita por estado" className="col-span-2 flex flex-wrap gap-2 xl:ml-auto">
                 {STRIP_TONES.map((tone) => (
                   <Button
@@ -92,7 +137,11 @@ export function HotelStripView({
                     size="compact"
                     aria-pressed={filter === tone}
                     className={cn('gap-2 font-normal', filter === tone && 'border-gray-900 ring-1 ring-gray-900')}
-                    onClick={() => setFilter((f) => (f === tone ? null : tone))}
+                    onClick={() => {
+                      setFilter((f) => (f === tone ? null : tone));
+                      // No celular a grade está recolhida: filtrar sem abri-la não mostrava nada (critique, P2).
+                      setOpenOnPhone(true);
+                    }}
                   >
                     <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-full', DOT[tone])} />
                     {STRIP_LABEL[tone]}
@@ -108,25 +157,41 @@ export function HotelStripView({
               aria-expanded={openOnPhone}
               aria-controls="fita-andares"
               className="w-full justify-between md:hidden"
-              onClick={() => setOpenOnPhone((v) => !v)}
+              onClick={() => {
+                // Recolher esconde o quarto do detalhe: fecha junto, senão o foco cai no body ao fechar.
+                if (openOnPhone) setSelectedId(null);
+                setOpenOnPhone((v) => !v);
+              }}
             >
               {openOnPhone ? 'Esconder os quartos' : 'Ver quartos por andar'}
               <ChevronDown aria-hidden="true" className={cn('size-4 transition-transform motion-reduce:transition-none', openOnPhone && 'rotate-180')} />
             </Button>
 
-            <div id="fita-andares" className={cn('gap-4 sm:grid-cols-2 lg:grid-cols-3', openOnPhone ? 'grid' : 'hidden md:grid')}>
+            <p id="fita-dica" className="sr-only">
+              Use as setas para andar entre os quartos e Enter para abrir o detalhe.
+            </p>
+            {/* Quartos com no mínimo 3rem (48 px) de largura em qualquer coluna: com 5 fixos por andar, o
+                quarto caía para 38 px no tablet em pé (🟡5 do qa-redteam da F3). */}
+            <div
+              id="fita-andares"
+              onKeyDown={moveFocus}
+              className={cn('gap-4 sm:grid-cols-2 lg:grid-cols-3', openOnPhone ? 'grid' : 'hidden md:grid')}
+            >
               {strip.floors.map((floor) => (
                 <div key={floor.label} className="space-y-1.5">
                   <span className={OVERLINE}>{floor.label}</span>
-                  <ul className="grid grid-cols-5 gap-1">
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-1">
                     {floor.rooms.map((room) => {
-                      const Icon = ICON[room.tone];
+                      const Icon = roomIcon(room);
                       const label = roomLabel(room);
                       return (
                         <li key={room.id}>
                           <button
                             type="button"
                             id={`fita-quarto-${room.id}`}
+                            tabIndex={room.id === tabStop ? 0 : -1}
+                            aria-describedby="fita-dica"
+                            onFocus={() => setActiveId(room.id)}
                             title={label}
                             aria-label={label}
                             aria-expanded={selectedId === room.id}
@@ -135,12 +200,14 @@ export function HotelStripView({
                             className={cn(
                               'flex w-full flex-col items-stretch gap-0.5 rounded-md p-0.5 text-center transition-opacity motion-reduce:transition-none',
                               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-                              filter && filter !== room.tone && 'opacity-30',
+                              // Sem saturação em vez de só transparência: o ícone continua legível (critique, daltonismo).
+                              filter && filter !== room.tone && 'opacity-50 grayscale',
                             )}
                           >
                             <span
                               className={cn(
-                                'flex h-8 items-center justify-center rounded-md',
+                                // Mais baixo com mouse: a fita cabe acima da primeira chegada em 1366×768 (critique, P1-b).
+                                'flex h-8 items-center justify-center rounded-md desk:h-6',
                                 TILE[room.tone],
                                 selectedId === room.id && 'outline outline-2 outline-offset-2 outline-gray-900',
                               )}
@@ -159,14 +226,7 @@ export function HotelStripView({
 
             <div id="fita-detalhe" aria-live="polite">
               {selected && (
-                <RoomDetail
-                  room={selected}
-                  onClose={() => {
-                    setSelectedId(null);
-                    // O botão de fechar some com o painel: o foco volta ao quarto, senão cairia no body.
-                    document.getElementById(`fita-quarto-${selected.id}`)?.focus();
-                  }}
-                />
+                <RoomDetail room={selected} onClose={() => closeDetail(true)} />
               )}
             </div>
           </>
@@ -195,14 +255,23 @@ const STAY_LINK = 'text-sm font-medium text-brand underline-offset-2 hover:under
 export function RoomDetail({ room, onClose }: { room: StripRoom; onClose: () => void }) {
   const dates = room.checkIn && room.checkOut ? `${formatDateBR(room.checkIn)} → ${formatDateBR(room.checkOut)}` : null;
   let line: string;
-  if (room.tone === 'occupied') line = room.guest ? `${room.guest} está no quarto.` : 'Ocupado.';
+  if (room.tone === 'occupied') {
+    const who = room.guest ?? 'O hóspede';
+    line = room.departing ? `${who} ${room.departureLate ? 'devia ter saído — saída atrasada' : 'sai hoje'}.` : `${who} está no quarto.`;
+  }
   else if (room.tone === 'booked') line = room.late ? `Chegada atrasada de ${room.guest ?? 'hóspede'}.` : `${room.guest ?? 'Hóspede'} chega hoje.`;
   else if (room.tone === 'cleaning') line = 'Saiu e ainda não voltou para a venda.';
   else if (room.tone === 'maintenance') line = 'Bloqueado para venda.';
   else line = 'Pronto para vender.';
 
   return (
-    <div role="region" aria-label={`Detalhe do quarto ${room.number}`} className="flex items-start gap-3 rounded-lg border border-gray-200 bg-ground p-3">
+    <div
+      role="region"
+      aria-label={`Detalhe do quarto ${room.number}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+      className="flex items-start gap-3 rounded-lg border border-gray-200 bg-ground p-3">
       <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-base font-bold tabular-nums text-gray-900 ring-1 ring-gray-200">
         {room.number}
       </span>

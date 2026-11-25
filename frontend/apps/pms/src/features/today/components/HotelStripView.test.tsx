@@ -129,3 +129,45 @@ describe('blocos do painel (SPEC-10, F3)', async () => {
     expect(html.match(/lucide-log-in/g)?.length).toBe(2);
   });
 });
+
+describe('fita: o que só a captura via antes (🟡6 do qa-redteam da F3)', () => {
+  const contagem = (html: string, rotulo: string) => html.match(new RegExp(`${rotulo}<strong[^>]*>(\\d+)</strong>`))?.[1];
+
+  it('a legenda mostra a contagem de cada estado', () => {
+    const html = view();
+    expect(contagem(html, 'Ocupado')).toBe('1');
+    expect(contagem(html, 'Manutenção')).toBe('1');
+    expect(contagem(html, 'Livre')).toBe('1');
+    expect(contagem(html, 'Chega hoje')).toBe('0');
+  });
+
+  it('os vendidos mostram o número recebido, e "no prazo" explica a chegada atrasada fora dele', () => {
+    const html = view({ sold: 7 });
+    expect(html).toMatch(/Vendidos hoje<\/span><span[^>]*>7<\/span>/);
+    expect(html).toContain('ocupados + chegadas no prazo');
+    expect(view({ sold: null })).toMatch(/Vendidos hoje<\/span><span[^>]*>—<\/span>/);
+  });
+
+  it('no celular a grade começa recolhida; a partir do md fica aberta', () => {
+    expect(view()).toMatch(/id="fita-andares"[^>]*class="[^"]*hidden md:grid/);
+  });
+
+  it('a grade é uma parada de Tab só (as setas andam entre os quartos)', () => {
+    const grade = view();
+    expect(grade.match(/id="fita-quarto-[^"]+" tabindex="0"/g)?.length).toBe(1);
+    expect(grade.match(/id="fita-quarto-[^"]+" tabindex="-1"/g)?.length).toBe(2);
+  });
+
+  it('quem sai hoje troca o ícone e diz isso no nome; "Saem hoje" conta', () => {
+    const s = hotelStrip(
+      [{ id: 'c', number: '103', floor: 1, status: 'OCCUPIED', category: { name: 'Luxo' } }],
+      [],
+      [{ id: 'r', status: 'CHECKED_IN', check_out_date: '2026-11-25', guest: { full_name: 'Gabriela' }, room: { id: 'c' } }],
+      '2026-11-25',
+    );
+    const html = view({ strip: s });
+    expect(html).toContain('aria-label="Quarto 103, Ocupado, sai hoje, Gabriela"');
+    expect(html).toContain('lucide-log-out');
+    expect(html).toMatch(/Saem hoje<\/span><span[^>]*>1<\/span>/);
+  });
+});

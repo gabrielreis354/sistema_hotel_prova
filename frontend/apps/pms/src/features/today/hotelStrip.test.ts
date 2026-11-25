@@ -77,3 +77,33 @@ describe('fita do hotel (SPEC-10 F3, protótipo de 22/11)', () => {
     expect(hotelStrip([], [], []).occupancyRate).toBe(0);
   });
 });
+
+describe('ressalvas do red team e do critique da F3 (25/11)', () => {
+  const TODAY = '2026-11-25';
+
+  it('🟡2: duas chegadas no mesmo quarto, a do prazo vence a atrasada, em qualquer ordem', () => {
+    const atrasada = arrival(res('velha', 'b', 'Antiga', { status: 'CONFIRMED', check_in_date: '2026-11-20' }), true);
+    const hoje = arrival(res('nova', 'b', 'Nova', { status: 'CONFIRMED', check_in_date: TODAY }));
+    for (const lista of [[atrasada, hoje], [hoje, atrasada]]) {
+      const q = hotelStrip(ROOMS, lista, [], TODAY).floors.flatMap((f) => f.rooms).find((r) => r.number === '102')!;
+      expect(q).toMatchObject({ reservationId: 'nova', late: false });
+    }
+  });
+
+  it('P1-c: ocupado com saída hoje ou vencida fica marcado (sem criar um sexto estado) e é contado', () => {
+    const sai = res('s', 'c', 'Gabriela', { check_out_date: TODAY });
+    const s = hotelStrip(ROOMS, [], [sai], TODAY);
+    const q = s.floors.flatMap((f) => f.rooms).find((r) => r.number === '103')!;
+    expect(q).toMatchObject({ tone: 'occupied', departing: true, departureLate: false });
+    expect(s.departing).toBe(1);
+    const vencida = hotelStrip(ROOMS, [], [res('s', 'c', 'G', { check_out_date: '2026-11-24' })], TODAY);
+    expect(vencida.floors.flatMap((f) => f.rooms).find((r) => r.number === '103')).toMatchObject({ departing: true, departureLate: true });
+    const fica = hotelStrip(ROOMS, [], [res('s', 'c', 'G', { check_out_date: '2026-11-27' })], TODAY);
+    expect(fica.departing).toBe(0);
+  });
+
+  it('só CHECKED_IN conta como quem está no quarto (o filtro não pode sumir)', () => {
+    const s = hotelStrip(ROOMS, [], [res('x', 'c', 'Fantasma', { status: 'CHECKED_OUT' })], TODAY);
+    expect(s.floors.flatMap((f) => f.rooms).find((r) => r.number === '103')!.guest).toBeUndefined();
+  });
+});

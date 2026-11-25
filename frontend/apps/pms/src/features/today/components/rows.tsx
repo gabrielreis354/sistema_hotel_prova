@@ -510,7 +510,13 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
       </HeadLine>
       <p className="text-sm text-gray-700">
         {room.category}
-        {room.since && ` · em limpeza desde ${formatDateTimeBR(room.since)}`}
+        {/* Data e hora juntas: a hora não quebra sozinha na linha de baixo (overlay do critique da F3). */}
+        {room.since && (
+          <>
+            {' · em limpeza desde '}
+            <span className="whitespace-nowrap">{formatDateTimeBR(room.since)}</span>
+          </>
+        )}
       </p>
     </Row>
   );

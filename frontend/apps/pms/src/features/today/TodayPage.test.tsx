@@ -122,3 +122,32 @@ describe('TodayPage — a fita acompanha o painel (CA-11.g)', () => {
     expect(qc.getQueryCache().findAll({ queryKey: ['analytics'] }).map((q) => q.queryKey[2])).toEqual(['alerts']);
   });
 });
+
+describe('TodayPage — fita e Atenção com fontes faltando (qa-redteam da F3)', () => {
+  const QUARTOS = [
+    { id: 'q1', number: '101', floor: 1, status: 'AVAILABLE', category: { name: 'Standard' } },
+    { id: 'q2', number: '102', floor: 1, status: 'MAINTENANCE', category: { name: 'Standard' } },
+  ];
+
+  it('🟡1: sem as chegadas a fita não monta, em vez de mostrar o quarto reservado como "Livre"', () => {
+    onlineManager.setOnline(false);
+    const qc = client();
+    qc.setQueryData(roomKeys.all, QUARTOS);
+    qc.setQueryData(todayKeys.inHouse('u1'), page([]));
+    const html = render(qc);
+    expect(html).not.toContain('Quarto 101, Livre');
+    expect(html).toContain('Sem conexão. Os quartos aparecem quando a rede voltar.');
+  });
+
+  it('🟡4: com o analytics fora, o chip da manutenção (que vem do core) continua no Atenção', async () => {
+    const qc = client();
+    qc.setQueryData(roomKeys.all, QUARTOS);
+    qc.setQueryData(todayKeys.inHouse('u1'), page([]));
+    qc.setQueryData(todayKeys.arrivals('u1', TODAY), page([]));
+    await qc.prefetchQuery({ queryKey: todayKeys.alerts('u1'), queryFn: () => Promise.reject(new Error('Analytics fora.')) });
+    const html = render(qc);
+    expect(html).toContain('Analytics fora.');
+    expect(html).toContain('quarto em manutenção');
+    expect(html).not.toContain('Nada pedindo atenção agora.');
+  });
+});

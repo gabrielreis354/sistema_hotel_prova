@@ -50,9 +50,11 @@ export function TodayPage() {
   const inHouseList = useMemo(() => inHouseRows(inHouse.data?.data ?? []), [inHouse.data]);
   const cleaning = alerts.data?.cleaning ?? [];
 
+  // A fita só se monta com as três fontes: sem as chegadas, o quarto reservado aparecia "Livre, pronto
+  // para vender" sem aviso nenhum (🟡1 do qa-redteam da F3).
   const strip = useMemo(
-    () => (rooms.data ? hotelStrip(rooms.data, arrivalList, inHouse.data?.data ?? []) : null),
-    [rooms.data, arrivalList, inHouse.data],
+    () => (rooms.data && arrivals.data && inHouse.data ? hotelStrip(rooms.data, arrivalList, inHouse.data.data, today) : null),
+    [rooms.data, arrivals.data, inHouse.data, arrivalList, today],
   );
 
   // Sem rede (CA-11.h): bloco sem dado diz "sem conexão" em vez de "Carregando…" sem fim. O erro
@@ -62,6 +64,11 @@ export function TodayPage() {
   const inHouseLoad = loadState(inHouse);
   const alertsLoad = loadState(alerts);
   const roomsLoad = loadState(rooms);
+  const stripSources = [rooms, arrivals, inHouse] as const;
+  const stripLoads = [roomsLoad, arrivalsLoad, inHouseLoad];
+  // O erro de qualquer das três, só enquanto falta o dado dela. A mensagem diz que é a fita que não monta.
+  const stripFailed = stripSources.find((q) => q.data === undefined && q.error);
+  const stripError = stripFailed ? new Error(`Não foi possível montar a fita dos quartos. ${stripFailed.error!.message}`) : null;
   // A outra metade do 🟡-2: o dado fica, mas o bloco avisa que pode estar velho (isStale).
   const stale = (q: Parameters<typeof isStale>[0]) => isStale(q, online);
 
@@ -91,11 +98,11 @@ export function TodayPage() {
       <HotelStripView
         strip={strip}
         sold={strip && arrivals.data ? soldToday(strip.counts.occupied, arrivalList) : null}
-        isLoading={roomsLoad.isLoading}
-        isOffline={roomsLoad.isOffline}
-        error={rooms.data ? null : rooms.error}
+        isLoading={stripLoads.some((l) => l.isLoading)}
+        isOffline={stripLoads.some((l) => l.isOffline)}
+        error={stripError}
         stale={stale(rooms)}
-        onRetry={() => rooms.refetch()}
+        onRetry={() => stripSources.forEach((q) => q.data === undefined && void q.refetch())}
       />
 
       {/* Fixo no alto da área visível: no celular a ação acontece lá embaixo da lista, e o
@@ -117,6 +124,8 @@ export function TodayPage() {
           Atenção
           {attentionTotal > 0 && <CountPill count={attentionTotal} />}
         </h2>
+        {/* Os chips que vêm do core (manutenção, saída atrasada) ficam mesmo com o analytics fora; o aviso do
+            analytics vale só para os dele (🟡4 do qa-redteam da F3: o título dizia "Atenção 3" sobre o erro). */}
         {alertsLoad.isOffline ? (
           <p className="py-2 text-sm text-gray-700">Sem conexão. Os alertas aparecem quando a rede voltar.</p>
         ) : alerts.isPending ? (
@@ -124,17 +133,15 @@ export function TodayPage() {
         ) : alerts.isError && !alerts.data ? (
           <ErrorState message={alerts.error.message} onRetry={() => alerts.refetch()} />
         ) : (
-          <>
-            {stale(alerts) && <StaleNotice onRetry={() => alerts.refetch()} />}
-            {/* Grade de 2 colunas no celular, com o texto curto; em linha a partir do sm (estudo de 22/11). */}
-            <ul className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-800 sm:flex sm:flex-wrap">
-              {attention.map((item) => (
-                <AttentionChip key={item.id} item={item} />
-              ))}
-              {attention.length === 0 && <li className="col-span-2 py-2 text-gray-700">Nada pedindo atenção agora.</li>}
-            </ul>
-          </>
+          stale(alerts) && <StaleNotice onRetry={() => alerts.refetch()} />
         )}
+        {/* Grade de 2 colunas no celular, com o texto curto; em linha a partir do sm (estudo de 22/11). */}
+        <ul className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-800 sm:flex sm:flex-wrap">
+          {attention.map((item) => (
+            <AttentionChip key={item.id} item={item} />
+          ))}
+          {attention.length === 0 && alerts.data && <li className="col-span-2 py-2 text-gray-700">Nada pedindo atenção agora.</li>}
+        </ul>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
