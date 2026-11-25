@@ -52,9 +52,9 @@ export function RoomsListPage() {
         <Table caption="Quartos do hotel">
           <THead>
             <Th>Quarto</Th>
-            <Th className="hidden sm:table-cell">Andar</Th>
-            <Th className="hidden sm:table-cell">Categoria</Th>
-            <Th align="right" className="hidden md:table-cell">
+            <Th className="hidden lg:table-cell">Andar</Th>
+            <Th className="hidden lg:table-cell">Categoria</Th>
+            <Th align="right" className="hidden lg:table-cell">
               Diária
             </Th>
             <Th>Status</Th>
@@ -67,16 +67,17 @@ export function RoomsListPage() {
               <Tr key={r.id}>
                 <Td>
                   <span className="font-medium tabular-nums">{r.number}</span>
-                  {/* No celular, categoria e andar vão sob o número em vez de colunas. */}
-                  <span className="block text-xs text-gray-500 sm:hidden">
+                  {/* Abaixo do lg, categoria e andar vão sob o número em vez de colunas: no tablet a barra lateral
+                      deixa ~466 px e o "Editar" saía da tela (critique da F5). */}
+                  <span className="block text-xs text-gray-500 lg:hidden">
                     {r.category?.name ?? 'Sem categoria'} · {formatFloor(r.floor)}
                   </span>
                 </Td>
-                <Td className="hidden tabular-nums text-gray-600 sm:table-cell">{formatFloor(r.floor)}</Td>
-                <Td className="hidden text-gray-700 sm:table-cell">
+                <Td className="hidden tabular-nums text-gray-600 lg:table-cell">{formatFloor(r.floor)}</Td>
+                <Td className="hidden text-gray-700 lg:table-cell">
                   {r.category?.name ?? <span className="text-status-maintenance">Sem categoria</span>}
                 </Td>
-                <Td align="right" className="hidden md:table-cell">
+                <Td align="right" className="hidden lg:table-cell">
                   <DecimalMoney value={r.category?.price_per_night} />
                 </Td>
                 <Td>{r.status ? <StatusBadge status={r.status} /> : '—'}</Td>

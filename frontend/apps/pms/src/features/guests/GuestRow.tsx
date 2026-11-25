@@ -13,6 +13,8 @@ import type { Guest } from './guestsApi.js';
  *   cliques que vêm de dentro de um link, para não navegar duas vezes.
  * - Não usamos o pseudo-elemento esticado a partir do Link: depende de `position: relative` na
  *   `tr`, que o Safari antigo de iPhone ignora, e não dá para provar num teste sem layout.
+ * - `px-3`, o mesmo do `Th`: com `px-4` o cabeçalho ficava 4 px fora da célula (F5). Telefone e e-mail
+ *   só no lg: no tablet a barra lateral deixa ~466 px, e o CPF partia no hífen (critique da F5).
  * - `h-12` (48 px) na linha: no layout de tabela a altura vale como mínimo, e garante o alvo
  *   de toque ≥ 44 px mesmo com uma linha de texto só.
  */
@@ -29,7 +31,7 @@ export function GuestRow({ guest, onOpen }: { guest: Guest; onOpen: (path: strin
 
   return (
     <tr onClick={handleRowClick} className="h-12 cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50">
-      <td className="px-4 py-2">
+      <td className="px-3 py-2">
         {/* 48 px no toque também para o teclado e o leitor de tela: o link tinha 17 px (linha de base, F5). */}
         <Link
           to={path}
@@ -38,9 +40,9 @@ export function GuestRow({ guest, onOpen }: { guest: Guest; onOpen: (path: strin
           {guest.full_name}
         </Link>
       </td>
-      <td className="px-4 py-2 tabular-nums text-gray-600">{formatCpf(guest.cpf) ?? '—'}</td>
-      <td className="hidden px-4 py-2 text-gray-600 sm:table-cell">{guest.phone || '—'}</td>
-      <td className="hidden px-4 py-2 text-gray-600 sm:table-cell">{guest.email || '—'}</td>
+      <td className="whitespace-nowrap px-3 py-2 tabular-nums text-gray-600">{formatCpf(guest.cpf) ?? '—'}</td>
+      <td className="hidden whitespace-nowrap px-3 py-2 text-gray-600 lg:table-cell">{guest.phone || '—'}</td>
+      <td className="hidden px-3 py-2 text-gray-600 lg:table-cell">{guest.email || '—'}</td>
     </tr>
   );
 }

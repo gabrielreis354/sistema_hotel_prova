@@ -42,7 +42,11 @@ export function TopGuests({ rows }: { rows: TopGuestRow[] }) {
               <td className={TD_NUM}>{i + 1}</td>
               <td className={TD}>
                 {g.guest_id ? (
-                  <Link to={`/hospedes/${g.guest_id}`} className="text-brand underline-offset-2 hover:underline">
+                  // 48 px no toque, compacto com mouse (R-3): tinha 17 px no tablet (critique da F5).
+                  <Link
+                    to={`/hospedes/${g.guest_id}`}
+                    className="inline-flex min-h-touch items-center rounded-sm text-brand underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand desk:min-h-0"
+                  >
                     {g.full_name ?? 'Hóspede'}
                   </Link>
                 ) : (

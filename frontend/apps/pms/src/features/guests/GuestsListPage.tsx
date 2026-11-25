@@ -55,8 +55,8 @@ export function GuestsListPage() {
               <THead>
                 <Th>Nome</Th>
                 <Th>CPF</Th>
-                <Th className="hidden sm:table-cell">Telefone</Th>
-                <Th className="hidden sm:table-cell">E-mail</Th>
+                <Th className="hidden lg:table-cell">Telefone</Th>
+                <Th className="hidden lg:table-cell">E-mail</Th>
               </THead>
               <tbody>
                 {filtered.map((g) => (

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ActionSlot, Button, Card, Notice, PageHeader, Section, Spinner } from '@hotel/ui';
+import { ActionSlot, Button, Card, Notice, PageHeader, Section, Spinner, THead, Table, Td, Th, Tr } from '@hotel/ui';
 import { formatCpf, formatDateBR } from '@hotel/domain';
 import type { components } from '@hotel/api-client';
 import { api } from '../../lib/api.js';
@@ -72,6 +72,8 @@ export function GuestDetailPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
+      {/* A volta no topo, como no detalhe da reserva (F4); no rodapé ela sumia atrás do histórico (critique da F5). */}
+      <BackLink to="/hospedes">← Hóspedes</BackLink>
       <PageHeader
         title={guest.full_name}
         context="Hóspede"
@@ -158,49 +160,42 @@ export function GuestDetailPage() {
           <p className="text-sm text-gray-500">Nenhuma reserva para este hóspede.</p>
         )}
         {stays.data && stays.data.length > 0 && (
-          // overflow-x-auto, não hidden: a 375 px o status saía cortado ("● Hospedad"); se a
-          // tabela não couber, rola dentro do cartão, nunca a página (🟡-2 do qa-explorador de 16/11).
-          <Card className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="px-2 py-2 font-medium sm:px-4">Entrada</th>
-                  <th className="px-2 py-2 font-medium sm:px-4">Saída</th>
-                  <th className="px-2 py-2 font-medium sm:px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stays.data.map((r) => (
-                  <tr key={r.id} className="border-b border-gray-100 last:border-0">
-                    <td className="whitespace-nowrap px-2 py-2 tabular-nums sm:px-4">
-                      {r.check_in_date ? formatDateBR(r.check_in_date) : '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 tabular-nums sm:px-4">
-                      {r.check_out_date ? formatDateBR(r.check_out_date) : '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 sm:px-4">
-                      {/* Ponto e palavra (GUIA, regra 3), como no resto do app. */}
-                      {r.status ? <ReservationStatusBadge status={r.status} /> : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+          // O Table do @hotel/ui: overflow-x-auto, não hidden (a 375 px o status saía cortado, "● Hospedad";
+          // 🟡-2 do qa-explorador de 16/11), e o cabeçalho em gray-600 como as outras listas (critique da F5).
+          <Table caption={`Estadias de ${guest.full_name}`}>
+            <THead>
+              <Th>Entrada</Th>
+              <Th>Saída</Th>
+              <Th>Status</Th>
+            </THead>
+            <tbody>
+              {stays.data.map((r) => (
+                <Tr key={r.id}>
+                  <Td className="whitespace-nowrap tabular-nums">{r.check_in_date ? formatDateBR(r.check_in_date) : '—'}</Td>
+                  <Td className="whitespace-nowrap tabular-nums">{r.check_out_date ? formatDateBR(r.check_out_date) : '—'}</Td>
+                  <Td className="whitespace-nowrap">
+                    {/* Ponto e palavra (GUIA, regra 3), como no resto do app. */}
+                    {r.status ? <ReservationStatusBadge status={r.status} /> : '—'}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
         )}
       </Section>
 
-      <BackLink to="/hospedes">← Voltar para hóspedes</BackLink>
     </div>
   );
 }
 
 function Info({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div>
+    // min-w-0 e break-words: na grade de 3 colunas o e-mail não quebrava e a página rolava 8 px de lado a
+    // 768 px (critique da F5).
+    <div className="min-w-0">
       {/* gray-600: o gray-400 dava 2,5:1 sobre o branco, abaixo dos 4,5:1 (CA-08.d). */}
       <p className="text-xs uppercase tracking-wide text-gray-600">{label}</p>
-      <p className="text-sm">{value || '—'}</p>
+      <p className="break-words text-sm">{value || '—'}</p>
     </div>
   );
 }
