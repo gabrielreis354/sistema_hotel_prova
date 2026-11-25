@@ -45,6 +45,7 @@ Até 10/12, nenhuma além de `lucide-react` para ícones (com texto ao lado e `a
 | `ActionSlot` | Ação + o **motivo** quando está desabilitada, ligado por `aria-describedby` (RNF-026). Promovido na T-05.3 | Ação que o papel nunca terá — essa não aparece; o slot é para "agora não dá" |
 | `cn` | Junta classes condicionalmente (utilitário, não componente) | — |
 | `PageHeader` | Topo de toda página (T-08.5): título de 20 px, contexto curto embaixo (data, contagem) e a ação principal à direita, sempre `size="compact"` (um teste varre isso); no celular a ação desce, na largura toda | Título de seção dentro da página — use `Section`. E não ponha duas ações `primary` nele: a segunda é `secondary` (GUIA, regra 1) |
+| `RoomNumber` | O número do quarto em destaque, à esquerda da linha ou do cabeçalho (Hoje e detalhe da reserva). Decorativo: o texto ao lado diz o quarto | Como única informação do quarto: ele é `aria-hidden` |
 | `Section` | Bloco só de leitura: título de seção e um fio em cima, sem cartão (ficha do hóspede, resumo da reserva) | O que pede atenção ou recebe dado — formulário, confirmação, pagamento: isso é `Card` |
 
 ---
