@@ -109,12 +109,25 @@ export function RowList<T>({ items, children }: { items: readonly T[]; children:
  * Casca da linha: quem/onde à esquerda, ação à direita (embaixo, na largura toda, no celular).
  * `panel` aparece embaixo da linha: é onde fica a confirmação das ações sem volta.
  */
-function Row({ children, action, panel }: { children: ReactNode; action?: ReactNode; panel?: ReactNode }) {
+function Row({ room, children, action, panel }: { room?: string; children: ReactNode; action?: ReactNode; panel?: ReactNode }) {
   return (
     <li className="py-2 sm:py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        {/* Uma linha por item a partir de xl (T-08.4): nome, selos e quarto lado a lado. */}
-        <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:flex-wrap xl:items-center xl:gap-x-3">{children}</div>
+        <div className="flex min-w-0 items-start gap-3 xl:items-center">
+          {/* Número do quarto em destaque (protótipo de 22/11): a recepção acha a linha pelo quarto. O texto
+              da linha já diz "Quarto 101", então o selo é só visual. */}
+          {room !== undefined && (
+            <span
+              aria-hidden="true"
+              title={room}
+              className="flex h-10 min-w-10 max-w-20 shrink-0 items-center justify-center rounded-md bg-ground px-1.5 text-sm font-bold tabular-nums text-gray-900 ring-1 ring-inset ring-gray-200"
+            >
+              <span className="truncate">{room}</span>
+            </span>
+          )}
+          {/* Uma linha por item a partir de xl (T-08.4): nome, selos e quarto lado a lado. */}
+          <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:flex-wrap xl:items-center xl:gap-x-3">{children}</div>
+        </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>
       {panel}
@@ -254,6 +267,7 @@ export function ArrivalItem({
 
   return (
     <Row
+      room={r.room?.number ?? '—'}
       action={
         <ActionSlot id={slot} state={checkIn}>
           {(describedBy) => (
@@ -336,6 +350,7 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
 
   return (
     <Row
+      room={r.room?.number ?? '—'}
       action={
         <ActionSlot id={slot} state={checkOut}>
           {(describedBy) => (
@@ -405,7 +420,7 @@ export function DepartureItem({ row, onResult }: { row: DepartureRow<Reservation
 
 export function InHouseItem({ reservation }: { reservation: ReservationListItem }) {
   return (
-    <Row>
+    <Row room={reservation.room?.number ?? '—'}>
       <GuestLink reservation={reservation} />
       <StayLine reservation={reservation}>
         {reservation.check_out_date && ` · saída ${formatDateBR(reservation.check_out_date)}`}
@@ -454,6 +469,7 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
 
   return (
     <Row
+      room={room.number}
       action={
         <Button
           variant="secondary"
@@ -494,7 +510,13 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
       </HeadLine>
       <p className="text-sm text-gray-700">
         {room.category}
-        {room.since && ` · em limpeza desde ${formatDateTimeBR(room.since)}`}
+        {/* Data e hora juntas: a hora não quebra sozinha na linha de baixo (overlay do critique da F3). */}
+        {room.since && (
+          <>
+            {' · em limpeza desde '}
+            <span className="whitespace-nowrap">{formatDateTimeBR(room.since)}</span>
+          </>
+        )}
       </p>
     </Row>
   );

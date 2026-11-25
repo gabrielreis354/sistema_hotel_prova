@@ -17,7 +17,7 @@ vi.mock('../../stores/auth.js', () => ({
 
 import { TodayPage } from './TodayPage.js';
 import { REFRESH, todayKeys } from './queries.js';
-import { analyticsKeys } from '../analytics/queries.js';
+import { roomKeys } from '../rooms/queries.js';
 
 const TODAY = todayISO();
 const page = (data: unknown[]) => ({ data, total: data.length });
@@ -46,7 +46,7 @@ describe('TodayPage sem rede', () => {
     const html = render(client());
     expect(html).toContain('Sem conexão. A lista aparece quando a rede voltar.');
     expect(html).toContain('Sem conexão. Os alertas aparecem quando a rede voltar.');
-    expect(html).toContain('Sem conexão. Os números aparecem quando a rede voltar.');
+    expect(html).toContain('Sem conexão. Os quartos aparecem quando a rede voltar.');
     expect(html).not.toContain('Carregando');
     expect(html).not.toContain('Nenhuma chegada para hoje.');
     expect(api.GET).not.toHaveBeenCalled();
@@ -81,7 +81,7 @@ async function allStale(qc: QueryClient) {
     [todayKeys.inHouse('u1'), page([ANA])],
     [todayKeys.arrivals('u1', TODAY), page([])],
     [todayKeys.alerts('u1'), { noShowIds: new Set<string>(), cleaning: [], pendingTooLong: 0 }],
-    [analyticsKeys.occupancy('u1', TODAY), { occupied: 1, available: 3, cleaning: 0, occupancy_rate: 0.25, total_rooms: 4 }],
+    [roomKeys.all, [{ id: 'q1', number: '101', floor: 1, status: 'OCCUPIED', category: { name: 'Standard' } }]],
   ];
   for (const [key, data] of seeded) {
     qc.setQueryData(key, data);
@@ -92,7 +92,7 @@ async function allStale(qc: QueryClient) {
 const notices = (html: string) => html.split('Não foi possível atualizar').length - 1;
 
 describe('TodayPage — dado velho com o aparelho online', () => {
-  it('cartões, Atenção, Chegadas, Saídas, Na casa e Em limpeza avisam, cada um no seu bloco', async () => {
+  it('fita, Atenção, Chegadas, Saídas, Na casa e Em limpeza avisam, cada um no seu bloco', async () => {
     const qc = client();
     await allStale(qc);
     expect(notices(render(qc))).toBe(6);
@@ -106,12 +106,48 @@ describe('TodayPage — dado velho com o aparelho online', () => {
   });
 });
 
-describe('TodayPage — cartões acompanham o painel (CA-11.g)', () => {
-  it('a ocupação recarrega no mesmo ritmo das outras consultas do painel', () => {
+describe('TodayPage — a fita acompanha o painel (CA-11.g)', () => {
+  it('os quartos da fita recarregam no mesmo ritmo das outras consultas do painel', () => {
     onlineManager.setOnline(false); // sem rede: nenhuma consulta sai, só as opções ficam no cache
     const qc = client();
     render(qc);
-    const occupancy = qc.getQueryCache().find({ queryKey: analyticsKeys.occupancy('u1', TODAY) });
-    expect(occupancy?.options).toMatchObject({ refetchInterval: REFRESH });
+    const quartos = qc.getQueryCache().find({ queryKey: roomKeys.all });
+    expect(quartos?.options).toMatchObject({ refetchInterval: REFRESH });
+  });
+
+  it('a fita não depende do analytics: o painel não busca mais a ocupação dele', () => {
+    onlineManager.setOnline(false);
+    const qc = client();
+    render(qc);
+    expect(qc.getQueryCache().findAll({ queryKey: ['analytics'] }).map((q) => q.queryKey[2])).toEqual(['alerts']);
+  });
+});
+
+describe('TodayPage — fita e Atenção com fontes faltando (qa-redteam da F3)', () => {
+  const QUARTOS = [
+    { id: 'q1', number: '101', floor: 1, status: 'AVAILABLE', category: { name: 'Standard' } },
+    { id: 'q2', number: '102', floor: 1, status: 'MAINTENANCE', category: { name: 'Standard' } },
+  ];
+
+  it('🟡1: sem as chegadas a fita não monta, em vez de mostrar o quarto reservado como "Livre"', () => {
+    onlineManager.setOnline(false);
+    const qc = client();
+    qc.setQueryData(roomKeys.all, QUARTOS);
+    qc.setQueryData(todayKeys.inHouse('u1'), page([]));
+    const html = render(qc);
+    expect(html).not.toContain('Quarto 101, Livre');
+    expect(html).toContain('Sem conexão. Os quartos aparecem quando a rede voltar.');
+  });
+
+  it('🟡4: com o analytics fora, o chip da manutenção (que vem do core) continua no Atenção', async () => {
+    const qc = client();
+    qc.setQueryData(roomKeys.all, QUARTOS);
+    qc.setQueryData(todayKeys.inHouse('u1'), page([]));
+    qc.setQueryData(todayKeys.arrivals('u1', TODAY), page([]));
+    await qc.prefetchQuery({ queryKey: todayKeys.alerts('u1'), queryFn: () => Promise.reject(new Error('Analytics fora.')) });
+    const html = render(qc);
+    expect(html).toContain('Analytics fora.');
+    expect(html).toContain('quarto em manutenção');
+    expect(html).not.toContain('Nada pedindo atenção agora.');
   });
 });

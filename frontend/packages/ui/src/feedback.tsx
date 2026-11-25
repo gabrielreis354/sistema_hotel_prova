@@ -26,13 +26,21 @@ export function EmptyState({
   title,
   description,
   action,
+  icon,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  /** Ícone decorativo acima do título (painel Hoje, SPEC-10 F3): diz de que lista é o vazio. */
+  icon?: ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
+      {icon && (
+        <span aria-hidden="true" className="flex size-10 items-center justify-center rounded-full bg-brand/10 text-brand">
+          {icon}
+        </span>
+      )}
       <div>
         <p className="font-medium">{title}</p>
         {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}

@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BedDouble, LogIn, LogOut, Sparkles } from 'lucide-react';
 import { formatDateBR } from '@hotel/domain';
 import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
-import { useOccupancy } from '../analytics/index.js';
+import { useRooms } from '../rooms/index.js';
 import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
-import { arrivalRows, departureRows, departuresError, formatPercent, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
+import { arrivalRows, departureRows, departuresError, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
+import { hotelStrip } from './hotelStrip.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { StaleNotice } from './components/StaleNotice.js';
-import { TodayCounters, type Counter } from './components/TodayCounters.js';
+import { HotelStripView } from './components/HotelStripView.js';
+import { CountPill } from './components/TodayBlock.js';
+import { attentionItems, type AttentionItem as AttentionItemData } from './attention.js';
 import { ArrivalItem, CleaningItem, DepartureItem, InHouseItem, RowList, type Feedback } from './components/rows.js';
 import { ButtonLink } from '../../components/links.js';
 import { ConnectionBanner, OfflineStrip } from '../../components/ConnectionBanner.js';
@@ -26,9 +30,10 @@ export function TodayPage() {
   const inHouse = useInHouse();
   const arrivals = useArrivals(today);
   const alerts = useTodayAlerts();
-  // Mesmo ritmo das outras consultas do painel (CA-11.g): sem isso, os cartões só mudavam com a
-  // ação feita nesta aba, e o check-in de outro recepcionista não aparecia.
-  const occupancy = useOccupancy(today, { refetchInterval: REFRESH });
+  // Fita do hotel (SPEC-10, F3): os quartos do core, no mesmo ritmo das outras consultas (CA-11.g). O
+  // check-in, o check-out e o liberar invalidam ['rooms'], então a fita muda na hora da ação. Os números
+  // do topo saem dela e não do analytics: com ele fora, a recepção continua vendo o hotel.
+  const rooms = useRooms({ refetchInterval: REFRESH });
   const online = useOnline();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
@@ -45,24 +50,12 @@ export function TodayPage() {
   const inHouseList = useMemo(() => inHouseRows(inHouse.data?.data ?? []), [inHouse.data]);
   const cleaning = alerts.data?.cleaning ?? [];
 
-  const occ = occupancy.data;
-  const counters: Counter[] = [
-    {
-      id: 'sold',
-      label: 'Vendidos hoje',
-      value: occ?.occupied !== undefined && arrivals.data ? String(soldToday(occ.occupied, arrivalList)) : null,
-      hint: 'ocupados + chegadas de hoje',
-    },
-    { id: 'occupied', label: 'Ocupados', value: occ?.occupied !== undefined ? String(occ.occupied) : null, hint: 'agora' },
-    { id: 'free', label: 'Livres', value: occ?.available !== undefined ? String(occ.available) : null, hint: 'prontos para vender' },
-    { id: 'cleaning', label: 'Em limpeza', value: occ?.cleaning !== undefined ? String(occ.cleaning) : null, hint: 'saíram, não liberados' },
-    {
-      id: 'rate',
-      label: 'Ocupação',
-      value: occ?.occupancy_rate !== undefined ? formatPercent(occ.occupancy_rate) : null,
-      hint: occ?.total_rooms !== undefined ? `de ${occ.total_rooms} quartos` : 'do hotel',
-    },
-  ];
+  // A fita só se monta com as três fontes: sem as chegadas, o quarto reservado aparecia "Livre, pronto
+  // para vender" sem aviso nenhum (🟡1 do qa-redteam da F3).
+  const strip = useMemo(
+    () => (rooms.data && arrivals.data && inHouse.data ? hotelStrip(rooms.data, arrivalList, inHouse.data.data, today) : null),
+    [rooms.data, arrivals.data, inHouse.data, arrivalList, today],
+  );
 
   // Sem rede (CA-11.h): bloco sem dado diz "sem conexão" em vez de "Carregando…" sem fim. O erro
   // também só aparece sem dado: com Wi-Fi sem internet o onlineManager diz online, o refetch do
@@ -70,15 +63,29 @@ export function TodayPage() {
   const arrivalsLoad = loadState(arrivals);
   const inHouseLoad = loadState(inHouse);
   const alertsLoad = loadState(alerts);
-  const occupancyLoad = loadState(occupancy);
+  const roomsLoad = loadState(rooms);
+  const stripSources = [rooms, arrivals, inHouse] as const;
+  const stripLoads = [roomsLoad, arrivalsLoad, inHouseLoad];
+  // O erro de qualquer das três, só enquanto falta o dado dela. A mensagem diz que é a fita que não monta.
+  const stripFailed = stripSources.find((q) => q.data === undefined && q.error);
+  const stripError = stripFailed ? new Error(`Não foi possível montar a fita dos quartos. ${stripFailed.error!.message}`) : null;
   // A outra metade do 🟡-2: o dado fica, mas o bloco avisa que pode estar velho (isStale).
   const stale = (q: Parameters<typeof isStale>[0]) => isStale(q, online);
 
   const noShowCount = arrivalList.filter((a) => a.noShowRisk).length;
   const lateDepartures = departureList.filter((d) => d.late).length;
+  const attention = attentionItems({
+    noShow: noShowCount,
+    maintenance: strip?.counts.maintenance ?? 0,
+    lateDepartures,
+    cleaning: cleaning.length,
+    pendingTooLong: alerts.data?.pendingTooLong ?? 0,
+  });
+  const attentionTotal = attention.reduce((n, a) => n + a.count, 0);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    // Coluna de até 1440 px do main, com os blocos em no máximo 2 colunas (protótipo de 22/11, R-7).
+    <div className="space-y-4">
       <PageHeader title="Hoje" context={formatDateBR(today)} />
 
       {/* Mesmo tom e ícone da faixa da comanda; o texto é do painel, que não tem fila. */}
@@ -88,13 +95,14 @@ export function TodayPage() {
         </OfflineStrip>
       </ConnectionBanner>
 
-      <TodayCounters
-        counters={counters}
-        busy={occupancyLoad.isLoading || arrivalsLoad.isLoading}
-        offline={occupancyLoad.isOffline}
-        error={occupancy.data ? null : occupancy.error}
-        stale={stale(occupancy)}
-        onRetry={() => occupancy.refetch()}
+      <HotelStripView
+        strip={strip}
+        sold={strip && arrivals.data ? soldToday(strip.counts.occupied, arrivalList) : null}
+        isLoading={stripLoads.some((l) => l.isLoading)}
+        isOffline={stripLoads.some((l) => l.isOffline)}
+        error={stripError}
+        stale={stale(rooms)}
+        onRetry={() => stripSources.forEach((q) => q.data === undefined && void q.refetch())}
       />
 
       {/* Fixo no alto da área visível: no celular a ação acontece lá embaixo da lista, e o
@@ -112,9 +120,12 @@ export function TodayPage() {
 
       {/* Atenção (CA-05.3.c): o que pede ação agora, com cor + rótulo. */}
       <section aria-labelledby="atencao-titulo" className="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 id="atencao-titulo" className="text-section text-gray-900">
+        <h2 id="atencao-titulo" className="flex items-baseline gap-2 text-section text-gray-900">
           Atenção
+          {attentionTotal > 0 && <CountPill count={attentionTotal} />}
         </h2>
+        {/* Os chips que vêm do core (manutenção, saída atrasada) ficam mesmo com o analytics fora; o aviso do
+            analytics vale só para os dele (🟡4 do qa-redteam da F3: o título dizia "Atenção 3" sobre o erro). */}
         {alertsLoad.isOffline ? (
           <p className="py-2 text-sm text-gray-700">Sem conexão. Os alertas aparecem quando a rede voltar.</p>
         ) : alerts.isPending ? (
@@ -122,25 +133,23 @@ export function TodayPage() {
         ) : alerts.isError && !alerts.data ? (
           <ErrorState message={alerts.error.message} onRetry={() => alerts.refetch()} />
         ) : (
-          <>
-            {stale(alerts) && <StaleNotice onRetry={() => alerts.refetch()} />}
-            <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-800 sm:flex-row sm:flex-wrap sm:gap-x-6">
-              <AttentionItem tone="maintenance" count={noShowCount} href="#chegadas-titulo" one="chegada sem pagamento — risco de no-show" many="chegadas sem pagamento — risco de no-show" />
-              <AttentionItem tone="cleaning" count={lateDepartures} href="#saidas-titulo" one="saída atrasada" many="saídas atrasadas" />
-              <AttentionItem tone="cleaning" count={cleaning.length} href="#limpeza-titulo" one="quarto em limpeza" many="quartos em limpeza" />
-              <AttentionItem tone="booked" count={alerts.data.pendingTooLong} to="/reservas" one="reserva pendente há mais de 48 h" many="reservas pendentes há mais de 48 h" />
-              {noShowCount + lateDepartures + cleaning.length + alerts.data.pendingTooLong === 0 && (
-                <li className="py-2 text-gray-700">Nada pedindo atenção agora.</li>
-              )}
-            </ul>
-          </>
+          stale(alerts) && <StaleNotice onRetry={() => alerts.refetch()} />
         )}
+        {/* Grade de 2 colunas no celular, com o texto curto; em linha a partir do sm (estudo de 22/11). */}
+        <ul className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-800 sm:flex sm:flex-wrap">
+          {attention.map((item) => (
+            <AttentionChip key={item.id} item={item} />
+          ))}
+          {attention.length === 0 && alerts.data && <li className="col-span-2 py-2 text-gray-700">Nada pedindo atenção agora.</li>}
+        </ul>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <TodayBlock
           id="chegadas"
           title="Chegadas"
+          icon={LogIn}
+          alert={noShowCount > 0 ? { tone: 'maintenance', text: `${noShowCount} sem pagamento` } : undefined}
           caption="Entrada hoje, ainda sem check-in — e as atrasadas"
           count={arrivals.data ? arrivalList.length : undefined}
           isLoading={arrivalsLoad.isLoading}
@@ -164,6 +173,8 @@ export function TodayPage() {
         <TodayBlock
           id="saidas"
           title="Saídas"
+          icon={LogOut}
+          alert={lateDepartures > 0 ? { tone: 'cleaning', text: lateDepartures === 1 ? '1 atrasada' : `${lateDepartures} atrasadas` } : undefined}
           caption="Saída hoje — e as atrasadas, que continuam na casa"
           count={inHouse.data ? departureList.length : undefined}
           isLoading={inHouseLoad.isLoading}
@@ -183,6 +194,7 @@ export function TodayPage() {
         <TodayBlock
           id="na-casa"
           title="Na casa"
+          icon={BedDouble}
           caption="Hóspedes com check-in feito"
           count={inHouse.data ? inHouseList.length : undefined}
           isLoading={inHouseLoad.isLoading}
@@ -201,6 +213,7 @@ export function TodayPage() {
         <TodayBlock
           id="limpeza"
           title="Em limpeza"
+          icon={Sparkles}
           caption="Quartos que saíram e ainda não voltaram para a venda"
           count={alerts.data ? cleaning.length : undefined}
           isLoading={alertsLoad.isLoading}
@@ -222,40 +235,31 @@ export function TodayPage() {
 
 const DOT = { maintenance: 'bg-status-maintenance', cleaning: 'bg-status-cleaning', booked: 'bg-status-booked' } as const;
 
-/** Uma linha da faixa de atenção: ponto + contagem + rótulo; zero não aparece. */
-function AttentionItem({
-  tone,
-  count,
-  one,
-  many,
-  href,
-  to,
-}: {
-  tone: keyof typeof DOT;
-  count: number;
-  one: string;
-  many: string;
-  href?: string;
-  to?: string;
-}) {
-  if (count === 0) return null;
+/**
+ * Um item do Atenção: ponto + contagem + texto, levando ao lugar da ação. No celular vai o texto curto
+ * na tela, e o leitor de tela continua com o inteiro.
+ */
+function AttentionChip({ item }: { item: AttentionItemData }) {
   const content = (
     <>
-        <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', DOT[tone])} aria-hidden="true" />
-        <span>
-          <strong className="tabular-nums">{count}</strong> {count === 1 ? one : many}
-        </span>
+      <span className={cn('size-2.5 shrink-0 rounded-full', DOT[item.tone])} aria-hidden="true" />
+      <strong className="tabular-nums">{item.count}</strong>
+      <span className="sr-only sm:not-sr-only">{item.long}</span>
+      <span aria-hidden="true" className="leading-tight sm:hidden">
+        {item.short}
+      </span>
     </>
   );
-  const linkClass = 'inline-flex min-h-touch items-center gap-2 hover:underline desk:min-h-0 xl:py-1';
+  const chip =
+    'flex min-h-touch items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:rounded-full desk:min-h-0 xl:py-1.5';
   return (
-    <li>
-      {to ? (
-        <Link to={to} className={linkClass}>
+    <li className="min-w-0">
+      {item.to ? (
+        <Link to={item.to} className={chip}>
           {content}
         </Link>
       ) : (
-        <a href={href} className={linkClass}>
+        <a href={item.href} className={chip}>
           {content}
         </a>
       )}

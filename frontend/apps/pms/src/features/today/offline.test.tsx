@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { QueryClient } from '@tanstack/react-query';
 import { ANALYTICS_REFETCH_DELAY, invalidateAnalyticsSoon, isStale, loadState } from './todayLogic.js';
+import { LogIn } from 'lucide-react';
 import { TodayBlock } from './components/TodayBlock.js';
-import { TodayCounters } from './components/TodayCounters.js';
 
 // Painel Hoje sem rede (SPEC-11, CA-11.h): a consulta sem dado fica pausada (isPending para
 // sempre), e a tela mostrava "Carregando…" sem fim. Esconder o spinner também não serve: o bloco
@@ -28,6 +28,7 @@ const block = (over: Partial<Parameters<typeof TodayBlock>[0]>) =>
     <TodayBlock
       id="chegadas"
       title="Chegadas"
+      icon={LogIn}
       caption="Entrada hoje"
       isLoading={false}
       isOffline={false}
@@ -47,16 +48,6 @@ describe('TodayBlock sem conexão', () => {
     expect(html).toContain('Sem conexão');
     expect(html).not.toContain('Carregando');
     expect(html).not.toContain('Nenhuma chegada para hoje.');
-  });
-});
-
-describe('TodayCounters sem conexão', () => {
-  it('avisa em texto e não fica ocupado para sempre', () => {
-    const html = renderToString(
-      <TodayCounters counters={[{ id: 'occupied', label: 'Ocupados', value: null, hint: 'agora' }]} busy={false} offline error={null} onRetry={() => {}} />,
-    );
-    expect(html).toContain('Sem conexão');
-    expect(html).toContain('aria-busy="false"');
   });
 });
 

@@ -45,8 +45,9 @@ export function useCanWriteRooms(): boolean {
 
 // ─── Quartos ────────────────────────────────────────────────────────────────
 
-export function useRooms() {
-  return useQuery({ queryKey: roomKeys.all, queryFn: listRooms });
+/** `refetchInterval`: o painel Hoje relê os quartos no mesmo ritmo das outras consultas (fita do hotel, F3). */
+export function useRooms(options: { refetchInterval?: number } = {}) {
+  return useQuery({ queryKey: roomKeys.all, queryFn: listRooms, ...options });
 }
 
 export function useRoom(id: string | undefined) {
