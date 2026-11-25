@@ -13,15 +13,16 @@ const TILE: Record<StripTone, string> = {
   booked: 'bg-status-booked text-white',
   cleaning: 'bg-status-cleaning text-white',
   maintenance: 'strip-hatch text-white',
-  // Livre é o "nada a fazer": claro, com contorno, para os estados com ação saltarem à vista.
-  free: 'bg-ground ring-1 ring-inset ring-gray-300',
+  // Livre é o "nada a fazer": claro, para os estados com ação saltarem à vista. O contorno tracejado
+  // gray-400 se lê como vaga e se separa do cartão (decisão do Sirlande de 25/11; antes, gray-300 liso a 1,5:1).
+  free: 'border border-dashed border-gray-400 bg-ground',
 };
 const DOT: Record<StripTone, string> = {
   occupied: 'bg-status-occupied',
   booked: 'bg-status-booked',
   cleaning: 'bg-status-cleaning',
   maintenance: 'strip-hatch',
-  free: 'bg-ground ring-1 ring-inset ring-gray-400',
+  free: 'border border-dashed border-gray-400 bg-ground',
 };
 // Ícone nos estados com ação: o estado se lê sem distinguir a cor (DESIGN_PMS §5). Livre fica vazio.
 const ICON: Partial<Record<StripTone, LucideIcon>> = { occupied: User, booked: LogIn, cleaning: Sparkles, maintenance: Wrench };
