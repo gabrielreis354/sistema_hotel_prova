@@ -224,6 +224,25 @@ Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e pre
 
 ---
 
+## 6.1 Pendência do 5º semestre — corrigir lançamento depois da janela de desfazer
+
+**Achado do ensaio de 24/11/2026 (Sirlande):** o garçom lançou 3 porções de fritas na Mesa 3 e não conseguiu corrigir para menos depois que a janela fechou. Num restaurante de verdade o garçom erra, e alguém precisa corrigir na hora.
+
+**O que existe hoje:**
+- **Antes do envio (5 s, `UNDO_MS`):** o garçom desfaz ou corrige a quantidade no campo da linha (C-3 da T-05.5 e #182).
+- **Depois de gravado:** só o ADMIN corrige, pelo `DELETE /accounts/:id/items/:itemId`. É exclusão lógica, com `deleted_by` (D-7, D-8). O item sai do saldo e aparece na conta da reserva como "estornado por Fulano" (M5-c, CA-05.2.j).
+- **A lacuna:** nenhuma tela tem esse botão. Passada a janela de 5 s, ninguém corrige pelo app.
+
+**Proposta, a decidir com o Gabriel (a parte de recepção é tela dele):**
+- [ ] **CA-04.8.a** — Corrigir é **estornar a linha e relançar a quantidade certa**, nunca editar a quantidade gravada. Para tirar 1 de 3 porções, estorna-se a linha de 3 e lança-se 2. O histórico mostra o erro e quem corrigiu. Um PATCH de quantidade apagaria o rastro do ato financeiro (D-7) e mudaria o contrato da API.
+- [ ] **CA-04.8.b** — Botão **"Estornar"** na linha da comanda, só para ADMIN, com motivo obrigatório. Reaproveita o `DELETE` que já existe. Guardar o motivo pode pedir uma coluna nova (`void_reason` no `AccountItem`, como o pagamento estornado da T-06.13). A mudança no `schema.sql` é do Sirlande.
+- [ ] **CA-04.8.c** — **"Pedir correção"** para o garçom: ele marca a linha e o pedido aparece para a recepção ou o admin aprovar. Cobre o caso real, em que o garçom está no salão e o admin não. O garçom continua sem apagar nada, como manda a D-8.
+- [ ] **CA-04.8.d** *(opcional e barato)* — Avaliar subir a janela de desfazer de 5 s para cerca de 10 s, pesando contra a demora para o item aparecer na conta da suíte.
+
+**Resposta para a banca, no MVP:** dentro de 5 s o garçom desfaz ou corrige a quantidade. Depois de gravado, só o administrador estorna, porque é ato financeiro e fica registrado quem fez. A tela de estorno é do 5º semestre.
+
+---
+
 ## 7. Definition of Done
 
 - [ ] Os quatro cenários operacionais funcionando ponta a ponta
@@ -252,3 +271,4 @@ Isso é muito além de "lança consumo". **Bloqueia a Fase 2 do frontend** e pre
 |--------|------|-------|-----------|
 | 1.0 | 26/08/2026 | Gabriel Reis Cunha | Criação. Substitui o plano de 02/08, cuja tabela de status estava desatualizada — 2 fatias já mergeadas constavam como pendentes |
 | 1.1 | 26/10/2026 | Sirlande | T-04.7 concluída (D-63 a D-68); cenários do §3 marcados com a fatia que os entregou |
+| 1.2 | 24/11/2026 | Sirlande | §6.1: pendência do 5º semestre para corrigir lançamento depois da janela de desfazer (achado do ensaio) |
