@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { formatDateBR } from '@hotel/domain';
 import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
-import { useOccupancy } from '../analytics/index.js';
+import { useRooms } from '../rooms/index.js';
 import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
-import { arrivalRows, departureRows, departuresError, formatPercent, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
+import { arrivalRows, departureRows, departuresError, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
+import { hotelStrip } from './hotelStrip.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { StaleNotice } from './components/StaleNotice.js';
-import { TodayCounters, type Counter } from './components/TodayCounters.js';
+import { HotelStripView } from './components/HotelStripView.js';
 import { ArrivalItem, CleaningItem, DepartureItem, InHouseItem, RowList, type Feedback } from './components/rows.js';
 import { ButtonLink } from '../../components/links.js';
 import { ConnectionBanner, OfflineStrip } from '../../components/ConnectionBanner.js';
@@ -26,9 +27,10 @@ export function TodayPage() {
   const inHouse = useInHouse();
   const arrivals = useArrivals(today);
   const alerts = useTodayAlerts();
-  // Mesmo ritmo das outras consultas do painel (CA-11.g): sem isso, os cartões só mudavam com a
-  // ação feita nesta aba, e o check-in de outro recepcionista não aparecia.
-  const occupancy = useOccupancy(today, { refetchInterval: REFRESH });
+  // Fita do hotel (SPEC-10, F3): os quartos do core, no mesmo ritmo das outras consultas (CA-11.g). O
+  // check-in, o check-out e o liberar invalidam ['rooms'], então a fita muda na hora da ação. Os números
+  // do topo saem dela e não do analytics: com ele fora, a recepção continua vendo o hotel.
+  const rooms = useRooms({ refetchInterval: REFRESH });
   const online = useOnline();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
@@ -45,24 +47,10 @@ export function TodayPage() {
   const inHouseList = useMemo(() => inHouseRows(inHouse.data?.data ?? []), [inHouse.data]);
   const cleaning = alerts.data?.cleaning ?? [];
 
-  const occ = occupancy.data;
-  const counters: Counter[] = [
-    {
-      id: 'sold',
-      label: 'Vendidos hoje',
-      value: occ?.occupied !== undefined && arrivals.data ? String(soldToday(occ.occupied, arrivalList)) : null,
-      hint: 'ocupados + chegadas de hoje',
-    },
-    { id: 'occupied', label: 'Ocupados', value: occ?.occupied !== undefined ? String(occ.occupied) : null, hint: 'agora' },
-    { id: 'free', label: 'Livres', value: occ?.available !== undefined ? String(occ.available) : null, hint: 'prontos para vender' },
-    { id: 'cleaning', label: 'Em limpeza', value: occ?.cleaning !== undefined ? String(occ.cleaning) : null, hint: 'saíram, não liberados' },
-    {
-      id: 'rate',
-      label: 'Ocupação',
-      value: occ?.occupancy_rate !== undefined ? formatPercent(occ.occupancy_rate) : null,
-      hint: occ?.total_rooms !== undefined ? `de ${occ.total_rooms} quartos` : 'do hotel',
-    },
-  ];
+  const strip = useMemo(
+    () => (rooms.data ? hotelStrip(rooms.data, arrivalList, inHouse.data?.data ?? []) : null),
+    [rooms.data, arrivalList, inHouse.data],
+  );
 
   // Sem rede (CA-11.h): bloco sem dado diz "sem conexão" em vez de "Carregando…" sem fim. O erro
   // também só aparece sem dado: com Wi-Fi sem internet o onlineManager diz online, o refetch do
@@ -70,7 +58,7 @@ export function TodayPage() {
   const arrivalsLoad = loadState(arrivals);
   const inHouseLoad = loadState(inHouse);
   const alertsLoad = loadState(alerts);
-  const occupancyLoad = loadState(occupancy);
+  const roomsLoad = loadState(rooms);
   // A outra metade do 🟡-2: o dado fica, mas o bloco avisa que pode estar velho (isStale).
   const stale = (q: Parameters<typeof isStale>[0]) => isStale(q, online);
 
@@ -78,7 +66,8 @@ export function TodayPage() {
   const lateDepartures = departureList.filter((d) => d.late).length;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    // Coluna de até 1440 px do main, com os blocos em no máximo 2 colunas (protótipo de 22/11, R-7).
+    <div className="space-y-4">
       <PageHeader title="Hoje" context={formatDateBR(today)} />
 
       {/* Mesmo tom e ícone da faixa da comanda; o texto é do painel, que não tem fila. */}
@@ -88,13 +77,14 @@ export function TodayPage() {
         </OfflineStrip>
       </ConnectionBanner>
 
-      <TodayCounters
-        counters={counters}
-        busy={occupancyLoad.isLoading || arrivalsLoad.isLoading}
-        offline={occupancyLoad.isOffline}
-        error={occupancy.data ? null : occupancy.error}
-        stale={stale(occupancy)}
-        onRetry={() => occupancy.refetch()}
+      <HotelStripView
+        strip={strip}
+        sold={strip && arrivals.data ? soldToday(strip.counts.occupied, arrivalList) : null}
+        isLoading={roomsLoad.isLoading}
+        isOffline={roomsLoad.isOffline}
+        error={rooms.data ? null : rooms.error}
+        stale={stale(rooms)}
+        onRetry={() => rooms.refetch()}
       />
 
       {/* Fixo no alto da área visível: no celular a ação acontece lá embaixo da lista, e o
