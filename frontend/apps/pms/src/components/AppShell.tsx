@@ -209,6 +209,17 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
 
   // Folha aberta: o fundo escuro diz "isto é modal", então a página por trás não rola (linha de base de
   // 24/11: o scrollY andava 100 px com a folha aberta e a recepcionista perdia onde estava).
+  // A tela passou do md com a folha aberta (celular grande deitado, janela alargada): o md:hidden só a
+  // esconde, e a trava de rolagem ficaria presa. Fecha de verdade (🟡1 do qa-redteam da F2).
+  useEffect(() => {
+    if (!open || !window.matchMedia) return;
+    const md = window.matchMedia('(min-width: 768px)');
+    if (md.matches) setOpen(false);
+    const onChange = (e: MediaQueryListEvent) => e.matches && setOpen(false);
+    md.addEventListener('change', onChange);
+    return () => md.removeEventListener('change', onChange);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const before = document.body.style.overflow;

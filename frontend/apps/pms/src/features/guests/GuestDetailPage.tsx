@@ -93,7 +93,9 @@ export function GuestDetailPage() {
                   <Button
                     ref={deleteRef}
                     size="compact"
-                    variant="ghost"
+                    // Secundário (fundo branco), não ghost: o vermelho direto no areia dava 4,39:1, abaixo
+                    // dos 4,5:1 do texto de 14 px; no branco dá 4,8:1 (🟡2 do qa-redteam da F2).
+                    variant="secondary"
                     className="text-status-maintenance"
                     disabled={!canDelete}
                     aria-describedby={describedBy}

@@ -136,7 +136,7 @@ export function AccountPage() {
       {/* Rodapé fixo com o total (CA-05.5.d), acima da barra de navegação do celular. */}
       {/* Preso logo acima da barra do celular (--tabbar da casca: 3rem, ou 0 para o garçom, que não tem
           barra) mais a folga da barra de gestos (SPEC-10, R-4). */}
-      <div className="sticky bottom-[calc(var(--tabbar)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 space-y-2 border-t border-gray-200 bg-white px-4 py-3 md:bottom-0">
+      <div className="sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 space-y-2 border-t border-gray-200 bg-white px-4 py-3 md:bottom-0">
         <div className="flex items-baseline justify-between">
           <span className="text-sm text-gray-600">{totalLabel}</span>
           <span className="tabular-nums text-xl font-semibold">{formatBRL(totals.totalCents)}</span>

@@ -107,7 +107,8 @@ describe('barra do celular (SPEC-10, R-4)', () => {
     const conta = readFileSync(path.join(raiz, 'src/features/accounts/AccountPage.tsx'), 'utf-8');
     const casca = readFileSync(path.join(raiz, 'src/components/AppShell.tsx'), 'utf-8');
     // A comanda lê a altura da barra da casca (--tabbar): sem barra (garçom), o total desce até a folga.
-    expect(conta).toContain('bottom-[calc(var(--tabbar)+max(6px,env(safe-area-inset-bottom)))]');
+    // Com valor padrão: fora da casca a página fica como antes, acima de uma barra de 3rem (🟢 do redteam da F2).
+    expect(conta).toContain('bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))]');
     expect(casca).toContain('bottom-[calc(3rem+max(6px,env(safe-area-inset-bottom)))]');
   });
 });

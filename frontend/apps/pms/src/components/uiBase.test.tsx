@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { Button, ErrorState, Input, Notice } from '@hotel/ui';
+import { WriteButton } from '../features/rooms/components/Actions.js';
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -124,5 +125,28 @@ describe('ação do PageHeader com um tamanho só (🟢 F2 da linha de base de 2
       const tag = fonte.slice(fonte.indexOf(`const ${nome} = (`)).match(/<WriteButton\b[^>]*>/)?.[0] ?? '';
       expect(tag).toContain('size="compact"');
     }
+  });
+});
+
+describe('ressalvas do qa-redteam da F2 (25/11)', () => {
+  it('🟡4: WriteButton compacto mede 36 px com mouse sem precisar de classe extra (o desk:h-8 das linhas não vence)', () => {
+    const c = classes(renderToString(<WriteButton size="compact" canWrite>Novo quarto</WriteButton>));
+    expect(c).toContain('desk:h-9');
+    expect(c).not.toContain('desk:h-8');
+    // E o das linhas da tabela continua com 32 px.
+    expect(classes(renderToString(<WriteButton canWrite>Editar</WriteButton>))).toContain('desk:h-8');
+  });
+
+  it('🟡2: texto vermelho não vai num ghost (fica direto no areia, 4,39:1); vai num botão de fundo branco', () => {
+    const fora = arquivosDoApp().flatMap((a) =>
+      (readFileSync(a, 'utf-8').match(/<(?:Button|ButtonLink)\b[^>]*>/gs) ?? [])
+        .filter((t) => t.includes('variant="ghost"') && t.includes('text-status-maintenance'))
+        .map(() => path.relative(src, a)),
+    );
+    expect(fora).toEqual([]);
+  });
+
+  it('🟢: primário e secundário têm a mesma borda, e o atalho não anda 2 px ao ativar', () => {
+    expect(classes(renderToString(<Button>Ok</Button>))).toEqual(expect.arrayContaining(['border', 'border-transparent']));
   });
 });

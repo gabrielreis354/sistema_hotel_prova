@@ -16,7 +16,7 @@ export function RoomsListPage() {
   const rooms = useMemo(() => sortRooms(data ?? []), [data]);
 
   const newRoom = (
-    <WriteButton size="compact" className="desk:h-9" canWrite={canWrite} onClick={() => navigate('/quartos/novo')}>
+    <WriteButton size="compact" canWrite={canWrite} onClick={() => navigate('/quartos/novo')}>
       Novo quarto
     </WriteButton>
   );
