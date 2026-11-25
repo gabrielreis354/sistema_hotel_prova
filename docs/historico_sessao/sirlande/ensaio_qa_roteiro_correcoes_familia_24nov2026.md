@@ -28,3 +28,5 @@
 4. **Saldo corrente na linha do tempo da conta:** o pagamento antes da diária futura mostra "crédito" no meio da conta. A conta está certa, mas a leitura pode confundir (Gabriel).
 5. **Asaas:** aguardando o teste do Weslley de 23/11 e o chamado no suporte. Se o PIX do sandbox não voltar, o passo 6 vai de plano B.
 6. **Ensaio com o grupo:** recriar o banco depois do ensaio (§1.5 do guia).
+7. **Corrigir lançamento na comanda depois da janela de 5 s:** hoje ninguém consegue pelo app. O `DELETE` de item já existe (só ADMIN), mas não tem botão. A proposta está na SPEC-04 §6.1 (CA-04.8.a a d): estornar e relançar, botão "Estornar" para o ADMIN e "Pedir correção" para o garçom. Fica para o 5º semestre, combinando com o Gabriel.
+8. **Ensaio interrompido no passo 6 (Swagger)** e seção "Ensaio no computador de um dev" no guia ainda por escrever.
