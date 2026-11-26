@@ -23,6 +23,20 @@ const normalize = (text: string) =>
   text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
 /**
+ * O tipo da conta embaixo do nome, no cabeçalho, só quando o nome não começa por ele. "Mesa 1"
+ * com "Mesa" embaixo repetia a palavra (linha de base da SPEC-10, F6); "Varanda" ou "Equipe e
+ * perdas" precisam do tipo para o garçom saber o que é. Palavra inteira: "Mesanino" não é mesa.
+ */
+export function accountContext(account: Pick<Account, 'type' | 'label'>): string | undefined {
+  if (!account.type) return undefined;
+  const type = ACCOUNT_TYPE_LABEL[account.type];
+  const label = normalize(account.label ?? '');
+  const prefix = normalize(type);
+  const repeats = label.startsWith(prefix) && !/[\p{L}\p{N}]/u.test(label.charAt(prefix.length));
+  return repeats ? undefined : type;
+}
+
+/**
  * Busca da lista de contas por rótulo ("Mesa 5", "Suíte 201") e pelo tipo. O número do quarto
  * está no rótulo da conta da suíte, que o sistema monta no check-in (D-58). Sem acento e sem
  * caixa: o garçom digita "suite 2" com uma mão.
