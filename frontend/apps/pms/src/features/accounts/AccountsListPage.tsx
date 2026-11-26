@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, EmptyState, ErrorState, Input, PageHeader, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
@@ -44,6 +44,17 @@ export function AccountsListPage() {
     : [];
   const [term, setTerm] = useState('');
   const [opening, setOpening] = useState(false);
+  // Ao cancelar o formulário, o foco volta ao "Abrir conta" visível (cabeçalho no lg+, pé abaixo
+  // disso); antes caía no body (repasse de 26/11 e 🟢 do qa-redteam da largura das listas).
+  const headerOpenRef = useRef<HTMLButtonElement>(null);
+  const footerOpenRef = useRef<HTMLButtonElement>(null);
+  const [returnFocus, setReturnFocus] = useState(false);
+  useEffect(() => {
+    if (!returnFocus || opening) return;
+    setReturnFocus(false);
+    const visible = [headerOpenRef.current, footerOpenRef.current].find((b) => b && b.offsetParent !== null);
+    visible?.focus();
+  }, [returnFocus, opening]);
   const filtered = useMemo(() => sortAccounts(filterAccounts(data ?? [], term)), [data, term]);
 
 
@@ -53,9 +64,11 @@ export function AccountsListPage() {
     <div className="flex flex-col gap-3">
       <PageHeader
         title="Comanda"
+        // O invólucro some junto abaixo do lg: vazio, ele somava o gap embaixo do título (🟢 do qa-redteam).
+        actionClassName="hidden lg:flex"
         action={
           (data?.length ?? 0) > 0 && !opening ? (
-            <Button size="compact" className="hidden lg:inline-flex" onClick={() => setOpening(true)}>
+            <Button ref={headerOpenRef} size="compact" onClick={() => setOpening(true)}>
               Abrir conta
             </Button>
           ) : undefined
@@ -151,17 +164,21 @@ export function AccountsListPage() {
       {/* O formulário abre no fim da lista, no fluxo (o autoFocus o traz à vista). O botão fica preso ao pé
           da tela, ao alcance do polegar com qualquer número de contas (CA-05.5.i; P1 do critique da F6). */}
       {opening ? (
-        <div className="pt-1">
+        // Formulário com largura de leitura mesmo com a lista na coluna inteira (R-7; 🟡1 do qa-redteam).
+        <div className="pt-1 lg:max-w-xl">
           <OpenAccountForm
             openAccounts={data ?? []}
-            onCancel={() => setOpening(false)}
+            onCancel={() => {
+              setOpening(false);
+              setReturnFocus(true);
+            }}
             onOpened={(account) => navigate(`/comanda/${account.id}`)}
           />
         </div>
       ) : (
         (data?.length ?? 0) > 0 && (
           <StickyFooter className="lg:hidden">
-            <Button block onClick={() => setOpening(true)}>
+            <Button ref={footerOpenRef} block onClick={() => setOpening(true)}>
               Abrir conta
             </Button>
           </StickyFooter>
