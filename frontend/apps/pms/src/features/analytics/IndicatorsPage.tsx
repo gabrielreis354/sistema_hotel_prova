@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, Field, Input, PageHeader, SegmentedControl } from '@hotel/ui';
 import { decimalToCents, formatBRL, formatDateBR, todayISO } from '@hotel/domain';
 import type { Period } from './analyticsApi.js';
@@ -31,6 +31,12 @@ function periodCaption(p: Period): string {
 
 /** Espera da digitação no De/Até antes de consultar (🟡3 do qa-redteam da F7). */
 const PERIOD_SETTLE_MS = 600;
+
+/** A maior janela do controle de meses: com ela escolhida, "escolha mais meses" não tem como seguir. */
+const MAX_MONTHS = Math.max(...SEASONALITY_WINDOWS);
+
+/** Quanto tempo os erros de bloco esperam as outras fontes antes de aparecer (🟡 da delta da F7). */
+const SETTLE_CAP_MS = 3_000;
 
 /**
  * O intervalo que a sazonalidade desenha de fato: do mês `months` atrás até o último mês com reserva
@@ -90,10 +96,25 @@ export function IndicatorsPage() {
     ? [occupancy, revenueToday, revenueByMonth, seasonality, byCategory, paymentMix, topGuests]
     : [occupancy, revenueToday];
   // Com memória: a queda vale até alguma fonte responder, e os erros de bloco esperam enquanto nada
-  // respondeu (🟡1 e 🟡2 do qa-redteam da F7). Mesmas entradas, mesma saída: refazer o render não muda.
-  const wasDown = useRef(false);
-  const { down, settling } = analyticsAvailability(wasDown.current, sources);
-  wasDown.current = down;
+  // respondeu (🟡1 e 🟡2 do qa-redteam da F7). A memória é estado, ajustado no render (o padrão do
+  // React para estado derivado), não um ref escrito no render (🟢 da delta).
+  const [wasDown, setWasDown] = useState(false);
+  const availability = analyticsAvailability(wasDown, sources);
+  const down = availability.down;
+  if (down !== wasDown) setWasDown(down);
+  // A espera tem teto (🟡 da delta): sem ele, uma consulta lenta segurava a tela em spinners e
+  // escondia os erros que já tinham chegado. Passados SETTLE_CAP_MS desde o primeiro erro, cada bloco
+  // mostra o seu. Volta a valer quando alguma fonte responde.
+  const anyError = sources.some((q) => q.isError);
+  const [settleExpired, setSettleExpired] = useState(false);
+  const waitingWithError = availability.settling && anyError && !settleExpired;
+  useEffect(() => {
+    if (!waitingWithError) return;
+    const timer = window.setTimeout(() => setSettleExpired(true), SETTLE_CAP_MS);
+    return () => window.clearTimeout(timer);
+  }, [waitingWithError]);
+  if (settleExpired && !availability.settling && !down) setSettleExpired(false);
+  const settling = availability.settling && !settleExpired;
   const retrying = down && sources.some((q) => q.isFetching);
   const retryAll = () => sources.forEach((q) => void q.refetch());
   // Enquanto se decide entre queda geral e parcial, o bloco que já falhou mostra carregando.
@@ -149,37 +170,39 @@ export function IndicatorsPage() {
   );
 
   const periodControl = (
-    <div role="group" aria-label="Período das tabelas" className="flex flex-wrap items-end gap-3">
-      <Field label="De" htmlFor="periodo-inicio">
-        <Input
-          id="periodo-inicio"
-          type="date"
-          value={draft.start}
-          max={today}
-          aria-invalid={!!draftError || undefined}
-          aria-describedby={draftError ? 'periodo-erro' : undefined}
-          onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))}
-        />
-      </Field>
-      <Field label="Até" htmlFor="periodo-fim">
-        <Input
-          id="periodo-fim"
-          type="date"
-          value={draft.end}
-          max={today}
-          aria-invalid={!!draftError || undefined}
-          aria-describedby={draftError ? 'periodo-erro' : undefined}
-          onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))}
-        />
-      </Field>
-      {/* Sem "Aplicar": a data válida já consulta. A inválida diz o motivo e as tabelas ficam no
-          período anterior, que o subtítulo de cada uma continua mostrando. */}
+    <div role="group" aria-label="Período das tabelas">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="De" htmlFor="periodo-inicio">
+          <Input
+            id="periodo-inicio"
+            type="date"
+            value={draft.start}
+            max={today}
+            aria-invalid={!!draftError || undefined}
+            aria-describedby={draftError ? 'periodo-erro' : undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))}
+          />
+        </Field>
+        <Field label="Até" htmlFor="periodo-fim">
+          <Input
+            id="periodo-fim"
+            type="date"
+            value={draft.end}
+            max={today}
+            aria-invalid={!!draftError || undefined}
+            aria-describedby={draftError ? 'periodo-erro' : undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))}
+          />
+        </Field>
+        {/* Sem "Aplicar": a data válida já consulta. A inválida diz o motivo e as tabelas ficam no
+            período anterior, que o subtítulo de cada uma continua mostrando. */}
+      </div>
       {/* Região sempre montada e educada (status), não alert: o leitor de tela lê uma vez, quando a
           digitação para. Fundo branco: o vermelho sobre o areia da página dava 4,39:1 (critique B). */}
       <p
         id="periodo-erro"
         role="status"
-        className="w-full rounded-md bg-white px-2 py-1 text-sm text-status-maintenance empty:bg-transparent empty:p-0"
+        className="mt-2 rounded-md bg-white px-2 py-1 text-sm text-status-maintenance empty:mt-0 empty:bg-transparent empty:p-0"
       >
         {draftError && `${draftError} As tabelas seguem em ${periodCaption(period)}.`}
       </p>
@@ -198,7 +221,7 @@ export function IndicatorsPage() {
       )}
 
       <section aria-label="Números do dia" className="space-y-3">
-        <KpiCards kpis={kpis} busy={occupancy.isLoading || revenueToday.isLoading} />
+        <KpiCards kpis={kpis} busy={occupancy.isLoading || revenueToday.isLoading || (settling && anyError)} />
         {!down && !settling && occupancy.isError && (
           <ErrorState message={occupancy.error.message} onRetry={() => occupancy.refetch()} />
         )}
@@ -219,7 +242,7 @@ export function IndicatorsPage() {
               onRetry={() => revenueByMonth.refetch()}
               isEmpty={monthBars.every((b) => b.value === 0)}
               emptyText="Nenhum pagamento efetivado nesses meses."
-              emptyHint="Escolha mais meses acima."
+              emptyHint={months < MAX_MONTHS ? 'Escolha mais meses acima.' : undefined}
             >
               <BarChart title="Receita recebida por mês" valueHeader="Recebido" bars={monthBars} />
             </Block>
@@ -231,7 +254,7 @@ export function IndicatorsPage() {
               onRetry={() => seasonality.refetch()}
               isEmpty={noSeasonReservations(seasonMonths)}
               emptyText="Nenhuma reserva nesses meses."
-              emptyHint="Escolha mais meses acima."
+              emptyHint={months < MAX_MONTHS ? 'Escolha mais meses acima.' : undefined}
             >
               <BarChart title="Reservas por mês de check-in" valueHeader="Reservas" detailHeader="Noites em média" bars={seasonBars} />
             </Block>
