@@ -42,9 +42,9 @@
 |---|---|---|---|
 | P1 caixa de itens de 176 px no computador, com metade da tela vazia | A | No `xl` (cardápio ao lado), a caixa cresce com o conteúdo até 28rem, nunca abaixo do `h-44`. Junto, a grade de duas colunas passou de `lg` para `xl` (🟡-2 do qa-redteam: em 1024 com a barra lateral o cardápio tinha 284 px) | `f6e62fa` |
 | P2 produto tocado parece selecionado (hover grudado no toque) | A | `[@media(hover:hover)]:hover:` no secundário e no ghost do `Button` | `8f1f44b` |
-| P1 "Abrir conta" no pé de uma lista longa | A | **Aberto, decisão do Sirlande.** Muda o CA-05.5.i (ação embaixo, ao alcance do polegar) | — |
-| P2 ações do rodapé sem hierarquia ("Receber" ou "Fechar" como primária conforme o saldo) | A | **Aberto, decisão do Sirlande e do Gabriel** (regra de tela da recepção) | — |
-| P2 estado da conta e dado velho com pouco peso (selo "Fechada"/"Paga" no cabeçalho; aviso como `InfoNotice`) | A | **Aberto, decisão do Sirlande** | — |
+| P1 "Abrir conta" no pé de uma lista longa | A | Fixo no pé da tela, no mesmo `StickyFooter` do total (decisão do Sirlande de 26/11). Medido em 390 px com 16 contas: o botão fica entre y=778 e 826 numa janela de 844 | `65955ce` |
+| P2 ações do rodapé sem hierarquia ("Receber" ou "Fechar" como primária conforme o saldo) | A | **Pergunta ao Gabriel** (decisão do Sirlande de 26/11): `docs/qa/repasses/para_gabriel_26112026.md` | — |
+| P2 estado da conta e dado velho com pouco peso | A | Selo no cabeçalho: "Fechada" em âmbar (o backend só marca paga quando os pagamentos cobrem o total, então fechada em geral tem saldo) e "Paga" em cinza; aberta sem selo. O aviso de dado velho com rede vira `InfoNotice` (decisão do Sirlande de 26/11) | `65955ce` |
 
 ## Depois das correções (navegador, 26/11)
 
