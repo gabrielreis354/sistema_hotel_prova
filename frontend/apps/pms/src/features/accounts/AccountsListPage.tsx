@@ -133,7 +133,7 @@ export function AccountsListPage() {
           ) : (
             <ul
               aria-label="Contas abertas"
-              className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white lg:grid lg:grid-cols-2 lg:gap-3 lg:divide-y-0 lg:border-0 lg:bg-transparent xl:grid-cols-3"
+              className="divide-gray-100 rounded-lg border border-gray-200 bg-white max-lg:divide-y lg:grid lg:grid-cols-2 lg:gap-3 lg:border-0 lg:bg-transparent xl:grid-cols-3"
             >
               {filtered.map((account) => {
                 const waiting = pendingFor(mine, account.id ?? '').length;
@@ -141,7 +141,7 @@ export function AccountsListPage() {
                   <li key={account.id} className="lg:rounded-lg lg:border lg:border-gray-200 lg:bg-white">
                     <Link
                       to={`/comanda/${account.id}`}
-                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 active:bg-gray-100 lg:rounded-lg [@media(hover:hover)]:hover:bg-gray-50"
+                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand active:bg-gray-100 lg:rounded-lg [@media(hover:hover)]:hover:bg-gray-50"
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{account.label}</span>
