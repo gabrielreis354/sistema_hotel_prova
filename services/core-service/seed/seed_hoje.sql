@@ -70,9 +70,9 @@ BEGIN
       ('aurora', '30000000620', '106',  -2,  3, 'CHECKED_IN',  750.00, 'PIX',      'entrada'),
       ('aurora', '30000000701', '107',  -3,  0, 'CHECKED_IN',  150.00, 'PIX',      'entrada'),  -- só o sinal: o check-out cobra 300
       ('aurora', '30000000892', '203',  -1,  3, 'CHECKED_IN', 1400.00, 'PIX',      'entrada'),
-      ('aurora', '30000000973', '302',  -2,  2, 'CHECKED_IN', 3200.00, 'CARTAO',   'entrada'),
+      ('aurora', '30000000973', '302',  -2,  2, 'CHECKED_IN', 3200.00, 'CARTAO_CREDITO', 'entrada'),
       ('sol',    '40000000558', '4',    -1,  2, 'CHECKED_IN',  360.00, 'PIX',      'entrada'),
-      ('sol',    '40000000639', '10',   -4,  0, 'CHECKED_IN',  880.00, 'CARTAO',   'entrada'),
+      ('sol',    '40000000639', '10',   -4,  0, 'CHECKED_IN',  880.00, 'CARTAO_CREDITO', 'entrada'),
       -- Chegadas de hoje: sinal pago hoje (Aurora 30%, Sol 50%) e uma sem sinal (no-show, D-3)
       ('aurora', '30000002240', '201',   0,  2, 'CONFIRMED',   210.00, 'PIX',      'hoje'),
       ('aurora', '30000002321', '102',   0,  3, 'CONFIRMED',   NULL,   NULL,       NULL),

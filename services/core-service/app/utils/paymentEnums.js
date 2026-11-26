@@ -12,7 +12,7 @@
 export const PAYMENT_STATUSES = ['PENDING', 'PAID', 'EXPIRED', 'FAILED', 'VOIDED'];
 
 // Meio de pagamento aceito pela API (POST e PUT /payments) — a mesma lista do Swagger.
-// Linha antiga com outro valor (o seed usa 'CARTAO') continua legível; só não entra nova.
+// Linha antiga com outro valor (o 'CARTAO' de bancos semeados antes de 25/11) continua legível; só não entra nova.
 export const PAYMENT_METHODS = ['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'];
 
 // Transições do estorno (allowlist, CA-06.13.c): só o efetivado pode ser anulado.

@@ -10,6 +10,7 @@ import sequelize from '../database/connections/sequelize.js';
 import runSeedFiles from '../database/runSeed.js';
 import { createApp } from './helpers/createApp.js';
 import { truncateAll } from './helpers/db.js';
+import { PAYMENT_METHODS } from '../app/utils/paymentEnums.js';
 
 const app = createApp();
 const TZ = 'America/Sao_Paulo';
@@ -392,5 +393,21 @@ describe('seed do dia — o roteiro da banca (qa-explorador de 15/11)', () => {
             JOIN guests g ON g.id = r.guest_id
             WHERE g.cpf IN ('30000002240','30000002402','40000001449','40000001520') AND p.method = 'CARTAO'`);
         expect(n).toBe(0);
+    });
+
+    // Ensaio de 25/11 (🟢-3): o 'CARTAO' antigo aparecia nos Indicadores numa linha separada de
+    // "Cartão de crédito", e a banca pergunta qual a diferença. Nenhum pagamento do seed fica
+    // fora da lista que a API aceita hoje.
+    it('🟢 nenhum pagamento do seed usa meio fora da lista da API', async () => {
+        const rows = await q(`SELECT DISTINCT method FROM payments WHERE method NOT IN (:methods) ORDER BY method`,
+            { methods: PAYMENT_METHODS });
+        expect(rows.map((r) => r.method)).toEqual([]);
+    });
+
+    // Ensaio de 25/11 (🟢-4): a barra do topo mostra o nome do usuário em todos os passos.
+    it('🟢 nomes da recepção e do garçom com acento', async () => {
+        const rows = await q(`SELECT name FROM users WHERE email IN
+            ('recep1@aurora.example','recep2@aurora.example','recep1@sol.example','garcom@aurora.example') ORDER BY email`);
+        expect(rows.map((r) => r.name)).toEqual(['Garçom Aurora', 'Recepção Aurora 1', 'Recepção Sol 1', 'Recepção Aurora 2']);
     });
 });

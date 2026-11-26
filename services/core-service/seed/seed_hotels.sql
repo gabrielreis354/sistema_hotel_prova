@@ -164,8 +164,8 @@ SELECT t.id, v.name, v.email, '$2a$10$dU7xkr/NZyY00/rPNy6kcu2IiP1FVGg1IXjk/YqzJE
 FROM tenants t
 CROSS JOIN (VALUES
   ('Admin Aurora',       'admin@aurora.example',  'ADMIN'),
-  ('Recepcao Aurora 1',  'recep1@aurora.example', 'RECEPTIONIST'),
-  ('Recepcao Aurora 2',  'recep2@aurora.example', 'RECEPTIONIST')
+  ('Recepção Aurora 1',  'recep1@aurora.example', 'RECEPTIONIST'),
+  ('Recepção Aurora 2',  'recep2@aurora.example', 'RECEPTIONIST')
 ) AS v(name, email, role)
 WHERE t.subdomain = 'aurora'
 ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
@@ -304,24 +304,24 @@ FROM tenants t
 CROSS JOIN (VALUES
   ('101','2026-01-05', 450.00, 'PIX',      '2026-01-08 11:00'),
   ('102','2026-01-10', 300.00, 'DINHEIRO', '2026-01-12 11:00'),
-  ('103','2026-01-15', 750.00, 'CARTAO',   '2026-01-20 11:00'),
+  ('103','2026-01-15', 750.00, 'CARTAO_CREDITO', '2026-01-20 11:00'),
   ('201','2026-02-01', 1400.00,'PIX',      '2026-02-05 11:00'),
-  ('202','2026-02-10', 700.00, 'CARTAO',   '2026-02-12 11:00'),
+  ('202','2026-02-10', 700.00, 'CARTAO_CREDITO', '2026-02-12 11:00'),
   ('301','2026-02-15', 2400.00,'PIX',      '2026-02-18 11:00'),
   ('104','2026-03-01', 450.00, 'DINHEIRO', '2026-03-04 11:00'),
-  ('105','2026-03-10', 750.00, 'CARTAO',   '2026-03-15 11:00'),
+  ('105','2026-03-10', 750.00, 'CARTAO_CREDITO', '2026-03-15 11:00'),
   ('106','2026-06-15', 750.00, 'PIX',      '2026-06-15 15:00'),
   -- 107: só o sinal na entrada. É a saída do dia no seed_hoje.sql, e o check-out do roteiro
   -- precisa ter saldo para registrar pagamento (qa-explorador de 15/11).
   ('107','2026-06-16', 150.00, 'PIX',      '2026-06-16 15:00'),
   ('203','2026-06-14', 1400.00,'PIX',      '2026-06-14 15:00'),
-  ('302','2026-06-17', 3200.00,'CARTAO',   '2026-06-17 15:00'),
+  ('302','2026-06-17', 3200.00,'CARTAO_CREDITO', '2026-06-17 15:00'),
   ('108','2026-07-01', 600.00, 'PIX',      '2026-06-20 10:00'),
   ('204','2026-07-10', 700.00, 'PIX',      '2026-06-25 10:00'),
   ('204','2026-07-10', 700.00, 'DINHEIRO', '2026-07-10 14:00'),
-  ('205','2026-08-01', 700.00, 'CARTAO',   '2026-07-15 10:00'),
+  ('205','2026-08-01', 700.00, 'CARTAO_CREDITO', '2026-07-15 10:00'),
   ('101','2026-08-10', 600.00, 'PIX',      '2026-07-20 10:00'),
-  ('301','2026-09-01', 3200.00,'CARTAO',   '2026-08-01 10:00')
+  ('301','2026-09-01', 3200.00,'CARTAO_CREDITO', '2026-08-01 10:00')
 ) AS v(room_number, check_in, amount, method, paid_at)
 JOIN rooms rm ON rm.tenant_id = t.id AND rm.number = v.room_number
 JOIN reservations res ON res.tenant_id = t.id AND res.room_id = rm.id AND res.check_in_date = v.check_in::date
@@ -395,7 +395,7 @@ SELECT t.id, v.name, v.email, '$2a$10$dU7xkr/NZyY00/rPNy6kcu2IiP1FVGg1IXjk/YqzJE
 FROM tenants t
 CROSS JOIN (VALUES
   ('Admin Sol',      'admin@sol.example',  'ADMIN'),
-  ('Recepcao Sol 1', 'recep1@sol.example', 'RECEPTIONIST')
+  ('Recepção Sol 1', 'recep1@sol.example', 'RECEPTIONIST')
 ) AS v(name, email, role)
 WHERE t.subdomain = 'sol'
 ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
@@ -484,11 +484,11 @@ FROM tenants t
 CROSS JOIN (VALUES
   ('1', '2026-01-05', 360.00, 'PIX',      '2026-01-08 11:00'),
   ('2', '2026-01-10', 360.00, 'DINHEIRO', '2026-01-13 11:00'),
-  ('8', '2026-02-01', 660.00, 'CARTAO',   '2026-02-04 11:00'),
+  ('8', '2026-02-01', 660.00, 'CARTAO_CREDITO', '2026-02-04 11:00'),
   ('3', '2026-02-10', 240.00, 'PIX',      '2026-02-12 11:00'),
-  ('9', '2026-03-01', 880.00, 'CARTAO',   '2026-03-05 11:00'),
+  ('9', '2026-03-01', 880.00, 'CARTAO_CREDITO', '2026-03-05 11:00'),
   ('4', '2026-06-15', 360.00, 'PIX',      '2026-06-15 15:00'),
-  ('10','2026-06-16', 880.00, 'CARTAO',   '2026-06-16 15:00'),
+  ('10','2026-06-16', 880.00, 'CARTAO_CREDITO', '2026-06-16 15:00'),
   ('5', '2026-07-01', 360.00, 'PIX',      '2026-06-20 10:00'),
   ('6', '2026-07-10', 360.00, 'DINHEIRO', '2026-06-25 10:00'),
   ('8', '2026-08-01', 880.00, 'PIX',      '2026-07-15 10:00')
