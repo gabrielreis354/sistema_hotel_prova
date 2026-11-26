@@ -308,6 +308,11 @@ Os mesmos critérios do login (§6), adaptados à tela:
   Mesa/Balcão no `SegmentedControl`; "Abrir conta" e o total no mesmo rodapé fixo (`StickyFooter`);
   selo "Fechada"/"Paga" no cabeçalho da conta. A hierarquia das ações da recepção ficou para o
   Gabriel (`docs/qa/repasses/para_gabriel_26112026.md`);
+- *Indicadores (decisões do Sirlande de 26/11, F7):* três seções com o período no título ("Mês a
+  mês", "No período", "Todo o histórico"); o De/Até aplica sozinho, 600 ms depois da última tecla,
+  sem "Aplicar"; com o analytics fora do ar, um aviso só no topo e os blocos somem. Ficaram em aberto,
+  para decisão: valor escrito nas barras, mês futuro da sazonalidade com outro visual, categorias com
+  "Outras" e "atualizado às" (`docs/qa/impeccable_critique_spec10-fase7_26112026.md`);
 - `qa_checks.sh` sem aviso novo nas regras 9a, 9b e 9c;
 - **roteiro e2e verde.** Ele passa pelas telas do roteiro, inclusive pelo login (§9);
 - `/impeccable audit` e `/impeccable critique` antes do polimento (`DESIGN_PMS.md` §6), depois o
