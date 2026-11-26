@@ -18,7 +18,7 @@ export function StickyFooter({ children, className }: { children: ReactNode; cla
   return (
     <div
       className={cn(
-        'sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t border-gray-200 bg-white px-4 py-3 md:bottom-3 md:mx-0 md:rounded-lg md:border shadow-[0_1rem_0_0_rgb(var(--color-ground))]',
+        'sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t border-gray-200 bg-white px-4 py-3 md:bottom-3 md:mx-0 md:rounded-lg md:border shadow-[0_1rem_0_0_theme(colors.ground)]',
         className,
       )}
     >
