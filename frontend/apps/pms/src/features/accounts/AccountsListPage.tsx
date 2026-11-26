@@ -58,7 +58,8 @@ export function AccountsListPage() {
   );
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-3">
+    // Encostada à esquerda, como as outras telas (R-7, F6 da SPEC-10).
+    <div className="flex max-w-xl flex-col gap-3">
       <PageHeader title="Comanda" />
 
       {notice && (
