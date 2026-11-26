@@ -102,6 +102,15 @@ export function periodError(period: Period): string | null {
   return null;
 }
 
+/**
+ * O De/Até aplica na hora (F7 da SPEC-10, decisão do Sirlande de 26/11), como os meses do gráfico:
+ * sem o "Aplicar", que ficava abaixo da dobra. Só vira consulta a data válida; com a incompleta, a
+ * invertida ou a de mais de um ano, as tabelas seguem no período anterior e o campo diz o motivo.
+ */
+export function appliedPeriod(current: Period, draft: Period): Period {
+  return periodError(draft) ? current : draft;
+}
+
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 /** 'yyyy-MM' do backend → 'out/26', rótulo curto do eixo. Sem `Date`: mês não tem fuso. */
