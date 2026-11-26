@@ -274,6 +274,24 @@ describe('AsaasPixProvider.createCharge — cobrança órfã quando o QR falha',
         expect(JSON.stringify(errorSpy.mock.calls)).toMatch(/pay_000001.*cancelada|cancelada.*pay_000001/);
     });
 
+    it('QR que estoura o tempo (o caso de 22/11): cancela a cobrança e relança a indisponibilidade', async () => {
+        stubSandboxEnv();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const fetchMock = mockCreateChargeFlow();
+        const flow = fetchMock.getMockImplementation();
+        // O #request aborta o fetch em 10 s; o fetch rejeita com AbortError.
+        fetchMock.mockImplementation(async (url, options = {}) => {
+            if (url.endsWith('/pixQrCode')) throw new DOMException('This operation was aborted', 'AbortError');
+            return flow(url, options);
+        });
+
+        const error = await new AsaasPixProvider().createCharge(chargeParams).catch((e) => e);
+
+        expect(error).toBeInstanceOf(PixProviderUnavailableError);
+        expect(error.message).toBe('Asaas indisponível no momento');
+        expect(deleteCalls(fetchMock)).toHaveLength(1);
+    });
+
     it('QR sem payload: também cancela a cobrança', async () => {
         stubSandboxEnv();
         vi.spyOn(console, 'error').mockImplementation(() => {});
