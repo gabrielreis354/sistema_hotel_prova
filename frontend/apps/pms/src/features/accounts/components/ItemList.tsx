@@ -296,7 +296,12 @@ export function ItemList({
                     variant="ghost"
                     className="whitespace-nowrap"
                     aria-label={undoAccessibleName(entry.quantity, entry.description)}
-                    onClick={() => onUndo(entry.clientItemId)}
+                    onClick={() => {
+                      onUndo(entry.clientItemId);
+                      // Com 1 unidade a linha sai e leva o botão focado: o foco iria para o body. Vai para a
+                      // lista, como no campo de quantidade (repasse do qa-redteam da F6, WCAG 2.4.3).
+                      if (entry.quantity === 1) focusList();
+                    }}
                   >
                     {undoLabel(entry.quantity)}
                     {/* Segundos que restam, só para quem vê: o nome acessível acima é fixo. Sem
