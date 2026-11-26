@@ -5480,9 +5480,15 @@ export interface components {
         PublicAvailability: {
             /** @example Hotel Aurora */
             hotel?: string;
-            /** Format: date */
+            /**
+             * Format: date
+             * @example 2026-12-15
+             */
             check_in?: string;
-            /** Format: date */
+            /**
+             * Format: date
+             * @example 2026-12-18
+             */
             check_out?: string;
             /** @example 3 */
             nights?: number;
@@ -5514,9 +5520,15 @@ export interface components {
                 id?: string;
                 /** @example PENDING */
                 status?: string;
-                /** Format: date */
+                /**
+                 * Format: date
+                 * @example 2026-12-15
+                 */
                 check_in?: string;
-                /** Format: date */
+                /**
+                 * Format: date
+                 * @example 2026-12-18
+                 */
                 check_out?: string;
                 /** @example 3 */
                 nights?: number;
@@ -5554,9 +5566,15 @@ export interface components {
             reservation_id?: string;
             /** @example CONFIRMED */
             status?: string;
-            /** Format: date */
+            /**
+             * Format: date
+             * @example 2026-12-15
+             */
             check_in?: string;
-            /** Format: date */
+            /**
+             * Format: date
+             * @example 2026-12-18
+             */
             check_out?: string;
             /** @example 450 */
             total_amount?: number;
