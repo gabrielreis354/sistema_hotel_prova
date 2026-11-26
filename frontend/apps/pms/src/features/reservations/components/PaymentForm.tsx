@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { centsToBRLInput, formatBRL, type Cents } from '@hotel/domain';
 import { Button, Field, Input, cn } from '@hotel/ui';
@@ -11,6 +11,7 @@ import {
   paymentBody,
   readPaymentAmount,
   submitStep,
+  type PaymentErrorField,
   type PaymentMethod,
   type PaymentTarget,
 } from '../paymentLogic.js';
@@ -53,7 +54,12 @@ export function PaymentForm({
   const qc = useQueryClient();
   const [amountText, setAmountText] = useState(() => centsToBRLInput(balanceCents));
   const [method, setMethod] = useState<PaymentMethod | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // O erro sabe de qual campo é: sem o meio, o aviso fica no grupo dos meios e o valor, que está
+  // certo, não fica vermelho (ensaio de 25/11, 🟡-2).
+  const [error, setError] = useState<{ field: PaymentErrorField; text: string } | null>(null);
+  const amountError = error?.field === 'amount' ? error.text : undefined;
+  const methodError = error?.field === 'method' ? error.text : undefined;
+  const methodErrorId = useId();
   const [overpaid, setOverpaid] = useState<Cents | null>(null);
   const [checking, setChecking] = useState(false);
   const busy = create.isPending || checking;
@@ -85,9 +91,10 @@ export function PaymentForm({
       method,
       confirming: overpaid !== null,
       allowOverpay,
+      payer,
     });
     if (step.kind === 'wait') return;
-    if (step.kind === 'error') return setError(step.error);
+    if (step.kind === 'error') return setError({ field: step.field, text: step.error });
     setError(null);
     // A maior: um passo a mais, com o quanto sobra, antes de gravar (D3).
     if (step.kind === 'confirm') return setOverpaid(step.overpaidCents);
@@ -166,12 +173,12 @@ export function PaymentForm({
 
   return (
     <form onSubmit={submit} className="space-y-4" noValidate aria-busy={busy}>
-      <Field label="Valor recebido (R$)" error={error ?? undefined}>
+      <Field label="Valor recebido (R$)" error={amountError}>
         <Input
           ref={amountInput}
           inputMode="decimal"
           autoComplete="off"
-          aria-invalid={!!error}
+          aria-invalid={!!amountError}
           className={cn(TOUCH, 'block text-right text-lg tabular-nums sm:max-w-[12rem]')}
           value={amountText}
           disabled={busy}
@@ -184,7 +191,7 @@ export function PaymentForm({
       </Field>
 
       {/* Método como radio de verdade: teclado, leitor de tela e um só escolhido. */}
-      <fieldset className="space-y-2" disabled={busy}>
+      <fieldset className="space-y-2" disabled={busy} aria-describedby={methodError ? methodErrorId : undefined}>
         <legend className="text-sm font-medium text-gray-700">Como {payer} pagou</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {PAYMENT_METHOD_OPTIONS.map((m) => (
@@ -211,6 +218,11 @@ export function PaymentForm({
             </label>
           ))}
         </div>
+        {methodError && (
+          <span id={methodErrorId} role="alert" className="block text-sm text-status-maintenance">
+            {methodError}
+          </span>
+        )}
       </fieldset>
 
       {overpaid !== null ? (

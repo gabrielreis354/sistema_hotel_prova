@@ -88,6 +88,7 @@ describe('submitStep sem valor a maior (mesa)', () => {
   it('acima do saldo: erro com o saldo e o motivo, sem passo de confirmação', () => {
     expect(submitStep({ reading, method: 'DINHEIRO', confirming: false, allowOverpay: false })).toEqual({
       kind: 'error',
+      field: 'amount',
       error: `Acima do saldo de ${formatBRL(19800)}. Registre só o valor da conta: o troco não entra no sistema.`,
     });
   });
@@ -141,15 +142,36 @@ describe('submitStep — o que o envio do formulário faz (D3, 🟡-1 do qa-redt
   const ok = (cents: number, overpaidCents = 0) => ({ ok: true as const, cents, overpaidCents });
 
   it('valor inválido ou sem método: mostra o erro', () => {
-    expect(submitStep({ reading: { ok: false, error: 'x' }, method: 'PIX', confirming: false })).toEqual({ kind: 'error', error: 'x' });
+    expect(submitStep({ reading: { ok: false, error: 'x' }, method: 'PIX', confirming: false })).toEqual({
+      kind: 'error',
+      field: 'amount',
+      error: 'x',
+    });
     expect(submitStep({ reading: ok(100), method: null, confirming: false })).toEqual({
       kind: 'error',
+      field: 'method',
       error: 'Escolha como o hóspede pagou.',
     });
   });
 
   it('dentro do saldo: envia', () => {
     expect(submitStep({ reading: ok(100), method: 'PIX', confirming: false })).toEqual({ kind: 'send', cents: 100 });
+  });
+
+  // Ensaio de 25/11 (🟡-2): sem o meio, o aviso ia para baixo do valor, que ficava vermelho, e
+  // quem lia rápido entendia que o valor estava errado. O erro diz em qual campo está.
+  it('sem método: o erro é do grupo dos meios, com quem paga no texto', () => {
+    expect(submitStep({ reading: ok(100), method: null, confirming: false, payer: 'o cliente' })).toEqual({
+      kind: 'error',
+      field: 'method',
+      error: 'Escolha como o cliente pagou.',
+    });
+  });
+
+  it('valor inválido e sem método: o do valor vem primeiro', () => {
+    expect(submitStep({ reading: { ok: false, error: 'x' }, method: null, confirming: false })).toMatchObject({
+      field: 'amount',
+    });
   });
 
   it('a maior: primeiro pede confirmação', () => {
