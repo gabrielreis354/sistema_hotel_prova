@@ -186,7 +186,9 @@ export function ItemList({
   // puxam a lista de quem subiu para conferir um item antigo.
   const [editingId, setEditingId] = useState<string | null>(null);
   const lastTap = lastTapAt(entries, editingId);
-  const focusList = useCallback(() => box.current?.focus(), []);
+  // preventScroll: focar a caixa não pode rolar a página. No celular, com a página rolada até o fim do
+  // cardápio, o foco subia a página 74 px e o toque seguinte caía noutro produto (🟡-1 da delta da F6).
+  const focusList = useCallback(() => box.current?.focus({ preventScroll: true }), []);
   const seenTap = useRef(-1);
   useEffect(() => {
     if (lastTap > seenTap.current && box.current) box.current.scrollTop = box.current.scrollHeight;
