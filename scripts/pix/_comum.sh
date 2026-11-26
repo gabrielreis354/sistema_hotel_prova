@@ -11,6 +11,13 @@ ESTADO="$REPO/.tmp-pix-ensaio"
 LOG="$ESTADO/cloudflared.log"
 PIDF="$ESTADO/cloudflared.pid"
 
+# A porta do backend no host: a do shell, senão a do .env (o compose lê o .env, o shell não),
+# senão 3000.
+porta_do_env() {
+    [ -f "$REPO/.env" ] || return 0
+    sed -n 's/^[[:space:]]*BACKEND_HOST_PORT[[:space:]]*=[[:space:]]*["'\'']\{0,1\}\([0-9]\{1,5\}\).*/\1/p' "$REPO/.env" | tail -1
+}
+BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-$(porta_do_env)}"
 BACKEND_URL="http://localhost:${BACKEND_HOST_PORT:-3000}"
 
 # O cloudflared do PATH, senão o de ~/.local/bin (onde foi instalado no ensaio de 12/11).
@@ -29,13 +36,12 @@ esperar_backend() {
     return 1
 }
 
-# Fecha o túnel desta máquina. `pkill -x` casa só com o nome do processo: o `pkill -f` antigo
-# casava também com o shell que chamou o script (o texto do comando tem "cloudflared tunnel") e
-# o matava, daí o código de saída 144 do ensaio de 24/11.
+# Fecha só o túnel que o 1_preparar_plano_a.sh subiu, pelo PID. Um túnel subido à mão e passado
+# como URL fica como está. O `pkill -f "cloudflared tunnel"` antigo casava também com o shell que
+# chamou o script (o texto do comando tem essas palavras) e o matava: código 144 em 24/11.
 fechar_tunel() {
     if [ -f "$PIDF" ]; then
         kill "$(cat "$PIDF")" 2>/dev/null && echo "Túnel fechado."
         rm -f "$PIDF"
     fi
-    pkill -x cloudflared 2>/dev/null || true
 }

@@ -6,6 +6,19 @@
 // 1. Aponta o webhook "gesway-ensaio-plano-a" para a URL do túnel (env NOVA), com o token do backend.
 // 2. Testa se o sandbox está gerando o QR do PIX: cria uma cobrança de R$ 5, pede o QR e apaga a cobrança.
 const base = (process.env.ASAAS_BASE_URL || 'https://api-sandbox.asaas.com/v3').replace(/\/+$/, '');
+
+// Mesma trava do getAsaasConfig (AsaasPixProvider.js): só o sandbox. Este script mexe no webhook
+// e cria uma cobrança de teste; com chave ou URL de produção ele pararia aqui, sem chamar a rede.
+let host = '';
+try { host = new URL(base).host; } catch { /* URL inválida cai na recusa abaixo */ }
+if (!base.startsWith('https://') || host !== 'api-sandbox.asaas.com') {
+    console.log('ERRO: ASAAS_BASE_URL não é o sandbox do Asaas. Este script só roda no sandbox.');
+    process.exit(1);
+}
+if (!(process.env.ASAAS_API_KEY || '').startsWith('$aact_hmlg_')) {
+    console.log('ERRO: ASAAS_API_KEY não é chave de sandbox ($aact_hmlg_). Este script só roda no sandbox.');
+    process.exit(1);
+}
 const h = { access_token: process.env.ASAAS_API_KEY, 'User-Agent': 'gesway', 'Content-Type': 'application/json' };
 const api = async (path, opt = {}) => {
     const r = await fetch(base + path, { headers: h, signal: AbortSignal.timeout(60000), ...opt });
@@ -36,7 +49,8 @@ if (!cob.body.id) { console.log('QR_FALHOU: não criou a cobrança de teste', JS
 const t0 = Date.now();
 const qr = await api('/payments/' + cob.body.id + '/pixQrCode').catch((e) => ({ status: 'ERR ' + e.name, body: {} }));
 const ms = Date.now() - t0;
-await api('/payments/' + cob.body.id, { method: 'DELETE' });
+const apagada = await api('/payments/' + cob.body.id, { method: 'DELETE' }).catch(() => ({ body: {} }));
+if (apagada.body.deleted !== true) console.log('   aviso: a cobrança de teste', cob.body.id, 'não foi apagada; apague no painel do sandbox');
 if (qr.status === 200 && qr.body.payload && ms < 8000) {
     console.log(`QR_OK: o sandbox gerou o QR em ${ms} ms`);
 } else {

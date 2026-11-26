@@ -81,8 +81,10 @@ Na raiz do repositório, como no cabeçalho do `docker-compose.yml`:
      webhook em Integrações → Webhooks. Ele tem de ser igual ao `ASAAS_WEBHOOK_TOKEN` do `.env`.
    - No painel do sandbox, o botão de confirmar o pagamento fica nos **detalhes da cobrança**, não
      na lista.
-   - No fim do ensaio ou da demonstração: `bash scripts/pix/3_fechar.sh`. O script fecha o túnel e
-     devolve o backend ao `.env`.
+   - No fim do ensaio ou da demonstração: `bash scripts/pix/3_fechar.sh`. O script fecha o túnel que
+     o `1_preparar` subiu e devolve o backend ao `.env`. Um túnel subido à mão (passado como URL)
+     você fecha à mão.
+   - Os scripts usam o `BACKEND_HOST_PORT` do `.env`, como o compose.
 
 ## Durante a demonstração
 
@@ -133,7 +135,7 @@ Sem os scripts, o caminho é o mesmo à mão: `PIX_PROVIDER=fake docker compose 
 | `POST /bookings` responde 400 `guest.cpf inválido` | plano A com CPF digitado errado (dígito verificador não bate) | use o CPF do exemplo |
 | O backend fica em `Restarting` no `docker compose ps` | `PIX_PROVIDER` com valor fora de `fake`, `mercadopago`, `asaas` (ex.: `assas`) | `docker compose logs backend` mostra `PIX_PROVIDER desconhecido`; corrija o `.env` e suba de novo |
 | `POST /bookings` responde 503 | Asaas fora do ar, ou chave vencida ou errada | troque para o plano B |
-| O script responde 401 | `PIX_PROVIDER=asaas` ainda ativo | siga "Trocar do A para o B na hora" |
+| O `simular_pagamento_pix.js` responde 401 | `PIX_PROVIDER=asaas` ainda ativo | siga "Trocar do A para o B na hora" |
 | O status continua `PENDING` depois de pagar no sandbox | o túnel caiu, o webhook está pausado no painel ou o token não bate (401 nos logs do webhook) | rode `bash scripts/pix/1_preparar_plano_a.sh` de novo; ele reaponta, reativa e regrava o token. Se não resolver, plano B |
 | A reserva não aparece no PMS | filtro em "Hoje" ou "Próximos 7 dias" | filtro **Próximos 30 dias** |
 
