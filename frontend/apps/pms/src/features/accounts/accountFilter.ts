@@ -30,9 +30,12 @@ const normalize = (text: string) =>
 export function accountContext(account: Pick<Account, 'type' | 'label'>): string | undefined {
   if (!account.type) return undefined;
   const type = ACCOUNT_TYPE_LABEL[account.type];
-  const label = normalize(account.label ?? '');
-  const prefix = normalize(type);
-  const repeats = label.startsWith(prefix) && !/[\p{L}\p{N}]/u.test(label.charAt(prefix.length));
+  // Hífen vale espaço ("Day use" é "Day-use"); só letra colada desfaz a palavra ("Mesanino"), número
+  // não ("Mesa1" é a mesa 1) (🟢-3 do qa-redteam da F6).
+  const words = (text: string) => normalize(text).replace(/[-\s]+/g, ' ');
+  const label = words(account.label ?? '');
+  const prefix = words(type);
+  const repeats = label.startsWith(prefix) && !/\p{L}/u.test(label.charAt(prefix.length));
   return repeats ? undefined : type;
 }
 

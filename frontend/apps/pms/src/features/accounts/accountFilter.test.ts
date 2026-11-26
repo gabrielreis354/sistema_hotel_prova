@@ -141,6 +141,11 @@ describe('accountContext — o tipo embaixo do nome só quando o nome não o diz
     expect(accountContext({ type: 'TABLE', label: 'Mesanino 2' })).toBe('Mesa');
     expect(accountContext({ type: 'DIRECT', label: 'Piscina, balcão' })).toBe('Balcão');
   });
+  it('hífen vale espaço, e número colado ao tipo ainda é o tipo (🟢-3 do qa-redteam da F6)', () => {
+    expect(accountContext({ type: 'DAY_USE', label: 'Day use piscina' })).toBeUndefined();
+    expect(accountContext({ type: 'TABLE', label: 'Mesa1' })).toBeUndefined();
+    expect(accountContext({ type: 'TABLE', label: 'Mesa-2' })).toBeUndefined();
+  });
   it('sem tipo, sem contexto', () => {
     expect(accountContext({ label: 'Mesa 1' })).toBeUndefined();
   });
