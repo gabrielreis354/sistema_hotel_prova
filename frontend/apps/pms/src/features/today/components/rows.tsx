@@ -120,7 +120,9 @@ function Row({ room, children, action, panel }: { room?: string; children: React
           {/* Uma linha por item a partir de xl (T-08.4): nome, selos e quarto lado a lado. */}
           <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:flex-wrap xl:items-center xl:gap-x-3">{children}</div>
         </div>
-        {action && <div className="shrink-0">{action}</div>}
+        {/* Largura máxima: o motivo do botão desabilitado ("Reserva vencida: …") quebra embaixo dele em vez de
+            alargar a coluna e espremer nome, selo e quarto em quatro linhas (26/11). */}
+        {action && <div className="shrink-0 sm:max-w-60">{action}</div>}
       </div>
       {panel}
     </li>

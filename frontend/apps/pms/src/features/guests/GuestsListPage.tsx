@@ -13,7 +13,8 @@ export function GuestsListPage() {
   const filtered = useMemo(() => filterGuests(data ?? [], term), [data, term]);
 
   return (
-    <div className="max-w-4xl space-y-4">
+    // Lista na coluna inteira, como o Hoje (R-7 revista em 26/11).
+    <div className="space-y-4">
       <PageHeader
         title="Hóspedes"
         context={data && data.length > 0 ? `${data.length} ${data.length === 1 ? 'hóspede' : 'hóspedes'}` : undefined}
@@ -43,6 +44,8 @@ export function GuestsListPage() {
             type="search"
             aria-label="Buscar hóspedes"
             placeholder="Buscar por nome, CPF, e-mail ou telefone"
+            // A lista ocupa a coluna inteira; a busca não precisa de 1400 px.
+            className="lg:max-w-xl"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
           />

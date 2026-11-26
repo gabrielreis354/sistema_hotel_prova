@@ -5,7 +5,7 @@
  * Fonte: os quartos do core (GET /rooms) cruzados com as chegadas e os hóspedes na casa, que o painel
  * já busca. Não depende do analytics: com ele fora, a recepção continua vendo o hotel.
  */
-import type { StatusTone } from '@hotel/domain';
+import { checkInWindow, type StatusTone } from '@hotel/domain';
 import type { ArrivalRow, TodayReservation } from './todayLogic.js';
 
 /** O que a fita lê de um quarto (o `Room` do OpenAPI cabe aqui). */
@@ -83,7 +83,7 @@ function stay(r: TodayReservation): Pick<StripRoom, 'guest' | 'reservationId' | 
 /**
  * Monta a fita. O status do core manda: a chegada só pinta de "Chega hoje" um quarto AVAILABLE. A
  * chegada atrasada também segura o quarto, porque ainda pode chegar (janela do check-in, 15/11), e
- * por isso sai do "Livre": livre é livre para vender (decisão de 22/11).
+ * por isso sai do "Livre": livre é livre para vender (decisão de 22/11). A vencida não segura (26/11).
  */
 export function hotelStrip(
   rooms: readonly StripRoomInput[],
@@ -97,6 +97,10 @@ export function hotelStrip(
   for (const a of arrivals) {
     const id = a.reservation.room?.id;
     if (!id) continue;
+    // Vencida (saída hoje ou antes) não chega mais: o check-in é barrado e a reserva vai ser cancelada,
+    // então o quarto é livre para vender (🟡1 do qa-explorador de 26/11). Mesma regra do botão de check-in.
+    const { check_in_date: inDate, check_out_date: outDate } = a.reservation;
+    if (today && inDate && outDate && checkInWindow(inDate, outDate, today) === 'EXPIRED') continue;
     const current = arrivalByRoom.get(id);
     if (!current || (current.late && !a.late)) arrivalByRoom.set(id, a);
   }

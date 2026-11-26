@@ -12,11 +12,14 @@ export function PageHeader({
   title,
   context,
   action,
+  actionClassName,
   className,
 }: {
   title: ReactNode;
   context?: ReactNode;
   action?: ReactNode;
+  /** Para a ação que só existe em certas larguras: esconder o invólucro tira também o espaço do gap. */
+  actionClassName?: string;
   className?: string;
 }) {
   return (
@@ -25,7 +28,9 @@ export function PageHeader({
         <h1 className="text-title text-gray-900">{title}</h1>
         {context && <p className="text-sm text-gray-600 tabular-nums">{context}</p>}
       </div>
-      {action && <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">{action}</div>}
+      {action && (
+        <div className={cn('flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end', actionClassName)}>{action}</div>
+      )}
     </header>
   );
 }

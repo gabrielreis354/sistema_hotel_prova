@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, EmptyState, ErrorState, Input, PageHeader, Spinner } from '@hotel/ui';
 import { useOpenAccounts } from './queries.js';
@@ -44,13 +44,36 @@ export function AccountsListPage() {
     : [];
   const [term, setTerm] = useState('');
   const [opening, setOpening] = useState(false);
+  // Ao cancelar o formulário, o foco volta ao "Abrir conta" visível (cabeçalho no lg+, pé abaixo
+  // disso); antes caía no body (repasse de 26/11 e 🟢 do qa-redteam da largura das listas).
+  const headerOpenRef = useRef<HTMLButtonElement>(null);
+  const footerOpenRef = useRef<HTMLButtonElement>(null);
+  const [returnFocus, setReturnFocus] = useState(false);
+  useEffect(() => {
+    if (!returnFocus || opening) return;
+    setReturnFocus(false);
+    const visible = [headerOpenRef.current, footerOpenRef.current].find((b) => b && b.offsetParent !== null);
+    visible?.focus();
+  }, [returnFocus, opening]);
   const filtered = useMemo(() => sortAccounts(filterAccounts(data ?? [], term)), [data, term]);
 
 
   return (
-    // Encostada à esquerda, como as outras telas (R-7, F6 da SPEC-10).
-    <div className="flex max-w-xl flex-col gap-3">
-      <PageHeader title="Comanda" />
+    // Na coluna inteira, como o Hoje (R-7 revista em 26/11). No computador as contas viram grade e o
+    // "Abrir conta" sobe para o cabeçalho, como o "Nova reserva"; no celular e no tablet segue no pé.
+    <div className="flex flex-col gap-3">
+      <PageHeader
+        title="Comanda"
+        // O invólucro some junto abaixo do lg: vazio, ele somava o gap embaixo do título (🟢 do qa-redteam).
+        actionClassName="hidden lg:flex"
+        action={
+          (data?.length ?? 0) > 0 && !opening ? (
+            <Button ref={headerOpenRef} size="compact" onClick={() => setOpening(true)}>
+              Abrir conta
+            </Button>
+          ) : undefined
+        }
+      />
 
       {notice && (
         <InfoNotice focus>
@@ -101,21 +124,24 @@ export function AccountsListPage() {
             type="search"
             aria-label="Buscar conta"
             placeholder="Buscar por mesa, suíte ou nome"
-            className="min-h-touch"
+            className="min-h-touch lg:max-w-xl"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
           />
           {filtered.length === 0 ? (
             <p className="px-1 text-sm text-gray-500">Nenhuma conta corresponde à busca.</p>
           ) : (
-            <ul aria-label="Contas abertas" className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+            <ul
+              aria-label="Contas abertas"
+              className="divide-gray-100 rounded-lg border border-gray-200 bg-white max-lg:divide-y lg:grid lg:grid-cols-2 lg:gap-3 lg:border-0 lg:bg-transparent xl:grid-cols-3"
+            >
               {filtered.map((account) => {
                 const waiting = pendingFor(mine, account.id ?? '').length;
                 return (
-                  <li key={account.id}>
+                  <li key={account.id} className="lg:rounded-lg lg:border lg:border-gray-200 lg:bg-white">
                     <Link
                       to={`/comanda/${account.id}`}
-                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 active:bg-gray-100 [@media(hover:hover)]:hover:bg-gray-50"
+                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand active:bg-gray-100 lg:rounded-lg [@media(hover:hover)]:hover:bg-gray-50"
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{account.label}</span>
@@ -138,17 +164,21 @@ export function AccountsListPage() {
       {/* O formulário abre no fim da lista, no fluxo (o autoFocus o traz à vista). O botão fica preso ao pé
           da tela, ao alcance do polegar com qualquer número de contas (CA-05.5.i; P1 do critique da F6). */}
       {opening ? (
-        <div className="pt-1">
+        // Formulário com largura de leitura mesmo com a lista na coluna inteira (R-7; 🟡1 do qa-redteam).
+        <div className="pt-1 lg:max-w-xl">
           <OpenAccountForm
             openAccounts={data ?? []}
-            onCancel={() => setOpening(false)}
+            onCancel={() => {
+              setOpening(false);
+              setReturnFocus(true);
+            }}
             onOpened={(account) => navigate(`/comanda/${account.id}`)}
           />
         </div>
       ) : (
         (data?.length ?? 0) > 0 && (
-          <StickyFooter>
-            <Button block onClick={() => setOpening(true)}>
+          <StickyFooter className="lg:hidden">
+            <Button ref={footerOpenRef} block onClick={() => setOpening(true)}>
               Abrir conta
             </Button>
           </StickyFooter>

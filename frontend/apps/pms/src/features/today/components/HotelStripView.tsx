@@ -2,7 +2,7 @@ import { useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, Clock, LogIn, LogOut, Sparkles, User, Wrench, X, type LucideIcon } from 'lucide-react';
 import { formatDateBR } from '@hotel/domain';
-import { Button, ErrorState, Spinner, StatusBadge, cn } from '@hotel/ui';
+import { Button, ErrorState, RoomNumber, Spinner, StatusBadge, cn } from '@hotel/ui';
 import { STRIP_LABEL, STRIP_TONES, type HotelStrip, type StripRoom, type StripTone } from '../hotelStrip.js';
 import { formatPercent } from '../todayLogic.js';
 import { StaleNotice } from './StaleNotice.js';
@@ -273,9 +273,9 @@ export function RoomDetail({ room, onClose }: { room: StripRoom; onClose: () => 
         if (e.key === 'Escape') onClose();
       }}
       className="flex items-start gap-3 rounded-lg border border-gray-200 bg-ground p-3">
-      <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-base font-bold tabular-nums text-gray-900 ring-1 ring-gray-200">
-        {room.number}
-      </span>
+      {/* O RoomNumber corta número longo com "…" (o inteiro fica no title e no "Quarto X" ao lado);
+          a caixa fixa de 44 px deixava "E2E468762" vazar por cima do texto (26/11). */}
+      <RoomNumber number={room.number} className="h-11 min-w-11 bg-white text-base" />
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <strong className="text-sm text-gray-900">{`Quarto ${room.number}`}</strong>

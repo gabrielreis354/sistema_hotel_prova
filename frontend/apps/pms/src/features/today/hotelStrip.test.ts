@@ -62,6 +62,19 @@ describe('fita do hotel (SPEC-10 F3, protótipo de 22/11)', () => {
     expect(q.late).toBe(true);
   });
 
+  // 🟡1 do qa-explorador de 26/11: a reserva de 24 a 26/11 aparecia como "Chega hoje" no dia 26, fora
+  // do "Livre", enquanto a linha de Chegadas já dizia que ela venceu (janela do check-in, 15/11).
+  it('a reserva vencida não segura o quarto: ele volta a ser livre para vender', () => {
+    const vencida = res('r4', 'b', 'Vinicius Lopes', { status: 'CONFIRMED', check_in_date: '2026-11-24', check_out_date: '2026-11-26' });
+    const s = hotelStrip(ROOMS, [arrival(vencida, true)], [], '2026-11-26');
+    const q = s.floors.flatMap((f) => f.rooms).find((r) => r.number === '102')!;
+    expect(q.tone).toBe('free');
+    expect(q.guest).toBeUndefined();
+    expect(s.counts.free).toBe(3);
+    // Na véspera da saída ela ainda está na janela: atrasada, mas segura o quarto.
+    expect(hotelStrip(ROOMS, [arrival(vencida, true)], [], '2026-11-25').counts.booked).toBe(1);
+  });
+
   it('a chegada não pinta um quarto que não está disponível (o status do core manda)', () => {
     const s = hotelStrip(ROOMS, [arrival(res('r3', 'd', 'Ana', { status: 'CONFIRMED' }))], []);
     expect(s.floors.flatMap((f) => f.rooms).find((r) => r.number === '201')!.tone).toBe('cleaning');
