@@ -7,7 +7,9 @@
 > em [`docs/banca/FOLHA_RESPOSTAS_BANCA.md`](../banca/FOLHA_RESPOSTAS_BANCA.md).
 >
 > Conferido contra a `develop` em 22/11/2026. No ensaio técnico de 22/11 o sistema subiu a frio na
-> 1ª tentativa, em 36 s, e o roteiro automatizado passou nos 7 passos em 54 s.
+> 1ª tentativa, em 36 s, e o roteiro automatizado passou nos 7 passos em 54 s. No ensaio de 25/11
+> os 8 passos rodaram à mão em cerca de 12 minutos, sem erro
+> ([relatório](../qa/exploratorio_ensaio_roteiro_25112026.md)).
 
 ## O que a demonstração mostra
 
@@ -110,6 +112,43 @@ e depois a subida do §1.3 inteira, com `migrate`, `seed` e `outbox-initial-load
 > compose descartável** (`gesway-ensaio`): ele grava dados "E2E" que apareceriam na demonstração.
 > Ver `frontend/e2e/README.md`.
 
+> **Não ensaie perto da meia-noite.** O cenário do seed é do dia em que ele roda. Um ensaio que
+> passa da meia-noite vê as chegadas da 102 e da 201 como atrasadas, e o "Recebido hoje" muda.
+
+### 1.6 Ensaio no computador de um dev (sem celular e sem pnpm)
+
+Para ensaiar sozinho, sem mexer no banco de desenvolvimento. Foi assim que o roteiro rodou em
+25/11.
+
+1. **Um compose só do ensaio.** Exporte as duas variáveis **em todo terminal** do ensaio: o
+   `docker compose` sem elas cai em outro projeto, inclusive o do plano B no passo 6.
+   ```bash
+   export COMPOSE_PROJECT_NAME=gesway_ensaio COMPOSE_PROFILES=observability
+   ./start.sh compose-up --build
+   docker compose exec backend node command.js migrate
+   docker compose exec -e ALLOW_SEED=1 backend node command.js seed
+   docker compose exec backend node command.js outbox-initial-load
+   ```
+   Os volumes ficam com o prefixo `gesway_ensaio_`, separados dos de desenvolvimento.
+2. **A tela sem pnpm.** Em `frontend/apps/pms`:
+   ```bash
+   ./node_modules/.bin/vite --host 127.0.0.1 --port 5173 --strictPort
+   ```
+   Se a 5173 estiver ocupada (outro Vite), pare o outro antes: o navegador de QA só abre a 5173.
+3. **O garçom sem celular.** Num perfil separado do navegador, F12 → ícone de celular → largura
+   **360 px**. Para o modo avião: F12 → **Network** → **Offline**, com a comanda já aberta. Não
+   recarregue sem rede.
+4. **O passo 6 clique a clique.** Em `http://localhost:3000/api-docs`, seção **Reserva Direta
+   (Público)**: em cada rota, **Try it out** → preencha → **Execute**. Copie o `category_id` da
+   disponibilidade para o corpo do booking.
+5. **Os dois 400**, se quiser mostrar a validação: no booking, troque a entrada por `2026-02-30`
+   (data que não existe) e depois o CPF por `529.982.247-24` (dígito errado). Os dois voltam 400 com
+   a mensagem do campo, sem gravar nada.
+6. **Ao terminar**, apague só o ensaio:
+   ```bash
+   COMPOSE_PROJECT_NAME=gesway_ensaio docker compose --profile observability down -v
+   ```
+
 ---
 
 ## Parte 2 — 15 minutos antes
@@ -183,18 +222,28 @@ quando a rede volta."
 
 1. Abra **Hoje** (a página inicial).
 
-**A banca vê:** os números do dia, a lista de **Atenção** (a chegada sem pagamento da 102 — risco
-de *no-show*), **Chegadas**, **Saídas** (a 107 sai hoje com R$ 300,00 a cobrar) e quem está na
-casa, com os dados do seed de hoje. Há um quarto em limpeza com o botão para liberar.
+**A banca vê:** os números do dia; a **Atenção**, que aponta 1 chegada sem pagamento (risco de
+*no-show*) e leva às **Chegadas**, onde ela é a 102; as **Saídas**, com a 107 saindo hoje; quem está
+na casa, incluindo o 902 do passo 2; e a 105 em limpeza, com o botão para liberar.
+
+Para mostrar que a 107 tem R$ 300,00 a cobrar, toque em **Fazer check-out** nela: o sistema avisa o
+saldo em aberto antes de deixar sair. **Toque em Voltar, não confirme**: confirmar encerra a estadia
+da 107 e desmancha o cenário do dia (Saídas, Na casa e Indicadores).
+
+> **Se a banca perguntar por que a 102 está "Confirmada" sem pagamento:** "ela foi confirmada por
+> telefone, sem sinal. É exatamente por isso que o painel a põe em risco de *no-show*." A reserva
+> direta do passo 6 é diferente: lá quem confirma é o aviso do pagamento.
+
 **Dizer:** "É a primeira tela da recepção de manhã: o que precisa de ação hoje. Sem rede, o painel
 diz 'Sem conexão' e não finge que o dado está atualizado."
 
 ### Passo 5 — Check-out com a conta e o pagamento (2 min) · aba da recepção
 
-1. Abra a reserva do quarto 902 (pela busca em Reservas, ou em **Hoje → Na casa**).
+1. Abra a reserva do quarto 902. O caminho mais curto: **Hoje → Na casa →** nome do hóspede → aba
+   **Conta**.
 2. Mostre a **conta em linha do tempo**: a diária e os consumos lançados pelo garçom no passo 3.
-3. **Registrar pagamento**: o valor já vem preenchido com o saldo, conferido no servidor. Escolha o
-   meio (ex.: cartão).
+3. **Registrar pagamento**: o valor já vem preenchido com o saldo, conferido no servidor. **Escolha
+   o meio (ex.: cartão) antes de clicar**; sem ele, a tela pede o meio e não grava.
 4. **Fazer check-out → Confirmar check-out.**
 
 **A banca vê:** a conta quitada e fechada, a estadia encerrada e o quarto em limpeza.
@@ -214,9 +263,14 @@ Na seção **Reserva Direta (Público)**, sem token, subdomínio `aurora`. Detal
    ```bash
    docker compose exec backend node scripts/simular_pagamento_pix.js <pix.provider_charge_id> http://localhost:3000
    ```
+   Se o sistema subiu com `COMPOSE_PROJECT_NAME` (ensaio, §1.6), o terminal precisa do mesmo
+   `export`.
 4. **`GET /public/aurora/bookings/{id}/status`**: `CONFIRMED`, sinal `PAID`.
-5. No app, **Reservas**, filtro **Próximos 30 dias**: a reserva aparece confirmada, com o sinal PIX
-   no extrato.
+5. No app, **Reservas**, filtro **Próximos 30 dias**: a reserva aparece confirmada. No detalhe,
+   aba **Conta**: o **Sinal · PIX** pago (30%) e o saldo que fica para o check-in (no ensaio de
+   25/11, com a Standard: R$ 135,00 e R$ 315,00).
+6. **Opcional, a validação:** repita o `POST` com a entrada `2026-02-30` e depois com o CPF
+   `529.982.247-24`. Os dois respondem 400 com a mensagem do campo e não gravam nada.
 
 **Dizer:** "O hóspede reserva sem passar pela recepção. Quem confirma a reserva é o aviso do
 pagamento, autenticado, e não o hóspede."

@@ -87,8 +87,9 @@ Todas as chamadas estão na seção **Reserva Direta (Público)** do Swagger, se
 5. **`GET /public/aurora/bookings/{id}/status`**, com o `reservation.id`:
    `status = CONFIRMED`, `confirmed = true`, `deposit.status = PAID`.
 6. **No PMS**, em Reservas, escolha o filtro **Próximos 30 dias**. O padrão, "Próximos 7 dias", não
-   alcança 15/12. A reserva aparece como confirmada. No detalhe dela, o extrato mostra o
-   **Sinal · PIX** pago. A conta da hospedagem só nasce no check-in, então ainda não existe aqui.
+   alcança 15/12. A reserva aparece como confirmada. No detalhe dela, na aba **Conta**, aparece o
+   **Sinal · PIX** pago (30%) e o saldo que o hóspede paga no check-in. Com a Standard, R$ 135,00 e
+   R$ 315,00 (ensaio de 25/11).
 
 ## Trocar do A para o B na hora
 
