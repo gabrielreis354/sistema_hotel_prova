@@ -90,10 +90,10 @@ export function AccountPage() {
   };
 
   return (
-    // Coluna do celular até o tablet; a partir de 1024 px, duas colunas como num PDV: a conta (itens,
+    // Coluna do celular até o tablet; a partir de 1280 px, duas colunas como num PDV: a conta (itens,
     // total, ações) à esquerda e o cardápio à direita (F6 da SPEC-10). Encostada à esquerda, como as
     // outras telas (R-7), com a largura do detalhe da reserva.
-    <div className="flex max-w-xl flex-col gap-3 lg:max-w-5xl">
+    <div className="flex max-w-xl flex-col gap-3 xl:max-w-5xl">
       <BackToAccounts />
       <PageHeader title={account.label} context={accountContext(account)} />
       <OfflineBanner offline={offline} waiting={waiting} elsewhere={elsewhere} reason={offlineReason(online)} />
@@ -112,9 +112,9 @@ export function AccountPage() {
       )}
 
       {/* A ordem do DOM é a do celular (itens, cardápio, total fixo embaixo): o total precisa vir depois
-          do cardápio para o sticky prendê-lo ao pé. No lg, a grade só reposiciona as três peças. */}
-      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-6">
-        <div className="lg:col-start-1 lg:row-start-1">
+          do cardápio para o sticky prendê-lo ao pé. No xl, a grade só reposiciona as três peças. */}
+      <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:grid-rows-[auto_1fr] xl:items-start xl:gap-x-6">
+        <div className="xl:col-start-1 xl:row-start-1">
           <ItemList
             items={account.items ?? []}
             entries={onThisAccount}
@@ -128,7 +128,7 @@ export function AccountPage() {
             para não lançar consumo, por engano, no meio da divisão. Isso só vale neste aparelho: o
             lançamento do garçom em outro aparelho é barrado no envio, pela conferência do saldo (P-8). */}
         {/* O painel fica aberto depois de quitar (a conta vira PAID): o aviso do pagamento continua. */}
-        <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+        <div className="xl:col-start-2 xl:row-span-2 xl:row-start-1">
           {receivePanelOpen(account, { receiving, pendingCount }) ? (
             <ReceivePanel
               accountId={account.id ?? ''}
@@ -143,9 +143,9 @@ export function AccountPage() {
         {/* Rodapé fixo com o total (CA-05.5.d), acima da barra de navegação do celular. */}
         {/* Preso logo acima da barra do celular (--tabbar da casca: 3rem, ou 0 para o garçom, que não tem
             barra) mais a folga da barra de gestos (SPEC-10, R-4). No celular vai de borda a borda da tela;
-            do tablet em diante vira cartão na largura da coluna, sem passar das laterais (F6); no lg fica
+            do tablet em diante vira cartão na largura da coluna, sem passar das laterais (F6); no xl fica
             parado embaixo dos itens, porque o cardápio está ao lado e não empurra nada. */}
-        <div className="sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 space-y-2 border-t border-gray-200 bg-white px-4 py-3 md:bottom-3 md:mx-0 md:rounded-lg md:border lg:static lg:col-start-1 lg:row-start-2">
+        <div className="sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 space-y-2 border-t border-gray-200 bg-white px-4 py-3 md:bottom-3 md:mx-0 md:rounded-lg md:border xl:static xl:col-start-1 xl:row-start-2">
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-gray-600">{totalLabel}</span>
             <span className="tabular-nums text-xl font-semibold">{formatBRL(totals.totalCents)}</span>

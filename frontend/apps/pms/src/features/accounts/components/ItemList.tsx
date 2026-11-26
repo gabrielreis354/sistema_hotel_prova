@@ -159,6 +159,10 @@ const isSettled = (e: QueueEntry) => e.status === 'rejected' || e.status === 'ex
  * empurrava o cardápio para baixo, e o toque seguinte caía no produto errado. Com a caixa do
  * mesmo tamanho, vazia ou cheia, o cardápio não se mexe. O último lançamento fica à vista:
  * a caixa rola até o fim quando entra item.
+ *
+ * A partir de 1280 px (F6 da SPEC-10) o cardápio fica ao lado, e a caixa cresce com o conteúdo até
+ * 28rem, sem nunca ficar menor que no celular: a recepção confere a conta da suíte sem rolar numa
+ * caixa de quatro linhas (P1 do critique da F6).
  */
 export function ItemList({
   items,
@@ -217,10 +221,10 @@ export function ItemList({
       role="region"
       aria-label="Itens lançados"
       tabIndex={0}
-      className="relative h-44 shrink-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      className="relative h-44 shrink-0 overflow-y-auto overscroll-contain xl:flex xl:h-auto xl:max-h-[28rem] xl:min-h-44 xl:flex-col rounded-lg border border-gray-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       {items.length === 0 && entries.length === 0 ? (
-        <p className="flex h-full items-center justify-center px-4 text-center text-sm text-gray-600">
+        <p className="flex h-full items-center justify-center px-4 text-center text-sm text-gray-600 xl:flex-1">
           Nada lançado ainda. Toque num produto do cardápio.
         </p>
       ) : (
@@ -260,7 +264,12 @@ export function ItemList({
                   )}
                   {entry.description}
                 </p>
-                <EntryState status={entry.status} />
+                {/* Na janela de desfazer, no celular, o estado desce para a linha dos controles: a linha
+                    fica com ~88 px e a caixa mostra dois lançamentos inteiros, com o nome (🟡-1 do
+                    qa-redteam da F6). Um nó só aparece por vez (display:none no outro). */}
+                <span className={undoable ? 'hidden sm:block' : undefined}>
+                  <EntryState status={entry.status} />
+                </span>
                 {entry.reason && (
                   <p
                     role={freshSettled.has(entry.clientItemId) ? 'alert' : undefined}
@@ -271,7 +280,10 @@ export function ItemList({
                 )}
               </div>
               {undoable && (
-                <div className="ml-auto flex shrink-0 items-start gap-3">
+                <div className="flex w-full shrink-0 items-start gap-3 sm:ml-auto sm:w-auto">
+                  <span className="mr-auto self-center sm:hidden">
+                    <EntryState status={entry.status} />
+                  </span>
                   <QuantityField
                     quantity={entry.quantity}
                     description={entry.description}
@@ -279,8 +291,10 @@ export function ItemList({
                     onEditing={(on) => setEditingId(on ? entry.clientItemId : null)}
                     onLostFocus={focusList}
                   />
+                  {/* Sem quebra: em 360 px o "(5 s)" caía para a linha de baixo; quem quebra é o estado. */}
                   <Button
                     variant="ghost"
+                    className="whitespace-nowrap"
                     aria-label={undoAccessibleName(entry.quantity, entry.description)}
                     onClick={() => onUndo(entry.clientItemId)}
                   >
