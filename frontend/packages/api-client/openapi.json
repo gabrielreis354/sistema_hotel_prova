@@ -1421,11 +1421,13 @@
           },
           "check_in": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "example": "2026-12-15"
           },
           "check_out": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "example": "2026-12-18"
           },
           "nights": {
             "type": "integer",
@@ -1494,11 +1496,13 @@
               },
               "check_in": {
                 "type": "string",
-                "format": "date"
+                "format": "date",
+                "example": "2026-12-15"
               },
               "check_out": {
                 "type": "string",
-                "format": "date"
+                "format": "date",
+                "example": "2026-12-18"
               },
               "nights": {
                 "type": "integer",
@@ -1576,11 +1580,13 @@
           },
           "check_in": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "example": "2026-12-15"
           },
           "check_out": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "example": "2026-12-18"
           },
           "total_amount": {
             "type": "number",

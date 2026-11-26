@@ -471,8 +471,8 @@ const options = {
                     description: 'GET /public/{subdomain}/availability',
                     properties: {
                         hotel:           { type: 'string', example: 'Hotel Aurora' },
-                        check_in:        { type: 'string', format: 'date' },
-                        check_out:       { type: 'string', format: 'date' },
+                        check_in:        { type: 'string', format: 'date', example: PASSO6_CHECK_IN },
+                        check_out:       { type: 'string', format: 'date', example: PASSO6_CHECK_OUT },
                         nights:          { type: 'integer', example: 3 },
                         guests:          { type: 'integer', example: 2 },
                         deposit_percent: { type: 'integer', example: 30 },
@@ -494,8 +494,8 @@ const options = {
                         reservation: { type: 'object', properties: {
                             id: { type: 'string', format: 'uuid' },
                             status: { type: 'string', example: 'PENDING' },
-                            check_in: { type: 'string', format: 'date' },
-                            check_out: { type: 'string', format: 'date' },
+                            check_in: { type: 'string', format: 'date', example: PASSO6_CHECK_IN },
+                            check_out: { type: 'string', format: 'date', example: PASSO6_CHECK_OUT },
                             nights: { type: 'integer', example: 3 },
                             category: { type: 'string', example: 'Standard' },
                             total_amount: { type: 'number', example: 450.00 }
@@ -521,8 +521,8 @@ const options = {
                     properties: {
                         reservation_id: { type: 'string', format: 'uuid' },
                         status:         { type: 'string', example: 'CONFIRMED' },
-                        check_in:       { type: 'string', format: 'date' },
-                        check_out:      { type: 'string', format: 'date' },
+                        check_in:       { type: 'string', format: 'date', example: PASSO6_CHECK_IN },
+                        check_out:      { type: 'string', format: 'date', example: PASSO6_CHECK_OUT },
                         total_amount:   { type: 'number', example: 450.00 },
                         confirmed:      { type: 'boolean' },
                         deposit: { type: 'object', nullable: true, properties: {
