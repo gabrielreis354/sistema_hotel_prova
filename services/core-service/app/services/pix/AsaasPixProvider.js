@@ -156,11 +156,17 @@ export default class AsaasPixProvider extends PixProvider {
             throw new PixProviderUnavailableError('Asaas não retornou a cobrança');
         }
 
-        const qr = await this.#request(`/payments/${encodeURIComponent(payment.id)}/pixQrCode`);
-        if (!qr?.payload) {
-            // A cobrança já existe no Asaas sem reserva gravada: o id vai no log para reconciliar.
-            console.error('AsaasPixProvider.createCharge: cobrança sem QR Code — órfã no Asaas', payment.id);
-            throw new PixProviderUnavailableError('Asaas não retornou o QR Code PIX');
+        let qr;
+        try {
+            qr = await this.#request(`/payments/${encodeURIComponent(payment.id)}/pixQrCode`);
+            if (!qr?.payload) {
+                throw new PixProviderUnavailableError('Asaas não retornou o QR Code PIX');
+            }
+        } catch (error) {
+            // A cobrança já existe no Asaas e a reserva não vai ser gravada (o controller responde
+            // 503). Sem cancelar, ela fica aberta no PSP sem reserva (22/11, repasse de 24/11).
+            await this.#cancelOrphanCharge(payment.id);
+            throw error;
         }
 
         // O QR do Asaas vale muito mais que o prazo do contrato (no teste real, 1 ano). O hóspede
@@ -177,6 +183,21 @@ export default class AsaasPixProvider extends PixProvider {
             qrCode: qr.payload,
             expiration
         };
+    }
+
+    // Melhor esforço: nunca lança, para não trocar o erro do QR pelo do cancelamento. O id vai
+    // no log nos dois casos, para reconciliar no painel do Asaas se o DELETE não passou.
+    async #cancelOrphanCharge(paymentId) {
+        try {
+            const { cancelled } = await this.cancelCharge(paymentId);
+            if (cancelled) {
+                console.error('AsaasPixProvider.createCharge: cobrança sem QR Code cancelada no Asaas', paymentId);
+                return;
+            }
+        } catch {
+            // o #request já logou status e rota
+        }
+        console.error('AsaasPixProvider.createCharge: cobrança sem QR Code — órfã no Asaas, cancelamento falhou', paymentId);
     }
 
     // DELETE /payments/{id}: o Asaas remove a cobrança e o QR deixa de ser pagável. Cobrança já

@@ -24,12 +24,18 @@ function jsonResponse(body, status = 200) {
     return { ok: status >= 200 && status < 300, status, json: async () => body };
 }
 
-// Mock das 3 chamadas de createCharge: cliente → cobrança → QR Code.
-function mockCreateChargeFlow({ qr = { payload: '00020126580014br.gov.bcb.pix-copia-e-cola', expirationDate: '2026-10-16 23:59:59' } } = {}) {
+// Mock das 3 chamadas de createCharge: cliente → cobrança → QR Code. O DELETE só acontece
+// quando o QR falha (cancelamento da cobrança órfã).
+function mockCreateChargeFlow({
+    qr = { payload: '00020126580014br.gov.bcb.pix-copia-e-cola', expirationDate: '2026-10-16 23:59:59' },
+    qrStatus = 200,
+    deleteResponse = () => jsonResponse({ deleted: true, id: 'pay_000001' })
+} = {}) {
     const fetchMock = vi.fn(async (url, options = {}) => {
         if (url === `${BASE}/customers` && options.method === 'POST') return jsonResponse({ id: 'cus_000001' });
         if (url === `${BASE}/payments` && options.method === 'POST') return jsonResponse({ id: 'pay_000001', status: 'PENDING' });
-        if (url === `${BASE}/payments/pay_000001/pixQrCode`) return jsonResponse(qr);
+        if (url === `${BASE}/payments/pay_000001/pixQrCode`) return jsonResponse(qr, qrStatus);
+        if (url === `${BASE}/payments/pay_000001` && options.method === 'DELETE') return deleteResponse();
         throw new Error(`URL inesperada no mock do Asaas: ${options.method ?? 'GET'} ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -245,6 +251,89 @@ describe('AsaasPixProvider.createCharge', () => {
 
         await expect(new AsaasPixProvider().createCharge(chargeParams)).rejects.toBeInstanceOf(PixProviderUnavailableError);
         expect(JSON.stringify(errorSpy.mock.calls)).toContain('pay_000001');
+    });
+});
+
+// Repasse do Sirlande de 24/11 (🟢): em 22/11 o pixQrCode do sandbox voltou 400 depois da
+// cobrança criada. A reserva não é gravada (503), então a cobrança ficava aberta no Asaas sem
+// nenhum id no log para reconciliar.
+describe('AsaasPixProvider.createCharge — cobrança órfã quando o QR falha', () => {
+    const deleteCalls = (fetchMock) => fetchMock.mock.calls.filter(([, options = {}]) => options.method === 'DELETE');
+
+    it('QR com resposta não-2xx: cancela a cobrança, loga o id e relança o erro do QR', async () => {
+        stubSandboxEnv();
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const fetchMock = mockCreateChargeFlow({ qr: { errors: [{ code: 'invalid_action' }] }, qrStatus: 400 });
+
+        const error = await new AsaasPixProvider().createCharge(chargeParams).catch((e) => e);
+
+        expect(error).toBeInstanceOf(PixProviderUnavailableError);
+        expect(error.message).toBe('Asaas respondeu 400');
+        expect(deleteCalls(fetchMock)).toHaveLength(1);
+        expect(deleteCalls(fetchMock)[0][0]).toBe(`${BASE}/payments/pay_000001`);
+        expect(JSON.stringify(errorSpy.mock.calls)).toMatch(/pay_000001.*cancelada|cancelada.*pay_000001/);
+    });
+
+    it('QR que estoura o tempo (o caso de 22/11): cancela a cobrança e relança a indisponibilidade', async () => {
+        stubSandboxEnv();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const fetchMock = mockCreateChargeFlow();
+        const flow = fetchMock.getMockImplementation();
+        // O #request aborta o fetch em 10 s; o fetch rejeita com AbortError.
+        fetchMock.mockImplementation(async (url, options = {}) => {
+            if (url.endsWith('/pixQrCode')) throw new DOMException('This operation was aborted', 'AbortError');
+            return flow(url, options);
+        });
+
+        const error = await new AsaasPixProvider().createCharge(chargeParams).catch((e) => e);
+
+        expect(error).toBeInstanceOf(PixProviderUnavailableError);
+        expect(error.message).toBe('Asaas indisponível no momento');
+        expect(deleteCalls(fetchMock)).toHaveLength(1);
+    });
+
+    it('QR sem payload: também cancela a cobrança', async () => {
+        stubSandboxEnv();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const fetchMock = mockCreateChargeFlow({ qr: { encodedImage: 'iVBOR...' } });
+
+        const error = await new AsaasPixProvider().createCharge(chargeParams).catch((e) => e);
+
+        expect(error.message).toBe('Asaas não retornou o QR Code PIX');
+        expect(deleteCalls(fetchMock)).toHaveLength(1);
+    });
+
+    it('se o cancelamento também falha, o erro devolvido continua sendo o do QR e o id fica no log', async () => {
+        stubSandboxEnv();
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const fetchMock = mockCreateChargeFlow({
+            qrStatus: 400,
+            qr: {},
+            deleteResponse: () => jsonResponse({ errors: [{ code: 'invalid_action' }] }, 400)
+        });
+
+        const error = await new AsaasPixProvider().createCharge(chargeParams).catch((e) => e);
+
+        expect(error).toBeInstanceOf(PixProviderUnavailableError);
+        expect(error.message).toBe('Asaas respondeu 400');
+        expect(deleteCalls(fetchMock)).toHaveLength(1);
+        expect(JSON.stringify(errorSpy.mock.calls)).toMatch(/pay_000001.*órfã|órfã.*pay_000001/);
+    });
+
+    it('o DELETE que responde sem deleted: true também conta como não cancelada', async () => {
+        stubSandboxEnv();
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockCreateChargeFlow({ qrStatus: 400, qr: {}, deleteResponse: () => jsonResponse({ id: 'pay_000001' }) });
+
+        await expect(new AsaasPixProvider().createCharge(chargeParams)).rejects.toBeInstanceOf(PixProviderUnavailableError);
+        expect(JSON.stringify(errorSpy.mock.calls)).toMatch(/pay_000001.*órfã|órfã.*pay_000001/);
+    });
+
+    it('QR gerado: nenhuma cobrança é cancelada', async () => {
+        stubSandboxEnv();
+        const fetchMock = mockCreateChargeFlow();
+        await new AsaasPixProvider().createCharge(chargeParams);
+        expect(deleteCalls(fetchMock)).toHaveLength(0);
     });
 });
 
