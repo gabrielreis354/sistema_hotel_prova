@@ -17,3 +17,20 @@ Origem: qa-redteam DELTA da F6 (`docs/qa/redteam_spec10-fase6-comanda_delta_2611
 **Cenário:** medido ao vivo como garçom a 360×740. Ele toca em "Abrir conta", que desmonta o botão e foca o campo. Depois toca em "Cancelar". O formulário desmonta com o botão focado dentro, o "Abrir conta" volta como um nó novo no `StickyFooter`, e o `document.activeElement` passa a ser o `BODY`. Para o leitor de tela, o próximo Tab recomeça do topo.
 **Regra violada:** WCAG 2.4.3 (ordem de foco), a mesma família do repasse do "Desfazer" acima.
 **Correção sugerida:** um `ref` no botão "Abrir conta" e, no `onCancel`, `setOpening(false)` seguido do foco nesse botão depois do render (num `useEffect` que olha `opening` e só age depois de um cancelamento). Pode ficar para depois do congelamento.
+
+---
+Origem: qa-explorador, passada final da SPEC-10 (`docs/qa/exploratorio_final_spec10_26112026.md`). Os dois são anteriores à SPEC-10 (o código é o mesmo na `develop`) e por isso não entram no veredito dela.
+
+### 🟡 [Tempo] Duplo clique em "Sim, fechar" na comanda manda dois PUT e mostra "Conta CLOSED não pode ser fechada"
+**Onde:** `frontend/apps/pms/src/features/accounts/components/StaffActions.tsx:171-188` (`disabled={close.isPending || !fresh}`, sem trava síncrona)
+**Passos:** recepção, 768×1024, `/comanda/<mesa QA>` com R$ 24,00 → "Fechar conta" → duplo clique em "Sim, fechar".
+**Obtido:** `PUT /accounts/:id/close` 200 e logo depois 422; a tela mostra em vermelho "Conta CLOSED não pode ser fechada" (código interno) e "A conta já está fechada", num fechamento que deu certo. Evidência: `evidencias/final_spec10_26112026/mcp/comanda-fechar-duplo_768.png`.
+**Regra:** SPEC-11 §2 ("nenhum clique duplo vira erro falso"; a mensagem nunca mostra código interno). O C-12 (`closeGuard`, 400 ms) protege o toque em "Fechar conta", não o "Sim, fechar".
+**Sugestão:** a mesma trava síncrona por ref (`mutateOnce`) usada no detalhe da reserva.
+
+### 🟡 [Tempo] Duplo clique em "Cadastrar" no novo hóspede: grava e mostra "CPF ou e-mail já cadastrado"
+**Onde:** `frontend/apps/pms/src/features/guests/GuestFormPages.tsx:26-31` (`submitting={create.isPending}`, sem `submitOnce`)
+**Passos:** recepção, 1366×768, `/hospedes/novo`, preencher (CPF 529.982.247-25, e-mail `@qa.test`) → duplo clique em "Cadastrar".
+**Obtido:** `POST /guests` 201 e 409; a tela fica no formulário com o alerta "CPF ou e-mail já cadastrado para outro hóspede." O hóspede foi criado (aparece uma vez na lista). A recepcionista acha que falhou e pode recadastrar com outro dado.
+**Regra:** SPEC-11 §2, o mesmo defeito "A" que a T-11.3 resolveu em quartos e categorias, mas o formulário de hóspede ficou fora do CA-11.a.
+**Sugestão:** `submitOnce`/`submitLock` de `lib/`, como em `RoomFormPages.tsx`.
