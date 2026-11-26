@@ -40,7 +40,7 @@ END $$;
 -- Garçom do Hotel Aurora (WAITER: lê o cardápio e lança em mesa e balcão)
 -- -----------------------------------------------------------------------------
 INSERT INTO users (tenant_id, name, email, password_hash, role)
-SELECT t.id, 'Garcom Aurora', 'garcom@aurora.example', '$2a$10$dU7xkr/NZyY00/rPNy6kcu2IiP1FVGg1IXjk/YqzJEmjZsWDwL5jS', 'WAITER'
+SELECT t.id, 'Garçom Aurora', 'garcom@aurora.example', '$2a$10$dU7xkr/NZyY00/rPNy6kcu2IiP1FVGg1IXjk/YqzJEmjZsWDwL5jS', 'WAITER'
 FROM tenants t
 WHERE t.subdomain = 'aurora'
 ON CONFLICT (tenant_id, email) WHERE deleted_at IS NULL DO NOTHING;
