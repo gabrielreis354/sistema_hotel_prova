@@ -48,9 +48,19 @@ export function AccountsListPage() {
 
 
   return (
-    // Encostada à esquerda, como as outras telas (R-7, F6 da SPEC-10).
-    <div className="flex max-w-xl flex-col gap-3">
-      <PageHeader title="Comanda" />
+    // Na coluna inteira, como o Hoje (R-7 revista em 26/11). No computador as contas viram grade e o
+    // "Abrir conta" sobe para o cabeçalho, como o "Nova reserva"; no celular e no tablet segue no pé.
+    <div className="flex flex-col gap-3">
+      <PageHeader
+        title="Comanda"
+        action={
+          (data?.length ?? 0) > 0 && !opening ? (
+            <Button size="compact" className="hidden lg:inline-flex" onClick={() => setOpening(true)}>
+              Abrir conta
+            </Button>
+          ) : undefined
+        }
+      />
 
       {notice && (
         <InfoNotice focus>
@@ -101,21 +111,24 @@ export function AccountsListPage() {
             type="search"
             aria-label="Buscar conta"
             placeholder="Buscar por mesa, suíte ou nome"
-            className="min-h-touch"
+            className="min-h-touch lg:max-w-xl"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
           />
           {filtered.length === 0 ? (
             <p className="px-1 text-sm text-gray-500">Nenhuma conta corresponde à busca.</p>
           ) : (
-            <ul aria-label="Contas abertas" className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+            <ul
+              aria-label="Contas abertas"
+              className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white lg:grid lg:grid-cols-2 lg:gap-3 lg:divide-y-0 lg:border-0 lg:bg-transparent xl:grid-cols-3"
+            >
               {filtered.map((account) => {
                 const waiting = pendingFor(mine, account.id ?? '').length;
                 return (
-                  <li key={account.id}>
+                  <li key={account.id} className="lg:rounded-lg lg:border lg:border-gray-200 lg:bg-white">
                     <Link
                       to={`/comanda/${account.id}`}
-                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 active:bg-gray-100 [@media(hover:hover)]:hover:bg-gray-50"
+                      className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 active:bg-gray-100 lg:rounded-lg [@media(hover:hover)]:hover:bg-gray-50"
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{account.label}</span>
@@ -147,7 +160,7 @@ export function AccountsListPage() {
         </div>
       ) : (
         (data?.length ?? 0) > 0 && (
-          <StickyFooter>
+          <StickyFooter className="lg:hidden">
             <Button block onClick={() => setOpening(true)}>
               Abrir conta
             </Button>
