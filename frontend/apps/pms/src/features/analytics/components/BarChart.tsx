@@ -37,8 +37,11 @@ export function BarChart({ title, valueHeader, detailHeader, bars }: BarChartPro
   const dense = bars.length > DENSE;
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end">
+    // O "Ver tabela" mora no canto de cima, na folga que o gráfico reserva para o tooltip (pt-12, a altura do botão no toque;
+    // o tooltip passa por cima dele, z-30):
+    // numa linha só para ele, empurrava o gráfico 40 px para baixo (F7 da SPEC-10).
+    <div className="relative space-y-2">
+      <div className={asTable ? 'flex justify-end' : 'absolute right-0 top-0 z-20'}>
         <Button variant="ghost" size="compact" aria-pressed={asTable} onClick={() => setAsTable((v) => !v)}>
           {asTable ? 'Ver gráfico' : 'Ver tabela'}
         </Button>
@@ -66,7 +69,7 @@ export function BarChart({ title, valueHeader, detailHeader, bars }: BarChartPro
         </table>
       ) : (
         <div>
-          <ul aria-label={title} className="flex h-48 items-end gap-1 border-b border-gray-300 pt-10">
+          <ul aria-label={title} className="flex h-48 items-end gap-1 border-b border-gray-300 pt-12">
             {bars.map((b, i) => (
               <li
                 key={b.key}
@@ -76,7 +79,7 @@ export function BarChart({ title, valueHeader, detailHeader, bars }: BarChartPro
               >
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute bottom-full z-10 mb-1 hidden whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow group-hover:block group-focus-visible:block"
+                  className="pointer-events-none absolute bottom-full z-30 mb-1 hidden whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow group-hover:block group-focus-visible:block"
                 >
                   <span className="block font-medium">{b.label}</span>
                   <span className="block tabular-nums">{b.display}</span>
