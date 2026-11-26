@@ -132,9 +132,17 @@ function EntryState({ status }: { status: QueueEntry['status'] }) {
   );
 }
 
-function Row({ children, entryId }: { children: React.ReactNode; entryId?: string }) {
+/**
+ * `wrap` (F6 da SPEC-10): na janela de desfazer, abaixo de 640 px, o nome fica com a linha toda e o
+ * campo de quantidade e o "Desfazer" descem para a linha de baixo, à direita. Ao lado do campo, o
+ * nome quebrava no meio ("Água / mineral") na hora em que o garçom confere o que tocou.
+ */
+function Row({ children, entryId, wrap = false }: { children: React.ReactNode; entryId?: string; wrap?: boolean }) {
   return (
-    <li data-entry={entryId} className="flex min-h-touch items-center gap-3 px-3 py-2">
+    <li
+      data-entry={entryId}
+      className={`flex min-h-touch items-center gap-x-3 px-3 py-2 ${wrap ? 'flex-wrap gap-y-1 sm:flex-nowrap' : ''}`}
+    >
       {children}
     </li>
   );
@@ -240,13 +248,14 @@ export function ItemList({
         {entries.map((entry) => {
           const price = multiplyCents(decimalToCents(entry.unitPrice), entry.quantity);
           const settled = isSettled(entry);
+          const undoable = canUndo(entry, now);
           return (
-            <Row key={entry.clientItemId} entryId={entry.clientItemId}>
-              <div className="min-w-0 flex-1">
+            <Row key={entry.clientItemId} entryId={entry.clientItemId} wrap={undoable}>
+              <div className={`min-w-0 flex-1 ${undoable ? 'basis-full sm:basis-0' : ''}`}>
                 <p className={`line-clamp-2 break-words text-sm ${settled ? 'text-gray-500 line-through' : ''}`}>
                   {/* Na janela de desfazer, a quantidade está no campo ao lado: o "6×" repetido só
                       tirava espaço do nome do produto no celular. */}
-                  {entry.quantity !== 1 && !canUndo(entry, now) && (
+                  {entry.quantity !== 1 && !undoable && (
                     <span className="mr-1 font-medium tabular-nums">{entry.quantity}×</span>
                   )}
                   {entry.description}
@@ -261,35 +270,35 @@ export function ItemList({
                   </p>
                 )}
               </div>
-              {canUndo(entry, now) && (
-                <QuantityField
-                  quantity={entry.quantity}
-                  description={entry.description}
-                  onChange={(n) => onQuantity(entry.clientItemId, n)}
-                  onEditing={(on) => setEditingId(on ? entry.clientItemId : null)}
-                  onLostFocus={focusList}
-                />
-              )}
-              {canUndo(entry, now) && (
-                <Button
-                  variant="ghost"
-                  aria-label={undoAccessibleName(entry.quantity, entry.description)}
-                  onClick={() => onUndo(entry.clientItemId)}
-                >
-                  {undoLabel(entry.quantity)}
-                  {/* Segundos que restam, só para quem vê: o nome acessível acima é fixo. Sem
-                      animação — o número muda a cada segundo pelo relógio que já esconde o botão. */}
-                  <span aria-hidden className="ml-1 text-sm text-gray-600">
-                    ({undoSecondsLeft(entry.undoUntil, now)} s)
-                  </span>
-                </Button>
+              {undoable && (
+                <div className="ml-auto flex shrink-0 items-start gap-3">
+                  <QuantityField
+                    quantity={entry.quantity}
+                    description={entry.description}
+                    onChange={(n) => onQuantity(entry.clientItemId, n)}
+                    onEditing={(on) => setEditingId(on ? entry.clientItemId : null)}
+                    onLostFocus={focusList}
+                  />
+                  <Button
+                    variant="ghost"
+                    aria-label={undoAccessibleName(entry.quantity, entry.description)}
+                    onClick={() => onUndo(entry.clientItemId)}
+                  >
+                    {undoLabel(entry.quantity)}
+                    {/* Segundos que restam, só para quem vê: o nome acessível acima é fixo. Sem
+                        animação — o número muda a cada segundo pelo relógio que já esconde o botão. */}
+                    <span aria-hidden className="ml-1 text-sm text-gray-600">
+                      ({undoSecondsLeft(entry.undoUntil, now)} s)
+                    </span>
+                  </Button>
+                </div>
               )}
               {settled && (
                 <Button variant="ghost" onClick={() => onDismiss(entry.clientItemId)}>
                   OK
                 </Button>
               )}
-              {!settled && !canUndo(entry, now) && (
+              {!settled && !undoable && (
                 <span className="tabular-nums text-sm text-gray-600">{formatBRL(price)}</span>
               )}
             </Row>
