@@ -54,3 +54,6 @@ coverage/
 
 # Evidências do qa-explorador (capturas e scripts de reprodução): o relatório cita, o git não guarda
 docs/qa/evidencias/
+
+# Log e pid do túnel do passo 6 (scripts/pix/)
+.tmp-pix-ensaio/

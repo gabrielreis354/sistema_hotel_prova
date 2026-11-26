@@ -57,12 +57,34 @@ Na raiz do repositório, como no cabeçalho do `docker-compose.yml`:
      vence em **31/07/2027 às 00:00**. O primeiro ensaio com ela no compose é o de 24/11.
    - No `.env`, use `PIX_PROVIDER=asaas`, a chave e o `ASAAS_WEBHOOK_TOKEN`, como em
      `docs/pagamentos/ASAAS_SANDBOX.md` §4.
-   - Suba o túnel e cadastre o webhook apontando para `https://<túnel>/webhooks/pix` (§5). No
-     ensaio de 12/11 o túnel foi o `cloudflared tunnel --url http://localhost:3000`, que dispensa
-     conta; o ngrok do §5 também serve.
+   - Rode `docker compose up -d backend` para o backend ler o `.env` novo.
+   - Na véspera e de novo antes de começar, rode:
+     ```bash
+     bash scripts/pix/1_preparar_plano_a.sh          # sobe um quick tunnel do cloudflared
+     bash scripts/pix/1_preparar_plano_a.sh <URL>    # ou usa um túnel já no ar (ngrok etc.)
+     ```
+     O script faz quatro coisas:
+     1. confere se o backend está no ar;
+     2. confere se ele está com `PIX_PROVIDER=asaas`, a chave e o token;
+     3. sobe o túnel. O quick tunnel muda de URL a cada subida, então não reaproveite a URL de
+        um ensaio anterior;
+     4. aponta o webhook `gesway-ensaio-plano-a` do sandbox para `https://<túnel>/webhooks/pix`,
+        reativa a fila se o Asaas a pausou e testa o QR com uma cobrança de R$ 5, que é apagada
+        em seguida.
+
+     Saída `PRONTO: plano A` significa que pode seguir. `QR_FALHOU` significa que o sandbox não
+     está gerando o QR (como em 22/11): vá de plano B.
+   - O `cloudflared` dispensa conta. Se não estiver instalado, use o ngrok do §5 e passe a URL.
+   - **Token do webhook:** o script regrava o token do webhook no Asaas com o
+     `ASAAS_WEBHOOK_TOKEN` do backend. Em 22/11 os dois não batiam, porque o `.env` tinha sido
+     trocado, e o Asaas recebia 401. Para conferir à mão, veja o "Token de autenticação" do
+     webhook em Integrações → Webhooks. Ele tem de ser igual ao `ASAAS_WEBHOOK_TOKEN` do `.env`.
    - No painel do sandbox, o botão de confirmar o pagamento fica nos **detalhes da cobrança**, não
      na lista.
-   - Rode `docker compose up -d backend` para o backend ler o `.env` novo.
+   - No fim do ensaio ou da demonstração: `bash scripts/pix/3_fechar.sh`. O script fecha o túnel que
+     o `1_preparar` subiu e devolve o backend ao `.env`. Um túnel subido à mão (passado como URL)
+     você fecha à mão.
+   - Os scripts usam o `BACKEND_HOST_PORT` do `.env`, como o compose.
 
 ## Durante a demonstração
 
@@ -93,11 +115,15 @@ Todas as chamadas estão na seção **Reserva Direta (Público)** do Swagger, se
 ## Trocar do A para o B na hora
 
 Com `PIX_PROVIDER=asaas` ativo, o script do plano B recebe 401 "Assinatura inválida": o webhook só
-aceita a autenticação do provider ativo. Para trocar:
+aceita a autenticação do provider ativo. Para trocar sem mexer no `.env`:
 
-1. No `.env`, `PIX_PROVIDER=fake`.
-2. `docker compose up -d backend` e esperar o backend ficar saudável (`docker compose ps`).
-3. Refazer o passo 3 com uma **reserva nova**. A cobrança criada no Asaas não existe no simulado.
+1. `bash scripts/pix/2_plano_b.sh`. O script fecha o túnel, sobe o backend com `PIX_PROVIDER=fake`
+   e espera o backend ficar saudável.
+2. Refazer o passo 3 com uma **reserva nova**. A cobrança criada no Asaas não existe no simulado.
+3. No fim, `bash scripts/pix/3_fechar.sh` devolve o backend ao `.env`.
+
+Sem os scripts, o caminho é o mesmo à mão: `PIX_PROVIDER=fake docker compose up -d backend`, e
+`docker compose up -d backend` para voltar.
 
 ## Se algo der errado
 
@@ -109,8 +135,8 @@ aceita a autenticação do provider ativo. Para trocar:
 | `POST /bookings` responde 400 `guest.cpf inválido` | plano A com CPF digitado errado (dígito verificador não bate) | use o CPF do exemplo |
 | O backend fica em `Restarting` no `docker compose ps` | `PIX_PROVIDER` com valor fora de `fake`, `mercadopago`, `asaas` (ex.: `assas`) | `docker compose logs backend` mostra `PIX_PROVIDER desconhecido`; corrija o `.env` e suba de novo |
 | `POST /bookings` responde 503 | Asaas fora do ar, ou chave vencida ou errada | troque para o plano B |
-| O script responde 401 | `PIX_PROVIDER=asaas` ainda ativo | siga "Trocar do A para o B na hora" |
-| O status continua `PENDING` depois de pagar no sandbox | o túnel caiu ou o webhook está pausado no painel | confira os logs do webhook no painel. Se não resolver, plano B |
+| O `simular_pagamento_pix.js` responde 401 | `PIX_PROVIDER=asaas` ainda ativo | siga "Trocar do A para o B na hora" |
+| O status continua `PENDING` depois de pagar no sandbox | o túnel caiu, o webhook está pausado no painel ou o token não bate (401 nos logs do webhook) | rode `bash scripts/pix/1_preparar_plano_a.sh` de novo; ele reaponta, reativa e regrava o token. Se não resolver, plano B |
 | A reserva não aparece no PMS | filtro em "Hoje" ou "Próximos 7 dias" | filtro **Próximos 30 dias** |
 
 ## Pendências conhecidas
@@ -137,7 +163,11 @@ aceita a autenticação do provider ativo. Para trocar:
   `deposit.status = PAID`, o PIX pago no extrato do PMS e o evento no `analytics-service`. O backend
   não registra no log o webhook aceito: a prova pelo lado do Asaas fica em Integrações → Webhooks →
   Logs. Na reserva pública, o hóspede com o mesmo CPF reaproveita o cadastro existente (#142).
-  **Antes do ensaio de 24/11:** o túnel rápido muda de URL a cada subida; atualize a URL no painel.
+  O túnel rápido muda de URL a cada subida: o `scripts/pix/1_preparar_plano_a.sh` atualiza a URL
+  no painel.
+- **Plano A ensaiado no compose em 24/11/2026**, depois da falha de 22/11 (o `pixQrCode` do
+  sandbox levava ~30 s e voltava 400): reserva `8472bf37…` `CONFIRMED` com o sinal `PAID`.
+  Em 26/11 os scripts do ensaio passaram para `scripts/pix/`, e o teste do QR levou 357 ms.
 - **As datas de exemplo valem até 15/12/2026.** Depois disso, o exemplo do Swagger vira data
   passada. Troque as constantes `PASSO6_CHECK_IN`/`OUT` em `config/swagger.js` antes de reusar.
 - **Data no passado e data inválida: corrigido em 24/11** (QA do roteiro, `fix/qa-roteiro-24nov`).
