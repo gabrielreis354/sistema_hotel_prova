@@ -7,11 +7,13 @@ import { reservationKeys, useCreatePayment } from '../queries.js';
 import { getBill } from '../reservationsApi.js';
 import {
   PAYMENT_METHOD_OPTIONS,
+  afterMethodChoice,
   confirmBalanceThenSend,
   paymentBody,
+  paymentErrorSlots,
   readPaymentAmount,
   submitStep,
-  type PaymentErrorField,
+  type PaymentError,
   type PaymentMethod,
   type PaymentTarget,
 } from '../paymentLogic.js';
@@ -54,11 +56,9 @@ export function PaymentForm({
   const qc = useQueryClient();
   const [amountText, setAmountText] = useState(() => centsToBRLInput(balanceCents));
   const [method, setMethod] = useState<PaymentMethod | null>(null);
-  // O erro sabe de qual campo é: sem o meio, o aviso fica no grupo dos meios e o valor, que está
-  // certo, não fica vermelho (ensaio de 25/11, 🟡-2).
-  const [error, setError] = useState<{ field: PaymentErrorField; text: string } | null>(null);
-  const amountError = error?.field === 'amount' ? error.text : undefined;
-  const methodError = error?.field === 'method' ? error.text : undefined;
+  // O erro sabe de qual campo é (ensaio de 25/11, 🟡-2); a regra está em paymentErrorSlots.
+  const [error, setError] = useState<PaymentError | null>(null);
+  const { amountError, methodError } = paymentErrorSlots(error);
   const methodErrorId = useId();
   const [overpaid, setOverpaid] = useState<Cents | null>(null);
   const [checking, setChecking] = useState(false);
@@ -211,7 +211,7 @@ export function PaymentForm({
                 checked={method === m.id}
                 onChange={() => {
                   setMethod(m.id);
-                  setError(null);
+                  setError(afterMethodChoice);
                 }}
               />
               {m.label}

@@ -87,6 +87,28 @@ export function paymentBody(target: PaymentTarget, cents: Cents, method: Payment
 /** Onde o erro aparece: embaixo do valor ou no grupo dos meios (ensaio de 25/11, 🟡-2). */
 export type PaymentErrorField = 'amount' | 'method';
 
+/** O aviso do formulário e o campo a que ele pertence. */
+export type PaymentError = { field: PaymentErrorField; text: string };
+
+/**
+ * Onde o aviso aparece. Sem o meio, só no grupo dos meios: o valor, que está certo, não fica
+ * vermelho (ensaio de 25/11, 🟡-2).
+ */
+export function paymentErrorSlots(error: PaymentError | null): { amountError?: string; methodError?: string } {
+  return {
+    amountError: error?.field === 'amount' ? error.text : undefined,
+    methodError: error?.field === 'method' ? error.text : undefined,
+  };
+}
+
+/**
+ * Escolher o meio resolve só o aviso do meio. O do valor (na mesa, "Acima do saldo") continua
+ * até a recepção corrigir o valor (red team das correções de 25/11).
+ */
+export function afterMethodChoice(error: PaymentError | null): PaymentError | null {
+  return error?.field === 'method' ? null : error;
+}
+
 export type SubmitStep =
   | { kind: 'error'; field: PaymentErrorField; error: string }
   | { kind: 'confirm'; overpaidCents: Cents }

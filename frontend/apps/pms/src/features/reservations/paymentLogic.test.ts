@@ -7,6 +7,8 @@ import {
   freshBalanceStep,
   paymentBody,
   readPaymentAmount,
+  afterMethodChoice,
+  paymentErrorSlots,
   submitStep,
 } from './paymentLogic.js';
 
@@ -274,5 +276,34 @@ describe('confirmBalanceThenSend — conferir o saldo e só então gravar (🟡-
     await confirmBalanceThenSend({ shownCents: 500, readFresh: async () => 400, ...s });
     expect(s.calls).toHaveLength(1);
     expect(s.calls[0]).toContain('stop:');
+  });
+});
+
+// Ensaio de 25/11 (🟡-2) e red team das correções: o lugar do aviso é regra, não detalhe de tela.
+describe('paymentErrorSlots — em qual campo o aviso aparece', () => {
+  it('erro do meio: só no grupo dos meios; o valor não fica inválido', () => {
+    expect(paymentErrorSlots({ field: 'method', text: 'Escolha como o hóspede pagou.' })).toEqual({
+      amountError: undefined,
+      methodError: 'Escolha como o hóspede pagou.',
+    });
+  });
+
+  it('erro do valor: só embaixo do valor', () => {
+    expect(paymentErrorSlots({ field: 'amount', text: 'x' })).toEqual({ amountError: 'x', methodError: undefined });
+  });
+
+  it('sem erro: nenhum dos dois', () => {
+    expect(paymentErrorSlots(null)).toEqual({ amountError: undefined, methodError: undefined });
+  });
+});
+
+describe('afterMethodChoice — escolher o meio só apaga o aviso do meio', () => {
+  it('apaga o "Escolha como pagou"', () => {
+    expect(afterMethodChoice({ field: 'method', text: 'Escolha como o cliente pagou.' })).toBeNull();
+  });
+
+  it('na mesa, o "Acima do saldo" continua até corrigir o valor', () => {
+    const acima = { field: 'amount' as const, text: 'Acima do saldo de R$ 198,00.' };
+    expect(afterMethodChoice(acima)).toBe(acima);
   });
 });
