@@ -9,7 +9,7 @@ describe('methodLabel', () => {
     expect(methodLabel('PIX')).toBe('PIX');
   });
 
-  it('o meio antigo CARTAO, que o seed ainda grava, aparece como "Cartão", igual à conta da reserva', () => {
+  it('o meio antigo CARTAO, de bancos semeados antes de 25/11, aparece como "Cartão", igual à conta da reserva', () => {
     // Exploratório de 15/11 (m8-seed-painel-hoje): os Indicadores mostravam "CARTAO" cru no passo 7.
     expect(methodLabel('CARTAO')).toBe('Cartão');
   });
