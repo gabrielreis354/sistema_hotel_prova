@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultPeriod, fillMonths, fillSeasonality, noSeasonReservations, periodError, monthLabel, monthlyWindow } from './period.js';
+import { appliedPeriod, defaultPeriod, fillMonths, fillSeasonality, noSeasonReservations, periodError, monthLabel, monthlyWindow } from './period.js';
 
 describe('defaultPeriod', () => {
   it('vai do dia 1º do mês até hoje', () => {
@@ -130,5 +130,17 @@ describe('noSeasonReservations', () => {
 
   it('um mês com reserva basta para mostrar o gráfico', () => {
     expect(noSeasonReservations(fillSeasonality('2026-11-16', 12, [{ month: '2026-05', reservations: 1, avg_nights: 2 }]))).toBe(false);
+  });
+});
+
+describe('appliedPeriod — o De/Até aplica na hora, só quando a data é válida (F7 da SPEC-10)', () => {
+  const atual = { start: '2026-11-01', end: '2026-11-26' };
+  it('data válida vira o período consultado', () => {
+    expect(appliedPeriod(atual, { start: '2026-10-01', end: '2026-10-31' })).toEqual({ start: '2026-10-01', end: '2026-10-31' });
+  });
+  it('data incompleta, invertida ou de mais de um ano mantém o período anterior', () => {
+    expect(appliedPeriod(atual, { start: '', end: '2026-10-31' })).toBe(atual);
+    expect(appliedPeriod(atual, { start: '2026-11-20', end: '2026-11-01' })).toBe(atual);
+    expect(appliedPeriod(atual, { start: '2025-01-01', end: '2026-11-26' })).toBe(atual);
   });
 });
