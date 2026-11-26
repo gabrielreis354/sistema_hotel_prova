@@ -13,6 +13,8 @@ total de quartos. A F3 mantém a fórmula, agora com `strip.counts.occupied` (co
 **Correção sugerida:** conte os quartos distintos: ocupados cuja saída não é hoje, mais os quartos das chegadas de hoje
 (`Set` por `room.id`). Ou redefina e documente a dica ("ocupados agora + chegadas", sem chamar de vendidos).
 
+**Resposta do Gabriel (26/11):** é defeito da D-6. Contar quartos distintos para a noite de hoje, como na correção sugerida, e manter o nome "Vendidos hoje". Detalhe na pergunta 2 de `para_gabriel_26112026.md`.
+
 ---
 
 Origem: QA Red Team da SPEC-10 F4, detalhe da reserva (`feature/t10-fase4-reserva`, Sirlande). O achado está em
@@ -30,3 +32,5 @@ esse caso com `checkOutRef` (`:54`, `:99-103`). O cancelar não recebeu a mesma 
 **Regra violada:** WCAG 2.4.3 (ordem do foco); padrão do próprio arquivo (o foco vai para o bloco que nasce)
 **Correção sugerida:** um `cancelRef` no `<p>` do painel (`tabIndex={-1}`) e um `useEffect` igual ao do check-out para
 `confirming === 'cancel'`. Ou então não desabilitar o botão com o painel aberto e mandar o foco para "Manter reserva".
+
+**Resposta do Gabriel (26/11):** é defeito, corrigir com o mesmo padrão do check-out (`cancelRef` e foco no painel ao abrir). Detalhe na pergunta 6 de `para_gabriel_26112026.md`.
