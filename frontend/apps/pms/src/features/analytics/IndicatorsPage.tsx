@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorState, Field, Input, PageHeader, SegmentedControl } from '@hotel/ui';
 import { decimalToCents, formatBRL, formatDateBR, todayISO } from '@hotel/domain';
 import type { Period } from './analyticsApi.js';
@@ -20,13 +20,26 @@ import { KpiCards } from './components/KpiCards.js';
 import { ShareTable } from './components/ShareTable.js';
 import { TopGuests } from './components/TopGuests.js';
 import { PeriodSection } from './components/PeriodSection.js';
-import { allSourcesDown } from './availability.js';
+import { analyticsAvailability } from './availability.js';
 import { useIsDesktop } from './useIsDesktop.js';
 
 const nights = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 function periodCaption(p: Period): string {
   return p.start === p.end ? formatDateBR(p.start) : `${formatDateBR(p.start)} a ${formatDateBR(p.end)}`;
+}
+
+/** Espera da digitação no De/Até antes de consultar (🟡3 do qa-redteam da F7). */
+const PERIOD_SETTLE_MS = 600;
+
+/**
+ * O intervalo que a sazonalidade desenha de fato: do mês `months` atrás até o último mês com reserva
+ * futura. "Últimos 12 meses" mostrava 14 barras (P1 do critique da F7).
+ */
+function seasonCaption(rows: { month: string }[]): string {
+  const first = rows[0]?.month;
+  const last = rows[rows.length - 1]?.month;
+  return first && last ? `${monthLabel(first)} a ${monthLabel(last)}` : '';
 }
 
 /**
@@ -45,11 +58,17 @@ export function IndicatorsPage() {
 
   const [draft, setDraft] = useState<Period>(() => defaultPeriod(today));
   const [period, setPeriod] = useState<Period>(draft);
-  const draftError = periodError(draft);
-  const editDraft = (next: Period) => {
-    setDraft(next);
-    setPeriod((current) => appliedPeriod(current, next));
-  };
+  // O De/Até espera a digitação parar (🟡3 do qa-redteam da F7): o campo de data do Chrome avisa a
+  // cada segmento digitado, e "15/10" passava por "15/11" e "15/01", cada um virando consulta e o
+  // alerta trocando a cada tecla. Escolher no calendário também espera, o que não se percebe.
+  const [draftError, setDraftError] = useState<string | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPeriod((current) => appliedPeriod(current, draft));
+      setDraftError(periodError(draft));
+    }, PERIOD_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
   const [months, setMonths] = useState<number>(12);
   const monthWindow = useMemo(() => monthlyWindow(today, months), [today, months]);
 
@@ -70,8 +89,18 @@ export function IndicatorsPage() {
   const sources = isDesktop
     ? [occupancy, revenueToday, revenueByMonth, seasonality, byCategory, paymentMix, topGuests]
     : [occupancy, revenueToday];
-  const down = allSourcesDown(sources);
+  // Com memória: a queda vale até alguma fonte responder, e os erros de bloco esperam enquanto nada
+  // respondeu (🟡1 e 🟡2 do qa-redteam da F7). Mesmas entradas, mesma saída: refazer o render não muda.
+  const wasDown = useRef(false);
+  const { down, settling } = analyticsAvailability(wasDown.current, sources);
+  wasDown.current = down;
+  const retrying = down && sources.some((q) => q.isFetching);
   const retryAll = () => sources.forEach((q) => void q.refetch());
+  // Enquanto se decide entre queda geral e parcial, o bloco que já falhou mostra carregando.
+  const blockState = (q: { isLoading: boolean; isError: boolean; error: Error | null }) => ({
+    isLoading: q.isLoading || (settling && q.isError),
+    error: settling ? null : q.error,
+  });
 
   // Em centavos já aqui: o total chega como string DECIMAL e a altura da barra precisa de número.
   const byMonth = (revenueByMonth.data?.realized?.by_month ?? []).map((m) => ({
@@ -129,7 +158,7 @@ export function IndicatorsPage() {
           max={today}
           aria-invalid={!!draftError || undefined}
           aria-describedby={draftError ? 'periodo-erro' : undefined}
-          onChange={(e) => editDraft({ ...draft, start: e.target.value })}
+          onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))}
         />
       </Field>
       <Field label="Até" htmlFor="periodo-fim">
@@ -140,16 +169,20 @@ export function IndicatorsPage() {
           max={today}
           aria-invalid={!!draftError || undefined}
           aria-describedby={draftError ? 'periodo-erro' : undefined}
-          onChange={(e) => editDraft({ ...draft, end: e.target.value })}
+          onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))}
         />
       </Field>
       {/* Sem "Aplicar": a data válida já consulta. A inválida diz o motivo e as tabelas ficam no
           período anterior, que o subtítulo de cada uma continua mostrando. */}
-      {draftError && (
-        <p id="periodo-erro" role="alert" className="w-full text-sm text-status-maintenance">
-          {draftError} As tabelas seguem em {periodCaption(period)}.
-        </p>
-      )}
+      {/* Região sempre montada e educada (status), não alert: o leitor de tela lê uma vez, quando a
+          digitação para. Fundo branco: o vermelho sobre o areia da página dava 4,39:1 (critique B). */}
+      <p
+        id="periodo-erro"
+        role="status"
+        className="w-full rounded-md bg-white px-2 py-1 text-sm text-status-maintenance empty:bg-transparent empty:p-0"
+      >
+        {draftError && `${draftError} As tabelas seguem em ${periodCaption(period)}.`}
+      </p>
     </div>
   );
 
@@ -159,20 +192,20 @@ export function IndicatorsPage() {
 
       {down && (
         <ErrorState
-          message="Os indicadores estão fora do ar agora. Reservas, contas e comanda seguem funcionando."
+          message={`Os indicadores estão fora do ar agora. Reservas, contas e comanda seguem funcionando.${retrying ? ' Tentando de novo…' : ''}`}
           onRetry={retryAll}
         />
       )}
 
       <section aria-label="Números do dia" className="space-y-3">
         <KpiCards kpis={kpis} busy={occupancy.isLoading || revenueToday.isLoading} />
-        {!down && occupancy.isError && (
+        {!down && !settling && occupancy.isError && (
           <ErrorState message={occupancy.error.message} onRetry={() => occupancy.refetch()} />
         )}
-        {!down && revenueToday.isError && (
+        {!down && !settling && revenueToday.isError && (
           <ErrorState message={revenueToday.error.message} onRetry={() => revenueToday.refetch()} />
         )}
-        <p className="text-xs text-gray-500 md:hidden">Gráficos, tabelas e ranking ficam na tela do computador.</p>
+        <p className="text-xs text-gray-600 md:hidden">Gráficos, tabelas e ranking ficam na tela do computador.</p>
       </section>
 
       {/* Fora do ar inteiro, os blocos não têm o que mostrar: o aviso do topo basta. */}
@@ -182,38 +215,38 @@ export function IndicatorsPage() {
             <Block
               title="Receita recebida por mês"
               caption={`Pagamentos efetivados · ${periodCaption(monthWindow)}`}
-              isLoading={revenueByMonth.isLoading}
-              error={revenueByMonth.error}
+              {...blockState(revenueByMonth)}
               onRetry={() => revenueByMonth.refetch()}
               isEmpty={monthBars.every((b) => b.value === 0)}
               emptyText="Nenhum pagamento efetivado nesses meses."
+              emptyHint="Escolha mais meses acima."
             >
               <BarChart title="Receita recebida por mês" valueHeader="Recebido" bars={monthBars} />
             </Block>
 
             <Block
               title="Sazonalidade"
-              caption={`Reservas por mês de check-in, inclusive futuras · últimos ${months} meses`}
-              isLoading={seasonality.isLoading}
-              error={seasonality.error}
+              caption={`Reservas por mês de check-in, inclusive futuras · ${seasonCaption(seasonMonths)}`}
+              {...blockState(seasonality)}
               onRetry={() => seasonality.refetch()}
               isEmpty={noSeasonReservations(seasonMonths)}
               emptyText="Nenhuma reserva nesses meses."
+              emptyHint="Escolha mais meses acima."
             >
               <BarChart title="Reservas por mês de check-in" valueHeader="Reservas" detailHeader="Noites em média" bars={seasonBars} />
             </Block>
           </PeriodSection>
 
           <PeriodSection title="No período" control={periodControl}>
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid items-start gap-6 lg:grid-cols-2">
               <Block
                 title="Receita por categoria"
                 caption={`Valor das reservas não canceladas, pela data de check-in · ${periodCaption(period)}`}
-                isLoading={byCategory.isLoading}
-                error={byCategory.error}
+                {...blockState(byCategory)}
                 onRetry={() => byCategory.refetch()}
                 isEmpty={categoryItems.length === 0}
                 emptyText="Nenhuma reserva no período."
+                emptyHint="Troque as datas De e Até."
               >
                 <ShareTable
                   caption="Receita por categoria de quarto"
@@ -227,11 +260,11 @@ export function IndicatorsPage() {
               <Block
                 title="Meios de pagamento"
                 caption={`Pagamentos efetivados · ${periodCaption(period)}`}
-                isLoading={paymentMix.isLoading}
-                error={paymentMix.error}
+                {...blockState(paymentMix)}
                 onRetry={() => paymentMix.refetch()}
                 isEmpty={mixItems.length === 0}
                 emptyText="Nenhum pagamento efetivado no período."
+                emptyHint="Troque as datas De e Até."
               >
                 <ShareTable
                   caption="Recebido por meio de pagamento"
@@ -248,8 +281,7 @@ export function IndicatorsPage() {
             <Block
               title="Hóspedes frequentes"
               caption={`Os ${TOP_GUESTS_LIMIT} com maior valor em reservas não canceladas`}
-              isLoading={topGuests.isLoading}
-              error={topGuests.error}
+              {...blockState(topGuests)}
               onRetry={() => topGuests.refetch()}
               isEmpty={(topGuests.data ?? []).length === 0}
               emptyText="Nenhum hóspede com reserva ainda."
