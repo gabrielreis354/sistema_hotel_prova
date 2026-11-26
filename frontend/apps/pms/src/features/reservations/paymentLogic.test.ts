@@ -7,6 +7,8 @@ import {
   freshBalanceStep,
   paymentBody,
   readPaymentAmount,
+  afterMethodChoice,
+  paymentErrorSlots,
   submitStep,
 } from './paymentLogic.js';
 
@@ -88,6 +90,7 @@ describe('submitStep sem valor a maior (mesa)', () => {
   it('acima do saldo: erro com o saldo e o motivo, sem passo de confirmação', () => {
     expect(submitStep({ reading, method: 'DINHEIRO', confirming: false, allowOverpay: false })).toEqual({
       kind: 'error',
+      field: 'amount',
       error: `Acima do saldo de ${formatBRL(19800)}. Registre só o valor da conta: o troco não entra no sistema.`,
     });
   });
@@ -141,15 +144,36 @@ describe('submitStep — o que o envio do formulário faz (D3, 🟡-1 do qa-redt
   const ok = (cents: number, overpaidCents = 0) => ({ ok: true as const, cents, overpaidCents });
 
   it('valor inválido ou sem método: mostra o erro', () => {
-    expect(submitStep({ reading: { ok: false, error: 'x' }, method: 'PIX', confirming: false })).toEqual({ kind: 'error', error: 'x' });
+    expect(submitStep({ reading: { ok: false, error: 'x' }, method: 'PIX', confirming: false })).toEqual({
+      kind: 'error',
+      field: 'amount',
+      error: 'x',
+    });
     expect(submitStep({ reading: ok(100), method: null, confirming: false })).toEqual({
       kind: 'error',
+      field: 'method',
       error: 'Escolha como o hóspede pagou.',
     });
   });
 
   it('dentro do saldo: envia', () => {
     expect(submitStep({ reading: ok(100), method: 'PIX', confirming: false })).toEqual({ kind: 'send', cents: 100 });
+  });
+
+  // Ensaio de 25/11 (🟡-2): sem o meio, o aviso ia para baixo do valor, que ficava vermelho, e
+  // quem lia rápido entendia que o valor estava errado. O erro diz em qual campo está.
+  it('sem método: o erro é do grupo dos meios, com quem paga no texto', () => {
+    expect(submitStep({ reading: ok(100), method: null, confirming: false, payer: 'o cliente' })).toEqual({
+      kind: 'error',
+      field: 'method',
+      error: 'Escolha como o cliente pagou.',
+    });
+  });
+
+  it('valor inválido e sem método: o do valor vem primeiro', () => {
+    expect(submitStep({ reading: { ok: false, error: 'x' }, method: null, confirming: false })).toMatchObject({
+      field: 'amount',
+    });
   });
 
   it('a maior: primeiro pede confirmação', () => {
@@ -252,5 +276,34 @@ describe('confirmBalanceThenSend — conferir o saldo e só então gravar (🟡-
     await confirmBalanceThenSend({ shownCents: 500, readFresh: async () => 400, ...s });
     expect(s.calls).toHaveLength(1);
     expect(s.calls[0]).toContain('stop:');
+  });
+});
+
+// Ensaio de 25/11 (🟡-2) e red team das correções: o lugar do aviso é regra, não detalhe de tela.
+describe('paymentErrorSlots — em qual campo o aviso aparece', () => {
+  it('erro do meio: só no grupo dos meios; o valor não fica inválido', () => {
+    expect(paymentErrorSlots({ field: 'method', text: 'Escolha como o hóspede pagou.' })).toEqual({
+      amountError: undefined,
+      methodError: 'Escolha como o hóspede pagou.',
+    });
+  });
+
+  it('erro do valor: só embaixo do valor', () => {
+    expect(paymentErrorSlots({ field: 'amount', text: 'x' })).toEqual({ amountError: 'x', methodError: undefined });
+  });
+
+  it('sem erro: nenhum dos dois', () => {
+    expect(paymentErrorSlots(null)).toEqual({ amountError: undefined, methodError: undefined });
+  });
+});
+
+describe('afterMethodChoice — escolher o meio só apaga o aviso do meio', () => {
+  it('apaga o "Escolha como pagou"', () => {
+    expect(afterMethodChoice({ field: 'method', text: 'Escolha como o cliente pagou.' })).toBeNull();
+  });
+
+  it('na mesa, o "Acima do saldo" continua até corrigir o valor', () => {
+    const acima = { field: 'amount' as const, text: 'Acima do saldo de R$ 198,00.' };
+    expect(afterMethodChoice(acima)).toBe(acima);
   });
 });

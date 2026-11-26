@@ -84,8 +84,33 @@ export function paymentBody(target: PaymentTarget, cents: Cents, method: Payment
     : { reservation_id: target.reservationId, amount, method };
 }
 
+/** Onde o erro aparece: embaixo do valor ou no grupo dos meios (ensaio de 25/11, 🟡-2). */
+export type PaymentErrorField = 'amount' | 'method';
+
+/** O aviso do formulário e o campo a que ele pertence. */
+export type PaymentError = { field: PaymentErrorField; text: string };
+
+/**
+ * Onde o aviso aparece. Sem o meio, só no grupo dos meios: o valor, que está certo, não fica
+ * vermelho (ensaio de 25/11, 🟡-2).
+ */
+export function paymentErrorSlots(error: PaymentError | null): { amountError?: string; methodError?: string } {
+  return {
+    amountError: error?.field === 'amount' ? error.text : undefined,
+    methodError: error?.field === 'method' ? error.text : undefined,
+  };
+}
+
+/**
+ * Escolher o meio resolve só o aviso do meio. O do valor (na mesa, "Acima do saldo") continua
+ * até a recepção corrigir o valor (red team das correções de 25/11).
+ */
+export function afterMethodChoice(error: PaymentError | null): PaymentError | null {
+  return error?.field === 'method' ? null : error;
+}
+
 export type SubmitStep =
-  | { kind: 'error'; error: string }
+  | { kind: 'error'; field: PaymentErrorField; error: string }
   | { kind: 'confirm'; overpaidCents: Cents }
   | { kind: 'send'; cents: Cents }
   | { kind: 'wait' };
@@ -100,10 +125,13 @@ export function submitStep({
   method,
   confirming,
   allowOverpay = true,
+  payer = 'o hóspede',
 }: {
   reading: AmountReading;
   method: PaymentMethod | null;
   confirming: boolean;
+  /** Quem paga, no aviso do meio: o mesmo texto da pergunta do formulário. */
+  payer?: string;
   /**
    * Valor a maior permitido (com confirmação). Na reserva sim (D3: vira crédito do hóspede). Na
    * mesa não (decisão de 16/11): não há a quem devolver, e o troco viraria receita no caixa.
@@ -111,11 +139,12 @@ export function submitStep({
   allowOverpay?: boolean;
 }): SubmitStep {
   if (confirming) return { kind: 'wait' };
-  if (!reading.ok) return { kind: 'error', error: reading.error };
-  if (!method) return { kind: 'error', error: 'Escolha como o hóspede pagou.' };
+  if (!reading.ok) return { kind: 'error', field: 'amount', error: reading.error };
+  if (!method) return { kind: 'error', field: 'method', error: `Escolha como ${payer} pagou.` };
   if (reading.overpaidCents > 0 && !allowOverpay) {
     return {
       kind: 'error',
+      field: 'amount',
       error: `Acima do saldo de ${formatBRL(reading.cents - reading.overpaidCents)}. Registre só o valor da conta: o troco não entra no sistema.`,
     };
   }
