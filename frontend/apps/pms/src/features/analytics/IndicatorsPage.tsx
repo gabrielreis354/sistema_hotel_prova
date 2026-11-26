@@ -1,8 +1,8 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { Button, ErrorState, Field, Input, PageHeader, SegmentedControl } from '@hotel/ui';
+import { useMemo, useState } from 'react';
+import { ErrorState, Field, Input, PageHeader, SegmentedControl } from '@hotel/ui';
 import { decimalToCents, formatBRL, formatDateBR, todayISO } from '@hotel/domain';
 import type { Period } from './analyticsApi.js';
-import { defaultPeriod, fillMonths, fillSeasonality, monthLabel, noSeasonReservations, monthlyWindow, periodError, SEASONALITY_WINDOWS } from './period.js';
+import { appliedPeriod, defaultPeriod, fillMonths, fillSeasonality, monthLabel, noSeasonReservations, monthlyWindow, periodError, SEASONALITY_WINDOWS } from './period.js';
 import { buildKpis } from './kpis.js';
 import { methodLabel, toShares } from './shares.js';
 import {
@@ -19,6 +19,8 @@ import { BarChart } from './components/BarChart.js';
 import { KpiCards } from './components/KpiCards.js';
 import { ShareTable } from './components/ShareTable.js';
 import { TopGuests } from './components/TopGuests.js';
+import { PeriodSection } from './components/PeriodSection.js';
+import { allSourcesDown } from './availability.js';
 import { useIsDesktop } from './useIsDesktop.js';
 
 const nights = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -31,8 +33,10 @@ function periodCaption(p: Period): string {
  * Indicadores do gerente (T-05.6, CA-05.6.b e c). Só ADMIN: quem lê indicador é o dono; a
  * recepção tem o painel Hoje (DESIGN_PMS §1).
  *
- * Celular: só os 4 números do dia, em cartões. Desktop: os cartões, a receita por mês, a
- * sazonalidade, categoria × meio de pagamento e o ranking — cada bloco com o próprio período.
+ * Celular: só os 4 números do dia, em cartões. Desktop: os cartões e duas seções, cada uma com o
+ * período no título (F7 da SPEC-10): "Mês a mês" (receita e sazonalidade, 6/12/24 meses) e "No
+ * período" (categoria e meios de pagamento, De/Até). As duas aplicam na hora. O ranking é de todo o
+ * histórico e fica por último.
  */
 export function IndicatorsPage() {
   // Fixo durante a sessão da tela: o dia não "vira" no meio de uma leitura.
@@ -42,6 +46,10 @@ export function IndicatorsPage() {
   const [draft, setDraft] = useState<Period>(() => defaultPeriod(today));
   const [period, setPeriod] = useState<Period>(draft);
   const draftError = periodError(draft);
+  const editDraft = (next: Period) => {
+    setDraft(next);
+    setPeriod((current) => appliedPeriod(current, next));
+  };
   const [months, setMonths] = useState<number>(12);
   const monthWindow = useMemo(() => monthlyWindow(today, months), [today, months]);
 
@@ -57,10 +65,13 @@ export function IndicatorsPage() {
 
   const kpis = buildKpis(occupancy.data, revenueToday.data?.realized?.total);
 
-  function apply(e: FormEvent) {
-    e.preventDefault();
-    if (!draftError) setPeriod(draft);
-  }
+  // O analytics fora do ar inteiro: um aviso só, com uma tentativa para todas as fontes (P3 do audit
+  // da F2). No celular só os números do dia consultam; no computador, todas.
+  const sources = isDesktop
+    ? [occupancy, revenueToday, revenueByMonth, seasonality, byCategory, paymentMix, topGuests]
+    : [occupancy, revenueToday];
+  const down = allSourcesDown(sources);
+  const retryAll = () => sources.forEach((q) => void q.refetch());
 
   // Em centavos já aqui: o total chega como string DECIMAL e a altura da barra precisa de número.
   const byMonth = (revenueByMonth.data?.realized?.by_month ?? []).map((m) => ({
@@ -98,7 +109,7 @@ export function IndicatorsPage() {
     value: m.total ?? 0,
   }));
 
-  const windowActions = (
+  const monthsControl = (
     // Filtro, não ação: o grupo segmentado da lista de reservas (F5), com o ativo tingido.
     <SegmentedControl
       label="Meses no gráfico"
@@ -108,126 +119,144 @@ export function IndicatorsPage() {
     />
   );
 
+  const periodControl = (
+    <div role="group" aria-label="Período das tabelas" className="flex flex-wrap items-end gap-3">
+      <Field label="De" htmlFor="periodo-inicio">
+        <Input
+          id="periodo-inicio"
+          type="date"
+          value={draft.start}
+          max={today}
+          aria-invalid={!!draftError || undefined}
+          aria-describedby={draftError ? 'periodo-erro' : undefined}
+          onChange={(e) => editDraft({ ...draft, start: e.target.value })}
+        />
+      </Field>
+      <Field label="Até" htmlFor="periodo-fim">
+        <Input
+          id="periodo-fim"
+          type="date"
+          value={draft.end}
+          max={today}
+          aria-invalid={!!draftError || undefined}
+          aria-describedby={draftError ? 'periodo-erro' : undefined}
+          onChange={(e) => editDraft({ ...draft, end: e.target.value })}
+        />
+      </Field>
+      {/* Sem "Aplicar": a data válida já consulta. A inválida diz o motivo e as tabelas ficam no
+          período anterior, que o subtítulo de cada uma continua mostrando. */}
+      {draftError && (
+        <p id="periodo-erro" role="alert" className="w-full text-sm text-status-maintenance">
+          {draftError} As tabelas seguem em {periodCaption(period)}.
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader title="Indicadores" context={`Hoje, ${formatDateBR(today)}`} />
 
+      {down && (
+        <ErrorState
+          message="Os indicadores estão fora do ar agora. Reservas, contas e comanda seguem funcionando."
+          onRetry={retryAll}
+        />
+      )}
+
       <section aria-label="Números do dia" className="space-y-3">
         <KpiCards kpis={kpis} busy={occupancy.isLoading || revenueToday.isLoading} />
-        {occupancy.isError && (
+        {!down && occupancy.isError && (
           <ErrorState message={occupancy.error.message} onRetry={() => occupancy.refetch()} />
         )}
-        {revenueToday.isError && (
+        {!down && revenueToday.isError && (
           <ErrorState message={revenueToday.error.message} onRetry={() => revenueToday.refetch()} />
         )}
         <p className="text-xs text-gray-500 md:hidden">Gráficos, tabelas e ranking ficam na tela do computador.</p>
       </section>
 
-      {isDesktop && (
-        <div className="space-y-6">
-          <Block
-            title="Receita recebida por mês"
-            caption={`Pagamentos efetivados · ${periodCaption(monthWindow)}`}
-            isLoading={revenueByMonth.isLoading}
-            error={revenueByMonth.error}
-            onRetry={() => revenueByMonth.refetch()}
-            isEmpty={monthBars.every((b) => b.value === 0)}
-            emptyText="Nenhum pagamento efetivado nesses meses."
-            actions={windowActions}
-          >
-            <BarChart title="Receita recebida por mês" valueHeader="Recebido" bars={monthBars} />
-          </Block>
-
-          <Block
-            title="Sazonalidade"
-            caption={`Reservas por mês de check-in, inclusive futuras · últimos ${months} meses`}
-            isLoading={seasonality.isLoading}
-            error={seasonality.error}
-            onRetry={() => seasonality.refetch()}
-            isEmpty={noSeasonReservations(seasonMonths)}
-            emptyText="Nenhuma reserva nesses meses."
-          >
-            <BarChart title="Reservas por mês de check-in" valueHeader="Reservas" detailHeader="Noites em média" bars={seasonBars} />
-          </Block>
-
-          <form onSubmit={apply} className="flex flex-wrap items-end gap-3" aria-label="Período das tabelas">
-            <Field label="De" htmlFor="periodo-inicio">
-              <Input
-                id="periodo-inicio"
-                type="date"
-                value={draft.start}
-                max={today}
-                onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))}
-              />
-            </Field>
-            <Field label="Até" htmlFor="periodo-fim">
-              <Input
-                id="periodo-fim"
-                type="date"
-                value={draft.end}
-                max={today}
-                onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))}
-              />
-            </Field>
-            <Button type="submit" size="compact" disabled={!!draftError}>
-              Aplicar período
-            </Button>
-            {draftError && (
-              <p role="alert" className="w-full text-sm text-status-maintenance">
-                {draftError}
-              </p>
-            )}
-          </form>
-
-          <div className="grid gap-6 lg:grid-cols-2">
+      {/* Fora do ar inteiro, os blocos não têm o que mostrar: o aviso do topo basta. */}
+      {isDesktop && !down && (
+        <div className="space-y-8">
+          <PeriodSection title="Mês a mês" control={monthsControl}>
             <Block
-              title="Receita por categoria"
-              caption={`Valor das reservas não canceladas, pela data de check-in · ${periodCaption(period)}`}
-              isLoading={byCategory.isLoading}
-              error={byCategory.error}
-              onRetry={() => byCategory.refetch()}
-              isEmpty={categoryItems.length === 0}
-              emptyText="Nenhuma reserva no período."
+              title="Receita recebida por mês"
+              caption={`Pagamentos efetivados · ${periodCaption(monthWindow)}`}
+              isLoading={revenueByMonth.isLoading}
+              error={revenueByMonth.error}
+              onRetry={() => revenueByMonth.refetch()}
+              isEmpty={monthBars.every((b) => b.value === 0)}
+              emptyText="Nenhum pagamento efetivado nesses meses."
             >
-              <ShareTable
-                caption="Receita por categoria de quarto"
-                nameHeader="Categoria"
-                countHeader="Reservas"
-                rows={toShares(categoryItems)}
-                values={categoryItems.map((c) => c.value)}
-              />
+              <BarChart title="Receita recebida por mês" valueHeader="Recebido" bars={monthBars} />
             </Block>
 
             <Block
-              title="Meios de pagamento"
-              caption={`Pagamentos efetivados · ${periodCaption(period)}`}
-              isLoading={paymentMix.isLoading}
-              error={paymentMix.error}
-              onRetry={() => paymentMix.refetch()}
-              isEmpty={mixItems.length === 0}
-              emptyText="Nenhum pagamento efetivado no período."
+              title="Sazonalidade"
+              caption={`Reservas por mês de check-in, inclusive futuras · últimos ${months} meses`}
+              isLoading={seasonality.isLoading}
+              error={seasonality.error}
+              onRetry={() => seasonality.refetch()}
+              isEmpty={noSeasonReservations(seasonMonths)}
+              emptyText="Nenhuma reserva nesses meses."
             >
-              <ShareTable
-                caption="Recebido por meio de pagamento"
-                nameHeader="Meio"
-                countHeader="Pagamentos"
-                rows={toShares(mixItems)}
-                values={mixItems.map((m) => m.value)}
-              />
+              <BarChart title="Reservas por mês de check-in" valueHeader="Reservas" detailHeader="Noites em média" bars={seasonBars} />
             </Block>
-          </div>
+          </PeriodSection>
 
-          <Block
-            title="Hóspedes frequentes"
-            caption={`Os ${TOP_GUESTS_LIMIT} com maior valor em reservas não canceladas · todo o histórico`}
-            isLoading={topGuests.isLoading}
-            error={topGuests.error}
-            onRetry={() => topGuests.refetch()}
-            isEmpty={(topGuests.data ?? []).length === 0}
-            emptyText="Nenhum hóspede com reserva ainda."
-          >
-            <TopGuests rows={topGuests.data ?? []} />
-          </Block>
+          <PeriodSection title="No período" control={periodControl}>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Block
+                title="Receita por categoria"
+                caption={`Valor das reservas não canceladas, pela data de check-in · ${periodCaption(period)}`}
+                isLoading={byCategory.isLoading}
+                error={byCategory.error}
+                onRetry={() => byCategory.refetch()}
+                isEmpty={categoryItems.length === 0}
+                emptyText="Nenhuma reserva no período."
+              >
+                <ShareTable
+                  caption="Receita por categoria de quarto"
+                  nameHeader="Categoria"
+                  countHeader="Reservas"
+                  rows={toShares(categoryItems)}
+                  values={categoryItems.map((c) => c.value)}
+                />
+              </Block>
+
+              <Block
+                title="Meios de pagamento"
+                caption={`Pagamentos efetivados · ${periodCaption(period)}`}
+                isLoading={paymentMix.isLoading}
+                error={paymentMix.error}
+                onRetry={() => paymentMix.refetch()}
+                isEmpty={mixItems.length === 0}
+                emptyText="Nenhum pagamento efetivado no período."
+              >
+                <ShareTable
+                  caption="Recebido por meio de pagamento"
+                  nameHeader="Meio"
+                  countHeader="Pagamentos"
+                  rows={toShares(mixItems)}
+                  values={mixItems.map((m) => m.value)}
+                />
+              </Block>
+            </div>
+          </PeriodSection>
+
+          <PeriodSection title="Todo o histórico" control={null}>
+            <Block
+              title="Hóspedes frequentes"
+              caption={`Os ${TOP_GUESTS_LIMIT} com maior valor em reservas não canceladas`}
+              isLoading={topGuests.isLoading}
+              error={topGuests.error}
+              onRetry={() => topGuests.refetch()}
+              isEmpty={(topGuests.data ?? []).length === 0}
+              emptyText="Nenhum hóspede com reserva ainda."
+            >
+              <TopGuests rows={topGuests.data ?? []} />
+            </Block>
+          </PeriodSection>
         </div>
       )}
     </div>
