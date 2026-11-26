@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import type { UseMutateFunction } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Button, Field, Input } from '@hotel/ui';
+import { Button, Field, Input, SegmentedControl } from '@hotel/ui';
 import { useOpenAccount } from '../queries.js';
 import type { Account, WaiterAccountType } from '../accountsApi.js';
 import { openWithSameLabel, openedAtLabel } from '../accountFilter.js';
@@ -62,18 +62,13 @@ export function OpenAccountForm({
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo da conta">
-        {TYPES.map((t) => (
-          <Button
-            key={t.type}
-            variant={t.type === type ? 'primary' : 'secondary'}
-            aria-pressed={t.type === type}
-            onClick={() => setType(t.type)}
-          >
-            {t.label}
-          </Button>
-        ))}
-      </div>
+      {/* Escolha, não ação: segmento tingido, e o único verde sólido do quadro é "Abrir mesa" (F6). */}
+      <SegmentedControl
+        label="Tipo da conta"
+        value={type}
+        options={TYPES.map((t) => ({ value: t.type, label: t.label }))}
+        onChange={setType}
+      />
       <Field label="Nome na comanda" htmlFor="account-label" error={open.error?.message}>
         <Input
           id="account-label"

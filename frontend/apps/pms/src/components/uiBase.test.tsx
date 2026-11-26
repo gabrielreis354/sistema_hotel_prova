@@ -251,9 +251,9 @@ describe('F5 (25/11): Table e SegmentedControl no @hotel/ui', async () => {
   });
 });
 
-describe('telas encostadas à esquerda na coluna do conteúdo (R-7, F4 e F5)', () => {
-  // A comanda entra na F6; o comprovante é uma folha de papel, centralizada de propósito.
-  const EXCECOES = ['features/accounts/', 'features/reservations/ReservationReceiptPage.tsx', 'components/Placeholder.tsx'];
+describe('telas encostadas à esquerda na coluna do conteúdo (R-7, F4 a F6)', () => {
+  // A comanda entrou na F6. O comprovante é uma folha de papel, centralizada de propósito.
+  const EXCECOES = ['features/reservations/ReservationReceiptPage.tsx', 'components/Placeholder.tsx'];
   it('nenhuma tela centraliza o miolo com mx-auto: ele "pulava" de largura ao trocar de tela', () => {
     const centralizadas = arquivosDoApp()
       .map((a) => path.relative(src, a))

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Button, ErrorState, Spinner } from '@hotel/ui';
+import { Button, ErrorState, SegmentedControl, Spinner } from '@hotel/ui';
 import { decimalToCents, formatBRL } from '@hotel/domain';
 import type { Product } from '../accountsApi.js';
 import { CATEGORY_LABEL, menuCategories } from '../accountFilter.js';
 import { useMenu } from '../queries.js';
 
 /**
- * Cardápio em grade, categorias como chips, preço visível (CA-05.5.b). Um toque lança
+ * Cardápio em grade, categorias num controle segmentado (filtro, não ação: F6 da SPEC-10), preço
+ * visível (CA-05.5.b). Um toque lança
  * quantidade 1 (CA-05.5.c) — sem diálogo, sem tela de quantidade.
  *
  * Toque no produto: só o "afundar" de 150 ms no :active, que confirma o toque (feedback).
@@ -24,8 +25,12 @@ export function MenuGrid({
   disabledReason?: string;
 }) {
   const { data, isLoading, isError, refetch } = useMenu();
-  const [category, setCategory] = useState<Product['category'] | 'ALL'>('ALL');
+  const [category, setCategory] = useState<NonNullable<Product['category']> | 'ALL'>('ALL');
   const categories = useMemo(() => menuCategories(data ?? []), [data]);
+  const categoryOptions = useMemo(
+    () => [{ value: 'ALL' as const, label: 'Tudo' }, ...categories.map((c) => ({ value: c, label: CATEGORY_LABEL[c] }))],
+    [categories],
+  );
   const shown = useMemo(
     () => (data ?? []).filter((p) => category === 'ALL' || p.category === category),
     [data, category],
@@ -44,20 +49,9 @@ export function MenuGrid({
   return (
     <section aria-label="Cardápio" className="space-y-2">
       {categories.length > 1 && (
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Categorias">
-          {(['ALL', ...categories] as const).map((c) => (
-            <Button
-              key={c}
-              size="compact"
-              variant={c === category ? 'primary' : 'secondary'}
-              aria-pressed={c === category}
-              className="min-h-touch shrink-0 rounded-full"
-              onClick={() => setCategory(c)}
-            >
-              {c === 'ALL' ? 'Tudo' : CATEGORY_LABEL[c]}
-            </Button>
-          ))}
-        </div>
+        // No máximo cinco opções (Tudo e as quatro categorias): no celular elas dividem a largura,
+        // sem a rolagem lateral dos antigos chips, que escondia "Serviços" na borda (390 px).
+        <SegmentedControl label="Categorias" value={category} options={categoryOptions} onChange={setCategory} />
       )}
 
       {disabledReason && <p id="menu-disabled-reason" className="text-sm text-gray-600">{disabledReason}</p>}

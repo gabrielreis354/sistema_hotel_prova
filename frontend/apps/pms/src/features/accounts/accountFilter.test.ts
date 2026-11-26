@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterAccounts, menuCategories, openedAtLabel, openWithSameLabel, sortAccounts } from './accountFilter.js';
+import { accountContext, accountStatusBadge, filterAccounts, menuCategories, openedAtLabel, openWithSameLabel, sortAccounts } from './accountFilter.js';
 import type { Account, Product } from './accountsApi.js';
 
 const accounts: Account[] = [
@@ -122,5 +122,42 @@ describe('openedAtLabel — hora de abertura no fuso do hotel (P1)', () => {
 
   it('sem data: nada', () => {
     expect(openedAtLabel(undefined, now)).toBe('');
+  });
+});
+
+describe('accountContext — o tipo embaixo do nome só quando o nome não o diz (F6 da SPEC-10)', () => {
+  it('"Mesa 1" de mesa não repete "Mesa" embaixo', () => {
+    expect(accountContext({ type: 'TABLE', label: 'Mesa 1' })).toBeUndefined();
+  });
+  it('compara sem acento, sem caixa e sem espaço sobrando', () => {
+    expect(accountContext({ type: 'ROOM', label: '  suite 203' })).toBeUndefined();
+    expect(accountContext({ type: 'DAY_USE', label: 'Day-use — piscina' })).toBeUndefined();
+  });
+  it('nome que não começa pelo tipo mostra o tipo', () => {
+    expect(accountContext({ type: 'INTERNAL', label: 'Equipe e perdas — junho' })).toBe('Interna');
+    expect(accountContext({ type: 'TABLE', label: 'Varanda' })).toBe('Mesa');
+  });
+  it('só o começo conta, e por palavra inteira: "Mesanino" não é "Mesa"', () => {
+    expect(accountContext({ type: 'TABLE', label: 'Mesanino 2' })).toBe('Mesa');
+    expect(accountContext({ type: 'DIRECT', label: 'Piscina, balcão' })).toBe('Balcão');
+  });
+  it('hífen vale espaço, e número colado ao tipo ainda é o tipo (🟢-3 do qa-redteam da F6)', () => {
+    expect(accountContext({ type: 'DAY_USE', label: 'Day use piscina' })).toBeUndefined();
+    expect(accountContext({ type: 'TABLE', label: 'Mesa1' })).toBeUndefined();
+    expect(accountContext({ type: 'TABLE', label: 'Mesa-2' })).toBeUndefined();
+  });
+  it('sem tipo, sem contexto', () => {
+    expect(accountContext({ label: 'Mesa 1' })).toBeUndefined();
+  });
+});
+
+describe('accountStatusBadge — selo do estado no cabeçalho da conta (P2 do critique da F6)', () => {
+  it('aberta é o normal: sem selo', () => {
+    expect(accountStatusBadge('OPEN')).toBeUndefined();
+    expect(accountStatusBadge(undefined)).toBeUndefined();
+  });
+  it('fechada e paga ganham ponto e rótulo', () => {
+    expect(accountStatusBadge('CLOSED')).toEqual({ tone: 'cleaning', label: 'Fechada' });
+    expect(accountStatusBadge('PAID')).toEqual({ tone: 'free', label: 'Paga' });
   });
 });

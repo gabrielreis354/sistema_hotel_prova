@@ -1,4 +1,4 @@
-import { formatDateTimeBR } from '@hotel/domain';
+import { formatDateTimeBR, type StatusTone } from '@hotel/domain';
 import type { Account, Product } from './accountsApi.js';
 
 type AccountType = NonNullable<Account['type']>;
@@ -12,6 +12,17 @@ export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   INTERNAL: 'Interna',
 };
 
+/**
+ * Selo do estado da conta no cabeçalho (P2 do critique da F6). Aberta é o normal e não ganha selo.
+ * Fechada em âmbar, de atenção: o backend só a marca como paga quando os pagamentos cobrem o total
+ * (accountBill.js), então fechada em geral ainda tem saldo a receber. Paga em cinza: acabou.
+ */
+export function accountStatusBadge(status: Account['status']): { tone: StatusTone; label: string } | undefined {
+  if (status === 'CLOSED') return { tone: 'cleaning', label: 'Fechada' };
+  if (status === 'PAID') return { tone: 'free', label: 'Paga' };
+  return undefined;
+}
+
 export const CATEGORY_LABEL: Record<Category, string> = {
   DRINK: 'Bebidas',
   FOOD: 'Comidas',
@@ -21,6 +32,23 @@ export const CATEGORY_LABEL: Record<Category, string> = {
 
 const normalize = (text: string) =>
   text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+
+/**
+ * O tipo da conta embaixo do nome, no cabeçalho, só quando o nome não começa por ele. "Mesa 1"
+ * com "Mesa" embaixo repetia a palavra (linha de base da SPEC-10, F6); "Varanda" ou "Equipe e
+ * perdas" precisam do tipo para o garçom saber o que é. Palavra inteira: "Mesanino" não é mesa.
+ */
+export function accountContext(account: Pick<Account, 'type' | 'label'>): string | undefined {
+  if (!account.type) return undefined;
+  const type = ACCOUNT_TYPE_LABEL[account.type];
+  // Hífen vale espaço ("Day use" é "Day-use"); só letra colada desfaz a palavra ("Mesanino"), número
+  // não ("Mesa1" é a mesa 1) (🟢-3 do qa-redteam da F6).
+  const words = (text: string) => normalize(text).replace(/[-\s]+/g, ' ');
+  const label = words(account.label ?? '');
+  const prefix = words(type);
+  const repeats = label.startsWith(prefix) && !/\p{L}/u.test(label.charAt(prefix.length));
+  return repeats ? undefined : type;
+}
 
 /**
  * Busca da lista de contas por rótulo ("Mesa 5", "Suíte 201") e pelo tipo. O número do quarto

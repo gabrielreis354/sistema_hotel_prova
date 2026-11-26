@@ -316,7 +316,7 @@ function MobileTabs({ primary, more }: { primary: NavItem[]; more: NavItem[] }) 
             onClick={() => setOpen((v) => !v)}
             className={cn(
               TAB,
-              'rounded-none font-normal hover:bg-transparent focus-visible:ring-inset focus-visible:ring-brand focus-visible:ring-offset-0',
+              'rounded-none font-normal [@media(hover:hover)]:hover:bg-transparent focus-visible:ring-inset focus-visible:ring-brand focus-visible:ring-offset-0',
               moreTabClass(open, inMore),
             )}
           >

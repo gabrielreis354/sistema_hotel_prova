@@ -303,6 +303,11 @@ Os mesmos critérios do login (§6), adaptados à tela:
     1,3:1 sobre o areia) não entra na regra dos 3:1. Quem identifica o botão é o texto (WCAG 1.4.11
     dispensa a borda nesse caso), e o foco tem o anel da marca (≥ 6,6:1). É a mesma borda dos campos
     de texto e do "Sair". Achado 🟡3 do qa-redteam da F2;
+- *comanda (decisões do Sirlande de 26/11, F6):* no computador, conta e cardápio em duas colunas
+  só a partir de 1280 px (em 1024 com a barra lateral o cardápio ficava com 284 px); categorias e
+  Mesa/Balcão no `SegmentedControl`; "Abrir conta" e o total no mesmo rodapé fixo (`StickyFooter`);
+  selo "Fechada"/"Paga" no cabeçalho da conta. A hierarquia das ações da recepção ficou para o
+  Gabriel (`docs/qa/repasses/para_gabriel_26112026.md`);
 - `qa_checks.sh` sem aviso novo nas regras 9a, 9b e 9c;
 - **roteiro e2e verde.** Ele passa pelas telas do roteiro, inclusive pelo login (§9);
 - `/impeccable audit` e `/impeccable critique` antes do polimento (`DESIGN_PMS.md` §6), depois o

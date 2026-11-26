@@ -132,9 +132,17 @@ function EntryState({ status }: { status: QueueEntry['status'] }) {
   );
 }
 
-function Row({ children, entryId }: { children: React.ReactNode; entryId?: string }) {
+/**
+ * `wrap` (F6 da SPEC-10): na janela de desfazer, abaixo de 640 px, o nome fica com a linha toda e o
+ * campo de quantidade e o "Desfazer" descem para a linha de baixo, à direita. Ao lado do campo, o
+ * nome quebrava no meio ("Água / mineral") na hora em que o garçom confere o que tocou.
+ */
+function Row({ children, entryId, wrap = false }: { children: React.ReactNode; entryId?: string; wrap?: boolean }) {
   return (
-    <li data-entry={entryId} className="flex min-h-touch items-center gap-3 px-3 py-2">
+    <li
+      data-entry={entryId}
+      className={`flex min-h-touch items-center gap-x-3 px-3 py-2 ${wrap ? 'flex-wrap gap-y-1 sm:flex-nowrap' : ''}`}
+    >
       {children}
     </li>
   );
@@ -151,6 +159,10 @@ const isSettled = (e: QueueEntry) => e.status === 'rejected' || e.status === 'ex
  * empurrava o cardápio para baixo, e o toque seguinte caía no produto errado. Com a caixa do
  * mesmo tamanho, vazia ou cheia, o cardápio não se mexe. O último lançamento fica à vista:
  * a caixa rola até o fim quando entra item.
+ *
+ * A partir de 1280 px (F6 da SPEC-10) o cardápio fica ao lado, e a caixa cresce com o conteúdo até
+ * 28rem, sem nunca ficar menor que no celular: a recepção confere a conta da suíte sem rolar numa
+ * caixa de quatro linhas (P1 do critique da F6).
  */
 export function ItemList({
   items,
@@ -174,7 +186,9 @@ export function ItemList({
   // puxam a lista de quem subiu para conferir um item antigo.
   const [editingId, setEditingId] = useState<string | null>(null);
   const lastTap = lastTapAt(entries, editingId);
-  const focusList = useCallback(() => box.current?.focus(), []);
+  // preventScroll: focar a caixa não pode rolar a página. No celular, com a página rolada até o fim do
+  // cardápio, o foco subia a página 74 px e o toque seguinte caía noutro produto (🟡-1 da delta da F6).
+  const focusList = useCallback(() => box.current?.focus({ preventScroll: true }), []);
   const seenTap = useRef(-1);
   useEffect(() => {
     if (lastTap > seenTap.current && box.current) box.current.scrollTop = box.current.scrollHeight;
@@ -209,10 +223,10 @@ export function ItemList({
       role="region"
       aria-label="Itens lançados"
       tabIndex={0}
-      className="relative h-44 shrink-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      className="relative h-44 shrink-0 overflow-y-auto overscroll-contain xl:flex xl:h-auto xl:max-h-[28rem] xl:min-h-44 xl:flex-col rounded-lg border border-gray-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       {items.length === 0 && entries.length === 0 ? (
-        <p className="flex h-full items-center justify-center px-4 text-center text-sm text-gray-600">
+        <p className="flex h-full items-center justify-center px-4 text-center text-sm text-gray-600 xl:flex-1">
           Nada lançado ainda. Toque num produto do cardápio.
         </p>
       ) : (
@@ -240,18 +254,24 @@ export function ItemList({
         {entries.map((entry) => {
           const price = multiplyCents(decimalToCents(entry.unitPrice), entry.quantity);
           const settled = isSettled(entry);
+          const undoable = canUndo(entry, now);
           return (
-            <Row key={entry.clientItemId} entryId={entry.clientItemId}>
-              <div className="min-w-0 flex-1">
+            <Row key={entry.clientItemId} entryId={entry.clientItemId} wrap={undoable}>
+              <div className={`min-w-0 flex-1 ${undoable ? 'basis-full sm:basis-0' : ''}`}>
                 <p className={`line-clamp-2 break-words text-sm ${settled ? 'text-gray-500 line-through' : ''}`}>
                   {/* Na janela de desfazer, a quantidade está no campo ao lado: o "6×" repetido só
                       tirava espaço do nome do produto no celular. */}
-                  {entry.quantity !== 1 && !canUndo(entry, now) && (
+                  {entry.quantity !== 1 && !undoable && (
                     <span className="mr-1 font-medium tabular-nums">{entry.quantity}×</span>
                   )}
                   {entry.description}
                 </p>
-                <EntryState status={entry.status} />
+                {/* Na janela de desfazer, no celular, o estado desce para a linha dos controles: a linha
+                    fica com ~88 px e a caixa mostra dois lançamentos inteiros, com o nome (🟡-1 do
+                    qa-redteam da F6). Um nó só aparece por vez (display:none no outro). */}
+                <span className={undoable ? 'hidden sm:block' : undefined}>
+                  <EntryState status={entry.status} />
+                </span>
                 {entry.reason && (
                   <p
                     role={freshSettled.has(entry.clientItemId) ? 'alert' : undefined}
@@ -261,35 +281,45 @@ export function ItemList({
                   </p>
                 )}
               </div>
-              {canUndo(entry, now) && (
-                <QuantityField
-                  quantity={entry.quantity}
-                  description={entry.description}
-                  onChange={(n) => onQuantity(entry.clientItemId, n)}
-                  onEditing={(on) => setEditingId(on ? entry.clientItemId : null)}
-                  onLostFocus={focusList}
-                />
-              )}
-              {canUndo(entry, now) && (
-                <Button
-                  variant="ghost"
-                  aria-label={undoAccessibleName(entry.quantity, entry.description)}
-                  onClick={() => onUndo(entry.clientItemId)}
-                >
-                  {undoLabel(entry.quantity)}
-                  {/* Segundos que restam, só para quem vê: o nome acessível acima é fixo. Sem
-                      animação — o número muda a cada segundo pelo relógio que já esconde o botão. */}
-                  <span aria-hidden className="ml-1 text-sm text-gray-600">
-                    ({undoSecondsLeft(entry.undoUntil, now)} s)
+              {undoable && (
+                <div className="flex w-full shrink-0 items-start gap-3 sm:ml-auto sm:w-auto">
+                  <span className="mr-auto self-center sm:hidden">
+                    <EntryState status={entry.status} />
                   </span>
-                </Button>
+                  <QuantityField
+                    quantity={entry.quantity}
+                    description={entry.description}
+                    onChange={(n) => onQuantity(entry.clientItemId, n)}
+                    onEditing={(on) => setEditingId(on ? entry.clientItemId : null)}
+                    onLostFocus={focusList}
+                  />
+                  {/* Sem quebra: em 360 px o "(5 s)" caía para a linha de baixo; quem quebra é o estado. */}
+                  <Button
+                    variant="ghost"
+                    className="whitespace-nowrap"
+                    aria-label={undoAccessibleName(entry.quantity, entry.description)}
+                    onClick={() => {
+                      onUndo(entry.clientItemId);
+                      // Com 1 unidade a linha sai e leva o botão focado: o foco iria para o body. Vai para a
+                      // lista, como no campo de quantidade (repasse do qa-redteam da F6, WCAG 2.4.3).
+                      if (entry.quantity === 1) focusList();
+                    }}
+                  >
+                    {undoLabel(entry.quantity)}
+                    {/* Segundos que restam, só para quem vê: o nome acessível acima é fixo. Sem
+                        animação — o número muda a cada segundo pelo relógio que já esconde o botão. */}
+                    <span aria-hidden className="ml-1 text-sm text-gray-600">
+                      ({undoSecondsLeft(entry.undoUntil, now)} s)
+                    </span>
+                  </Button>
+                </div>
               )}
               {settled && (
                 <Button variant="ghost" onClick={() => onDismiss(entry.clientItemId)}>
                   OK
                 </Button>
               )}
-              {!settled && !canUndo(entry, now) && (
+              {!settled && !undoable && (
                 <span className="tabular-nums text-sm text-gray-600">{formatBRL(price)}</span>
               )}
             </Row>
