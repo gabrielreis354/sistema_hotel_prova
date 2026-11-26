@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ErrorState, PageHeader, Spinner } from '@hotel/ui';
+import { ErrorState, PageHeader, Spinner, StatusBadge } from '@hotel/ui';
 import { formatBRL } from '@hotel/domain';
 import { useAuthStore } from '../../stores/auth.js';
 import { useAccount } from './queries.js';
@@ -9,9 +9,10 @@ import { awaitsServer, pendingFor } from './queueCore.js';
 import { looksOffline, offlineReason, useOnline } from './connection.js';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { footerTotals } from './accountTotals.js';
-import { accountContext } from './accountFilter.js';
+import { accountContext, accountStatusBadge } from './accountFilter.js';
 import { BackLink } from '../../components/links.js';
 import { InfoNotice } from './components/InfoNotice.js';
+import { StickyFooter } from './components/StickyFooter.js';
 import { ItemList } from './components/ItemList.js';
 import { MenuGrid } from './components/MenuGrid.js';
 import { StaffActions } from './components/StaffActions.js';
@@ -77,6 +78,17 @@ export function AccountPage() {
   const stale = isError || fetchStatus === 'paused';
   // Na conta da suíte, o rodapé soma só o consumo: a diária está no bill (Ver conta).
   const totalLabel = account.type === 'ROOM' && account.charges_lodging ? 'Consumo' : 'Total';
+  // Fechada ou paga ganha selo no cabeçalho, com ponto e rótulo; aberta é o normal e não ganha
+  // (P2 do critique da F6: antes, só um texto cinza acima do cardápio dizia que estava fechada).
+  const typeContext = accountContext(account);
+  const statusBadge = accountStatusBadge(account.status);
+  const headerContext =
+    typeContext || statusBadge ? (
+      <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+        {typeContext}
+        {statusBadge && <StatusBadge tone={statusBadge.tone} label={statusBadge.label} />}
+      </span>
+    ) : undefined;
 
   const tap = (product: Product) => {
     if (!user || !product.id) return;
@@ -95,13 +107,14 @@ export function AccountPage() {
     // outras telas (R-7), com a largura do detalhe da reserva.
     <div className="flex max-w-xl flex-col gap-3 xl:max-w-5xl">
       <BackToAccounts />
-      <PageHeader title={account.label} context={accountContext(account)} />
+      <PageHeader title={account.label} context={headerContext} />
       <OfflineBanner offline={offline} waiting={waiting} elsewhere={elsewhere} reason={offlineReason(online)} />
-      {/* Sem rede, a faixa acima já avisa: esta linha fica para o erro do servidor com rede. */}
+      {/* Sem rede, a faixa acima já avisa: este aviso fica para o erro do servidor com rede. No formato
+          dos outros avisos da tela, não em letra miúda: é a hora de mais dúvida do garçom (P2 do critique da F6). */}
       {stale && !offline && (
-        <p role="status" className="text-xs text-gray-600">
+        <InfoNotice>
           Sem conexão com o sistema: mostrando a última versão da conta. Os lançamentos ficam na fila.
-        </p>
+        </InfoNotice>
       )}
 
       {othersHere > 0 && (
@@ -140,12 +153,9 @@ export function AccountPage() {
           )}
         </div>
 
-        {/* Rodapé fixo com o total (CA-05.5.d), acima da barra de navegação do celular. */}
-        {/* Preso logo acima da barra do celular (--tabbar da casca: 3rem, ou 0 para o garçom, que não tem
-            barra) mais a folga da barra de gestos (SPEC-10, R-4). No celular vai de borda a borda da tela;
-            do tablet em diante vira cartão na largura da coluna, sem passar das laterais (F6); no xl fica
-            parado embaixo dos itens, porque o cardápio está ao lado e não empurra nada. */}
-        <div className="sticky bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))] z-10 -mx-4 space-y-2 border-t border-gray-200 bg-white px-4 py-3 md:bottom-3 md:mx-0 md:rounded-lg md:border xl:static xl:col-start-1 xl:row-start-2">
+        {/* Rodapé fixo com o total (CA-05.5.d). No xl fica parado embaixo dos itens, porque o cardápio
+            está ao lado e não empurra nada. */}
+        <StickyFooter className="space-y-2 xl:static xl:col-start-1 xl:row-start-2">
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-gray-600">{totalLabel}</span>
             <span className="tabular-nums text-xl font-semibold">{formatBRL(totals.totalCents)}</span>
@@ -163,7 +173,7 @@ export function AccountPage() {
               onToggleReceive={() => setReceiving((v) => !v)}
             />
           )}
-        </div>
+        </StickyFooter>
       </div>
     </div>
   );

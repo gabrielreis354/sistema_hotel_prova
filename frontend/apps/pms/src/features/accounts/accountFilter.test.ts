@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { accountContext, filterAccounts, menuCategories, openedAtLabel, openWithSameLabel, sortAccounts } from './accountFilter.js';
+import { accountContext, accountStatusBadge, filterAccounts, menuCategories, openedAtLabel, openWithSameLabel, sortAccounts } from './accountFilter.js';
 import type { Account, Product } from './accountsApi.js';
 
 const accounts: Account[] = [
@@ -148,5 +148,16 @@ describe('accountContext — o tipo embaixo do nome só quando o nome não o diz
   });
   it('sem tipo, sem contexto', () => {
     expect(accountContext({ label: 'Mesa 1' })).toBeUndefined();
+  });
+});
+
+describe('accountStatusBadge — selo do estado no cabeçalho da conta (P2 do critique da F6)', () => {
+  it('aberta é o normal: sem selo', () => {
+    expect(accountStatusBadge('OPEN')).toBeUndefined();
+    expect(accountStatusBadge(undefined)).toBeUndefined();
+  });
+  it('fechada e paga ganham ponto e rótulo', () => {
+    expect(accountStatusBadge('CLOSED')).toEqual({ tone: 'cleaning', label: 'Fechada' });
+    expect(accountStatusBadge('PAID')).toEqual({ tone: 'free', label: 'Paga' });
   });
 });

@@ -9,6 +9,7 @@ import { filterAccounts, openedAtLabel, sortAccounts } from './accountFilter.js'
 import { receiveLabel } from './accountTotals.js';
 import { InfoNotice } from './components/InfoNotice.js';
 import { OpenAccountForm } from './components/OpenAccountForm.js';
+import { StickyFooter } from './components/StickyFooter.js';
 
 /**
  * Tela inicial do garçom: as contas abertas, sem tela intermediária (CA-05.5.a). Um toque na
@@ -45,17 +46,6 @@ export function AccountsListPage() {
   const [opening, setOpening] = useState(false);
   const filtered = useMemo(() => sortAccounts(filterAccounts(data ?? [], term)), [data, term]);
 
-  const openForm = opening ? (
-    <OpenAccountForm
-      openAccounts={data ?? []}
-      onCancel={() => setOpening(false)}
-      onOpened={(account) => navigate(`/comanda/${account.id}`)}
-    />
-  ) : (
-    <Button block onClick={() => setOpening(true)}>
-      Abrir conta
-    </Button>
-  );
 
   return (
     // Encostada à esquerda, como as outras telas (R-7, F6 da SPEC-10).
@@ -145,7 +135,25 @@ export function AccountsListPage() {
         </>
       )}
 
-      {(data?.length ?? 0) > 0 || opening ? <div className="pt-1">{openForm}</div> : null}
+      {/* O formulário abre no fim da lista, no fluxo (o autoFocus o traz à vista). O botão fica preso ao pé
+          da tela, ao alcance do polegar com qualquer número de contas (CA-05.5.i; P1 do critique da F6). */}
+      {opening ? (
+        <div className="pt-1">
+          <OpenAccountForm
+            openAccounts={data ?? []}
+            onCancel={() => setOpening(false)}
+            onOpened={(account) => navigate(`/comanda/${account.id}`)}
+          />
+        </div>
+      ) : (
+        (data?.length ?? 0) > 0 && (
+          <StickyFooter>
+            <Button block onClick={() => setOpening(true)}>
+              Abrir conta
+            </Button>
+          </StickyFooter>
+        )
+      )}
     </div>
   );
 }

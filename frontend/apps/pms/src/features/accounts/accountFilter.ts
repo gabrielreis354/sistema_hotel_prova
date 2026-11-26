@@ -1,4 +1,4 @@
-import { formatDateTimeBR } from '@hotel/domain';
+import { formatDateTimeBR, type StatusTone } from '@hotel/domain';
 import type { Account, Product } from './accountsApi.js';
 
 type AccountType = NonNullable<Account['type']>;
@@ -11,6 +11,17 @@ export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   DAY_USE: 'Day-use',
   INTERNAL: 'Interna',
 };
+
+/**
+ * Selo do estado da conta no cabeçalho (P2 do critique da F6). Aberta é o normal e não ganha selo.
+ * Fechada em âmbar, de atenção: o backend só a marca como paga quando os pagamentos cobrem o total
+ * (accountBill.js), então fechada em geral ainda tem saldo a receber. Paga em cinza: acabou.
+ */
+export function accountStatusBadge(status: Account['status']): { tone: StatusTone; label: string } | undefined {
+  if (status === 'CLOSED') return { tone: 'cleaning', label: 'Fechada' };
+  if (status === 'PAID') return { tone: 'free', label: 'Paga' };
+  return undefined;
+}
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   DRINK: 'Bebidas',

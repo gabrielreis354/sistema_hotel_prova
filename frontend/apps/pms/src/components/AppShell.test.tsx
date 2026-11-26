@@ -104,11 +104,15 @@ describe('barra do celular (SPEC-10, R-4)', () => {
   });
 
   it('o que fica preso acima da barra soma a mesma folga (total da comanda e folha do Mais)', () => {
-    const conta = readFileSync(path.join(raiz, 'src/features/accounts/AccountPage.tsx'), 'utf-8');
+    const rodape = readFileSync(path.join(raiz, 'src/features/accounts/components/StickyFooter.tsx'), 'utf-8');
     const casca = readFileSync(path.join(raiz, 'src/components/AppShell.tsx'), 'utf-8');
     // A comanda lê a altura da barra da casca (--tabbar): sem barra (garçom), o total desce até a folga.
     // Com valor padrão: fora da casca a página fica como antes, acima de uma barra de 3rem (🟢 do redteam da F2).
-    expect(conta).toContain('bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))]');
+    // Desde a F6 a classe mora no StickyFooter, que o total da conta e o "Abrir conta" da lista usam.
+    expect(rodape).toContain('bottom-[calc(var(--tabbar,3rem)+max(6px,env(safe-area-inset-bottom)))]');
+    for (const tela of ['AccountPage.tsx', 'AccountsListPage.tsx']) {
+      expect(readFileSync(path.join(raiz, 'src/features/accounts', tela), 'utf-8')).toContain('<StickyFooter');
+    }
     expect(casca).toContain('bottom-[calc(3rem+max(6px,env(safe-area-inset-bottom)))]');
   });
 });
