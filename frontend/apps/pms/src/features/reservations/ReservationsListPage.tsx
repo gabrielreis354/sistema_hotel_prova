@@ -59,8 +59,8 @@ export function ReservationsListPage() {
   })?.id;
 
   return (
-    // À esquerda, como o detalhe e a nova reserva (R-7): o fluxo lista → detalhe não "pula" (🟡3 do qa-redteam da F4).
-    <div className="max-w-5xl space-y-4">
+    // Lista na coluna inteira, como o Hoje e os Indicadores (R-7 revista em 26/11). O detalhe segue com 1024 px.
+    <div className="space-y-4">
       <PageHeader title="Reservas" action={<ButtonLink to="/reservas/nova" size="compact">Nova reserva</ButtonLink>} />
 
       <Card className="space-y-3 p-4">

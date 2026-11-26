@@ -263,4 +263,22 @@ describe('telas encostadas à esquerda na coluna do conteúdo (R-7, F4 a F6)', (
       .filter((rel) => /className="[^"]*\bmx-auto\b/.test(readFileSync(path.join(src, rel), 'utf-8')));
     expect(centralizadas).toEqual([]);
   });
+
+  // R-7 revista em 26/11 (Sirlande): as listas ocupam a coluna inteira, como o Hoje e os Indicadores.
+  // Com 896 ou 1024 px sobrava uma faixa vazia à direita do monitor. Formulário e detalhe seguem estreitos.
+  it('as listas não limitam a largura da raiz', () => {
+    const LISTAS = [
+      'features/reservations/ReservationsListPage.tsx',
+      'features/guests/GuestsListPage.tsx',
+      'features/rooms/RoomsListPage.tsx',
+      'features/rooms/CategoriesListPage.tsx',
+      'features/accounts/AccountsListPage.tsx',
+    ];
+    const limitadas = LISTAS.filter((rel) => {
+      const raiz = readFileSync(path.join(src, rel), 'utf-8').match(/return \(\s*(?:\/\/[^\n]*\n\s*)*<div className="([^"]*)"/);
+      expect(raiz, `${rel}: raiz não encontrada`).not.toBeNull();
+      return /\bmax-w-/.test(raiz?.[1] ?? '');
+    });
+    expect(limitadas).toEqual([]);
+  });
 });

@@ -23,7 +23,8 @@ export function CategoriesListPage() {
   );
 
   return (
-    <div className="max-w-5xl space-y-4">
+    // Lista na coluna inteira, como o Hoje (R-7 revista em 26/11).
+    <div className="space-y-4">
       <RoomsHeader title="Categorias" action={newCategory} />
       {!canWrite && <ReadOnlyNotice />}
 
