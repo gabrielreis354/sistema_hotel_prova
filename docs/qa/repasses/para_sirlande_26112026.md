@@ -8,3 +8,12 @@ Origem: qa-redteam da F6 da SPEC-10 (`docs/qa/redteam_spec10-fase6-comanda_26112
 **Correção sugerida:** no `onClick` do "Desfazer", quando `entry.quantity === 1` (a linha vai sumir), chamar `focusList()` depois do `onUndo`. Outra saída é um efeito que foque a região "Itens lançados" quando o elemento ativo for desmontado.
 
 **Resolvido em 26/11, na própria F6** (decisão do Sirlande): `focusList()` depois do `onUndo` quando a quantidade é 1 (`e965d60`). Conferido no navegador: depois do Enter no "Desfazer", o foco fica na região "Itens lançados".
+
+---
+Origem: qa-redteam DELTA da F6 (`docs/qa/redteam_spec10-fase6-comanda_delta_26112026.md`). É anterior à branch (o formulário e o botão já se alternavam antes de 10fb4a5) e por isso não entra no veredito.
+
+### 🟢 [A11y] "Cancelar" do formulário de abrir conta derruba o foco no `<body>`
+**Onde:** `frontend/apps/pms/src/features/accounts/components/OpenAccountForm.tsx:100` (`onClick={onCancel}`) + `frontend/apps/pms/src/features/accounts/AccountsListPage.tsx:140-156`
+**Cenário:** medido ao vivo como garçom a 360×740. Ele toca em "Abrir conta", que desmonta o botão e foca o campo. Depois toca em "Cancelar". O formulário desmonta com o botão focado dentro, o "Abrir conta" volta como um nó novo no `StickyFooter`, e o `document.activeElement` passa a ser o `BODY`. Para o leitor de tela, o próximo Tab recomeça do topo.
+**Regra violada:** WCAG 2.4.3 (ordem de foco), a mesma família do repasse do "Desfazer" acima.
+**Correção sugerida:** um `ref` no botão "Abrir conta" e, no `onCancel`, `setOpening(false)` seguido do foco nesse botão depois do render (num `useEffect` que olha `opening` e só age depois de um cancelamento). Pode ficar para depois do congelamento.
