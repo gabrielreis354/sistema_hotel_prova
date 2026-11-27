@@ -1,0 +1,3 @@
+# Copie para terraform.tfvars (fora do Git) e ajuste.
+budget_emails = ["gesway.sistema@gmail.com"]
+# state_bucket_name = "gesway-tfstate-<sufixo>"  # se o nome padrão já existir na AWS
