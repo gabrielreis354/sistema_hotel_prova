@@ -141,10 +141,10 @@ describe('fita: o que só a captura via antes (🟡6 do qa-redteam da F3)', () =
     expect(contagem(html, 'Chega hoje')).toBe('0');
   });
 
-  it('os vendidos mostram o número recebido, e "no prazo" explica a chegada atrasada fora dele', () => {
+  it('os vendidos mostram o número recebido e dizem o que medem: quartos com hóspede esta noite (D-6, 26/11)', () => {
     const html = view({ sold: 7 });
     expect(html).toMatch(/Vendidos hoje<\/span><span[^>]*>7<\/span>/);
-    expect(html).toContain('ocupados + chegadas no prazo');
+    expect(html).toContain('quartos com hóspede esta noite');
     expect(view({ sold: null })).toMatch(/Vendidos hoje<\/span><span[^>]*>—<\/span>/);
   });
 

@@ -1,3 +1,5 @@
+import type { StripRoom, StripRoomInput } from './hotelStrip.js';
+
 /**
  * Regras do painel "Hoje" (T-05.3) — sem React, sem rede, testadas em todayLogic.test.ts.
  *
@@ -98,12 +100,27 @@ export function inHouseRows<R extends TodayReservation>(inHouse: R[]): R[] {
 }
 
 /**
- * "Vendidos hoje" (D-6, decisão do Gabriel de 04/11): ocupados agora + chegadas DE HOJE que
- * ainda não fizeram check-in. A chegada atrasada não entra — a noite dela já passou.
- * Reserva com vários quartos conta 1 (só o principal vem na lista — D-5, pendência).
+ * "Vendidos hoje" (D-6, revista pelo Gabriel em 26/11): os quartos DISTINTOS com hóspede esta noite.
+ * Entram os ocupados cuja saída não é hoje (a saída atrasada entra: o hóspede segue no quarto) e os
+ * quartos das chegadas de hoje que ainda não fizeram check-in. A troca do dia (sai hoje, chega hoje no
+ * mesmo quarto) conta uma vez: antes somava ocupados + chegadas e passava do total de quartos. A
+ * chegada atrasada não entra — a noite dela já passou.
+ *
+ * Limite aceito (D-5, pendência): reserva com vários quartos só traz o principal nas listas. A chegada
+ * conta só o principal, e o quarto extra de quem sai hoje não tem a marca de saída e continua contado.
+ * O seed da demonstração não tem esse caso; a correção pede a `reservation_rooms` na listagem.
  */
-export function soldToday(occupied: number, arrivals: ArrivalRow[]): number {
-  return occupied + arrivals.filter((a) => !a.late).length;
+export function soldToday(rooms: readonly StripRoom[], arrivals: readonly ArrivalRow[]): number {
+  const sold = new Set<string>();
+  for (const room of rooms) {
+    const leavesToday = room.departing && !room.departureLate;
+    if (room.tone === 'occupied' && !leavesToday) sold.add(room.id);
+  }
+  for (const a of arrivals) {
+    const id = a.reservation.room?.id;
+    if (id && !a.late) sold.add(id);
+  }
+  return sold.size;
 }
 
 // ─── /analytics/alerts ───────────────────────────────────────────────────────────────
@@ -145,6 +162,28 @@ export function toTodayAlerts(raw: RawAlerts): TodayAlerts {
   }
 
   return { noShowIds, cleaning, pendingTooLong: raw.totals?.pending_too_long ?? (raw.pending_too_long ?? []).length };
+}
+
+/**
+ * "Em limpeza" (resposta 1 do Gabriel, 26/11): a lista sai do status CLEANING do core, que a fita já
+ * carrega. "Liberar quarto" é ação de balcão e não pode sumir quando o analytics cai. O analytics só
+ * complementa com o "em limpeza desde" (o core não guarda essa hora), cruzado pelo id: quarto que o
+ * analytics ainda acha em limpeza e o core já liberou não aparece. Quem espera há mais tempo vem
+ * primeiro; sem a hora, em ordem de quarto, depois dos que têm.
+ */
+export function cleaningRows(rooms: readonly StripRoomInput[], analytics: readonly CleaningRoom[] | undefined): CleaningRoom[] {
+  const since = new Map((analytics ?? []).map((c) => [c.id, c.since]));
+  const rows: CleaningRoom[] = [];
+  for (const room of rooms) {
+    if (room.status !== 'CLEANING' || !room.id) continue;
+    rows.push({ id: room.id, number: room.number ?? '—', category: room.category?.name ?? '', since: since.get(room.id) });
+  }
+  return rows.sort((a, b) => {
+    if (a.since && b.since && a.since !== b.since) return a.since < b.since ? -1 : 1;
+    if (a.since && !b.since) return -1;
+    if (!a.since && b.since) return 1;
+    return a.number.localeCompare(b.number, 'pt-BR', { numeric: true });
+  });
 }
 
 /** Percentual de ocupação em pt-BR, sem casas inúteis ("72,5%", "100%"). Não é dinheiro. */

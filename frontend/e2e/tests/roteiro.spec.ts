@@ -103,6 +103,8 @@ test.describe.serial('Roteiro de demonstração', () => {
     await page.waitForURL(/\/reservas\/[0-9a-f-]{36}/, { timeout: 15_000 });
     ctx.resId = page.url().match(/reservas\/([0-9a-f-]{36})/)![1];
     await page.getByRole('button', { name: /fazer check-in/i }).first().click();
+    // O check-in não se desfaz: confirma no painel, como no painel Hoje (resposta 4 do Gabriel, 26/11).
+    await page.getByRole('button', { name: 'Confirmar check-in' }).click();
     await expect(page.getByText(/check-in feito/i).first()).toBeVisible();
     const r = await api<{ status: string }>(tkRecep, 'GET', `/reservations/${ctx.resId}`);
     expect(r.status).toBe('CHECKED_IN');

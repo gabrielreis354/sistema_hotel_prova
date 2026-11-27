@@ -157,7 +157,8 @@ Para cada passo: o que fazer, o que a banca deve ver e uma frase para dizer.
    com dígito errado e CPF repetido).
 2. Entrada **hoje**, saída **amanhã**. Escolha o quarto 902.
 3. **Mostre o valor** que aparece antes de confirmar. **Confirmar reserva.**
-4. No detalhe da reserva, **Fazer check-in.**
+4. No detalhe da reserva, **Fazer check-in** e, no painel que abre logo abaixo, **Confirmar check-in.** O
+   check-in não se desfaz, por isso pede a confirmação, como no painel Hoje.
 
 **A banca vê:** a reserva passa a "hospedado", e o quarto, a ocupado.
 **Dizer:** "É o *walk-in* do balcão: a reserva nasce pendente e vai direto ao check-in. O check-in
@@ -252,7 +253,7 @@ Siga a tabela de "Durante a demonstração" do [guia do passo 8](PASSO_8_GRAFANA
 | Login diz "Muitas tentativas de entrar a partir desta rede" | O nginx limita a 5 logins por minuto por IP. Espere um minuto |
 | Painel Hoje ou Indicadores zerados | Rode o `seed` de novo (é do dia) e, para os indicadores, o `outbox-initial-load` |
 | Celular não abre o app | O `pnpm ... dev` precisa do `--host`; celular e computador na mesma rede; o firewall do Windows pode pedir para liberar a porta 5173 |
-| Indicadores com erro | `docker compose ps`: o `analytics-service` está no ar? Se não, `docker compose up -d analytics-service`. Reservas, check-in, check-out e pagamento não dependem dele; o painel Hoje perde os cartões, a lista Atenção e o bloco Em limpeza |
+| Indicadores com erro | `docker compose ps`: o `analytics-service` está no ar? Se não, `docker compose up -d analytics-service`. Reservas, check-in, check-out e pagamento não dependem dele; no painel Hoje, a fita, os números e o bloco Em limpeza continuam (vêm do core); some só o "em limpeza desde", e o Atenção perde o risco de não comparecimento e as pendentes antigas |
 | Algo do passo 6 | Tabela "Se algo der errado" do [guia do passo 6](PASSO_6_RESERVA_DIRETA_PIX.md) |
 | Grafana vazio ("No data") | Intervalo **Last 3 hours**; o profile precisa ter subido antes do passo 1 ([guia do passo 8](PASSO_8_GRAFANA.md)) |
 

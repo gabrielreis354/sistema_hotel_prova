@@ -150,4 +150,28 @@ describe('TodayPage — fita e Atenção com fontes faltando (qa-redteam da F3)'
     expect(html).toContain('quarto em manutenção');
     expect(html).not.toContain('Nada pedindo atenção agora.');
   });
+
+  // Resposta 1 do Gabriel (26/11): o "Em limpeza" lê o core. Se a tela voltasse para a lista do
+  // analytics, o bloco sumiria aqui (🟡4 do qa-redteam das respostas do Gabriel).
+  it('com o analytics fora, o "Em limpeza" sai dos quartos do core, com o Liberar quarto', async () => {
+    const qc = client();
+    qc.setQueryData(roomKeys.all, [...QUARTOS, { id: 'q3', number: '105', floor: 1, status: 'CLEANING', category: { name: 'Standard' } }]);
+    qc.setQueryData(todayKeys.inHouse('u1'), page([]));
+    qc.setQueryData(todayKeys.arrivals('u1', TODAY), page([]));
+    await qc.prefetchQuery({ queryKey: todayKeys.alerts('u1'), queryFn: () => Promise.reject(new Error('Analytics fora.')) });
+    const html = render(qc);
+    expect(html).toContain('Quarto 105');
+    expect(html).toContain('Liberar quarto');
+  });
+
+  // Limpeza e manutenção vêm do core: sem os quartos, o Atenção não pode dizer que está tudo em ordem
+  // só porque o analytics respondeu vazio (🟡2 do qa-redteam das respostas do Gabriel).
+  it('com os quartos fora e o analytics vazio, o Atenção não diz "Nada pedindo atenção agora."', async () => {
+    const qc = client();
+    await qc.prefetchQuery({ queryKey: roomKeys.all, queryFn: () => Promise.reject(new Error('Core fora.')) });
+    qc.setQueryData(todayKeys.inHouse('u1'), page([]));
+    qc.setQueryData(todayKeys.arrivals('u1', TODAY), page([]));
+    qc.setQueryData(todayKeys.alerts('u1'), { noShowIds: new Set<string>(), cleaning: [], pendingTooLong: 0 });
+    expect(render(qc)).not.toContain('Nada pedindo atenção agora.');
+  });
 });

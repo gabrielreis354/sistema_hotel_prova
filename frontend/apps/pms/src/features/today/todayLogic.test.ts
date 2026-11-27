@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { StripRoom } from './hotelStrip.js';
 import {
   visibleRows,
   arrivalFlags,
@@ -8,6 +9,7 @@ import {
   formatPercent,
   inHouseRows,
   soldToday,
+  cleaningRows,
   toTodayAlerts,
   toggleFocusTarget,
   type TodayReservation,
@@ -89,15 +91,32 @@ describe('departureRows e inHouseRows', () => {
   });
 });
 
-describe('soldToday (D-6)', () => {
-  it('ocupados + chegadas de hoje ainda não feitas; atrasada não conta', () => {
-    const rows = arrivalRows(
-      [res('a', 'CONFIRMED', TODAY, '2026-11-05'), res('late', 'PENDING', '2026-11-01', '2026-11-05')],
-      TODAY,
-      new Set(),
-    );
-    expect(soldToday(3, rows)).toBe(4);
-    expect(soldToday(0, [])).toBe(0);
+describe('soldToday (D-6, revista pelo Gabriel em 26/11): quartos distintos com hóspede esta noite', () => {
+  const q = (id: string, tone: StripRoom['tone'], extra: Partial<StripRoom> = {}): StripRoom => ({ id, number: id, category: '', tone, ...extra });
+  const chegada = (roomId: string, checkIn = TODAY, id = `r-${roomId}`) =>
+    arrivalRows([{ ...res(id, 'CONFIRMED', checkIn, '2026-11-06'), room: { id: roomId, number: roomId } }], TODAY, new Set());
+
+  it('ocupados que ficam + quartos das chegadas de hoje; a atrasada não conta', () => {
+    const rooms = [q('101', 'occupied'), q('102', 'occupied'), q('103', 'booked'), q('104', 'free')];
+    const rows = [...chegada('103'), ...chegada('104', '2026-11-01')];
+    expect(soldToday(rooms, rows)).toBe(3);
+    expect(soldToday([], [])).toBe(0);
+  });
+
+  it('troca do dia: sai hoje e chega hoje no mesmo quarto conta uma vez só', () => {
+    const rooms = [q('101', 'occupied', { departing: true }), q('102', 'occupied')];
+    expect(soldToday(rooms, chegada('101'))).toBe(2);
+  });
+
+  it('quem sai hoje sem chegada no quarto não conta; a saída atrasada conta (segue no quarto)', () => {
+    const rooms = [q('101', 'occupied', { departing: true }), q('102', 'occupied', { departing: true, departureLate: true })];
+    expect(soldToday(rooms, [])).toBe(1);
+  });
+
+  it('nunca passa do total de quartos, nem com duas chegadas no mesmo quarto', () => {
+    const rooms = [q('101', 'occupied', { departing: true }), q('102', 'free')];
+    const rows = [...chegada('101', TODAY, 'a'), ...chegada('101', TODAY, 'b'), ...chegada('102')];
+    expect(soldToday(rooms, rows)).toBe(2);
   });
 });
 
@@ -227,5 +246,37 @@ describe('departuresError — o bloco Saídas fala das saídas (QA 24/11, 🟢-6
     const other = new Error('Sessão expirada.');
     expect(departuresError(other)).toBe(other);
     expect(departuresError(null)).toBeNull();
+  });
+});
+
+describe('cleaningRows — "Em limpeza" lê do core (resposta 1 do Gabriel, 26/11)', () => {
+  const rooms = [
+    { id: 'a', number: '204', status: 'CLEANING' as const, category: { name: 'Luxo' } },
+    { id: 'b', number: '105', status: 'CLEANING' as const, category: { name: 'Standard' } },
+    { id: 'c', number: '110', status: 'CLEANING' as const, category: null },
+    { id: 'd', number: '101', status: 'AVAILABLE' as const, category: { name: 'Standard' } },
+    { id: 'e', number: '102', status: 'OCCUPIED' as const },
+  ];
+
+  it('com o analytics fora, a lista sai inteira do core, em ordem de quarto', () => {
+    expect(cleaningRows(rooms, undefined)).toEqual([
+      { id: 'b', number: '105', category: 'Standard', since: undefined },
+      { id: 'c', number: '110', category: '', since: undefined },
+      { id: 'a', number: '204', category: 'Luxo', since: undefined },
+    ]);
+  });
+
+  it('o "em limpeza desde" do analytics complementa pelo id; quem espera há mais tempo vem primeiro', () => {
+    const since = [
+      { id: 'a', number: '204', category: 'Luxo', since: '2026-11-04T10:00:00Z' },
+      { id: 'b', number: '105', category: 'Standard', since: '2026-11-04T13:00:00Z' },
+      // Quarto que o analytics ainda acha em limpeza, mas o core já liberou: não aparece.
+      { id: 'd', number: '101', category: 'Standard', since: '2026-11-04T09:00:00Z' },
+    ];
+    expect(cleaningRows(rooms, since).map((r) => [r.number, r.since])).toEqual([
+      ['204', '2026-11-04T10:00:00Z'],
+      ['105', '2026-11-04T13:00:00Z'],
+      ['110', undefined],
+    ]);
   });
 });

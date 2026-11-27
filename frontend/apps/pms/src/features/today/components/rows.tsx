@@ -434,10 +434,9 @@ export function CleaningItem({ room, onResult }: { room: CleaningRoom; onResult:
   // "Liberando…" sem fim (QA de 24/11, 🟢-3). Offline antes de confirmar, nem deixa enviar.
   const online = useOnline();
   const [confirming, setConfirming] = useState(false);
-  // A lista vem do analytics-service, que só tira o quarto quando o evento chega: por alguns
-  // segundos, a linha continua aqui depois do sucesso. Guardar a limpeza que foi liberada impede
-  // um segundo envio (409) nesse intervalo. Se o quarto voltar para a limpeza, `since` muda e a
-  // ação reabre.
+  // A lista vem dos quartos do core desde 26/11, e o liberar recarrega ['rooms']: a linha some logo.
+  // Até a recarga chegar, guardar a limpeza que foi liberada impede um segundo envio (409). Se o
+  // quarto voltar para a limpeza, `since` muda e a ação reabre.
   const [releasedFor, setReleasedFor] = useState<string | null>(null);
   const released = releasedFor === (room.since ?? '');
   const panelId = `limpeza-${room.id}-confirmacao`;

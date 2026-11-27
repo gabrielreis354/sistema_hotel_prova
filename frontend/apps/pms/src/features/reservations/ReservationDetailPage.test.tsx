@@ -149,3 +149,31 @@ describe('cabeçalho da reserva (SPEC-10, F4)', () => {
     expect(raiz.split(' ')).not.toContain('mx-auto');
   });
 });
+
+// Respostas 4 e 6 do Gabriel (26/11). Os testes renderizam no servidor e não clicam: o que se prova
+// aqui é que nenhum botão faz o check-in direto e que os painéis recebem o foco ao abrir.
+describe('check-in com confirmação e foco nos painéis (respostas 4 e 6 do Gabriel)', () => {
+  const codigo = readFileSync(new URL('./ReservationDetailPage.tsx', import.meta.url), 'utf8');
+
+  it('o check-in só é enviado pelo "Confirmar check-in" do painel', () => {
+    expect(codigo.match(/run\('check-in'\)/g)).toHaveLength(1);
+    const painel = codigo.slice(codigo.indexOf("{confirming === 'check-in' && ("), codigo.indexOf("{confirming === 'cancel' && ("));
+    expect(painel).toContain("run('check-in')");
+    expect(painel).toContain('Confirmar check-in');
+    // Os dois botões "Fazer check-in" (principal e secundário) só abrem o painel.
+    expect(codigo.match(/onClick=\{openCheckIn\}/g)).toHaveLength(2);
+  });
+
+  it('os painéis de check-in e de cancelar recebem o foco ao abrir', () => {
+    expect(codigo).toMatch(/ref=\{checkInRef\} tabIndex=\{-1\}/);
+    expect(codigo).toMatch(/ref=\{cancelRef\} tabIndex=\{-1\}/);
+    expect(codigo).toContain("if (confirming === 'check-in') checkInRef.current?.focus();");
+    expect(codigo).toContain("if (confirming === 'cancel') cancelRef.current?.focus();");
+  });
+
+  it('CONFIRMED: a tela abre com "Fazer check-in" e sem o painel', async () => {
+    const html = await renderDetail('CONFIRMED');
+    expect(html).toContain('Fazer check-in');
+    expect(html).not.toContain('Confirmar check-in');
+  });
+});
