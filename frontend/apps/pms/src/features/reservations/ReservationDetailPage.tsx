@@ -28,7 +28,7 @@ import { BackLink, ButtonLink } from '../../components/links.js';
 import { LoadError } from '../../components/LoadError.js';
 
 type Tab = ReservationTab;
-type Confirming = null | 'check-out' | 'cancel';
+type Confirming = null | 'check-in' | 'check-out' | 'cancel';
 
 const DONE_MESSAGE: Record<ReservationTransition, string> = {
   'check-in': 'Check-in feito. O quarto passou a ocupado.',
@@ -53,6 +53,10 @@ export function ReservationDetailPage() {
   // A confirmação do check-out nasce longe do botão do cabeçalho (aba Conta): o foco vai para ela e a
   // tela rola até lá. Sem isso o foco caía no body com o botão desabilitado (🟡-1 do qa-redteam de 15/11).
   const checkOutRef = useRef<HTMLHeadingElement>(null);
+  // Check-in e cancelar confirmam num painel logo abaixo das ações, e o foco vai para ele ao abrir:
+  // sem isso caía no body, com o botão que abriu desabilitado (respostas 4 e 6 do Gabriel, 26/11).
+  const checkInRef = useRef<HTMLParagraphElement>(null);
+  const cancelRef = useRef<HTMLParagraphElement>(null);
   const role = useAuthStore((s) => s.user?.role);
   // Adianta o hotel emissor do comprovante (T-09.1): quem abre o comprovante vem desta tela, e
   // assim o nome já está no cache quando a recepção clica em Imprimir.
@@ -98,6 +102,8 @@ export function ReservationDetailPage() {
 
   // Antes de qualquer return: hook depois de return antecipado muda a ordem entre renders.
   useEffect(() => {
+    if (confirming === 'check-in') checkInRef.current?.focus();
+    if (confirming === 'cancel') cancelRef.current?.focus();
     if (confirming !== 'check-out') return;
     checkOutRef.current?.focus();
     checkOutRef.current?.scrollIntoView({ block: 'center' });
@@ -132,6 +138,11 @@ export function ReservationDetailPage() {
   // saldo a receber, na aba Conta a principal é o "Registrar pagamento" (decisão de 16/11); no Resumo
   // o formulário não aparece, e o check-out segue principal — ele próprio leva à Conta (redteam da T-08.6).
   const primary = primaryAction(actions, { paymentDue: receiving && tab === 'conta' });
+
+  function openCheckIn() {
+    setFeedback(null);
+    setConfirming('check-in');
+  }
 
   function openCheckOut() {
     setFeedback(null);
@@ -185,8 +196,8 @@ export function ReservationDetailPage() {
               )}
             </div>
             {primary === 'check-in' && (
-              <Button block className="sm:w-auto" disabled={busy} onClick={() => run('check-in')}>
-                {busy && transition.variables === 'check-in' ? 'Fazendo check-in…' : 'Fazer check-in'}
+              <Button block className="sm:w-auto" disabled={busy || confirming === 'check-in'} onClick={openCheckIn}>
+                Fazer check-in
               </Button>
             )}
             {primary === 'check-out' && (
@@ -211,8 +222,8 @@ export function ReservationDetailPage() {
                   size="compact"
                   className={SECONDARY_ACTION}
                   aria-describedby={describedBy}
-                  disabled={!actions.checkIn.enabled || busy}
-                  onClick={() => run('check-in')}
+                  disabled={!actions.checkIn.enabled || busy || confirming === 'check-in'}
+                  onClick={openCheckIn}
                 >
                   Fazer check-in
                 </Button>
@@ -256,9 +267,33 @@ export function ReservationDetailPage() {
           </ActionSlot>
         </div>
 
+        {/* O check-in não se desfaz: o quarto fica ocupado e a cobrança de sinal pendente é cancelada. Mesma
+            confirmação na linha do painel Hoje (#140), que o detalhe nunca teve (resposta 4 do Gabriel, 26/11). */}
+        {confirming === 'check-in' && (
+          <div className="space-y-3 rounded-md border border-brand/40 bg-brand/5 p-3">
+            <p ref={checkInRef} tabIndex={-1} className="text-sm text-gray-800 focus:outline-none">
+              Fazer o check-in de <strong>{r.guest?.full_name ?? 'hóspede'}</strong>
+              {mainRoom?.number && (
+                <>
+                  {' '}no quarto <strong>{mainRoom.number}</strong>
+                </>
+              )}
+              ? O quarto passa a ocupado. Não dá para desfazer.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={busy} onClick={() => run('check-in')}>
+                {busy ? 'Fazendo check-in…' : 'Confirmar check-in'}
+              </Button>
+              <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
+
         {confirming === 'cancel' && (
           <div className="space-y-3 rounded-md border border-status-maintenance/40 bg-status-maintenance/5 p-3">
-            <p className="text-sm text-gray-800">
+            <p ref={cancelRef} tabIndex={-1} className="text-sm text-gray-800 focus:outline-none">
               Cancelar a reserva de <strong>{r.guest?.full_name}</strong>? O quarto volta a ficar livre no período e as
               contas da estadia fecham. Não dá para desfazer.
             </p>
