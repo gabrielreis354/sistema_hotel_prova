@@ -97,7 +97,7 @@ export function TodayPage() {
 
       <HotelStripView
         strip={strip}
-        sold={strip && arrivals.data ? soldToday(strip.counts.occupied, arrivalList) : null}
+        sold={strip && arrivals.data ? soldToday(strip.floors.flatMap((f) => f.rooms), arrivalList) : null}
         isLoading={stripLoads.some((l) => l.isLoading)}
         isOffline={stripLoads.some((l) => l.isOffline)}
         error={stripError}

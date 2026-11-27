@@ -1,3 +1,5 @@
+import type { StripRoom } from './hotelStrip.js';
+
 /**
  * Regras do painel "Hoje" (T-05.3) — sem React, sem rede, testadas em todayLogic.test.ts.
  *
@@ -98,12 +100,23 @@ export function inHouseRows<R extends TodayReservation>(inHouse: R[]): R[] {
 }
 
 /**
- * "Vendidos hoje" (D-6, decisão do Gabriel de 04/11): ocupados agora + chegadas DE HOJE que
- * ainda não fizeram check-in. A chegada atrasada não entra — a noite dela já passou.
- * Reserva com vários quartos conta 1 (só o principal vem na lista — D-5, pendência).
+ * "Vendidos hoje" (D-6, revista pelo Gabriel em 26/11): os quartos DISTINTOS com hóspede esta noite.
+ * Entram os ocupados cuja saída não é hoje (a saída atrasada entra: o hóspede segue no quarto) e os
+ * quartos das chegadas de hoje que ainda não fizeram check-in. A troca do dia (sai hoje, chega hoje no
+ * mesmo quarto) conta uma vez: antes somava ocupados + chegadas e passava do total de quartos. A
+ * chegada atrasada não entra — a noite dela já passou. Reserva com vários quartos conta o principal (D-5).
  */
-export function soldToday(occupied: number, arrivals: ArrivalRow[]): number {
-  return occupied + arrivals.filter((a) => !a.late).length;
+export function soldToday(rooms: readonly StripRoom[], arrivals: readonly ArrivalRow[]): number {
+  const sold = new Set<string>();
+  for (const room of rooms) {
+    const leavesToday = room.departing && !room.departureLate;
+    if (room.tone === 'occupied' && !leavesToday) sold.add(room.id);
+  }
+  for (const a of arrivals) {
+    const id = a.reservation.room?.id;
+    if (id && !a.late) sold.add(id);
+  }
+  return sold.size;
 }
 
 // ─── /analytics/alerts ───────────────────────────────────────────────────────────────

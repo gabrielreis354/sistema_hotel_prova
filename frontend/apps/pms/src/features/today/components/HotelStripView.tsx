@@ -69,7 +69,7 @@ export function HotelStripView({
   onRetry,
 }: {
   strip: HotelStrip | null;
-  /** Vendidos hoje (ocupados + chegadas de hoje); null enquanto as chegadas carregam. */
+  /** Vendidos hoje: quartos distintos com hóspede esta noite (D-6); null enquanto as chegadas carregam. */
   sold: number | null;
   isLoading: boolean;
   isOffline: boolean;
@@ -126,9 +126,9 @@ export function HotelStripView({
           <>
             <div className="grid grid-cols-2 items-end gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8">
               <Figure label="Ocupação agora" value={formatPercent(strip.occupancyRate)} hint={`${strip.counts.occupied} de ${strip.total} quartos ocupados`} />
-              {/* "no prazo": a chegada atrasada não entra nos vendidos (D-6), mas aparece em "Chega hoje" com o
-                  relógio. Sem a palavra, os dois números não fechavam (critique da F3, P1-a). */}
-              <Figure label="Vendidos hoje" value={sold === null ? '—' : String(sold)} hint="ocupados + chegadas no prazo" />
+              {/* Quartos distintos com hóspede esta noite (D-6 revista em 26/11): a troca do dia conta uma vez e a
+                  chegada atrasada não entra, embora apareça em "Chega hoje" com o relógio (critique da F3, P1-a). */}
+              <Figure label="Vendidos hoje" value={sold === null ? '—' : String(sold)} hint="quartos com hóspede esta noite" />
               <Figure label="Saem hoje" value={String(strip.departing)} hint="ocupados com saída hoje ou atrasada" />
               <div role="group" aria-label="Filtrar a fita por estado" className="col-span-2 flex flex-wrap gap-2 xl:ml-auto">
                 {STRIP_TONES.map((tone) => (
