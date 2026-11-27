@@ -141,7 +141,8 @@ export function TodayPage() {
           {attention.map((item) => (
             <AttentionChip key={item.id} item={item} />
           ))}
-          {attention.length === 0 && alerts.data && <li className="col-span-2 py-2 text-gray-700">Nada pedindo atenção agora.</li>}
+          {/* Limpeza e manutenção vêm dos quartos do core: sem eles, "nada" seria falso (🟡2 do qa-redteam, 26/11). */}
+          {attention.length === 0 && alerts.data && rooms.data && <li className="col-span-2 py-2 text-gray-700">Nada pedindo atenção agora.</li>}
         </ul>
       </section>
 

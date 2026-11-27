@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { decimalToCents, formatCpf, formatDateBR } from '@hotel/domain';
 import { ActionSlot, Button, Card, ErrorState, RoomNumber, Section, Spinner, cn } from '@hotel/ui';
@@ -57,6 +57,9 @@ export function ReservationDetailPage() {
   // sem isso caía no body, com o botão que abriu desabilitado (respostas 4 e 6 do Gabriel, 26/11).
   const checkInRef = useRef<HTMLParagraphElement>(null);
   const cancelRef = useRef<HTMLParagraphElement>(null);
+  // Ao fechar o painel sem confirmar, o foco volta ao botão que o abriu (🟢6 do qa-redteam, 26/11).
+  const openerRef = useRef<HTMLElement | null>(null);
+  const [returnFocus, setReturnFocus] = useState(false);
   const role = useAuthStore((s) => s.user?.role);
   // Adianta o hotel emissor do comprovante (T-09.1): quem abre o comprovante vem desta tela, e
   // assim o nome já está no cache quando a recepção clica em Imprimir.
@@ -102,6 +105,12 @@ export function ReservationDetailPage() {
 
   // Antes de qualquer return: hook depois de return antecipado muda a ordem entre renders.
   useEffect(() => {
+    if (!returnFocus || confirming !== null) return;
+    setReturnFocus(false);
+    openerRef.current?.focus();
+  }, [returnFocus, confirming]);
+
+  useEffect(() => {
     if (confirming === 'check-in') checkInRef.current?.focus();
     if (confirming === 'cancel') cancelRef.current?.focus();
     if (confirming !== 'check-out') return;
@@ -132,6 +141,8 @@ export function ReservationDetailPage() {
   const busy = transition.isPending;
   const rooms = r.rooms && r.rooms.length > 0 ? r.rooms : r.room ? [r.room] : [];
   const mainRoom = rooms.find((x) => x.id === r.room_id) ?? rooms[0];
+  // O check-in ocupa todos os quartos da reserva: a confirmação cita todos, o principal primeiro (🟢7).
+  const roomNumbers = [mainRoom, ...rooms.filter((x) => x !== mainRoom)].flatMap((x) => (x?.number ? [x.number] : []));
   const receiving = canReceivePayment({ status: r.status, balanceCents: balance, role, billFailed: bill.isError });
 
   // Uma ação principal por tela (T-08.3): vai para o cabeçalho, ao lado do saldo, em primary. Com
@@ -139,9 +150,15 @@ export function ReservationDetailPage() {
   // o formulário não aparece, e o check-out segue principal — ele próprio leva à Conta (redteam da T-08.6).
   const primary = primaryAction(actions, { paymentDue: receiving && tab === 'conta' });
 
-  function openCheckIn() {
+  function openCheckIn(event: MouseEvent<HTMLElement>) {
+    openerRef.current = event.currentTarget;
     setFeedback(null);
     setConfirming('check-in');
+  }
+
+  function closePanel() {
+    setConfirming(null);
+    setReturnFocus(true);
   }
 
   function openCheckOut() {
@@ -256,7 +273,8 @@ export function ReservationDetailPage() {
                 className={SECONDARY_ACTION}
                 aria-describedby={describedBy}
                 disabled={!actions.cancel.enabled || busy || confirming === 'cancel'}
-                onClick={() => {
+                onClick={(event) => {
+                  openerRef.current = event.currentTarget;
                   setFeedback(null);
                   setConfirming('cancel');
                 }}
@@ -273,18 +291,20 @@ export function ReservationDetailPage() {
           <div className="space-y-3 rounded-md border border-brand/40 bg-brand/5 p-3">
             <p ref={checkInRef} tabIndex={-1} className="text-sm text-gray-800 focus:outline-none">
               Fazer o check-in de <strong>{r.guest?.full_name ?? 'hóspede'}</strong>
-              {mainRoom?.number && (
+              {roomNumbers.length > 0 && (
                 <>
-                  {' '}no quarto <strong>{mainRoom.number}</strong>
+                  {roomNumbers.length === 1 ? ' no quarto ' : ' nos quartos '}
+                  <strong>{listPt(roomNumbers)}</strong>
                 </>
               )}
-              ? O quarto passa a ocupado. Não dá para desfazer.
+              ? {roomNumbers.length > 1 ? 'Os quartos passam' : 'O quarto passa'} a ocupado. Não dá para desfazer.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button disabled={busy} onClick={() => run('check-in')}>
+              {/* Acompanha a regra do botão que abriu: se o quarto ficou ocupado com o painel aberto, não envia (🟢5). */}
+              <Button disabled={busy || !actions.checkIn.enabled} onClick={() => run('check-in')}>
                 {busy ? 'Fazendo check-in…' : 'Confirmar check-in'}
               </Button>
-              <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
+              <Button variant="ghost" disabled={busy} onClick={closePanel}>
                 Voltar
               </Button>
             </div>
@@ -301,7 +321,7 @@ export function ReservationDetailPage() {
               <Button variant="danger" disabled={busy} onClick={() => run('cancel')}>
                 {busy ? 'Cancelando…' : 'Sim, cancelar reserva'}
               </Button>
-              <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
+              <Button variant="ghost" disabled={busy} onClick={closePanel}>
                 Manter reserva
               </Button>
             </div>
@@ -509,4 +529,9 @@ function TabButton({
       {children}
     </Button>
   );
+}
+
+/** "101", "101 e 102", "101, 102 e 103". */
+function listPt(items: readonly string[]): string {
+  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`;
 }

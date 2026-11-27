@@ -104,7 +104,11 @@ export function inHouseRows<R extends TodayReservation>(inHouse: R[]): R[] {
  * Entram os ocupados cuja saída não é hoje (a saída atrasada entra: o hóspede segue no quarto) e os
  * quartos das chegadas de hoje que ainda não fizeram check-in. A troca do dia (sai hoje, chega hoje no
  * mesmo quarto) conta uma vez: antes somava ocupados + chegadas e passava do total de quartos. A
- * chegada atrasada não entra — a noite dela já passou. Reserva com vários quartos conta o principal (D-5).
+ * chegada atrasada não entra — a noite dela já passou.
+ *
+ * Limite aceito (D-5, pendência): reserva com vários quartos só traz o principal nas listas. A chegada
+ * conta só o principal, e o quarto extra de quem sai hoje não tem a marca de saída e continua contado.
+ * O seed da demonstração não tem esse caso; a correção pede a `reservation_rooms` na listagem.
  */
 export function soldToday(rooms: readonly StripRoom[], arrivals: readonly ArrivalRow[]): number {
   const sold = new Set<string>();

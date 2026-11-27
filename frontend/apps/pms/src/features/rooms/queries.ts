@@ -92,7 +92,8 @@ export function useDeleteRoom() {
 /**
  * Limpeza concluída (CLEANING → AVAILABLE), usada pelo painel "Hoje". onSettled: no 409 o
  * quarto mudou em outro atendimento e a tela precisa recarregar do mesmo jeito. Invalida
- * quartos e os indicadores (contagem de livres e a lista de limpeza vêm do `/analytics`).
+ * quartos (a fita e o "Em limpeza" do painel leem deles desde 26/11) e os indicadores (o
+ * "em limpeza desde" e os números do gerente vêm do `/analytics`).
  */
 export function useReleaseRoom() {
   const qc = useQueryClient();
