@@ -16,6 +16,10 @@ const TELAS = [
   'features/today/components/rows.tsx',
   'features/reservations/ReservationDetailPage.tsx',
   'features/accounts/components/OpenAccountForm.tsx',
+  // Fora da lista até 26/11: o duplo clique em "Cadastrar" e em "Sim, fechar" ainda dava erro falso
+  // (🟡2 e 🟡3 do qa-explorador da passada final da SPEC-10).
+  'features/guests/GuestFormPages.tsx',
+  'features/accounts/components/StaffActions.tsx',
 ];
 
 /** Chamadas de envio que escapam da trava: `x.mutate(` e `x.mutateAsync(` fora do `promiseOnce`. */
