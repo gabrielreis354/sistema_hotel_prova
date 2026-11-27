@@ -13,7 +13,7 @@ sem Multi-AZ, sem Route 53.
 ```
 terraform/
 ├── bootstrap/            # UMA vez, permanente: bucket do state, ECR (3 repos, 2 imagens cada),
-│                         # role OIDC do GitHub Actions para push no ECR, AWS Budgets
+│                         # role OIDC do GitHub Actions para push no ECR, AWS Budgets diário e mensal
 ├── providers.tf          # AWS ~> 5, backend S3 com lock nativo (use_lockfile)
 ├── main.tf · variables.tf · outputs.tf
 ├── modules/
@@ -34,7 +34,8 @@ roda no cluster.
 - Terraform 1.10 ou superior (o lock no S3 depende disso).
 - Conta AWS no plano gratuito de créditos e um **usuário IAM** com `aws configure` feito.
   Nunca o `root` da conta.
-- Para SSH: um par de chaves criado no console em `sa-east-1` (`key_name`).
+- Um par de chaves criado no console EC2 em `sa-east-1`, informado em `key_name`.
+  É obrigatório: o kubeconfig sai do nó por SSH.
 
 ## Uma vez só: bootstrap
 
@@ -45,12 +46,44 @@ terraform init
 terraform apply
 ```
 
-O state do bootstrap fica **local**, em `bootstrap/terraform.tfstate`, fora do Git. Guarde
-uma cópia: ele é o único registro desses recursos. Se o nome `gesway-tfstate` já existir
-na AWS, troque `state_bucket_name` aqui e o `bucket` em `environments/dev/backend.hcl`.
+Se o nome `gesway-tfstate` já existir na AWS, troque `state_bucket_name` aqui e o
+`bucket` em `environments/dev/backend.hcl`.
+
+Se a conta já tiver o provider OIDC do GitHub, o apply falha com `EntityAlreadyExists`.
+Importe e rode de novo:
+
+```bash
+terraform import aws_iam_openid_connect_provider.github \
+  arn:aws:iam::<conta>:oidc-provider/token.actions.githubusercontent.com
+```
+
+**Depois do 1º apply, leve o state do bootstrap para o bucket**, para não depender da
+máquina de quem rodou. Acrescente em `bootstrap/main.tf`, dentro do bloco `terraform`:
+
+```hcl
+backend "s3" {
+  bucket       = "gesway-tfstate"
+  key          = "bootstrap/terraform.tfstate"
+  region       = "sa-east-1"
+  encrypt      = true
+  use_lockfile = true
+}
+```
+
+e rode `terraform init -migrate-state`. Até lá, o `bootstrap/terraform.tfstate` local é o
+único registro desses recursos.
+
+O alerta diário (US$ 1) só dispara com recurso esquecido ligado: uma sessão de 4 h fica
+perto de US$ 0,35. O mensal (US$ 10) avisa uso bem acima do previsto.
 
 Saídas para o GitHub: `ci_role_arn` vai no secret `AWS_ROLE_ARN`, usado pelo
 `aws-actions/configure-aws-credentials` com `permissions: id-token: write`.
+
+## Antes do 1º apply
+
+Conferir em https://update.k3s.io/v1-release/channels qual minor do k3s está em suporte,
+fixar em `k3s_channel` (ex. `"v1.34"`) e validar os manifests de `infra/k8s/` nela. O
+padrão `"stable"` funciona, mas muda de minor sem aviso entre sessões.
 
 ## Ciclo de cada sessão
 
@@ -62,8 +95,11 @@ terraform init -backend-config=environments/dev/backend.hcl                     
 
 1. **Subir:** `terraform apply -var-file=environments/dev/terraform.tfvars`
    (rede, nó, RDS e bucket; cerca de 6 a 10 min, a maior parte é o RDS).
-2. **Esperar o k3s:** o user-data instala o k3s no primeiro boot. Log no nó em
-   `/var/log/gesway-k3s.log`.
+   Se o IP de alguém mudar no meio da sessão, rodar o apply de novo só muda o `sg-node`:
+   a AMI está em `ignore_changes`, então o nó não é recriado.
+2. **Esperar o k3s:** o user-data instala o k3s no primeiro boot, tentando de novo por até
+   ~5 min se a rede ou a credencial do nó ainda não estiverem prontas. Log no nó em
+   `/var/log/gesway-k3s.log`; a última linha é `k3s pronto em ...` ou `DESISTI: ...`.
 3. **kubeconfig:** `eval "$(terraform output -raw kubeconfig_cmd)"` e
    `export KUBECONFIG=~/.kube/gesway-aws.yaml`.
 4. **Bancos por serviço:** criar `gesway_core` e `gesway_analytics` (e `gesway_b2b`,
@@ -88,13 +124,21 @@ terraform init -backend-config=environments/dev/backend.hcl                     
 | Banco com SSL | `rds.force_ssl = 1` |
 | Dados efêmeros | `backup_retention_period = 0`, `skip_final_snapshot = true`, `force_destroy` no bucket |
 | Sem chave no cluster nem no CI | instance profile no nó; OIDC no GitHub Actions |
-| Alerta de custo | AWS Budgets de US$ 1, custo antes dos créditos |
+| Pod não lê a credencial do nó | IMDSv2 com `http_put_response_hop_limit = 1` |
+| State só por TLS | bucket policy com `aws:SecureTransport` em Deny |
+| Alerta de custo | AWS Budgets diário (US$ 1) e mensal (US$ 10), custo antes dos créditos |
 
 ## Ainda não ligado
 
 - **Código do S3:** o cliente `services/core-service/database/connections/minio.js` tem a
   região fixa em `us-east-1` e exige credencial estática. Precisa aceitar região
   configurável e a cadeia padrão do SDK antes de trocar o MinIO pelo S3 (Documento 05 §3.5).
+  **Junto com essa troca:** subir o hop limit do IMDS para 2 **e** criar uma NetworkPolicy
+  de egress que bloqueie `169.254.169.254/32` para todo pod que não seja o `core-service`.
+  Sem a policy, uma SSRF no nginx ou no Grafana leria os PDFs com CPF e RG.
+- **Credencial só de leitura para a URL assinada:** a role do nó tem Put e Delete no
+  bucket. O Documento 05 §3.5 pede que a URL de download seja assinada por credencial
+  com só `s3:GetObject`.
 - **Overlay `aws` do kustomize** em `infra/k8s/`: imagens do ECR, `POSTGRES_HOST` do RDS,
   uma réplica por serviço e sem os pods de Postgres e MinIO.
 - **Workflow de push no ECR** no GitHub Actions, usando o `ci_role_arn`.

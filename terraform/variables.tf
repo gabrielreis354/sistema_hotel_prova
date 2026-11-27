@@ -36,12 +36,21 @@ variable "root_volume_gb" {
 }
 
 variable "key_name" {
-  description = "Par de chaves EC2 já criado na região, para SSH. null = sem SSH por chave."
+  description = "Par de chaves EC2 já criado em sa-east-1. Obrigatório: o kubeconfig sai do nó por SSH."
   type        = string
-  default     = null
+
+  validation {
+    condition     = length(trimspace(var.key_name)) > 0
+    error_message = "Informe o key_name: sem SSH não há como copiar o kubeconfig do nó."
+  }
 }
 
-variable "k3s_version" {
-  type    = string
-  default = "v1.31.4+k3s1"
+variable "k3s_channel" {
+  description = <<-EOT
+    Canal do instalador do k3s: "stable" ou uma minor, ex. "v1.34".
+    No 1º apply, conferir em https://update.k3s.io/v1-release/channels qual minor
+    está em suporte, fixar aqui e validar os manifests de infra/k8s nela.
+  EOT
+  type        = string
+  default     = "stable"
 }

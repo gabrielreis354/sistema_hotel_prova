@@ -1,12 +1,32 @@
 #!/bin/bash
 # Sobe o k3s no primeiro boot. Log em /var/log/gesway-k3s.log.
+# O cloud-init não repete o user-data: cada passo de rede tenta de novo até
+# ~5 min, porque o nó nasce antes do Elastic IP e do instance profile ficarem
+# prontos.
 set -euo pipefail
 exec > >(tee -a /var/log/gesway-k3s.log) 2>&1
+
+tentar() {
+  local i
+  for i in $(seq 1 60); do
+    if "$@"; then return 0; fi
+    echo "tentativa $i falhou: $*; nova em 5 s"
+    sleep 5
+  done
+  echo "DESISTI: $*"
+  return 1
+}
+
+# Rede e credencial do nó prontas.
+tentar curl -sf -o /dev/null https://get.k3s.io
+tentar aws sts get-caller-identity --region ${region}
 
 # Credencial do ECR para o containerd do k3s. O token vale 12 h; a sessão
 # dura ~4 h e o nó é destruído no fim (ciclo efêmero, ADR-004).
 mkdir -p /etc/rancher/k3s
-TOKEN=$(aws ecr get-login-password --region ${region})
+TOKEN=""
+obter_token() { TOKEN=$(aws ecr get-login-password --region ${region}); }
+tentar obter_token
 cat > /etc/rancher/k3s/registries.yaml <<YAML
 configs:
   "${ecr_registry}":
@@ -16,8 +36,9 @@ configs:
 YAML
 chmod 600 /etc/rancher/k3s/registries.yaml
 
-curl -sfL https://get.k3s.io | \
-  INSTALL_K3S_VERSION="${k3s_version}" \
+tentar curl -sfL https://get.k3s.io -o /root/k3s-install.sh
+instalar_k3s() {
+  INSTALL_K3S_CHANNEL="${k3s_channel}" \
   INSTALL_K3S_EXEC="server \
     --disable traefik \
     --disable metrics-server \
@@ -26,6 +47,8 @@ curl -sfL https://get.k3s.io | \
     --kubelet-arg=system-reserved=memory=200Mi \
     --kubelet-arg=kube-reserved=memory=250Mi \
     --kubelet-arg=eviction-hard=memory.available<100Mi" \
-  sh -
+  sh /root/k3s-install.sh
+}
+tentar instalar_k3s
 
-echo "k3s pronto em ${public_ip}"
+echo "k3s pronto em ${public_ip}: $(k3s --version | head -1)"

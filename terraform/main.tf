@@ -35,7 +35,7 @@ module "compute" {
   instance_profile_name = module.iam.instance_profile_name
   key_name              = var.key_name
   root_volume_gb        = var.root_volume_gb
-  k3s_version           = var.k3s_version
+  k3s_channel           = var.k3s_channel
   ecr_registry          = local.ecr_registry
 }
 

@@ -3,5 +3,13 @@
 *.tfstate.*
 *.tfplan
 crash.log
-terraform.tfvars
+# tfvars guardam IP pessoal e e-mail: nenhum entra no Git, só os .example
+*.tfvars
+*.auto.tfvars
 !*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc

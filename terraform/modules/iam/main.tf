@@ -1,6 +1,9 @@
 # Instance profile do nó: puxar imagem do ECR e ler/gravar no bucket de PDFs.
-# Sem chave estática no cluster: os pods usam a credencial do nó pelo IMDSv2.
-# A URL assinada de download (5 min, só s3:GetObject) usa esta mesma role.
+# Sem chave estática no cluster. Hoje nenhum pod alcança esta credencial (IMDS
+# com hop 1, ver compute/main.tf); o minio.js ainda não fala com o S3.
+# Pendência: o Documento 05 §3.5 pede que a URL assinada de download seja
+# assinada por credencial só de leitura (s3:GetObject). Esta role tem Put e
+# Delete, então não serve para assinar a URL.
 
 resource "aws_iam_role" "node" {
   name = "${var.name}-node"

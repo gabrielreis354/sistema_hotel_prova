@@ -26,9 +26,16 @@ variable "ci_branches" {
   default     = ["develop", "main"]
 }
 
-variable "budget_usd" {
-  type    = string
-  default = "1"
+variable "budget_daily_usd" {
+  description = "Alerta diário: passa disso só com recurso esquecido ligado"
+  type        = string
+  default     = "1"
+}
+
+variable "budget_monthly_usd" {
+  description = "Alerta mensal: uso bem acima do previsto"
+  type        = string
+  default     = "10"
 }
 
 variable "budget_emails" {

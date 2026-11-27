@@ -2,4 +2,8 @@
 # Seu IP: curl -s https://checkip.amazonaws.com
 team_cidrs = ["203.0.113.10/32"]
 
-# key_name = "gesway-equipe"   # par de chaves criado no console, em sa-east-1
+# Par de chaves criado no console EC2 em sa-east-1 (obrigatório: kubeconfig por SSH).
+key_name = "gesway-equipe"
+
+# Depois de conferir a minor em suporte (README, "Antes do 1º apply"):
+# k3s_channel = "v1.34"

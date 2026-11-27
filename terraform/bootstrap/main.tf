@@ -56,6 +56,22 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   restrict_public_buckets = true
 }
 
+# Só aceita acesso por TLS: o state guarda a senha do RDS.
+resource "aws_s3_bucket_policy" "tfstate_tls" {
+  bucket = aws_s3_bucket.tfstate.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "SoTLS"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.tfstate.arn, "${aws_s3_bucket.tfstate.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+}
+
 # Versões antigas do state somem em 30 dias, para não acumular armazenamento.
 resource "aws_s3_bucket_lifecycle_configuration" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
@@ -85,17 +101,33 @@ resource "aws_ecr_repository" "servico" {
 resource "aws_ecr_lifecycle_policy" "servico" {
   for_each   = aws_ecr_repository.servico
   repository = each.value.name
+  # Conta só imagens com tag: manifest sem tag (provenance, camada órfã) sai
+  # depois de 1 dia, sem levar junto uma imagem que ainda o referencia.
   policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Mantem so as 2 ultimas imagens"
-      selection = {
-        tagStatus   = "any"
-        countType   = "imageCountMoreThan"
-        countNumber = 2
-      }
-      action = { type = "expire" }
-    }]
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Remove sem tag apos 1 dia"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Mantem so as 2 ultimas imagens com tag"
+        selection = {
+          tagStatus      = "tagged"
+          tagPatternList = ["*"]
+          countType      = "imageCountMoreThan"
+          countNumber    = 2
+        }
+        action = { type = "expire" }
+      },
+    ]
   })
 }
 
@@ -158,13 +190,36 @@ resource "aws_iam_role_policy" "ci_ecr_push" {
 }
 
 # --- Alerta de custo ----------------------------------------------------------
-# Custo ANTES dos créditos: qualquer centavo aqui é recurso fora do plano
-# gratuito ou esquecido ligado.
+# No plano de créditos todo uso conta como custo antes do crédito: uma sessão de
+# 4 h fica perto de US$ 0,35 (ADR-004). O alerta diário só dispara com algo
+# esquecido ligado (o nó sozinho passa de US$ 1 em um dia); o mensal, se o uso
+# sair muito do previsto (~US$ 28 em 6 meses).
 
-resource "aws_budgets_budget" "custo" {
-  name         = "gesway-alerta-custo"
+resource "aws_budgets_budget" "diario" {
+  name         = "gesway-alerta-diario"
   budget_type  = "COST"
-  limit_amount = var.budget_usd
+  limit_amount = var.budget_daily_usd
+  limit_unit   = "USD"
+  time_unit    = "DAILY"
+
+  cost_types {
+    include_credit = false
+    include_refund = false
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.budget_emails
+  }
+}
+
+resource "aws_budgets_budget" "mensal" {
+  name         = "gesway-alerta-mensal"
+  budget_type  = "COST"
+  limit_amount = var.budget_monthly_usd
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
 
@@ -175,17 +230,9 @@ resource "aws_budgets_budget" "custo" {
 
   notification {
     comparison_operator        = "GREATER_THAN"
-    threshold                  = 10
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "ACTUAL"
-    subscriber_email_addresses = var.budget_emails
-  }
-
-  notification {
-    comparison_operator        = "GREATER_THAN"
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
-    notification_type          = "FORECASTED"
+    notification_type          = "ACTUAL"
     subscriber_email_addresses = var.budget_emails
   }
 }

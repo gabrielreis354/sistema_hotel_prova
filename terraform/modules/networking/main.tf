@@ -102,22 +102,14 @@ resource "aws_vpc_security_group_ingress_rule" "k3s_api" {
   to_port           = 6443
 }
 
-# Saída: 443 para PSP, ViaCEP, Let's Encrypt, ECR e S3; 80 para os
-# repositórios de pacote do dnf; 5432 para o RDS; 53 para DNS.
+# Saída: 443 para PSP, ViaCEP, Let's Encrypt, get.k3s.io, ECR e S3; 5432 para
+# o RDS; 53 para o DNS da VPC. Sem 80: nada no nó usa HTTP em texto claro.
 resource "aws_vpc_security_group_egress_rule" "https" {
   security_group_id = aws_security_group.node.id
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-}
-
-resource "aws_vpc_security_group_egress_rule" "http" {
-  security_group_id = aws_security_group.node.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp"
-  from_port         = 80
-  to_port           = 80
 }
 
 resource "aws_vpc_security_group_egress_rule" "dns_udp" {

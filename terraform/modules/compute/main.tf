@@ -26,12 +26,14 @@ resource "aws_instance" "node" {
     cpu_credits = "standard"
   }
 
-  # IMDSv2 obrigatório; hop 2 para os pods alcançarem a credencial do nó
-  # (upload de PDF no S3 pela cadeia padrão do SDK).
+  # IMDSv2 obrigatório e hop 1: nenhum pod alcança a credencial do nó.
+  # Quando o core-service passar a gravar PDF no S3 pela cadeia padrão do SDK,
+  # subir para 2 JUNTO com uma NetworkPolicy de egress que bloqueie
+  # 169.254.169.254/32 para todo pod que não seja o core-service.
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
-    http_put_response_hop_limit = 2
+    http_put_response_hop_limit = 1
   }
 
   root_block_device {
@@ -42,7 +44,7 @@ resource "aws_instance" "node" {
   }
 
   user_data = templatefile("${path.module}/user-data.sh.tftpl", {
-    k3s_version  = var.k3s_version
+    k3s_channel  = var.k3s_channel
     public_ip    = aws_eip.node.public_ip
     region       = var.region
     ecr_registry = var.ecr_registry
@@ -50,6 +52,12 @@ resource "aws_instance" "node" {
 
   # Trocar o user-data recria o nó: o ambiente é efêmero mesmo.
   user_data_replace_on_change = true
+
+  # A AMI vem do SSM e muda quando sai um AL2023 novo. Sem isto, um apply no
+  # meio da sessão (ex.: IP novo em team_cidrs) recriaria o nó e o cluster.
+  lifecycle {
+    ignore_changes = [ami]
+  }
 
   tags = { Name = "${var.name}-k3s" }
 }

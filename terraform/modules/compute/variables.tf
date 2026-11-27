@@ -23,16 +23,15 @@ variable "instance_profile_name" {
 }
 
 variable "key_name" {
-  description = "Par de chaves para SSH; null desliga o SSH por chave"
+  description = "Par de chaves para SSH"
   type        = string
-  default     = null
 }
 
 variable "root_volume_gb" {
   type = number
 }
 
-variable "k3s_version" {
+variable "k3s_channel" {
   type = string
 }
 
