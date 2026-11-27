@@ -9,6 +9,7 @@ import {
   formatPercent,
   inHouseRows,
   soldToday,
+  cleaningRows,
   toTodayAlerts,
   toggleFocusTarget,
   type TodayReservation,
@@ -245,5 +246,37 @@ describe('departuresError — o bloco Saídas fala das saídas (QA 24/11, 🟢-6
     const other = new Error('Sessão expirada.');
     expect(departuresError(other)).toBe(other);
     expect(departuresError(null)).toBeNull();
+  });
+});
+
+describe('cleaningRows — "Em limpeza" lê do core (resposta 1 do Gabriel, 26/11)', () => {
+  const rooms = [
+    { id: 'a', number: '204', status: 'CLEANING' as const, category: { name: 'Luxo' } },
+    { id: 'b', number: '105', status: 'CLEANING' as const, category: { name: 'Standard' } },
+    { id: 'c', number: '110', status: 'CLEANING' as const, category: null },
+    { id: 'd', number: '101', status: 'AVAILABLE' as const, category: { name: 'Standard' } },
+    { id: 'e', number: '102', status: 'OCCUPIED' as const },
+  ];
+
+  it('com o analytics fora, a lista sai inteira do core, em ordem de quarto', () => {
+    expect(cleaningRows(rooms, undefined)).toEqual([
+      { id: 'b', number: '105', category: 'Standard', since: undefined },
+      { id: 'c', number: '110', category: '', since: undefined },
+      { id: 'a', number: '204', category: 'Luxo', since: undefined },
+    ]);
+  });
+
+  it('o "em limpeza desde" do analytics complementa pelo id; quem espera há mais tempo vem primeiro', () => {
+    const since = [
+      { id: 'a', number: '204', category: 'Luxo', since: '2026-11-04T10:00:00Z' },
+      { id: 'b', number: '105', category: 'Standard', since: '2026-11-04T13:00:00Z' },
+      // Quarto que o analytics ainda acha em limpeza, mas o core já liberou: não aparece.
+      { id: 'd', number: '101', category: 'Standard', since: '2026-11-04T09:00:00Z' },
+    ];
+    expect(cleaningRows(rooms, since).map((r) => [r.number, r.since])).toEqual([
+      ['204', '2026-11-04T10:00:00Z'],
+      ['105', '2026-11-04T13:00:00Z'],
+      ['110', undefined],
+    ]);
   });
 });

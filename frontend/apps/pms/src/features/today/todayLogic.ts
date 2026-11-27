@@ -1,4 +1,4 @@
-import type { StripRoom } from './hotelStrip.js';
+import type { StripRoom, StripRoomInput } from './hotelStrip.js';
 
 /**
  * Regras do painel "Hoje" (T-05.3) — sem React, sem rede, testadas em todayLogic.test.ts.
@@ -158,6 +158,28 @@ export function toTodayAlerts(raw: RawAlerts): TodayAlerts {
   }
 
   return { noShowIds, cleaning, pendingTooLong: raw.totals?.pending_too_long ?? (raw.pending_too_long ?? []).length };
+}
+
+/**
+ * "Em limpeza" (resposta 1 do Gabriel, 26/11): a lista sai do status CLEANING do core, que a fita já
+ * carrega. "Liberar quarto" é ação de balcão e não pode sumir quando o analytics cai. O analytics só
+ * complementa com o "em limpeza desde" (o core não guarda essa hora), cruzado pelo id: quarto que o
+ * analytics ainda acha em limpeza e o core já liberou não aparece. Quem espera há mais tempo vem
+ * primeiro; sem a hora, em ordem de quarto, depois dos que têm.
+ */
+export function cleaningRows(rooms: readonly StripRoomInput[], analytics: readonly CleaningRoom[] | undefined): CleaningRoom[] {
+  const since = new Map((analytics ?? []).map((c) => [c.id, c.since]));
+  const rows: CleaningRoom[] = [];
+  for (const room of rooms) {
+    if (room.status !== 'CLEANING' || !room.id) continue;
+    rows.push({ id: room.id, number: room.number ?? '—', category: room.category?.name ?? '', since: since.get(room.id) });
+  }
+  return rows.sort((a, b) => {
+    if (a.since && b.since && a.since !== b.since) return a.since < b.since ? -1 : 1;
+    if (a.since && !b.since) return -1;
+    if (!a.since && b.since) return 1;
+    return a.number.localeCompare(b.number, 'pt-BR', { numeric: true });
+  });
 }
 
 /** Percentual de ocupação em pt-BR, sem casas inúteis ("72,5%", "100%"). Não é dinheiro. */

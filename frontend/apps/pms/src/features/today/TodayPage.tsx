@@ -6,7 +6,7 @@ import { Button, ErrorState, Notice, PageHeader, Spinner, cn } from '@hotel/ui';
 
 import { useRooms } from '../rooms/index.js';
 import { REFRESH, useArrivals, useHotelToday, useInHouse, useTodayAlerts } from './queries.js';
-import { arrivalRows, departureRows, departuresError, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
+import { arrivalRows, cleaningRows, departureRows, departuresError, inHouseRows, isStale, loadState, soldToday } from './todayLogic.js';
 import { hotelStrip } from './hotelStrip.js';
 import { TodayBlock } from './components/TodayBlock.js';
 import { StaleNotice } from './components/StaleNotice.js';
@@ -48,7 +48,8 @@ export function TodayPage() {
   const arrivalList = useMemo(() => arrivalRows(arrivals.data?.data ?? [], today, noShowIds), [arrivals.data, today, noShowIds]);
   const departureList = useMemo(() => departureRows(inHouse.data?.data ?? [], today), [inHouse.data, today]);
   const inHouseList = useMemo(() => inHouseRows(inHouse.data?.data ?? []), [inHouse.data]);
-  const cleaning = alerts.data?.cleaning ?? [];
+  // Do core, com o "desde" do analytics quando ele responde (resposta 1 do Gabriel, 26/11).
+  const cleaning = useMemo(() => cleaningRows(rooms.data ?? [], alerts.data?.cleaning), [rooms.data, alerts.data]);
 
   // A fita só se monta com as três fontes: sem as chegadas, o quarto reservado aparecia "Livre, pronto
   // para vender" sem aviso nenhum (🟡1 do qa-redteam da F3).
@@ -215,12 +216,12 @@ export function TodayPage() {
           title="Em limpeza"
           icon={Sparkles}
           caption="Quartos que saíram e ainda não voltaram para a venda"
-          count={alerts.data ? cleaning.length : undefined}
-          isLoading={alertsLoad.isLoading}
-          isOffline={alertsLoad.isOffline}
-          error={alerts.data ? null : alerts.error}
-          stale={stale(alerts)}
-          onRetry={() => alerts.refetch()}
+          count={rooms.data ? cleaning.length : undefined}
+          isLoading={roomsLoad.isLoading}
+          isOffline={roomsLoad.isOffline}
+          error={rooms.data ? null : rooms.error}
+          stale={stale(rooms)}
+          onRetry={() => rooms.refetch()}
           isEmpty={cleaning.length === 0}
           empty={{ title: 'Nenhum quarto em limpeza.', description: 'O quarto entra aqui no check-out.' }}
         >
