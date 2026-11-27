@@ -1,0 +1,31 @@
+#!/bin/bash
+# Sobe o k3s no primeiro boot. Log em /var/log/gesway-k3s.log.
+set -euo pipefail
+exec > >(tee -a /var/log/gesway-k3s.log) 2>&1
+
+# Credencial do ECR para o containerd do k3s. O token vale 12 h; a sessão
+# dura ~4 h e o nó é destruído no fim (ciclo efêmero, ADR-004).
+mkdir -p /etc/rancher/k3s
+TOKEN=$(aws ecr get-login-password --region ${region})
+cat > /etc/rancher/k3s/registries.yaml <<YAML
+configs:
+  "${ecr_registry}":
+    auth:
+      username: AWS
+      password: "$${TOKEN}"
+YAML
+chmod 600 /etc/rancher/k3s/registries.yaml
+
+curl -sfL https://get.k3s.io | \
+  INSTALL_K3S_VERSION="${k3s_version}" \
+  INSTALL_K3S_EXEC="server \
+    --disable traefik \
+    --disable metrics-server \
+    --tls-san ${public_ip} \
+    --write-kubeconfig-mode 600 \
+    --kubelet-arg=system-reserved=memory=200Mi \
+    --kubelet-arg=kube-reserved=memory=250Mi \
+    --kubelet-arg=eviction-hard=memory.available<100Mi" \
+  sh -
+
+echo "k3s pronto em ${public_ip}"

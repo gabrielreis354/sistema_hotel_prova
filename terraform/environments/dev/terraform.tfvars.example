@@ -1,0 +1,5 @@
+# Copie para environments/dev/terraform.tfvars (fora do Git) e preencha.
+# Seu IP: curl -s https://checkip.amazonaws.com
+team_cidrs = ["203.0.113.10/32"]
+
+# key_name = "gesway-equipe"   # par de chaves criado no console, em sa-east-1
