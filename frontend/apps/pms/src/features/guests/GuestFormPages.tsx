@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, PageHeader, Spinner } from '@hotel/ui';
 import { GuestForm } from './GuestForm.js';
@@ -6,6 +6,7 @@ import { LoadError } from '../../components/LoadError.js';
 import { GUEST_LOAD } from './guestLoad.js';
 import { useCreateGuest, useGuest, useUpdateGuest } from './queries.js';
 import { ApiError } from '../../lib/http.js';
+import { mutateOnce } from '../../lib/submitLock.js';
 import type { Guest } from './guestsApi.js';
 
 function messageOf(err: unknown): string {
@@ -16,6 +17,9 @@ export function GuestNewPage() {
   const navigate = useNavigate();
   const create = useCreateGuest();
   const [serverError, setServerError] = useState<string | null>(null);
+  // Um envio por vez (SPEC-11 §2, como quartos e categorias): o 2º clique em "Cadastrar" voltava 409 e
+  // dizia "CPF ou e-mail já cadastrado" num cadastro que deu certo (qa-explorador de 26/11).
+  const lock = useRef(false);
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -28,7 +32,7 @@ export function GuestNewPage() {
           onCancel={() => navigate('/hospedes')}
           onSubmit={(input) => {
             setServerError(null);
-            create.mutate(input, {
+            mutateOnce(lock, create.mutate, input, {
               onSuccess: (g: Guest) => navigate(`/hospedes/${g.id}`),
               onError: (e) => setServerError(messageOf(e)),
             });
@@ -46,6 +50,7 @@ export function GuestEditPage() {
   const { data: guest, isLoading, isError } = guestQuery;
   const update = useUpdateGuest(id ?? '');
   const [serverError, setServerError] = useState<string | null>(null);
+  const lock = useRef(false);
 
   if (isLoading) return <Spinner label="Carregando hóspede…" />;
   // Mesmo estado de erro da ficha (repasse do qa-redteam de 16/11): antes um 500 virava "não encontrado".
@@ -74,7 +79,7 @@ export function GuestEditPage() {
           onCancel={() => navigate(`/hospedes/${id}`)}
           onSubmit={(input) => {
             setServerError(null);
-            update.mutate(input, {
+            mutateOnce(lock, update.mutate, input, {
               onSuccess: () => navigate(`/hospedes/${id}`),
               onError: (e) => setServerError(messageOf(e)),
             });

@@ -7,6 +7,7 @@ import { useAccountBill, useCloseAccount } from '../queries.js';
 import { confirmArmed } from '../closeGuard.js';
 import { balanceLine, closedNotice, receiveAt } from '../accountTotals.js';
 import { canReceive, receivePanelId, receivePanelOpen } from '../receive.js';
+import { mutateOnce } from '../../../lib/submitLock.js';
 
 /**
  * Por que a conta não pode ser fechada agora. Mesma regra do backend, para o botão nascer
@@ -89,6 +90,9 @@ export function StaffActions({
   // Total e saldo do mesmo bill, para os dois números baterem (🟢-1).
   const confirmTotal = fresh && !freshError && bill.data?.total ? decimalToCents(bill.data.total) : totalCents;
   const close = useCloseAccount(id);
+  // Um fechamento por vez (SPEC-11 §2): o 2º toque em "Sim, fechar" mandava outro PUT, que voltava 422
+  // e mostrava "Conta CLOSED não pode ser fechada" num fechamento que deu certo (qa-explorador de 26/11).
+  const closeLock = useRef(false);
   const blocked = closeBlockedReason(account, pendingCount);
 
   // A confirmação cai se surgir um bloqueio (item novo na fila) ou se o total mudar com ela aberta:
@@ -171,7 +175,7 @@ export function StaffActions({
               disabled={close.isPending || !fresh}
               onClick={() => {
                 if (!confirmArmed(shownAt.current, performance.now())) return;
-                close.mutate(undefined, {
+                mutateOnce(closeLock, close.mutate, undefined, {
                   onSuccess: (closedBill) =>
                     navigate('/comanda', {
                       replace: true,
